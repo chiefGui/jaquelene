@@ -29,6 +29,7 @@ async function createWindow() {
     },
   });
 
+  window.removeMenu();
   window.once("ready-to-show", () => window.show());
 
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -47,7 +48,6 @@ async function createWindow() {
 
   if (isDevelopment && process.env.VITE_DEV_SERVER_URL) {
     await window.loadURL(process.env.VITE_DEV_SERVER_URL);
-    window.webContents.openDevTools({ mode: "detach" });
   } else {
     await window.loadFile(join(__dirname, "../dist/index.html"));
   }

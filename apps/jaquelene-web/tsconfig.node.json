@@ -19,5 +19,5 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["electron/**/*.ts", "vite.config.ts", "../jaquelene-web/vite.config.ts"]
+  "include": ["vite.config.ts"]
 }

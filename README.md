@@ -6,12 +6,14 @@ A Bun-managed monorepo for Jaquelene applications.
 
 ```text
 apps/
-└── jaquelene-desktop/  Electron + React desktop application
+|-- jaquelene-web/      React web application
+`-- jaquelene-desktop/  Electron host and desktop packager
 ```
 
-The desktop app keeps Electron's privileged main process, its narrow preload
-bridge, and the browser-like React renderer separate. Node integration is
-disabled in the renderer and context isolation and sandboxing are enabled.
+The web app owns the product UI and runs independently in a browser. The desktop
+app loads that web app while keeping Electron's privileged main process separate.
+Node integration is disabled in the renderer, and context isolation and
+sandboxing are enabled.
 
 ## Requirements
 
@@ -24,10 +26,12 @@ workspace scripts.
 ## Commands
 
 ```sh
-bun install        # install all workspace dependencies
-bun run dev        # start Vite+ and Electron with hot reload
-bun run check      # format, lint, and type-check
-bun run build      # type-check and create production bundles
-bun run package    # create an installer for the current platform
+bun install         # install all workspace dependencies
+bun run dev         # start Vite+ and Electron with hot reload
+bun run dev:web     # start only the web app
+bun run check       # verify formatting and lint rules
+bun run build       # type-check and build web plus desktop bundles
+bun run build:web   # build only the web app
+bun run package     # create an installer for the current platform
 bun run package:dir # create an unpacked app for quick inspection
 ```

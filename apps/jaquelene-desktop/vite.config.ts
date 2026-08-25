@@ -1,32 +1,31 @@
-import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
+import { mergeConfig } from "vite";
 import { defineConfig } from "vite-plus";
 import electron from "vite-plugin-electron/simple";
+import webConfig from "../jaquelene-web/vite.config";
 
-const appRoot = fileURLToPath(new URL(".", import.meta.url));
+const desktopRoot = fileURLToPath(new URL(".", import.meta.url));
+const electronOutput = fileURLToPath(new URL("./dist-electron", import.meta.url));
+const mainEntry = fileURLToPath(new URL("./electron/main.ts", import.meta.url));
 
-export default defineConfig({
-  root: appRoot,
-  base: "./",
-  plugins: [
-    react(),
-    tailwindcss(),
-    electron({
-      main: {
-        entry: "electron/main.ts",
-        onstart: async ({ startup }) => {
-          await startup(["."]);
+export default defineConfig(
+  mergeConfig(webConfig, {
+    plugins: [
+      electron({
+        main: {
+          entry: mainEntry,
+          vite: {
+            root: desktopRoot,
+            build: {
+              outDir: electronOutput,
+              emptyOutDir: true,
+            },
+          },
+          onstart: async ({ startup }) => {
+            await startup(["."], { cwd: desktopRoot });
+          },
         },
-      },
-    }),
-  ],
-  server: {
-    port: 5173,
-    strictPort: true,
-  },
-  build: {
-    outDir: "dist",
-    emptyOutDir: true,
-  },
-});
+      }),
+    ],
+  }),
+);

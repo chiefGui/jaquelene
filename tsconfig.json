@@ -5,7 +5,10 @@
       "path": "./apps/jaquelene-desktop/tsconfig.node.json"
     },
     {
-      "path": "./apps/jaquelene-desktop/tsconfig.renderer.json"
+      "path": "./apps/jaquelene-web/tsconfig.node.json"
+    },
+    {
+      "path": "./apps/jaquelene-web/tsconfig.renderer.json"
     }
   ]
 }

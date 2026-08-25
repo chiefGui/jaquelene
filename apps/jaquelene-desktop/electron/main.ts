@@ -49,7 +49,11 @@ async function createWindow() {
   if (isDevelopment && process.env.VITE_DEV_SERVER_URL) {
     await window.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
-    await window.loadFile(join(__dirname, "../dist/index.html"));
+    const webAppPath = app.isPackaged
+      ? join(process.resourcesPath, "web/index.html")
+      : join(__dirname, "../../jaquelene-web/dist/index.html");
+
+    await window.loadFile(webAppPath);
   }
 }
 

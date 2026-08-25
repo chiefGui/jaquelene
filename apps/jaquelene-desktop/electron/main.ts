@@ -1,8 +1,11 @@
 import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
+import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
 import { createLocalState, type LocalState } from "./local-state";
 
-const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
+registerAppScheme();
+
+const developmentServerUrl = app.isPackaged ? undefined : process.env.VITE_DEV_SERVER_URL;
 
 function isSafeExternalUrl(rawUrl: string) {
   try {
@@ -60,18 +63,22 @@ async function createWindow(localState: LocalState) {
     }
   });
 
-  if (isDevelopment && process.env.VITE_DEV_SERVER_URL) {
-    await window.loadURL(process.env.VITE_DEV_SERVER_URL);
+  if (developmentServerUrl) {
+    await window.loadURL(developmentServerUrl);
   } else {
-    const webAppPath = app.isPackaged
-      ? join(process.resourcesPath, "web/index.html")
-      : join(app.getAppPath(), "../jaquelene-web/dist/index.html");
-
-    await window.loadFile(webAppPath);
+    await window.loadURL(appUrl);
   }
 }
 
 app.whenReady().then(async () => {
+  if (!developmentServerUrl) {
+    const webAppDirectory = app.isPackaged
+      ? join(process.resourcesPath, "web")
+      : join(app.getAppPath(), "../jaquelene-web/dist");
+
+    handleAppScheme(webAppDirectory);
+  }
+
   const localState = createLocalState(app.getPath("userData"));
 
   await createWindow(localState);

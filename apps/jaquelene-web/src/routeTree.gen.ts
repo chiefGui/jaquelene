@@ -10,33 +10,52 @@
 
 import { Route as rootRouteImport } from "./routes/__root";
 import { Route as IndexRouteImport } from "./routes/index";
+import { Route as SettingsRouteRouteImport } from "./routes/settings/route";
+import { Route as SettingsGeneralRouteImport } from "./routes/settings/general";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => rootRouteImport,
 } as any);
+const SettingsRouteRoute = SettingsRouteRouteImport.update({
+  id: "/settings",
+  path: "/settings",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
+  id: "/general",
+  path: "/general",
+  getParentRoute: () => SettingsRouteRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
+  "/settings": typeof SettingsRouteRouteWithChildren;
+  "/settings/general": typeof SettingsGeneralRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
+  "/settings": typeof SettingsRouteRouteWithChildren;
+  "/settings/general": typeof SettingsGeneralRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
+  "/settings": typeof SettingsRouteRouteWithChildren;
+  "/settings/general": typeof SettingsGeneralRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/";
+  fullPaths: "/" | "/settings" | "/settings/general";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/";
-  id: "__root__" | "/";
+  to: "/" | "/settings" | "/settings/general";
+  id: "__root__" | "/" | "/settings" | "/settings/general";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  SettingsRouteRoute: typeof SettingsRouteRouteWithChildren;
 }
 
 declare module "@tanstack/react-router" {
@@ -48,11 +67,38 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/settings": {
+      id: "/settings";
+      path: "/settings";
+      fullPath: "/settings";
+      preLoaderRoute: typeof SettingsRouteRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/settings/general": {
+      id: "/settings/general";
+      path: "/general";
+      fullPath: "/settings/general";
+      preLoaderRoute: typeof SettingsGeneralRouteImport;
+      parentRoute: typeof SettingsRouteRoute;
+    };
   }
 }
 
+interface SettingsRouteRouteChildren {
+  SettingsGeneralRoute: typeof SettingsGeneralRoute;
+}
+
+const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsGeneralRoute: SettingsGeneralRoute,
+};
+
+const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
+  SettingsRouteRouteChildren,
+);
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SettingsRouteRoute: SettingsRouteRouteWithChildren,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

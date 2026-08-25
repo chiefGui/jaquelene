@@ -1,6 +1,6 @@
-import { ContentPane } from "./ContentPane";
-import { PrimarySidebar } from "./PrimarySidebar";
-import { StatusBar } from "./StatusBar";
+import { ContentPane } from "./content-pane";
+import { PrimarySidebar } from "./primary-sidebar";
+import { StatusBar } from "./status-bar";
 
 export function AppShell() {
   return (

@@ -1,0 +1,32 @@
+{
+  "name": "jaquelene-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Jaquelene desktop application",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "package": "electron-builder --config electron-builder.yml",
+    "package:dir": "electron-builder --dir --config electron-builder.yml"
+  },
+  "dependencies": {
+    "@ariakit/react": "^0.4.38",
+    "motion": "^13.1.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.3.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.0",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.2",
+    "vite-plugin-electron": "^1.1.1"
+  }
+}

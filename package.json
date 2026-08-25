@@ -1,0 +1,27 @@
+{
+  "name": "jaquelene",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "vp dev",
+    "build": "bun run typecheck && vp build",
+    "check": "vp check",
+    "format": "vp fmt",
+    "lint": "vp lint",
+    "typecheck": "tsc -b --pretty",
+    "package": "bun run build && bun run --cwd apps/jaquelene-desktop package",
+    "package:dir": "bun run build && bun run --cwd apps/jaquelene-desktop package:dir"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite-plus": "^0.3.0"
+  },
+  "packageManager": "bun@1.4.0",
+  "trustedDependencies": [
+    "electron"
+  ]
+}

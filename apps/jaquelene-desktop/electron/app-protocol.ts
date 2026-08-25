@@ -38,17 +38,20 @@ export function handleAppScheme(webAppDirectory: string) {
       return new Response(null, { status: 400 });
     }
 
-    const resourcePath = resolve(
+    const requestedResourcePath = resolve(
       root,
       pathname === "/" ? "index.html" : pathname.replace(/^[/\\]+/, ""),
     );
-    const relativePath = relative(root, resourcePath);
+    const relativePath = relative(root, requestedResourcePath);
     const escapesRoot =
       relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
 
     if (!relativePath || escapesRoot) {
       return new Response(null, { status: 404 });
     }
+
+    const resourcePath =
+      request.destination === "document" ? resolve(root, "index.html") : requestedResourcePath;
 
     return net.fetch(pathToFileURL(resourcePath).toString());
   });

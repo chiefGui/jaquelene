@@ -1,4 +1,5 @@
 import tailwindcss from "@tailwindcss/vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
@@ -33,8 +34,16 @@ const contentSecurityPolicyPlugin = {
 
 export default defineConfig({
   root: appRoot,
-  base: "./",
-  plugins: [contentSecurityPolicyPlugin, react(), tailwindcss()],
+  plugins: [
+    contentSecurityPolicyPlugin,
+    tanstackRouter({
+      target: "react",
+      quoteStyle: "double",
+      semicolons: true,
+    }),
+    react(),
+    tailwindcss(),
+  ],
   server: {
     port: 5173,
     strictPort: true,

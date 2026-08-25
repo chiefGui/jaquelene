@@ -18,7 +18,10 @@ vi.mock("electron", () => ({
 
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
 
-type AppProtocolHandler = (request: { url: string }) => Response | Promise<Response>;
+type AppProtocolHandler = (request: {
+  url: string;
+  destination: string;
+}) => Response | Promise<Response>;
 
 function registeredHandler() {
   const handler = electron.handle.mock.calls.at(-1)?.[1] as AppProtocolHandler | undefined;
@@ -56,8 +59,8 @@ describe("app protocol", () => {
     handleAppScheme(root);
     const handle = registeredHandler();
 
-    await handle({ url: appUrl });
-    await handle({ url: `${appUrl}assets/app.js` });
+    await handle({ url: appUrl, destination: "document" });
+    await handle({ url: `${appUrl}assets/app.js`, destination: "script" });
 
     expect(electron.fetch).toHaveBeenNthCalledWith(
       1,
@@ -69,14 +72,26 @@ describe("app protocol", () => {
     );
   });
 
+  it("serves the web app entry point for application routes", async () => {
+    const root = resolve("web-dist");
+    handleAppScheme(root);
+
+    await registeredHandler()({
+      url: `${appUrl}projects/project-one`,
+      destination: "document",
+    });
+
+    expect(electron.fetch).toHaveBeenCalledWith(pathToFileURL(join(root, "index.html")).toString());
+  });
+
   it.each([
-    ["another host", "app://elsewhere/index.html", 404],
-    ["a path outside the web app", `${appUrl}assets%2F..%2F..%2Fsecret`, 404],
-    ["a malformed path", `${appUrl}%`, 400],
-  ])("rejects %s", async (_name, url, status) => {
+    ["another host", "app://elsewhere/index.html", 404, "document"],
+    ["a path outside the web app", `${appUrl}assets%2F..%2F..%2Fsecret`, 404, "document"],
+    ["a malformed path", `${appUrl}%`, 400, "document"],
+  ])("rejects %s", async (_name, url, status, destination) => {
     handleAppScheme(resolve("web-dist"));
 
-    const response = await registeredHandler()({ url });
+    const response = await registeredHandler()({ url, destination });
 
     expect(response.status).toBe(status);
     expect(electron.fetch).not.toHaveBeenCalled();

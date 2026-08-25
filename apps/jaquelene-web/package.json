@@ -11,12 +11,14 @@
   },
   "dependencies": {
     "@ariakit/react": "^0.4.38",
+    "@tanstack/react-router": "^1.170.32",
     "motion": "^13.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/router-plugin": "^1.168.35",
     "@types/node": "^26.3.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",

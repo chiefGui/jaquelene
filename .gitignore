@@ -1,6 +1,7 @@
 node_modules/
 .vite/
 .vite-plus/
+.tanstack/
 dist/
 dist-electron/
 release/

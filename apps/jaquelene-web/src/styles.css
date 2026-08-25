@@ -1,15 +1,29 @@
 @import "tailwindcss";
+@import "@jaquelene/ui/theme.css";
+@source "../../../packages/ui/src";
 
 @layer base {
-  a {
+  :where(*, *::before, *::after) {
     cursor: default;
   }
-}
 
-@theme {
-  --color-canvas: #08090a;
-  --color-surface: #0f1012;
-  --color-border: #25262b;
-  --color-foreground: #f4f4f5;
-  --color-muted: #8b8d93;
+  :where(
+    input:not([type]),
+    input[type="email" i],
+    input[type="number" i],
+    input[type="password" i],
+    input[type="search" i],
+    input[type="tel" i],
+    input[type="text" i],
+    input[type="url" i],
+    textarea,
+    [contenteditable=""],
+    [contenteditable=""] *,
+    [contenteditable="true" i],
+    [contenteditable="true" i] *,
+    [contenteditable="plaintext-only" i],
+    [contenteditable="plaintext-only" i] *
+  ) {
+    cursor: text;
+  }
 }

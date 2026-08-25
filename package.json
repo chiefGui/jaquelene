@@ -6,11 +6,13 @@
     "apps/*",
     "packages/*"
   ],
+  "type": "module",
   "scripts": {
     "dev": "vp dev",
     "dev:web": "bun run --cwd apps/jaquelene-web dev",
     "build": "bun run typecheck && vp build",
     "build:web": "bun run --cwd apps/jaquelene-web build",
+    "test": "vp test",
     "check": "vp check",
     "format": "vp fmt",
     "lint": "vp lint",

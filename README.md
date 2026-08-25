@@ -13,7 +13,8 @@ apps/
 The web app owns the product UI and runs independently in a browser. The desktop
 app loads that web app while keeping Electron's privileged main process separate.
 Node integration is disabled in the renderer, and context isolation and
-sandboxing are enabled.
+sandboxing are enabled. Automatic device-local state is owned and persisted by
+the desktop main process; the web app has no access to its storage mechanism.
 
 ## Requirements
 
@@ -30,6 +31,7 @@ bun install         # install all workspace dependencies
 bun run dev         # start Vite+ and Electron with hot reload
 bun run dev:web     # start only the web app
 bun run check       # verify formatting and lint rules
+bun run test        # run contract tests
 bun run build       # type-check and build web plus desktop bundles
 bun run build:web   # build only the web app
 bun run package     # create an installer for the current platform

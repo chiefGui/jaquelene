@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "The Jaquelene web application",
+  "type": "module",
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",

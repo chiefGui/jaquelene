@@ -1,5 +1,6 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
+import { createLocalState, type LocalState } from "./local-state";
 
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 
@@ -12,10 +13,13 @@ function isSafeExternalUrl(rawUrl: string) {
   }
 }
 
-async function createWindow() {
+async function createWindow(localState: LocalState) {
+  const mainWindowState = localState.loadMainWindowState(
+    screen.getAllDisplays().map(({ workArea }) => workArea),
+  );
+
   const window = new BrowserWindow({
-    width: 1180,
-    height: 780,
+    ...(mainWindowState?.bounds ?? { width: 1180, height: 780 }),
     minWidth: 860,
     minHeight: 620,
     backgroundColor: "#ffffff",
@@ -29,6 +33,16 @@ async function createWindow() {
     },
   });
 
+  if (mainWindowState?.maximized) {
+    window.maximize();
+  }
+
+  window.on("close", () => {
+    localState.saveMainWindowState({
+      bounds: window.getNormalBounds(),
+      maximized: window.isMaximized(),
+    });
+  });
   window.removeMenu();
   window.once("ready-to-show", () => window.show());
 
@@ -51,18 +65,20 @@ async function createWindow() {
   } else {
     const webAppPath = app.isPackaged
       ? join(process.resourcesPath, "web/index.html")
-      : join(__dirname, "../../jaquelene-web/dist/index.html");
+      : join(app.getAppPath(), "../jaquelene-web/dist/index.html");
 
     await window.loadFile(webAppPath);
   }
 }
 
 app.whenReady().then(async () => {
-  await createWindow();
+  const localState = createLocalState(app.getPath("userData"));
+
+  await createWindow(localState);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      void createWindow();
+      void createWindow(localState);
     }
   });
 });

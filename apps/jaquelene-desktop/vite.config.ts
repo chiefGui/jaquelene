@@ -19,6 +19,9 @@ export default defineConfig(
             build: {
               outDir: electronOutput,
               emptyOutDir: true,
+              rolldownOptions: {
+                external: ["electron-store"],
+              },
             },
           },
           onstart: async ({ startup }) => {

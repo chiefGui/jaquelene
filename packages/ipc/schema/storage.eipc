@@ -1,0 +1,17 @@
+module jaquelene
+
+subtype ByteCount = number(
+  minValue: 0
+  maxValue: 9007199254740991
+)
+
+structure StorageUsage {
+  totalBytes: ByteCount
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Storage {
+  measureUsage() -> StorageUsage
+}

@@ -3,8 +3,10 @@ import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
 import { closeDatabase, openDatabase } from "./database";
 import { createLocalState, type LocalState } from "./local-state";
-import { exposeScenarios } from "./scenario/ipc";
-import { createScenarios, type Scenarios } from "./scenario/scenarios";
+import { exposeScenarios } from "./feature/scenario/ipc";
+import { createScenarios, type Scenarios } from "./feature/scenario/scenarios";
+import { exposeStorage } from "./storage/ipc";
+import { createStorage, type AppStorage } from "./storage/storage";
 
 registerAppScheme();
 
@@ -25,7 +27,7 @@ function quitAfterFatalError(error: unknown) {
   app.quit();
 }
 
-async function createWindow(localState: LocalState, scenarios: Scenarios) {
+async function createWindow(localState: LocalState, scenarios: Scenarios, storage: AppStorage) {
   const mainWindowState = localState.loadMainWindowState(
     screen.getAllDisplays().map(({ workArea }) => workArea),
   );
@@ -47,6 +49,7 @@ async function createWindow(localState: LocalState, scenarios: Scenarios) {
   });
 
   exposeScenarios(window.webContents.mainFrame, scenarios);
+  exposeStorage(window.webContents.mainFrame, storage);
 
   if (mainWindowState?.maximized) {
     window.maximize();
@@ -93,17 +96,19 @@ void app
       handleAppScheme(webAppDirectory);
     }
 
-    const localState = createLocalState(app.getPath("userData"));
-    const database = openDatabase(join(app.getPath("userData"), "jaquelene.sqlite"));
+    const userDataDirectory = app.getPath("userData");
+    const localState = createLocalState(userDataDirectory);
+    const database = openDatabase(join(userDataDirectory, "jaquelene.sqlite"));
     const scenarios = createScenarios(database);
+    const storage = createStorage(userDataDirectory);
 
     app.once("will-quit", () => closeDatabase(database));
 
-    await createWindow(localState, scenarios);
+    await createWindow(localState, scenarios, storage);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        void createWindow(localState, scenarios).catch(quitAfterFatalError);
+        void createWindow(localState, scenarios, storage).catch(quitAfterFatalError);
       }
     });
   })

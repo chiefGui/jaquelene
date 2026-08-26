@@ -8,7 +8,7 @@
   ],
   "type": "module",
   "scripts": {
-    "build:ipc": "bun run --cwd packages/ipc build:production",
+    "build:ipc": "bun run --cwd packages/ipc build",
     "build:ipc:development": "bun run --cwd packages/ipc build:development",
     "db:generate": "bun run --cwd apps/jaquelene-desktop db:generate",
     "dev": "bun run build:ipc:development && vp dev",
@@ -16,7 +16,7 @@
     "build": "bun run typecheck && vp build",
     "build:web": "bun run --cwd apps/jaquelene-web build",
     "test": "bun run build:ipc && vp test",
-    "check": "bun run build:ipc && vp check",
+    "check": "vp check",
     "format": "vp fmt",
     "lint": "vp lint",
     "typecheck": "bun run build:ipc && tsc -b --pretty",

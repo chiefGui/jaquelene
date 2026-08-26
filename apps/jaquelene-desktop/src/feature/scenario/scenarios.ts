@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import type { Database } from "../database";
+import type { Database } from "../../database";
 import { scenarioTable } from "./schema";
 
 function requireScenarioTitle(value: string) {

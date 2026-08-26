@@ -7,6 +7,19 @@ import { defineConfig } from "vite-plus";
 
 const appRoot = fileURLToPath(new URL(".", import.meta.url));
 
+const ipcTestConditionPlugin = {
+  name: "jaquelene-ipc-test-condition",
+  config: (_config, { mode }) =>
+    mode === "test"
+      ? {
+          resolve: { conditions: ["module", "browser", "jaquelene-test", "development"] },
+          ssr: {
+            resolve: { conditions: ["module", "node", "jaquelene-test", "development"] },
+          },
+        }
+      : undefined,
+} satisfies Plugin;
+
 const contentSecurityPolicyPlugin = {
   name: "jaquelene-content-security-policy",
   transformIndexHtml: {
@@ -35,6 +48,7 @@ const contentSecurityPolicyPlugin = {
 export default defineConfig({
   root: appRoot,
   plugins: [
+    ipcTestConditionPlugin,
     contentSecurityPolicyPlugin,
     tanstackRouter({
       target: "react",

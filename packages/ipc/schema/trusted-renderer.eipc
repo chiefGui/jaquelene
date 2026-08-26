@@ -1,16 +1,16 @@
 module jaquelene
 
-validator TrustedRenderer = {
-  production: AND(
+validator TrustedRenderer = OR(
+  AND(
     is_packaged is true
     is_main_frame is true
     protocol is "app:"
     hostname is "bundle"
   )
-  development: AND(
+  AND(
     is_packaged is false
     is_main_frame is true
     protocol is "http:"
     hostname is "localhost"
   )
-}
+)

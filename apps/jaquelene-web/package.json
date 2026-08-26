@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --cwd ../../packages/ipc build:development && vp dev",
-    "build": "bun run --cwd ../../packages/ipc build:production && vp build",
+    "build": "bun run --cwd ../../packages/ipc build && vp build",
     "preview": "vp preview"
   },
   "dependencies": {

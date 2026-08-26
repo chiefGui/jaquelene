@@ -5,23 +5,25 @@
   "type": "module",
   "exports": {
     "./main": {
-      "types": "./dist/browser/jaquelene.d.ts",
-      "default": "./dist/browser/jaquelene.js"
+      "types": "./dist/types/browser/jaquelene.d.ts",
+      "development": "./dist/development/browser/jaquelene.js",
+      "default": "./dist/production/browser/jaquelene.js"
     },
     "./preload": {
-      "types": "./dist/preload/jaquelene.d.ts",
-      "default": "./dist/preload/jaquelene.js"
+      "types": "./dist/types/preload/jaquelene.d.ts",
+      "development": "./dist/development/preload/jaquelene.js",
+      "default": "./dist/production/preload/jaquelene.js"
     },
     "./renderer": {
-      "types": "./dist/renderer/jaquelene.d.ts",
-      "default": "./dist/renderer/jaquelene.js"
+      "types": "./dist/types/renderer/jaquelene.d.ts",
+      "jaquelene-test": "./dist/production/renderer/jaquelene.js",
+      "development": "./dist/development/renderer/jaquelene.js",
+      "default": "./dist/production/renderer/jaquelene.js"
     }
   },
   "scripts": {
-    "generate": "generate-ipc schema generated",
-    "build": "bun run generate && tsc -b --clean && tsc -b",
-    "build:development": "EIPC_ENV=development bun run build",
-    "build:production": "EIPC_ENV=production bun run build"
+    "build": "generate-ipc schema generated/production && tsc -b",
+    "build:development": "generate-ipc schema generated/development && tsc -b tsconfig.development.json"
   },
   "devDependencies": {
     "@marshallofsound/ipc": "^2.7.1",

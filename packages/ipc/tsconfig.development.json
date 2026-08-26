@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/development",
+    "rootDir": "./generated/development",
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.development.tsbuildinfo"
+  },
+  "include": ["generated/development/**/*.ts"]
+}

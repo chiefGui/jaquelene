@@ -1,17 +1,12 @@
 import { Scenarios, type Scenario } from "@jaquelene/ipc/renderer";
+import { requireIpcMethod } from "../../ipc";
 
 export type { Scenario };
 
-if (!Scenarios?.create || !Scenarios.list || !Scenarios.get || !Scenarios.rename) {
-  throw new Error("The Jaquelene application IPC is unavailable.");
-}
-
-const {
-  create: createScenario,
-  get: getScenario,
-  list: listScenarios,
-  rename: renameScenario,
-} = Scenarios;
+const createScenario = requireIpcMethod(Scenarios?.create);
+const getScenario = requireIpcMethod(Scenarios?.get);
+const listScenarios = requireIpcMethod(Scenarios?.list);
+const renameScenario = requireIpcMethod(Scenarios?.rename);
 
 function normalizeScenarioTitle(value: string) {
   const title = value.trim();

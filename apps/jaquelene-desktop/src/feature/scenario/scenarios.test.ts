@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { closeDatabase, openDatabase, type Database } from "../database";
+import { closeDatabase, openDatabase, type Database } from "../../database";
 import { createScenarios } from "./scenarios";
 
 const directories: string[] = [];

@@ -1,4 +1,5 @@
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
+import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
 import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -27,6 +28,11 @@ const settingsSidebar = {
       icon: Settings01Icon,
       label: "General",
       to: "/settings/general",
+    },
+    {
+      icon: HardDriveIcon,
+      label: "Storage",
+      to: "/settings/storage",
     },
   ],
   action: {

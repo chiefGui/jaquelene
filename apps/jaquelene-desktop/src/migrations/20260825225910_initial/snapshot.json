@@ -1,0 +1,40 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "af032b12-3194-4ef6-b284-ad528651f6f4",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "ddl": [
+    {
+      "name": "scenarios",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "scenarios"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "title",
+      "entityType": "columns",
+      "table": "scenarios"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "scenarios_pk",
+      "table": "scenarios",
+      "entityType": "pks"
+    }
+  ],
+  "renames": []
+}

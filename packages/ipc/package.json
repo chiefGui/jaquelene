@@ -1,0 +1,35 @@
+{
+  "name": "@jaquelene/ipc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./main": {
+      "types": "./dist/browser/jaquelene.d.ts",
+      "default": "./dist/browser/jaquelene.js"
+    },
+    "./preload": {
+      "types": "./dist/preload/jaquelene.d.ts",
+      "default": "./dist/preload/jaquelene.js"
+    },
+    "./renderer": {
+      "types": "./dist/renderer/jaquelene.d.ts",
+      "default": "./dist/renderer/jaquelene.js"
+    }
+  },
+  "scripts": {
+    "generate": "generate-ipc schema generated",
+    "build": "bun run generate && tsc -b --clean && tsc -b",
+    "build:development": "EIPC_ENV=development bun run build",
+    "build:production": "EIPC_ENV=production bun run build"
+  },
+  "devDependencies": {
+    "@marshallofsound/ipc": "^2.7.1",
+    "@types/node": "^26.3.0",
+    "electron": "^44.0.0",
+    "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "electron": ">=44.0.0"
+  }
+}

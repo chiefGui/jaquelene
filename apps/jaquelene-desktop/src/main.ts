@@ -1,11 +1,15 @@
 import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
+import { closeDatabase, openDatabase } from "./database";
 import { createLocalState, type LocalState } from "./local-state";
+import { exposeScenarios } from "./scenario/ipc";
+import { createScenarios, type Scenarios } from "./scenario/scenarios";
 
 registerAppScheme();
 
 const developmentServerUrl = app.isPackaged ? undefined : process.env.VITE_DEV_SERVER_URL;
+const preloadPath = join(import.meta.dirname, "preload.cjs");
 
 function isSafeExternalUrl(rawUrl: string) {
   try {
@@ -16,7 +20,12 @@ function isSafeExternalUrl(rawUrl: string) {
   }
 }
 
-async function createWindow(localState: LocalState) {
+function quitAfterFatalError(error: unknown) {
+  console.error("Jaquelene encountered a fatal error.", error);
+  app.quit();
+}
+
+async function createWindow(localState: LocalState, scenarios: Scenarios) {
   const mainWindowState = localState.loadMainWindowState(
     screen.getAllDisplays().map(({ workArea }) => workArea),
   );
@@ -31,10 +40,13 @@ async function createWindow(localState: LocalState) {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: preloadPath,
       sandbox: true,
       webSecurity: true,
     },
   });
+
+  exposeScenarios(window.webContents.mainFrame, scenarios);
 
   if (mainWindowState?.maximized) {
     window.maximize();
@@ -70,25 +82,32 @@ async function createWindow(localState: LocalState) {
   }
 }
 
-app.whenReady().then(async () => {
-  if (!developmentServerUrl) {
-    const webAppDirectory = app.isPackaged
-      ? join(process.resourcesPath, "web")
-      : join(app.getAppPath(), "../jaquelene-web/dist");
+void app
+  .whenReady()
+  .then(async () => {
+    if (!developmentServerUrl) {
+      const webAppDirectory = app.isPackaged
+        ? join(process.resourcesPath, "web")
+        : join(app.getAppPath(), "../jaquelene-web/dist");
 
-    handleAppScheme(webAppDirectory);
-  }
-
-  const localState = createLocalState(app.getPath("userData"));
-
-  await createWindow(localState);
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      void createWindow(localState);
+      handleAppScheme(webAppDirectory);
     }
-  });
-});
+
+    const localState = createLocalState(app.getPath("userData"));
+    const database = openDatabase(join(app.getPath("userData"), "jaquelene.sqlite"));
+    const scenarios = createScenarios(database);
+
+    app.once("will-quit", () => closeDatabase(database));
+
+    await createWindow(localState, scenarios);
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        void createWindow(localState, scenarios).catch(quitAfterFatalError);
+      }
+    });
+  })
+  .catch(quitAfterFatalError);
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

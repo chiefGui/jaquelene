@@ -1,0 +1,1 @@
+import "@jaquelene/ipc/preload";

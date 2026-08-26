@@ -5,14 +5,15 @@
   "description": "The Jaquelene web application",
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
-    "build": "vp build",
+    "dev": "bun run --cwd ../../packages/ipc build:development && vp dev",
+    "build": "bun run --cwd ../../packages/ipc build:production && vp build",
     "preview": "vp preview"
   },
   "dependencies": {
     "@ariakit/react": "^0.4.38",
     "@hugeicons/core-free-icons": "^4.3.0",
     "@hugeicons/react": "^1.1.10",
+    "@jaquelene/ipc": "workspace:*",
     "@jaquelene/ui": "workspace:*",
     "@tanstack/react-router": "^1.170.32",
     "motion": "^13.1.1",

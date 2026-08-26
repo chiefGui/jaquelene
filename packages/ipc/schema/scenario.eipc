@@ -1,0 +1,16 @@
+module jaquelene
+
+structure Scenario {
+  id: string
+  title: string
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Scenarios {
+  create(title: string) -> Scenario
+  list() -> Scenario[]
+  get(id: string) -> Scenario?
+  rename(id: string, title: string) -> Scenario?
+}

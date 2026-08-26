@@ -6,6 +6,7 @@ dist/
 dist-electron/
 release/
 coverage/
+generated/
 *.tsbuildinfo
 *.log
 .DS_Store

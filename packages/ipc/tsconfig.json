@@ -1,28 +1,24 @@
 {
   "compilerOptions": {
     "composite": true,
-    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.node.tsbuildinfo",
+    "declaration": true,
+    "outDir": "./dist",
+    "rootDir": "./generated",
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo",
     "target": "ES2024",
-    "lib": ["ES2024"],
+    "lib": ["ES2024", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "moduleDetection": "force",
     "types": ["node"],
-    "allowJs": false,
-    "noEmit": true,
     "strict": true,
     "exactOptionalPropertyTypes": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "skipLibCheck": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": false
   },
-  "include": [
-    "src/**/*.ts",
-    "drizzle.config.ts",
-    "vite.config.ts",
-    "../jaquelene-web/vite.config.ts"
-  ]
+  "include": ["generated/**/*.ts"]
 }

@@ -68,10 +68,10 @@ function ScenarioRoute() {
           <Breadcrumb.List className="flex min-w-0 items-center gap-2">
             <Breadcrumb.Item>
               <Breadcrumb.Link
-                render={<Link to="/" />}
+                render={<Link to="/scenarios" />}
                 className="text-muted transition-colors hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-muted"
               >
-                Home
+                Scenarios
               </Breadcrumb.Link>
             </Breadcrumb.Item>
             <Breadcrumb.Separator className="text-muted" />

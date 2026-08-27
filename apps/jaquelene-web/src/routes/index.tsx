@@ -1,3 +1,4 @@
+import { Button } from "@jaquelene/ui";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
 import { ContentPane } from "../layout/content-pane";
@@ -88,13 +89,9 @@ function ScenariosRoute() {
                   className="h-9 min-w-0 flex-1 rounded-md border border-border bg-canvas px-3 text-sm outline-none placeholder:text-muted focus:border-muted"
                   placeholder="Scenario title"
                 />
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="h-9 shrink-0 rounded-md bg-foreground px-3 text-sm font-medium text-canvas transition-opacity disabled:opacity-50"
-                >
+                <Button type="submit" disabled={creating}>
                   {creating ? "Creating…" : "Create scenario"}
-                </button>
+                </Button>
               </div>
               {error ? (
                 <p id="create-scenario-error" role="alert" className="mt-2 text-sm text-danger">

@@ -1,3 +1,4 @@
+import { Button } from "@jaquelene/ui";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
 import { ContentPane } from "../../layout/content-pane";
@@ -107,13 +108,9 @@ function ScenarioRoute() {
                     aria-describedby={error ? "rename-scenario-error" : undefined}
                     className="h-9 min-w-0 flex-1 rounded-md border border-border bg-canvas px-3 text-sm outline-none focus:border-muted"
                   />
-                  <button
-                    type="submit"
-                    disabled={renaming}
-                    className="h-9 shrink-0 rounded-md bg-foreground px-3 text-sm font-medium text-canvas transition-opacity disabled:opacity-50"
-                  >
+                  <Button type="submit" disabled={renaming}>
                     {renaming ? "Saving…" : "Save"}
-                  </button>
+                  </Button>
                 </div>
                 {error ? (
                   <p id="rename-scenario-error" role="alert" className="mt-2 text-sm text-danger">

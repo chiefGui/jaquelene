@@ -1,0 +1,22 @@
+module jaquelene
+
+enum OpenRouterConnectionState {
+  Disconnected = "disconnected"
+  Connected = "connected"
+  Rejected = "rejected"
+  Unavailable = "unavailable"
+}
+
+structure OpenRouterConnectionStatus {
+  state: OpenRouterConnectionState
+  keyLabel?: string
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface OpenRouterConnection {
+  getStatus() -> OpenRouterConnectionStatus
+  connect(apiKey: string) -> OpenRouterConnectionStatus
+  disconnect() -> OpenRouterConnectionStatus
+}

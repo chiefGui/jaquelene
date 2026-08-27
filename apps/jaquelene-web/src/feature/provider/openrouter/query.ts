@@ -1,37 +1,44 @@
-import { OpenRouterConfiguration } from "@jaquelene/ipc/renderer";
+import { OpenRouterConnection, OpenRouterConnectionState } from "@jaquelene/ipc/renderer";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 
-const getOpenRouterStatus = requireIpcMethod(OpenRouterConfiguration?.getStatus);
-const configureOpenRouter = requireIpcMethod(OpenRouterConfiguration?.configure);
-const clearOpenRouter = requireIpcMethod(OpenRouterConfiguration?.clear);
+const getOpenRouterStatus = requireIpcMethod(OpenRouterConnection?.getStatus);
+const connectOpenRouter = requireIpcMethod(OpenRouterConnection?.connect);
+const disconnectOpenRouter = requireIpcMethod(OpenRouterConnection?.disconnect);
 
-export const openRouterStatusQuery = queryOptions({
+export const openRouterConnectionQuery = queryOptions({
   ...ipcQueryOptions,
+  staleTime: 60_000,
   queryKey: ["openrouter", "status"],
   queryFn: getOpenRouterStatus,
 });
 
-export function useConfigureOpenRouter() {
+export function useConnectOpenRouter() {
   const queryClient = useQueryClient();
 
   return useMutation({
     ...ipcMutationOptions,
-    mutationFn: configureOpenRouter,
+    mutationFn: connectOpenRouter,
+    onMutate: () =>
+      queryClient.cancelQueries({ queryKey: openRouterConnectionQuery.queryKey, exact: true }),
     onSuccess(status) {
-      queryClient.setQueryData(openRouterStatusQuery.queryKey, status);
+      if (status.state === OpenRouterConnectionState.Connected) {
+        queryClient.setQueryData(openRouterConnectionQuery.queryKey, status);
+      }
     },
   });
 }
 
-export function useClearOpenRouter() {
+export function useDisconnectOpenRouter() {
   const queryClient = useQueryClient();
 
   return useMutation({
     ...ipcMutationOptions,
-    mutationFn: clearOpenRouter,
+    mutationFn: disconnectOpenRouter,
+    onMutate: () =>
+      queryClient.cancelQueries({ queryKey: openRouterConnectionQuery.queryKey, exact: true }),
     onSuccess(status) {
-      queryClient.setQueryData(openRouterStatusQuery.queryKey, status);
+      queryClient.setQueryData(openRouterConnectionQuery.queryKey, status);
     },
   });
 }

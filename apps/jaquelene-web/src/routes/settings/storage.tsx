@@ -1,10 +1,9 @@
 import { Storage } from "@jaquelene/ipc/renderer";
-import { formatBytes } from "@jaquelene/ui";
+import { Item, formatBytes } from "@jaquelene/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { requireIpcMethod } from "@/ipc";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
-import { Item } from "@/primitive/item";
 
 const measureStorageUsage = requireIpcMethod(Storage?.measureUsage);
 
@@ -35,12 +34,12 @@ function StorageRoute() {
           <Item.Group>
             <Item.Root>
               <Item.Content>
-                <Item.Title>Local data</Item.Title>
+                <Item.Label>Local data</Item.Label>
                 <Item.Description>
                   Scenarios, preferences, and supporting app data.
                 </Item.Description>
               </Item.Content>
-              <Item.Meta>{formatBytes(totalBytes)}</Item.Meta>
+              <Item.Value>{formatBytes(totalBytes)}</Item.Value>
             </Item.Root>
           </Item.Group>
         </div>

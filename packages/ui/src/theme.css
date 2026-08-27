@@ -1,8 +1,10 @@
 @theme {
-  --color-canvas: #08090a;
-  --color-surface: #0f1012;
-  --color-border: #1c1d20;
-  --color-foreground: #f4f4f5;
-  --color-muted: #8b8d93;
-  --color-danger: #f87171;
+  --color-canvas: oklch(0.13895 0.00295 246.256);
+  --color-surface: oklch(0.1728 0.00445 264.452);
+  --color-border: oklch(0.23094 0.00595 271.153);
+  --color-foreground: oklch(0.96743 0.00133 286.375);
+  --color-muted: oklch(0.64365 0.00919 271.272);
+  --color-success: oklch(0.765 0.177 163.223);
+  --color-danger: oklch(0.71063 0.16615 22.216);
+  --spacing-control: 2rem;
 }

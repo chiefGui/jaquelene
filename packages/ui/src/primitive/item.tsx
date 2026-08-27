@@ -1,12 +1,12 @@
-import { cn } from "@jaquelene/ui";
 import { Role, type RoleProps } from "@ariakit/react/role";
+import { cn } from "../util/cn";
 
 function ItemGroup({ className, ...props }: RoleProps<"div">) {
   return (
     <Role.div
       {...props}
       className={cn(
-        "divide-y divide-border overflow-hidden rounded-lg border border-border",
+        "divide-y divide-border overflow-hidden rounded-xl border border-border bg-foreground/2",
         className,
       )}
     />
@@ -17,7 +17,7 @@ function ItemRoot({ className, ...props }: RoleProps<"div">) {
   return (
     <Role.div
       {...props}
-      className={cn("flex items-center justify-between gap-6 px-4 py-4", className)}
+      className={cn("flex min-h-14 items-center justify-between gap-8 p-4", className)}
     />
   );
 }
@@ -26,17 +26,20 @@ function ItemContent({ className, ...props }: RoleProps<"div">) {
   return <Role.div {...props} className={cn("min-w-0", className)} />;
 }
 
-function ItemTitle({ className, ...props }: RoleProps<"div">) {
-  return <Role.div {...props} className={cn("text-sm font-medium", className)} />;
+function ItemLabel({ className, ...props }: RoleProps<"div">) {
+  return <Role.div {...props} className={cn("text-sm font-medium text-foreground", className)} />;
 }
 
 function ItemDescription({ className, ...props }: RoleProps<"div">) {
-  return <Role.div {...props} className={cn("mt-0.5 text-sm text-muted", className)} />;
+  return <Role.div {...props} className={cn("mt-0.5 text-sm leading-5 text-muted", className)} />;
 }
 
-function ItemMeta({ className, ...props }: RoleProps<"div">) {
+function ItemValue({ className, ...props }: RoleProps<"div">) {
   return (
-    <Role.div {...props} className={cn("shrink-0 text-lg font-semibold tabular-nums", className)} />
+    <Role.div
+      {...props}
+      className={cn("shrink-0 text-sm text-foreground/75 tabular-nums", className)}
+    />
   );
 }
 
@@ -44,7 +47,7 @@ export const Item = {
   Group: ItemGroup,
   Root: ItemRoot,
   Content: ItemContent,
-  Title: ItemTitle,
+  Label: ItemLabel,
   Description: ItemDescription,
-  Meta: ItemMeta,
+  Value: ItemValue,
 } as const;

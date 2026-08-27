@@ -5,11 +5,12 @@ import { closeDatabase, getDatabaseStoragePaths, openDatabase } from "./database
 import { createCampaigns, type Campaigns } from "./feature/campaign/campaigns";
 import { exposeCampaigns } from "./feature/campaign/ipc";
 import {
-  createOpenRouterConfiguration,
-  getOpenRouterConfigurationStoragePaths,
-  type OpenRouterConfiguration,
-} from "./feature/provider/openrouter/configuration";
-import { exposeOpenRouterConfiguration } from "./feature/provider/openrouter/ipc";
+  createOpenRouterConnection,
+  getOpenRouterConnectionStoragePaths,
+  type OpenRouterConnection,
+} from "./feature/provider/openrouter/connection";
+import { exposeOpenRouterConnection } from "./feature/provider/openrouter/ipc";
+import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verification";
 import { exposeScenarios } from "./feature/scenario/ipc";
 import { createScenarios, type Scenarios } from "./feature/scenario/scenarios";
 import { createLocalState, getLocalStateStoragePaths, type LocalState } from "./local-state";
@@ -39,7 +40,7 @@ async function createWindow(
   localState: LocalState,
   scenarios: Scenarios,
   campaigns: Campaigns,
-  openRouterConfiguration: OpenRouterConfiguration,
+  openRouterConnection: OpenRouterConnection,
   storage: AppStorage,
 ) {
   const mainWindowState = localState.loadMainWindowState(
@@ -50,7 +51,7 @@ async function createWindow(
     ...(mainWindowState?.bounds ?? { width: 1180, height: 780 }),
     minWidth: 860,
     minHeight: 620,
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgb(8, 9, 10)",
     show: false,
     title: "Jaquelene",
     webPreferences: {
@@ -64,7 +65,7 @@ async function createWindow(
 
   exposeScenarios(window.webContents.mainFrame, scenarios);
   exposeCampaigns(window.webContents.mainFrame, campaigns);
-  exposeOpenRouterConfiguration(window.webContents.mainFrame, openRouterConfiguration);
+  exposeOpenRouterConnection(window.webContents.mainFrame, openRouterConnection);
   exposeStorage(window.webContents.mainFrame, storage);
 
   if (mainWindowState?.maximized) {
@@ -101,6 +102,12 @@ async function createWindow(
   }
 }
 
+async function requireSecureStorage() {
+  if (!(await safeStorage.isAsyncEncryptionAvailable())) {
+    throw new Error("Secure credential storage is unavailable.");
+  }
+}
+
 void app
   .whenReady()
   .then(async () => {
@@ -118,29 +125,31 @@ void app
     const database = openDatabase(databasePath);
     const scenarios = createScenarios(database);
     const campaigns = createCampaigns(database);
-    const openRouterConfiguration = createOpenRouterConfiguration(
-      userDataDirectory,
-      async (apiKey) => {
-        if (!(await safeStorage.isAsyncEncryptionAvailable())) {
-          throw new Error("Secure credential storage is unavailable.");
-        }
-
+    const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
+      async encrypt(apiKey) {
+        await requireSecureStorage();
         return safeStorage.encryptStringAsync(apiKey);
       },
-    );
+      async decrypt(encryptedApiKey) {
+        await requireSecureStorage();
+        const { result } = await safeStorage.decryptStringAsync(encryptedApiKey);
+        return result;
+      },
+      verify: verifyOpenRouterApiKey,
+    });
     const storage = createStorage([
       ...getDatabaseStoragePaths(databasePath),
       ...getLocalStateStoragePaths(userDataDirectory),
-      ...getOpenRouterConfigurationStoragePaths(userDataDirectory),
+      ...getOpenRouterConnectionStoragePaths(userDataDirectory),
     ]);
 
     app.once("will-quit", () => closeDatabase(database));
 
-    await createWindow(localState, scenarios, campaigns, openRouterConfiguration, storage);
+    await createWindow(localState, scenarios, campaigns, openRouterConnection, storage);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        void createWindow(localState, scenarios, campaigns, openRouterConfiguration, storage).catch(
+        void createWindow(localState, scenarios, campaigns, openRouterConnection, storage).catch(
           quitAfterFatalError,
         );
       }

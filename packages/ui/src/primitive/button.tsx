@@ -6,10 +6,10 @@ import { tv, type VariantProps } from "tailwind-variants/lite";
 import { cn } from "../util/cn";
 
 const buttonClassName = tv({
-  base: "inline-flex h-8 shrink-0 items-center justify-center rounded-md px-3 text-sm font-medium outline-none aria-disabled:opacity-50 data-focus-visible:outline-1 data-focus-visible:outline-offset-2 data-focus-visible:outline-muted disabled:opacity-50",
+  base: "inline-flex h-control shrink-0 items-center justify-center rounded-md px-3 text-sm font-medium outline-none aria-disabled:opacity-50 data-focus-visible:outline-1 data-focus-visible:outline-offset-2 data-focus-visible:outline-muted disabled:opacity-50",
   variants: {
     variant: {
-      solid: "bg-foreground text-canvas not-disabled:hover:bg-foreground/90",
+      solid: "bg-foreground/90 text-canvas not-disabled:hover:bg-foreground",
       ghost: "not-disabled:hover:bg-border",
     },
   },

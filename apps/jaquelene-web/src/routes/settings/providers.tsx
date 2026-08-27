@@ -1,30 +1,72 @@
-import { Button, Input } from "@jaquelene/ui";
+import { OpenRouterConnectionState } from "@jaquelene/ipc/renderer";
+import { Button, Input, Item, Ping } from "@jaquelene/ui";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, type MouseEvent, type SubmitEvent } from "react";
+import { useState, type SubmitEvent } from "react";
+import { OpenRouterIcon } from "@/feature/provider/openrouter/icon";
 import {
-  openRouterStatusQuery,
-  useClearOpenRouter,
-  useConfigureOpenRouter,
+  openRouterConnectionQuery,
+  useConnectOpenRouter,
+  useDisconnectOpenRouter,
 } from "@/feature/provider/openrouter/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
-import { Item } from "@/primitive/item";
 
 export const Route = createFileRoute("/settings/providers")({
   loader: ({ context }) =>
-    context.queryClient.query({ ...openRouterStatusQuery, staleTime: "static" }),
+    context.queryClient.query({ ...openRouterConnectionQuery, staleTime: "static" }),
   component: ProvidersRoute,
 });
 
-function ProvidersRoute() {
-  const { data: openRouterStatus } = useSuspenseQuery(openRouterStatusQuery);
-  const configureOpenRouter = useConfigureOpenRouter();
-  const clearOpenRouter = useClearOpenRouter();
-  const [error, setError] = useState<string | null>(null);
-  const pending = configureOpenRouter.isPending || clearOpenRouter.isPending;
+function ConnectionIssue({ state }: { state: OpenRouterConnectionState }) {
+  switch (state) {
+    case OpenRouterConnectionState.Disconnected:
+    case OpenRouterConnectionState.Connected:
+      return null;
+    case OpenRouterConnectionState.Rejected:
+      return (
+        <span
+          aria-live="polite"
+          className="mr-2 flex items-center gap-1.5 text-xs font-medium text-danger"
+        >
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
+          Connection failed
+        </span>
+      );
+    case OpenRouterConnectionState.Unavailable:
+      return (
+        <span aria-live="polite" className="mr-2 text-xs text-muted">
+          Couldn’t verify
+        </span>
+      );
+  }
+}
 
-  async function configure(event: SubmitEvent<HTMLFormElement>) {
+function ProvidersRoute() {
+  const {
+    data: openRouterStatus,
+    isFetching,
+    refetch,
+  } = useSuspenseQuery(openRouterConnectionQuery);
+  const connectOpenRouter = useConnectOpenRouter();
+  const disconnectOpenRouter = useDisconnectOpenRouter();
+  const [editingConnection, setEditingConnection] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const pending = connectOpenRouter.isPending || disconnectOpenRouter.isPending;
+  const connected = openRouterStatus.state === OpenRouterConnectionState.Connected;
+  const hasCredential = openRouterStatus.state !== OpenRouterConnectionState.Disconnected;
+
+  function startEditingConnection() {
+    setError(null);
+    setEditingConnection(true);
+  }
+
+  function stopEditingConnection() {
+    setError(null);
+    setEditingConnection(false);
+  }
+
+  async function connect(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const form = event.currentTarget;
@@ -38,24 +80,37 @@ function ProvidersRoute() {
     setError(null);
 
     try {
-      await configureOpenRouter.mutateAsync(apiKey);
-      form.reset();
+      const status = await connectOpenRouter.mutateAsync(apiKey);
+
+      switch (status.state) {
+        case OpenRouterConnectionState.Connected:
+          form.reset();
+          setEditingConnection(false);
+          return;
+        case OpenRouterConnectionState.Rejected:
+          setError("OpenRouter rejected this API key.");
+          return;
+        case OpenRouterConnectionState.Unavailable:
+          setError("Couldn’t reach OpenRouter. Try again.");
+          return;
+        case OpenRouterConnectionState.Disconnected:
+          throw new Error("OpenRouter returned an invalid connection state.");
+      }
     } catch (cause) {
-      console.error("Could not configure OpenRouter.", cause);
-      setError("Could not save the API key.");
+      console.error("Could not connect to OpenRouter.", cause);
+      setError("Couldn’t connect to OpenRouter.");
     }
   }
 
-  async function clear(event: MouseEvent<HTMLButtonElement>) {
-    const form = event.currentTarget.form;
+  async function disconnect() {
     setError(null);
 
     try {
-      await clearOpenRouter.mutateAsync();
-      form?.reset();
+      await disconnectOpenRouter.mutateAsync();
+      setEditingConnection(false);
     } catch (cause) {
-      console.error("Could not clear the OpenRouter configuration.", cause);
-      setError("Could not clear the API key.");
+      console.error("Could not disconnect OpenRouter.", cause);
+      setError("Couldn’t disconnect OpenRouter.");
     }
   }
 
@@ -76,20 +131,78 @@ function ProvidersRoute() {
       <ContentPane.Viewport>
         <div className="mx-auto w-full max-w-2xl p-6">
           <Item.Group>
-            <Item.Root className="items-start">
-              <Item.Content className="w-full">
-                <div className="flex items-center justify-between gap-4">
-                  <Item.Title>OpenRouter</Item.Title>
-                  <span aria-live="polite" className="text-xs text-muted">
-                    {openRouterStatus.configured ? "Configured" : "Not configured"}
-                  </span>
-                </div>
+            <Item.Root>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground/4">
+                  <OpenRouterIcon className="h-3.5 w-auto" />
+                </span>
+                <Item.Content>
+                  <div className="flex items-center gap-2">
+                    <Item.Label>OpenRouter</Item.Label>
+                    {connected ? (
+                      <>
+                        <Ping className="text-success" />
+                        <span className="sr-only">Connected</span>
+                      </>
+                    ) : null}
+                  </div>
+                  {connected && openRouterStatus.keyLabel ? (
+                    <Item.Description className="font-mono text-xs">
+                      {openRouterStatus.keyLabel}
+                    </Item.Description>
+                  ) : null}
+                </Item.Content>
+              </div>
 
-                <form className="mt-4 flex items-end gap-2" onSubmit={configure}>
-                  <div className="min-w-0 flex-1">
-                    <label htmlFor="openrouter-api-key" className="text-sm font-medium">
-                      API key
-                    </label>
+              <div className="flex shrink-0 items-center gap-1">
+                <ConnectionIssue state={openRouterStatus.state} />
+
+                {!editingConnection &&
+                openRouterStatus.state === OpenRouterConnectionState.Unavailable ? (
+                  <Button
+                    variant="ghost"
+                    disabled={pending || isFetching}
+                    onClick={() => void refetch()}
+                  >
+                    {isFetching ? "Retrying…" : "Retry"}
+                  </Button>
+                ) : null}
+
+                {!editingConnection && hasCredential ? (
+                  <>
+                    <Button variant="ghost" disabled={pending} onClick={startEditingConnection}>
+                      Manage
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={pending}
+                      className="text-muted not-disabled:hover:bg-danger/10 not-disabled:hover:text-danger"
+                      onClick={disconnect}
+                    >
+                      {disconnectOpenRouter.isPending ? "Disconnecting…" : "Disconnect"}
+                    </Button>
+                  </>
+                ) : null}
+
+                {!editingConnection && !hasCredential ? (
+                  <Button disabled={pending} onClick={startEditingConnection}>
+                    Connect
+                  </Button>
+                ) : null}
+              </div>
+            </Item.Root>
+
+            {editingConnection ? (
+              <Item.Root render={<form onSubmit={connect} />} className="items-start">
+                <Item.Label
+                  render={<label htmlFor="openrouter-api-key" />}
+                  className="flex h-control items-center"
+                >
+                  API key
+                </Item.Label>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex justify-end gap-2">
                     <Input
                       id="openrouter-api-key"
                       name="apiKey"
@@ -98,33 +211,46 @@ function ProvidersRoute() {
                       autoComplete="off"
                       disabled={pending}
                       spellCheck={false}
-                      aria-describedby={error ? "openrouter-configuration-error" : undefined}
-                      className="mt-2 w-full"
-                      placeholder="OpenRouter API key"
+                      aria-describedby={error ? "openrouter-connection-error" : undefined}
+                      className="min-w-0 max-w-sm flex-1"
+                      placeholder={
+                        connected && openRouterStatus.keyLabel
+                          ? openRouterStatus.keyLabel
+                          : "sk-or-v1-…"
+                      }
                     />
-                  </div>
-                  <Button type="submit" disabled={pending}>
-                    {configureOpenRouter.isPending ? "Saving…" : "Save"}
-                  </Button>
-                  {openRouterStatus.configured ? (
-                    <Button type="button" variant="ghost" disabled={pending} onClick={clear}>
-                      {clearOpenRouter.isPending ? "Clearing…" : "Clear"}
+                    <Button type="submit" disabled={pending}>
+                      {connectOpenRouter.isPending ? "Connecting…" : "Connect"}
                     </Button>
-                  ) : null}
-                </form>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={pending}
+                      onClick={stopEditingConnection}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
 
-                {error ? (
-                  <p
-                    id="openrouter-configuration-error"
-                    role="alert"
-                    className="mt-2 text-sm text-danger"
-                  >
-                    {error}
-                  </p>
-                ) : null}
-              </Item.Content>
-            </Item.Root>
+                  {error ? (
+                    <p
+                      id="openrouter-connection-error"
+                      role="alert"
+                      className="mt-2 text-sm text-danger"
+                    >
+                      {error}
+                    </p>
+                  ) : null}
+                </div>
+              </Item.Root>
+            ) : null}
           </Item.Group>
+
+          {!editingConnection && error ? (
+            <p role="alert" className="mt-2 px-1 text-sm text-danger">
+              {error}
+            </p>
+          ) : null}
         </div>
       </ContentPane.Viewport>
     </>

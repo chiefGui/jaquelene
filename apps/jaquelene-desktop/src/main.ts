@@ -1,9 +1,15 @@
-import { app, BrowserWindow, screen, shell } from "electron";
+import { app, BrowserWindow, safeStorage, screen, shell } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
 import { closeDatabase, getDatabaseStoragePaths, openDatabase } from "./database";
 import { createCampaigns, type Campaigns } from "./feature/campaign/campaigns";
 import { exposeCampaigns } from "./feature/campaign/ipc";
+import {
+  createOpenRouterConfiguration,
+  getOpenRouterConfigurationStoragePaths,
+  type OpenRouterConfiguration,
+} from "./feature/provider/openrouter/configuration";
+import { exposeOpenRouterConfiguration } from "./feature/provider/openrouter/ipc";
 import { exposeScenarios } from "./feature/scenario/ipc";
 import { createScenarios, type Scenarios } from "./feature/scenario/scenarios";
 import { createLocalState, getLocalStateStoragePaths, type LocalState } from "./local-state";
@@ -33,6 +39,7 @@ async function createWindow(
   localState: LocalState,
   scenarios: Scenarios,
   campaigns: Campaigns,
+  openRouterConfiguration: OpenRouterConfiguration,
   storage: AppStorage,
 ) {
   const mainWindowState = localState.loadMainWindowState(
@@ -57,6 +64,7 @@ async function createWindow(
 
   exposeScenarios(window.webContents.mainFrame, scenarios);
   exposeCampaigns(window.webContents.mainFrame, campaigns);
+  exposeOpenRouterConfiguration(window.webContents.mainFrame, openRouterConfiguration);
   exposeStorage(window.webContents.mainFrame, storage);
 
   if (mainWindowState?.maximized) {
@@ -110,18 +118,31 @@ void app
     const database = openDatabase(databasePath);
     const scenarios = createScenarios(database);
     const campaigns = createCampaigns(database);
+    const openRouterConfiguration = createOpenRouterConfiguration(
+      userDataDirectory,
+      async (apiKey) => {
+        if (!(await safeStorage.isAsyncEncryptionAvailable())) {
+          throw new Error("Secure credential storage is unavailable.");
+        }
+
+        return safeStorage.encryptStringAsync(apiKey);
+      },
+    );
     const storage = createStorage([
       ...getDatabaseStoragePaths(databasePath),
       ...getLocalStateStoragePaths(userDataDirectory),
+      ...getOpenRouterConfigurationStoragePaths(userDataDirectory),
     ]);
 
     app.once("will-quit", () => closeDatabase(database));
 
-    await createWindow(localState, scenarios, campaigns, storage);
+    await createWindow(localState, scenarios, campaigns, openRouterConfiguration, storage);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        void createWindow(localState, scenarios, campaigns, storage).catch(quitAfterFatalError);
+        void createWindow(localState, scenarios, campaigns, openRouterConfiguration, storage).catch(
+          quitAfterFatalError,
+        );
       }
     });
   })

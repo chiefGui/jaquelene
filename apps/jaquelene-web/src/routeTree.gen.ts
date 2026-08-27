@@ -16,6 +16,7 @@ import { Route as CampaignsCampaignIdRouteImport } from "./routes/campaigns/$cam
 import { Route as ScenariosIndexRouteImport } from "./routes/scenarios/index";
 import { Route as ScenariosScenarioIdRouteImport } from "./routes/scenarios/$scenarioId";
 import { Route as SettingsGeneralRouteImport } from "./routes/settings/general";
+import { Route as SettingsProvidersRouteImport } from "./routes/settings/providers";
 import { Route as SettingsStorageRouteImport } from "./routes/settings/storage";
 
 const IndexRoute = IndexRouteImport.update({
@@ -53,6 +54,11 @@ const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   path: "/general",
   getParentRoute: () => SettingsRouteRoute,
 } as any);
+const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
+  id: "/providers",
+  path: "/providers",
+  getParentRoute: () => SettingsRouteRoute,
+} as any);
 const SettingsStorageRoute = SettingsStorageRouteImport.update({
   id: "/storage",
   path: "/storage",
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
   "/settings/general": typeof SettingsGeneralRoute;
+  "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/scenarios/": typeof ScenariosIndexRoute;
 }
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
   "/settings/general": typeof SettingsGeneralRoute;
+  "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/scenarios": typeof ScenariosIndexRoute;
 }
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
   "/settings/general": typeof SettingsGeneralRoute;
+  "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/scenarios/": typeof ScenariosIndexRoute;
 }
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | "/campaigns/$campaignId"
     | "/scenarios/$scenarioId"
     | "/settings/general"
+    | "/settings/providers"
     | "/settings/storage"
     | "/scenarios/";
   fileRoutesByTo: FileRoutesByTo;
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | "/campaigns/$campaignId"
     | "/scenarios/$scenarioId"
     | "/settings/general"
+    | "/settings/providers"
     | "/settings/storage"
     | "/scenarios";
   id:
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | "/campaigns/$campaignId"
     | "/scenarios/$scenarioId"
     | "/settings/general"
+    | "/settings/providers"
     | "/settings/storage"
     | "/scenarios/";
   fileRoutesById: FileRoutesById;
@@ -179,6 +191,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SettingsGeneralRouteImport;
       parentRoute: typeof SettingsRouteRoute;
     };
+    "/settings/providers": {
+      id: "/settings/providers";
+      path: "/providers";
+      fullPath: "/settings/providers";
+      preLoaderRoute: typeof SettingsProvidersRouteImport;
+      parentRoute: typeof SettingsRouteRoute;
+    };
     "/settings/storage": {
       id: "/settings/storage";
       path: "/storage";
@@ -205,11 +224,13 @@ const ScenariosRouteRouteWithChildren = ScenariosRouteRoute._addFileChildren(
 
 interface SettingsRouteRouteChildren {
   SettingsGeneralRoute: typeof SettingsGeneralRoute;
+  SettingsProvidersRoute: typeof SettingsProvidersRoute;
   SettingsStorageRoute: typeof SettingsStorageRoute;
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsGeneralRoute: SettingsGeneralRoute,
+  SettingsProvidersRoute: SettingsProvidersRoute,
   SettingsStorageRoute: SettingsStorageRoute,
 };
 

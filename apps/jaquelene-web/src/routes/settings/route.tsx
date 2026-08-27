@@ -1,3 +1,4 @@
+import AiNetworkIcon from "@hugeicons/core-free-icons/AiNetworkIcon";
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
@@ -15,6 +16,12 @@ function SettingsSidebar() {
             icon: Settings01Icon,
             label: "General",
             to: "/settings/general",
+          },
+          {
+            id: "providers",
+            icon: AiNetworkIcon,
+            label: "Providers",
+            to: "/settings/providers",
           },
           {
             id: "storage",

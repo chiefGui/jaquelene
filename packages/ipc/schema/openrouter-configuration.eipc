@@ -1,0 +1,14 @@
+module jaquelene
+
+structure OpenRouterConfigurationStatus {
+  configured: boolean
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface OpenRouterConfiguration {
+  getStatus() -> OpenRouterConfigurationStatus
+  configure(apiKey: string) -> OpenRouterConfigurationStatus
+  clear() -> OpenRouterConfigurationStatus
+}

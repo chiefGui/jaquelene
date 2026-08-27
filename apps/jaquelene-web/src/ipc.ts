@@ -5,3 +5,14 @@ export function requireIpcMethod<Method>(method: Method | undefined): Method {
 
   return method;
 }
+
+export const ipcQueryOptions = {
+  networkMode: "always",
+  retry: false,
+  staleTime: Infinity,
+} as const;
+
+export const ipcMutationOptions = {
+  networkMode: "always",
+  retry: false,
+} as const;

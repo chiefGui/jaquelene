@@ -1,22 +1,18 @@
 import { queryOptions, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { ipcMutationOptions, ipcQueryOptions } from "../../ipc";
 import { scenarioIpc, type Scenario } from "./ipc";
 
 const scenarioKey = ["scenarios"] as const;
-const scenarioQueryDefaults = {
-  networkMode: "always",
-  retry: false,
-  staleTime: Infinity,
-} as const;
 
 export const scenariosQuery = queryOptions({
-  ...scenarioQueryDefaults,
+  ...ipcQueryOptions,
   queryKey: scenarioKey,
   queryFn: scenarioIpc.list,
 });
 
 export function scenarioQuery(id: string) {
   return queryOptions({
-    ...scenarioQueryDefaults,
+    ...ipcQueryOptions,
     queryKey: [...scenarioKey, id],
     queryFn: () => scenarioIpc.get(id),
   });
@@ -34,8 +30,8 @@ export function useCreateScenario() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    ...ipcMutationOptions,
     mutationFn: scenarioIpc.create,
-    networkMode: "always",
     onSuccess(result) {
       if (result.status === "empty-title") {
         return;
@@ -51,8 +47,8 @@ export function useRenameScenario() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    ...ipcMutationOptions,
     mutationFn: ({ id, title }: { id: string; title: string }) => scenarioIpc.rename(id, title),
-    networkMode: "always",
     onSuccess(result, { id }) {
       if (result.status === "empty-title") {
         return;

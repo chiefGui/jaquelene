@@ -2,9 +2,11 @@ import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
 import { closeDatabase, getDatabaseStoragePaths, openDatabase } from "./database";
-import { createLocalState, getLocalStateStoragePaths, type LocalState } from "./local-state";
+import { createCampaigns, type Campaigns } from "./feature/campaign/campaigns";
+import { exposeCampaigns } from "./feature/campaign/ipc";
 import { exposeScenarios } from "./feature/scenario/ipc";
 import { createScenarios, type Scenarios } from "./feature/scenario/scenarios";
+import { createLocalState, getLocalStateStoragePaths, type LocalState } from "./local-state";
 import { exposeStorage } from "./storage/ipc";
 import { createStorage, type AppStorage } from "./storage/storage";
 
@@ -27,7 +29,12 @@ function quitAfterFatalError(error: unknown) {
   app.quit();
 }
 
-async function createWindow(localState: LocalState, scenarios: Scenarios, storage: AppStorage) {
+async function createWindow(
+  localState: LocalState,
+  scenarios: Scenarios,
+  campaigns: Campaigns,
+  storage: AppStorage,
+) {
   const mainWindowState = localState.loadMainWindowState(
     screen.getAllDisplays().map(({ workArea }) => workArea),
   );
@@ -49,6 +56,7 @@ async function createWindow(localState: LocalState, scenarios: Scenarios, storag
   });
 
   exposeScenarios(window.webContents.mainFrame, scenarios);
+  exposeCampaigns(window.webContents.mainFrame, campaigns);
   exposeStorage(window.webContents.mainFrame, storage);
 
   if (mainWindowState?.maximized) {
@@ -101,6 +109,7 @@ void app
     const localState = createLocalState(userDataDirectory);
     const database = openDatabase(databasePath);
     const scenarios = createScenarios(database);
+    const campaigns = createCampaigns(database);
     const storage = createStorage([
       ...getDatabaseStoragePaths(databasePath),
       ...getLocalStateStoragePaths(userDataDirectory),
@@ -108,11 +117,11 @@ void app
 
     app.once("will-quit", () => closeDatabase(database));
 
-    await createWindow(localState, scenarios, storage);
+    await createWindow(localState, scenarios, campaigns, storage);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        void createWindow(localState, scenarios, storage).catch(quitAfterFatalError);
+        void createWindow(localState, scenarios, campaigns, storage).catch(quitAfterFatalError);
       }
     });
   })

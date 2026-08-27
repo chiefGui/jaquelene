@@ -1,0 +1,21 @@
+module jaquelene
+
+subtype UnixTimeMilliseconds = number(
+  minValue: 0
+  maxValue: 9007199254740991
+)
+
+structure Campaign {
+  id: string
+  scenarioId: string
+  startedAt: UnixTimeMilliseconds
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Campaigns {
+  start(scenarioId: string) -> Campaign
+  listForScenario(scenarioId: string) -> Campaign[]
+  get(id: string) -> Campaign?
+}

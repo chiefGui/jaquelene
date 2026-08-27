@@ -1,4 +1,4 @@
-import { Button, formatTimestamp } from "@jaquelene/ui";
+import { Button, Input, formatTimestamp } from "@jaquelene/ui";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
@@ -131,7 +131,7 @@ function ScenarioRoute() {
                     Title
                   </label>
                   <div className="mt-2 flex gap-2">
-                    <input
+                    <Input
                       key={scenario.title}
                       id="scenario-title"
                       name="title"
@@ -139,7 +139,7 @@ function ScenarioRoute() {
                       required
                       defaultValue={scenario.title}
                       aria-describedby={renameError ? "rename-scenario-error" : undefined}
-                      className="h-9 min-w-0 flex-1 rounded-md border border-border bg-canvas px-3 text-sm outline-none focus:border-muted"
+                      className="min-w-0 flex-1"
                     />
                     <Button type="submit" disabled={renameScenarioMutation.isPending}>
                       {renameScenarioMutation.isPending ? "Saving…" : "Save"}

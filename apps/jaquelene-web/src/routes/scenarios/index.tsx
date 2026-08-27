@@ -1,4 +1,4 @@
-import { Button } from "@jaquelene/ui";
+import { Button, Input } from "@jaquelene/ui";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
@@ -77,13 +77,13 @@ function ScenariosIndexRoute() {
                 Title
               </label>
               <div className="mt-2 flex gap-2">
-                <input
+                <Input
                   id="new-scenario-title"
                   name="title"
                   type="text"
                   required
                   aria-describedby={error ? "create-scenario-error" : undefined}
-                  className="h-9 min-w-0 flex-1 rounded-md border border-border bg-canvas px-3 text-sm outline-none placeholder:text-muted focus:border-muted"
+                  className="min-w-0 flex-1"
                   placeholder="Scenario title"
                 />
                 <Button type="submit" disabled={createScenarioMutation.isPending}>

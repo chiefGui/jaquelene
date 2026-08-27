@@ -1,21 +1,20 @@
 import { Button } from "@jaquelene/ui";
-import { Link, createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
-import { scenarioIpc } from "../../feature/scenario/ipc";
+import { scenariosQuery, useCreateScenario } from "../../feature/scenario/query";
 import { ContentPane } from "../../layout/content-pane";
 import { Breadcrumb } from "../../primitive/breadcrumb";
-import { Route as ScenariosRoute } from "./route";
 
 export const Route = createFileRoute("/scenarios/")({
   component: ScenariosIndexRoute,
 });
 
 function ScenariosIndexRoute() {
-  const scenarios = ScenariosRoute.useLoaderData();
+  const { data: scenarios } = useSuspenseQuery(scenariosQuery);
+  const createScenarioMutation = useCreateScenario();
   const navigate = useNavigate({ from: "/scenarios/" });
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
 
   async function createScenario(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,22 +27,13 @@ function ScenariosIndexRoute() {
       return;
     }
 
-    setCreating(true);
     setError(null);
 
     try {
-      const result = await scenarioIpc.create(title);
+      const result = await createScenarioMutation.mutateAsync(title);
 
       if (result.status === "empty-title") {
         setError("Enter a scenario title.");
-        return;
-      }
-
-      try {
-        await router.invalidate({ filter: (match) => match.routeId === "/scenarios" });
-      } catch (cause) {
-        console.error("The scenario was created, but the scenario list could not refresh.", cause);
-        setError("The scenario was created, but the scenario list could not refresh.");
         return;
       }
 
@@ -59,8 +49,6 @@ function ScenariosIndexRoute() {
     } catch (cause) {
       console.error("Could not create the scenario.", cause);
       setError("Could not create the scenario.");
-    } finally {
-      setCreating(false);
     }
   }
 
@@ -98,8 +86,8 @@ function ScenariosIndexRoute() {
                   className="h-9 min-w-0 flex-1 rounded-md border border-border bg-canvas px-3 text-sm outline-none placeholder:text-muted focus:border-muted"
                   placeholder="Scenario title"
                 />
-                <Button type="submit" disabled={creating}>
-                  {creating ? "Creating…" : "Create scenario"}
+                <Button type="submit" disabled={createScenarioMutation.isPending}>
+                  {createScenarioMutation.isPending ? "Creating…" : "Create scenario"}
                 </Button>
               </div>
               {error ? (

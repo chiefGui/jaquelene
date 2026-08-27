@@ -1,21 +1,24 @@
 import { Button } from "@jaquelene/ui";
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
+import { scenarioQuery, useRenameScenario } from "../../feature/scenario/query";
 import { ContentPane } from "../../layout/content-pane";
 import { Breadcrumb } from "../../primitive/breadcrumb";
-import { scenarioIpc } from "../../feature/scenario/ipc";
 
 export const Route = createFileRoute("/scenarios/$scenarioId")({
-  loader: ({ params }) => scenarioIpc.get(params.scenarioId),
+  loader: async ({ context, params }) => {
+    await context.queryClient.ensureQueryData(scenarioQuery(params.scenarioId));
+  },
   remountDeps: ({ params }) => params.scenarioId,
   component: ScenarioRoute,
 });
 
 function ScenarioRoute() {
-  const scenario = Route.useLoaderData();
-  const router = useRouter();
+  const { scenarioId } = Route.useParams();
+  const { data: scenario } = useSuspenseQuery(scenarioQuery(scenarioId));
+  const renameScenarioMutation = useRenameScenario();
   const [error, setError] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState(false);
 
   async function renameScenario(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -31,11 +34,10 @@ function ScenarioRoute() {
       return;
     }
 
-    setRenaming(true);
     setError(null);
 
     try {
-      const result = await scenarioIpc.rename(scenario.id, title);
+      const result = await renameScenarioMutation.mutateAsync({ id: scenario.id, title });
 
       if (result.status === "empty-title") {
         setError("Enter a scenario title.");
@@ -46,18 +48,9 @@ function ScenarioRoute() {
         setError("This scenario no longer exists.");
         return;
       }
-
-      try {
-        await router.invalidate();
-      } catch (cause) {
-        console.error("The scenario was renamed, but the page could not refresh.", cause);
-        setError("The scenario was renamed, but the page could not refresh.");
-      }
     } catch (cause) {
       console.error("Could not rename the scenario.", cause);
       setError("Could not rename the scenario.");
-    } finally {
-      setRenaming(false);
     }
   }
 
@@ -108,8 +101,8 @@ function ScenarioRoute() {
                     aria-describedby={error ? "rename-scenario-error" : undefined}
                     className="h-9 min-w-0 flex-1 rounded-md border border-border bg-canvas px-3 text-sm outline-none focus:border-muted"
                   />
-                  <Button type="submit" disabled={renaming}>
-                    {renaming ? "Saving…" : "Save"}
+                  <Button type="submit" disabled={renameScenarioMutation.isPending}>
+                    {renameScenarioMutation.isPending ? "Saving…" : "Save"}
                   </Button>
                 </div>
                 {error ? (

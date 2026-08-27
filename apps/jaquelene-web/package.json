@@ -15,6 +15,7 @@
     "@hugeicons/react": "^1.1.10",
     "@jaquelene/ipc": "workspace:*",
     "@jaquelene/ui": "workspace:*",
+    "@tanstack/react-query": "^5.102.6",
     "@tanstack/react-router": "^1.170.32",
     "motion": "^13.1.1",
     "react": "^19.2.8",

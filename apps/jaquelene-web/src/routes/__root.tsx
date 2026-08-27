@@ -1,7 +1,8 @@
 import BookOpen01Icon from "@hugeicons/core-free-icons/BookOpen01Icon";
 import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
-import { createRootRoute } from "@tanstack/react-router";
+import type { QueryClient } from "@tanstack/react-query";
+import { createRootRouteWithContext } from "@tanstack/react-router";
 import { AppShell } from "../layout/app-shell";
 import { PrimarySidebar } from "../layout/primary-sidebar";
 
@@ -34,7 +35,7 @@ function HomeSidebar() {
   );
 }
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   staticData: {
     primarySidebar: HomeSidebar,
   },

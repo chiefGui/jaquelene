@@ -1,12 +1,15 @@
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import Book01Icon from "@hugeicons/core-free-icons/Book01Icon";
 import Books01Icon from "@hugeicons/core-free-icons/Books01Icon";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, createFileRoute } from "@tanstack/react-router";
-import { scenarioIpc } from "../../feature/scenario/ipc";
+import { scenariosQuery } from "../../feature/scenario/query";
 import { PrimarySidebar } from "../../layout/primary-sidebar";
 
 export const Route = createFileRoute("/scenarios")({
-  loader: () => scenarioIpc.list(),
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(scenariosQuery);
+  },
   staticData: {
     primarySidebar: ScenariosSidebar,
   },
@@ -14,7 +17,7 @@ export const Route = createFileRoute("/scenarios")({
 });
 
 function ScenariosSidebar() {
-  const scenarios = Route.useLoaderData();
+  const { data: scenarios } = useSuspenseQuery(scenariosQuery);
 
   return (
     <PrimarySidebar

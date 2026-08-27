@@ -3,6 +3,10 @@ import { migrate } from "drizzle-orm/node-sqlite/migrator";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+export function getDatabaseStoragePaths(path: string) {
+  return [path, `${path}-journal`, `${path}-shm`, `${path}-wal`] as const;
+}
+
 export function openDatabase(path: string) {
   const client = new DatabaseSync(path);
 

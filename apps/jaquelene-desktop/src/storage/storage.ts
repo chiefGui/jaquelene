@@ -1,37 +1,49 @@
-import { opendir, stat } from "node:fs/promises";
+import { lstat, opendir } from "node:fs/promises";
 import { join } from "node:path";
 
 function isMissing(error: unknown) {
   return error instanceof Error && (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
-async function measureDirectory(directoryPath: string): Promise<number> {
-  const directory = await opendir(directoryPath);
-  let totalBytes = 0;
+async function measurePath(path: string): Promise<number> {
+  try {
+    const entry = await lstat(path);
 
-  for await (const entry of directory) {
-    const entryPath = join(directoryPath, entry.name);
-
-    try {
-      if (entry.isDirectory()) {
-        totalBytes += await measureDirectory(entryPath);
-      } else if (entry.isFile()) {
-        totalBytes += (await stat(entryPath)).size;
-      }
-    } catch (error) {
-      if (!isMissing(error)) {
-        throw error;
-      }
+    if (entry.isFile()) {
+      return entry.size;
     }
-  }
 
-  return totalBytes;
+    if (!entry.isDirectory()) {
+      return 0;
+    }
+
+    const directory = await opendir(path);
+    let totalBytes = 0;
+
+    for await (const child of directory) {
+      totalBytes += await measurePath(join(path, child.name));
+    }
+
+    return totalBytes;
+  } catch (error) {
+    if (isMissing(error)) {
+      return 0;
+    }
+
+    throw error;
+  }
 }
 
-export function createStorage(userDataDirectory: string) {
+export function createStorage(ownedPaths: readonly string[]) {
   return {
     async measureUsage() {
-      return { totalBytes: await measureDirectory(userDataDirectory) };
+      let totalBytes = 0;
+
+      for (const path of ownedPaths) {
+        totalBytes += await measurePath(path);
+      }
+
+      return { totalBytes };
     },
   };
 }

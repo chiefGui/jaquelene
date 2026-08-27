@@ -12,6 +12,8 @@ type LocalStateData = {
   mainWindow?: MainWindowState;
 };
 
+const localStateName = "local-state";
+
 const schema = {
   mainWindow: {
     type: "object",
@@ -37,10 +39,15 @@ const schema = {
 function openStore(userDataDirectory: string) {
   return new Store<LocalStateData>({
     cwd: userDataDirectory,
-    name: "local-state",
+    name: localStateName,
     schema,
     rootSchema: { additionalProperties: false },
   });
+}
+
+export function getLocalStateStoragePaths(userDataDirectory: string) {
+  const filePath = join(userDataDirectory, `${localStateName}.json`);
+  return [filePath, `${filePath}.invalid`] as const;
 }
 
 function isInvalidLocalState(error: unknown) {
@@ -69,8 +76,7 @@ export function createLocalState(userDataDirectory: string) {
       throw error;
     }
 
-    const filePath = join(userDataDirectory, "local-state.json");
-    const invalidFilePath = `${filePath}.invalid`;
+    const [filePath, invalidFilePath] = getLocalStateStoragePaths(userDataDirectory);
 
     try {
       renameSync(filePath, invalidFilePath);

@@ -1,8 +1,8 @@
 import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
-import { closeDatabase, openDatabase } from "./database";
-import { createLocalState, type LocalState } from "./local-state";
+import { closeDatabase, getDatabaseStoragePaths, openDatabase } from "./database";
+import { createLocalState, getLocalStateStoragePaths, type LocalState } from "./local-state";
 import { exposeScenarios } from "./feature/scenario/ipc";
 import { createScenarios, type Scenarios } from "./feature/scenario/scenarios";
 import { exposeStorage } from "./storage/ipc";
@@ -97,10 +97,14 @@ void app
     }
 
     const userDataDirectory = app.getPath("userData");
+    const databasePath = join(userDataDirectory, "jaquelene.sqlite");
     const localState = createLocalState(userDataDirectory);
-    const database = openDatabase(join(userDataDirectory, "jaquelene.sqlite"));
+    const database = openDatabase(databasePath);
     const scenarios = createScenarios(database);
-    const storage = createStorage(userDataDirectory);
+    const storage = createStorage([
+      ...getDatabaseStoragePaths(databasePath),
+      ...getLocalStateStoragePaths(userDataDirectory),
+    ]);
 
     app.once("will-quit", () => closeDatabase(database));
 

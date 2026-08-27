@@ -19,21 +19,33 @@ afterEach(() => {
 });
 
 describe("storage", () => {
-  it("reports no usage for an empty application-data directory", async () => {
-    const storage = createStorage(createUserDataDirectory());
+  it("reports no usage when owned paths do not exist", async () => {
+    const directory = createUserDataDirectory();
+    const storage = createStorage([
+      join(directory, "jaquelene.sqlite"),
+      join(directory, "attachments"),
+    ]);
 
     await expect(storage.measureUsage()).resolves.toEqual({ totalBytes: 0 });
   });
 
-  it("measures files throughout the application-data directory", async () => {
+  it("measures only owned files and directories", async () => {
     const directory = createUserDataDirectory();
-    const nestedDirectory = join(directory, "nested");
-    mkdirSync(nestedDirectory);
-    writeFileSync(join(directory, "local-state.json"), Buffer.alloc(137));
-    writeFileSync(join(nestedDirectory, "jaquelene.sqlite"), Buffer.alloc(2_049));
+    const databasePath = join(directory, "jaquelene.sqlite");
+    const localStatePath = join(directory, "local-state.json");
+    const attachmentsPath = join(directory, "attachments");
+    const cachePath = join(directory, "Cache");
+    mkdirSync(attachmentsPath);
+    mkdirSync(cachePath);
+    writeFileSync(databasePath, Buffer.alloc(2_049));
+    writeFileSync(localStatePath, Buffer.alloc(137));
+    writeFileSync(join(attachmentsPath, "portrait.png"), Buffer.alloc(512));
+    writeFileSync(join(cachePath, "ignored"), Buffer.alloc(10_000));
 
-    await expect(createStorage(directory).measureUsage()).resolves.toEqual({
-      totalBytes: 2_186,
+    await expect(
+      createStorage([databasePath, localStatePath, attachmentsPath]).measureUsage(),
+    ).resolves.toEqual({
+      totalBytes: 2_698,
     });
   });
 });

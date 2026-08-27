@@ -4,7 +4,7 @@
   "private": true,
   "description": "The Jaquelene desktop application",
   "type": "module",
-  "main": "dist-electron/main.js",
+  "main": "dist-electron/main/main.js",
   "scripts": {
     "dev": "bun run --cwd ../../packages/ipc build:development && vp dev",
     "build": "bun run --cwd ../../packages/ipc build && vp build",

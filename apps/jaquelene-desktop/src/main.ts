@@ -11,7 +11,7 @@ import { createStorage, type AppStorage } from "./storage/storage";
 registerAppScheme();
 
 const developmentServerUrl = app.isPackaged ? undefined : process.env.VITE_DEV_SERVER_URL;
-const preloadPath = join(import.meta.dirname, "preload.cjs");
+const preloadPath = join(import.meta.dirname, "../preload/preload.cjs");
 
 function isSafeExternalUrl(rawUrl: string) {
   try {

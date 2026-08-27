@@ -2,10 +2,10 @@ import { Button, formatTimestamp } from "@jaquelene/ui";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
-import { campaignsForScenarioQuery, useStartCampaign } from "../../feature/campaign/query";
-import { scenarioQuery, useRenameScenario } from "../../feature/scenario/query";
-import { ContentPane } from "../../layout/content-pane";
-import { Breadcrumb } from "../../primitive/breadcrumb";
+import { campaignsForScenarioQuery, useStartCampaign } from "@/feature/campaign/query";
+import { scenarioQuery, useRenameScenario } from "@/feature/scenario/query";
+import { ContentPane } from "@/layout/content-pane";
+import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/scenarios/$scenarioId")({
   loader: async ({ context, params }) => {

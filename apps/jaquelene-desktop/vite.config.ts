@@ -35,6 +35,7 @@ export default defineConfig(({ command }) => {
             root: desktopRoot,
             resolve: {
               conditions: ipcConditions,
+              tsconfigPaths: true,
             },
             plugins: [migrationsPlugin],
             build: {
@@ -55,6 +56,7 @@ export default defineConfig(({ command }) => {
             root: desktopRoot,
             resolve: {
               conditions: ipcConditions,
+              tsconfigPaths: true,
             },
             build: {
               outDir: preloadOutput,

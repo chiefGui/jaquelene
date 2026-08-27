@@ -1,5 +1,5 @@
 import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { scenarioTable } from "../scenario/schema";
+import { scenarioTable } from "@/feature/scenario/schema";
 
 export const campaignTable = sqliteTable(
   "campaigns",

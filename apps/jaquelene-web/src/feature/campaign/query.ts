@@ -1,6 +1,6 @@
 import { Campaigns } from "@jaquelene/ipc/renderer";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "../../ipc";
+import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 
 const startCampaign = requireIpcMethod(Campaigns?.start);
 const listCampaignsForScenario = requireIpcMethod(Campaigns?.listForScenario);

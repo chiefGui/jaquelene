@@ -2,7 +2,7 @@ import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { Outlet, createFileRoute } from "@tanstack/react-router";
-import { PrimarySidebar } from "../../layout/primary-sidebar";
+import { PrimarySidebar } from "@/layout/primary-sidebar";
 
 function SettingsSidebar() {
   return (

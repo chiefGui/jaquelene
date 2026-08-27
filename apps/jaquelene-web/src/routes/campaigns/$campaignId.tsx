@@ -1,10 +1,10 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { campaignQuery } from "../../feature/campaign/query";
-import { scenariosQuery } from "../../feature/scenario/query";
-import { ScenariosSidebar } from "../../feature/scenario/sidebar";
-import { ContentPane } from "../../layout/content-pane";
-import { Breadcrumb } from "../../primitive/breadcrumb";
+import { campaignQuery } from "@/feature/campaign/query";
+import { scenariosQuery } from "@/feature/scenario/query";
+import { ScenariosSidebar } from "@/feature/scenario/sidebar";
+import { ContentPane } from "@/layout/content-pane";
+import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/campaigns/$campaignId")({
   loader: async ({ context, params }) => {

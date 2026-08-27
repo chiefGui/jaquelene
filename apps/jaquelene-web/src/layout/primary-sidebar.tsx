@@ -1,7 +1,7 @@
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Link, type RegisteredRouter, type ToOptions } from "@tanstack/react-router";
 import type { ComponentType } from "react";
-import type { FileRoutesByTo } from "../routeTree.gen";
+import type { FileRoutesByTo } from "@/routeTree.gen";
 
 type PrimarySidebarDestination = {
   [Path in keyof FileRoutesByTo]: ToOptions<RegisteredRouter, string, Path> & { to: Path };

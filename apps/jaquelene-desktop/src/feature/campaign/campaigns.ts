@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import type { Database } from "../../database";
+import type { Database } from "@/database";
 import { campaignTable } from "./schema";
 
 export function createCampaigns(database: Database, now: () => number = Date.now) {

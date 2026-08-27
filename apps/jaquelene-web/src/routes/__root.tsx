@@ -3,8 +3,8 @@ import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext } from "@tanstack/react-router";
-import { AppShell } from "../layout/app-shell";
-import { PrimarySidebar } from "../layout/primary-sidebar";
+import { AppShell } from "@/layout/app-shell";
+import { PrimarySidebar } from "@/layout/primary-sidebar";
 
 function HomeSidebar() {
   return (

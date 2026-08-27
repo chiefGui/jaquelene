@@ -1,5 +1,5 @@
 import { queryOptions, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { ipcMutationOptions, ipcQueryOptions } from "../../ipc";
+import { ipcMutationOptions, ipcQueryOptions } from "@/ipc";
 import { scenarioIpc, type Scenario } from "./ipc";
 
 const scenarioKey = ["scenarios"] as const;

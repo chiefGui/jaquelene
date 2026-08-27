@@ -1,10 +1,10 @@
 import { Storage } from "@jaquelene/ipc/renderer";
 import { formatBytes } from "@jaquelene/ui";
 import { createFileRoute } from "@tanstack/react-router";
-import { requireIpcMethod } from "../../ipc";
-import { ContentPane } from "../../layout/content-pane";
-import { Breadcrumb } from "../../primitive/breadcrumb";
-import { Item } from "../../primitive/item";
+import { requireIpcMethod } from "@/ipc";
+import { ContentPane } from "@/layout/content-pane";
+import { Breadcrumb } from "@/primitive/breadcrumb";
+import { Item } from "@/primitive/item";
 
 const measureStorageUsage = requireIpcMethod(Storage?.measureUsage);
 

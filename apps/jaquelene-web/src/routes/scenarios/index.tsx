@@ -2,9 +2,9 @@ import { Button } from "@jaquelene/ui";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
-import { scenariosQuery, useCreateScenario } from "../../feature/scenario/query";
-import { ContentPane } from "../../layout/content-pane";
-import { Breadcrumb } from "../../primitive/breadcrumb";
+import { scenariosQuery, useCreateScenario } from "@/feature/scenario/query";
+import { ContentPane } from "@/layout/content-pane";
+import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/scenarios/")({
   component: ScenariosIndexRoute,

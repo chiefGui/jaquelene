@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ContentPane } from "../layout/content-pane";
-import { Breadcrumb } from "../primitive/breadcrumb";
+import { ContentPane } from "@/layout/content-pane";
+import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/")({
   component: HomeRoute,

@@ -1,5 +1,5 @@
 import { Scenarios, type Scenario } from "@jaquelene/ipc/renderer";
-import { requireIpcMethod } from "../../ipc";
+import { requireIpcMethod } from "@/ipc";
 
 export type { Scenario };
 

@@ -47,6 +47,9 @@ const contentSecurityPolicyPlugin = {
 
 export default defineConfig({
   root: appRoot,
+  resolve: {
+    tsconfigPaths: true,
+  },
   plugins: [
     ipcTestConditionPlugin,
     contentSecurityPolicyPlugin,

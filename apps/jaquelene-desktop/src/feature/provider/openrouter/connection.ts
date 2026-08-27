@@ -39,14 +39,19 @@ export function createOpenRouterConnection(
   let pendingMutation: Promise<unknown> = Promise.resolve();
 
   async function getStatus(): Promise<OpenRouterConnectionStatus> {
+    const apiKey = await readApiKey();
+
+    return apiKey === undefined ? { state: "disconnected" } : verify(apiKey);
+  }
+
+  async function readApiKey() {
     const encryptedApiKey = store.get("encryptedApiKey");
 
     if (encryptedApiKey === undefined) {
-      return { state: "disconnected" };
+      return undefined;
     }
 
-    const apiKey = await decrypt(Buffer.from(encryptedApiKey, "base64"));
-    return verify(apiKey);
+    return decrypt(Buffer.from(encryptedApiKey, "base64"));
   }
 
   function mutate<Result>(operation: () => Promise<Result> | Result) {
@@ -57,6 +62,16 @@ export function createOpenRouterConnection(
 
   return {
     getStatus,
+
+    async withApiKey<Result>(use: (apiKey: string) => Promise<Result>) {
+      const apiKey = await readApiKey();
+
+      if (apiKey === undefined) {
+        throw new Error("OpenRouter is not connected.");
+      }
+
+      return use(apiKey);
+    },
 
     connect(value: string) {
       const apiKey = value.trim();

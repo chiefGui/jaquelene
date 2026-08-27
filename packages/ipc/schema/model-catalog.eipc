@@ -1,0 +1,24 @@
+module jaquelene
+
+structure ModelReference {
+  providerId: string
+  modelId: string
+}
+
+structure ModelProvider {
+  id: string
+  name: string
+}
+
+structure AvailableModel {
+  id: string
+  name: string
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface ModelCatalog {
+  listProviders() -> ModelProvider[]
+  listModels(providerId: string) -> AvailableModel[]
+}

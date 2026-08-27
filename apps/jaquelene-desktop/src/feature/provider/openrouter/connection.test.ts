@@ -46,6 +46,30 @@ describe("OpenRouter connection", () => {
     ).resolves.toEqual({ state: "connected", keyLabel });
   });
 
+  it("keeps credential use inside the connected provider boundary", async () => {
+    const apiKey = "openrouter-scoped-key";
+    const encrypt = vi.fn(async (value: string) => Buffer.from(value));
+    const decrypt = vi.fn(async (value: Buffer) => value.toString());
+    const verify = vi.fn(async () => ({
+      state: "connected" as const,
+      keyLabel: "sk-or-v1-scoped...123",
+    }));
+    const connection = createOpenRouterConnection(createUserDataDirectory(), {
+      encrypt,
+      decrypt,
+      verify,
+    });
+    const useApiKey = vi.fn(async (value: string) => `used:${value}`);
+
+    await expect(connection.withApiKey(useApiKey)).rejects.toThrow("OpenRouter is not connected.");
+    expect(useApiKey).not.toHaveBeenCalled();
+
+    await connection.connect(apiKey);
+
+    await expect(connection.withApiKey(useApiKey)).resolves.toBe(`used:${apiKey}`);
+    expect(useApiKey).toHaveBeenCalledWith(apiKey);
+  });
+
   it("rejects an empty API key before verification", () => {
     const encrypt = vi.fn(async (value: string) => Buffer.from(value));
     const decrypt = vi.fn(async (value: Buffer) => value.toString());

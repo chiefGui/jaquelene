@@ -4,12 +4,15 @@ import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
 import { closeDatabase, getDatabaseStoragePaths, openDatabase } from "./database";
 import { createCampaigns, type Campaigns } from "./feature/campaign/campaigns";
 import { exposeCampaigns } from "./feature/campaign/ipc";
+import { createModelCatalog, type ModelCatalog } from "./feature/model/catalog";
+import { exposeModelCatalog } from "./feature/model/ipc";
 import {
   createOpenRouterConnection,
   getOpenRouterConnectionStoragePaths,
   type OpenRouterConnection,
 } from "./feature/provider/openrouter/connection";
 import { exposeOpenRouterConnection } from "./feature/provider/openrouter/ipc";
+import { createOpenRouterModelProvider } from "./feature/provider/openrouter/models";
 import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verification";
 import { exposeScenarios } from "./feature/scenario/ipc";
 import { createScenarios, type Scenarios } from "./feature/scenario/scenarios";
@@ -40,6 +43,7 @@ async function createWindow(
   localState: LocalState,
   scenarios: Scenarios,
   campaigns: Campaigns,
+  modelCatalog: ModelCatalog,
   openRouterConnection: OpenRouterConnection,
   storage: AppStorage,
 ) {
@@ -65,6 +69,7 @@ async function createWindow(
 
   exposeScenarios(window.webContents.mainFrame, scenarios);
   exposeCampaigns(window.webContents.mainFrame, campaigns);
+  exposeModelCatalog(window.webContents.mainFrame, modelCatalog);
   exposeOpenRouterConnection(window.webContents.mainFrame, openRouterConnection);
   exposeStorage(window.webContents.mainFrame, storage);
 
@@ -137,6 +142,7 @@ void app
       },
       verify: verifyOpenRouterApiKey,
     });
+    const modelCatalog = createModelCatalog([createOpenRouterModelProvider(openRouterConnection)]);
     const storage = createStorage([
       ...getDatabaseStoragePaths(databasePath),
       ...getLocalStateStoragePaths(userDataDirectory),
@@ -145,13 +151,25 @@ void app
 
     app.once("will-quit", () => closeDatabase(database));
 
-    await createWindow(localState, scenarios, campaigns, openRouterConnection, storage);
+    await createWindow(
+      localState,
+      scenarios,
+      campaigns,
+      modelCatalog,
+      openRouterConnection,
+      storage,
+    );
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        void createWindow(localState, scenarios, campaigns, openRouterConnection, storage).catch(
-          quitAfterFatalError,
-        );
+        void createWindow(
+          localState,
+          scenarios,
+          campaigns,
+          modelCatalog,
+          openRouterConnection,
+          storage,
+        ).catch(quitAfterFatalError);
       }
     });
   })

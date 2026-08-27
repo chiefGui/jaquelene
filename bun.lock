@@ -14,6 +14,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@jaquelene/ipc": "workspace:*",
+        "@openrouter/sdk": "^1.2.78",
         "drizzle-orm": "1.0.0-rc.4",
         "electron-store": "^11.0.2",
       },
@@ -255,6 +256,8 @@
     "@marshallofsound/ipc": ["@marshallofsound/ipc@2.7.1", "", { "dependencies": { "langium": "^4.2.2" }, "peerDependencies": { "electron": ">=18.0.3" }, "bin": { "generate-ipc": "dist/cli.js" } }, "sha512-ektsXRLGSx9/I+TblaDfZ/vBWoEPbYPRPUWp1Q2rNWZ8ewSJzq3W1baDqMsggo4arw6gAEkx+DAYVGg1GEXipg=="],
 
     "@noble/hashes": ["@noble/hashes@2.3.0", "", {}, "sha512-oN+QwyX7VSHotibwubG3kpzbwKrfnyR6OOO+3Nk/53ADL7FmgHHz4TgrbaYKvvOw09u6QTx0oiH1cNCIOuN0CQ=="],
+
+    "@openrouter/sdk": ["@openrouter/sdk@1.2.78", "", { "dependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-DihNUKzASby6YJ5ljy3uN1nftae/SfeEFuaQhE97AhIOsrU0rDFfkNWk6rKGb71SslS6az1FnidkNkxU56xd4g=="],
 
     "@oxc-project/runtime": ["@oxc-project/runtime@0.146.0", "", {}, "sha512-lbXHIpZ1MmK6zuw5txlMdIZ2waLVUIU5Gnm3sEuwJOiqDfQfbtjeHscatmeBoxbv8+If9LFM6PGh/3DcDWYIYw=="],
 

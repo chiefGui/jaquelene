@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 
 export const tokens = stylex.defineVars({
   accent: "oklch(0.71 0.08 276)",
+  backdrop: "oklch(0 0 0 / 55%)",
   border: "oklch(0.225 0.016 274)",
   canvas: "oklch(0.135 0.01 272)",
   danger: "oklch(0.7 0.16 22)",
@@ -17,6 +18,8 @@ export const tokens = stylex.defineVars({
   radiusMedium: "0.5rem",
   radiusSmall: "0.25rem",
   radiusXLarge: "0.75rem",
+  shadowLarge: "0 20px 25px -5px oklch(0 0 0 / 10%), 0 8px 10px -6px oklch(0 0 0 / 10%)",
+  shadowXLarge: "0 25px 50px -12px oklch(0 0 0 / 25%)",
 
   fontGeist: '"Geist Variable", ui-sans-serif, system-ui, sans-serif',
   fontInter: '"Inter Variable", ui-sans-serif, system-ui, sans-serif',

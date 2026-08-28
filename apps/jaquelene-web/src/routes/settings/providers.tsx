@@ -1,11 +1,12 @@
 import { OpenRouterConnectionState } from "@jaquelene/ipc/renderer";
 import { Button, Input, Item, Ping } from "@jaquelene/ui";
+import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, type SubmitEvent } from "react";
+import { useRef, useState, type SubmitEvent } from "react";
 import { getBrandName } from "@/feature/brand/catalog";
 import { ProviderMark } from "@/feature/provider/mark";
 import {
@@ -53,19 +54,26 @@ function ProvidersRoute() {
   const connectOpenRouter = useConnectOpenRouter();
   const disconnectOpenRouter = useDisconnectOpenRouter();
   const [editingConnection, setEditingConnection] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
+  const connectButton = useRef<HTMLButtonElement>(null);
   const pending = connectOpenRouter.isPending || disconnectOpenRouter.isPending;
   const connected = openRouterStatus.state === OpenRouterConnectionState.Connected;
   const hasCredential = openRouterStatus.state !== OpenRouterConnectionState.Disconnected;
 
   function startEditingConnection() {
-    setError(null);
+    setConnectionError(null);
     setEditingConnection(true);
   }
 
   function stopEditingConnection() {
-    setError(null);
+    setConnectionError(null);
     setEditingConnection(false);
+  }
+
+  function setDisconnectConfirmationOpen(open: boolean) {
+    if (open) disconnectOpenRouter.reset();
+    setConfirmingDisconnect(open);
   }
 
   async function connect(event: SubmitEvent<HTMLFormElement>) {
@@ -75,11 +83,11 @@ function ProvidersRoute() {
     const apiKey = new FormData(form).get("apiKey");
 
     if (typeof apiKey !== "string" || !apiKey.trim()) {
-      setError("Enter an API key.");
+      setConnectionError("Enter an API key.");
       return;
     }
 
-    setError(null);
+    setConnectionError(null);
 
     try {
       const status = await connectOpenRouter.mutateAsync(apiKey);
@@ -90,29 +98,26 @@ function ProvidersRoute() {
           setEditingConnection(false);
           return;
         case OpenRouterConnectionState.Rejected:
-          setError("OpenRouter rejected this API key.");
+          setConnectionError("OpenRouter rejected this API key.");
           return;
         case OpenRouterConnectionState.Unavailable:
-          setError("Couldn’t reach OpenRouter. Try again.");
+          setConnectionError("Couldn’t reach OpenRouter. Try again.");
           return;
         case OpenRouterConnectionState.Disconnected:
           throw new Error("OpenRouter returned an invalid connection state.");
       }
     } catch (cause) {
       console.error("Could not connect to OpenRouter.", cause);
-      setError("Couldn’t connect to OpenRouter.");
+      setConnectionError("Couldn’t connect to OpenRouter.");
     }
   }
 
   async function disconnect() {
-    setError(null);
-
     try {
       await disconnectOpenRouter.mutateAsync();
-      setEditingConnection(false);
+      setConfirmingDisconnect(false);
     } catch (cause) {
       console.error("Could not disconnect OpenRouter.", cause);
-      setError("Couldn’t disconnect OpenRouter.");
     }
   }
 
@@ -171,23 +176,34 @@ function ProvidersRoute() {
                 ) : null}
 
                 {!editingConnection && hasCredential ? (
-                  <>
-                    <Button variant="ghost" disabled={pending} onClick={startEditingConnection}>
-                      Manage
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      disabled={pending}
-                      style={styles.disconnect}
-                      onClick={disconnect}
-                    >
-                      {disconnectOpenRouter.isPending ? "Disconnecting…" : "Disconnect"}
-                    </Button>
-                  </>
+                  <Button variant="ghost" disabled={pending} onClick={startEditingConnection}>
+                    Manage
+                  </Button>
                 ) : null}
 
+                <ConfirmDialog
+                  open={confirmingDisconnect}
+                  setOpen={setDisconnectConfirmationOpen}
+                  trigger={
+                    !editingConnection && hasCredential ? (
+                      <Button variant="ghost" disabled={pending} style={styles.disconnect}>
+                        Disconnect
+                      </Button>
+                    ) : null
+                  }
+                  heading="Disconnect OpenRouter?"
+                  description="Your saved API key will be removed. Reconnect to use OpenRouter models."
+                  confirmLabel={disconnectOpenRouter.isPending ? "Disconnecting…" : "Disconnect"}
+                  pending={disconnectOpenRouter.isPending}
+                  error={
+                    disconnectOpenRouter.isError ? "Couldn’t disconnect OpenRouter." : undefined
+                  }
+                  finalFocus={connectButton}
+                  onConfirm={() => void disconnect()}
+                />
+
                 {!editingConnection && !hasCredential ? (
-                  <Button disabled={pending} onClick={startEditingConnection}>
+                  <Button ref={connectButton} disabled={pending} onClick={startEditingConnection}>
                     Connect
                   </Button>
                 ) : null}
@@ -213,7 +229,7 @@ function ProvidersRoute() {
                       autoComplete="off"
                       disabled={pending}
                       spellCheck={false}
-                      aria-describedby={error ? "openrouter-connection-error" : undefined}
+                      aria-describedby={connectionError ? "openrouter-connection-error" : undefined}
                       style={styles.input}
                       placeholder={
                         connected && openRouterStatus.keyLabel
@@ -234,25 +250,19 @@ function ProvidersRoute() {
                     </Button>
                   </div>
 
-                  {error ? (
+                  {connectionError ? (
                     <p
                       id="openrouter-connection-error"
                       role="alert"
                       {...stylex.props(styles.formError)}
                     >
-                      {error}
+                      {connectionError}
                     </p>
                   ) : null}
                 </div>
               </Item.Root>
             ) : null}
           </Item.Group>
-
-          {!editingConnection && error ? (
-            <p role="alert" {...stylex.props(styles.pageError)}>
-              {error}
-            </p>
-          ) : null}
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>
@@ -359,12 +369,5 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.5rem",
-  },
-  pageError: {
-    color: tokens.danger,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
-    paddingInline: "0.25rem",
   },
 });

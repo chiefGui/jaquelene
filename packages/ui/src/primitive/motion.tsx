@@ -1,4 +1,11 @@
-import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
+import { AnimatePresence, domAnimation, LazyMotion, MotionConfig } from "motion/react";
+import {
+  createContext,
+  useContext,
+  useSyncExternalStore,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 
 export type MotionMode = "full" | "reduced" | "system";
 
@@ -6,6 +13,11 @@ export type MotionProviderProps = {
   children: ReactNode;
   mode: MotionMode;
 };
+
+export const overlayTransition = {
+  duration: 0.12,
+  ease: [0.16, 1, 0.3, 1],
+} as const;
 
 const ReducedMotionContext = createContext<boolean | null>(null);
 const reducedMotionMediaQuery = "(prefers-reduced-motion: reduce)";
@@ -48,4 +60,22 @@ export function useReducedMotion() {
   }
 
   return reducedMotion;
+}
+
+export function MotionPresence({
+  children,
+  present,
+}: {
+  children: ReactElement;
+  present: boolean;
+}) {
+  const reducedMotion = useReducedMotion();
+
+  return (
+    <LazyMotion features={domAnimation}>
+      <MotionConfig reducedMotion={reducedMotion ? "always" : "never"}>
+        <AnimatePresence initial={false}>{present ? children : null}</AnimatePresence>
+      </MotionConfig>
+    </LazyMotion>
+  );
 }

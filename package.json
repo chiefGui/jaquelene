@@ -8,6 +8,7 @@
   ],
   "type": "module",
   "scripts": {
+    "audit": "bun audit --audit-level=high",
     "build:ipc": "bun run --cwd packages/ipc build",
     "build:ipc:development": "bun run --cwd packages/ipc build:development",
     "db:generate": "bun run --cwd apps/jaquelene-desktop db:generate",

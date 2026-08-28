@@ -1,8 +1,14 @@
 import type { Schema } from "electron-store";
-import { requireModelReference, type ModelReference } from "@/feature/model/catalog";
+import {
+  requireModelSelection,
+  type ModelReference,
+  type ModelSelection,
+} from "@/feature/model/catalog";
+
+type CampaignModelPreference = ModelReference & Partial<Pick<ModelSelection, "name" | "brandId">>;
 
 export type CampaignPreferenceValues = {
-  defaultModel?: ModelReference;
+  defaultModel?: CampaignModelPreference;
 };
 
 type CampaignPreferencesStorage = {
@@ -20,6 +26,8 @@ export const campaignPreferencesSchema = {
       properties: {
         providerId: { type: "string", minLength: 1 },
         modelId: { type: "string", minLength: 1 },
+        name: { type: "string", minLength: 1 },
+        brandId: { type: "string", minLength: 1 },
       },
       required: ["providerId", "modelId"],
     },
@@ -28,17 +36,17 @@ export const campaignPreferencesSchema = {
 
 export function createCampaignPreferences(storage: CampaignPreferencesStorage) {
   function getDefaultModel() {
-    const reference = storage.read()?.defaultModel;
-    return reference ? { ...reference } : null;
+    const defaultModel = storage.read()?.defaultModel;
+    return defaultModel ? { ...defaultModel } : null;
   }
 
   return {
     getDefaultModel,
 
-    setDefaultModel(reference: ModelReference) {
-      requireModelReference(reference);
+    setDefaultModel(selection: ModelSelection) {
+      requireModelSelection(selection);
 
-      const defaultModel = { ...reference };
+      const defaultModel = { ...selection };
       storage.write({ defaultModel });
       return { ...defaultModel };
     },

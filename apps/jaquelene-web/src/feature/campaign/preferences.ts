@@ -1,4 +1,8 @@
-import { CampaignPreferences, type ModelReference } from "@jaquelene/ipc/renderer";
+import {
+  CampaignPreferences,
+  type CampaignModelPreference,
+  type ModelSelection,
+} from "@jaquelene/ipc/renderer";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 
@@ -19,18 +23,20 @@ export const defaultCampaignModelQuery = queryOptions({
 export function useSetDefaultCampaignModel() {
   const queryClient = useQueryClient();
 
-  return useMutation<ModelReference, Error, ModelReference>({
+  return useMutation<ModelSelection, Error, ModelSelection>({
     ...ipcMutationOptions,
     mutationKey: setDefaultCampaignModelMutationKey,
     scope: { id: "default-campaign-model" },
     mutationFn: setDefaultCampaignModel,
-    onMutate(reference) {
+    onMutate(selection) {
       const cancellation = queryClient.cancelQueries({
         queryKey: defaultCampaignModelQuery.queryKey,
         exact: true,
       });
 
-      queryClient.setQueryData(defaultCampaignModelQuery.queryKey, { ...reference });
+      queryClient.setQueryData<CampaignModelPreference>(defaultCampaignModelQuery.queryKey, {
+        ...selection,
+      });
 
       return cancellation;
     },

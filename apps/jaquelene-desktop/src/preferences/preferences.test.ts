@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
@@ -27,7 +27,12 @@ describe("preferences storage", () => {
   it("persists independently owned preference groups", () => {
     const directory = createUserDataDirectory();
     const preferences = createPreferences(directory);
-    const defaultCampaignModel = { providerId: "provider-a", modelId: "model-a" };
+    const defaultCampaignModel = {
+      providerId: "provider-a",
+      modelId: "model-a",
+      name: "Model A",
+      brandId: "brand-a",
+    };
 
     preferences.appearance.userInterface.setFont(UiFont.Geist);
     preferences.appearance.userInterface.setScale(InterfaceScale.Percent125);
@@ -41,5 +46,16 @@ describe("preferences storage", () => {
       motion: MotionPreference.Full,
     });
     expect(restored.campaign.getDefaultModel()).toEqual(defaultCampaignModel);
+  });
+
+  it("preserves model references saved before display snapshots", () => {
+    const directory = createUserDataDirectory();
+    const defaultModel = { providerId: "provider-a", modelId: "model-a" };
+    writeFileSync(
+      join(directory, "preferences.json"),
+      JSON.stringify({ campaign: { defaultModel } }),
+    );
+
+    expect(createPreferences(directory).campaign.getDefaultModel()).toEqual(defaultModel);
   });
 });

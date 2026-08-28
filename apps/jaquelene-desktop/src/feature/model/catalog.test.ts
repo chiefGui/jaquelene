@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { createModelCatalog, requireModelReference } from "./catalog";
+import { createModelCatalog, requireModelReference, requireModelSelection } from "./catalog";
 
 describe("model references", () => {
   it("requires provider and model identities", () => {
@@ -9,6 +9,35 @@ describe("model references", () => {
     );
     expect(() =>
       requireModelReference({ providerId: "provider-a", modelId: "model-a" }),
+    ).not.toThrow();
+  });
+});
+
+describe("model selections", () => {
+  it("requires display metadata", () => {
+    expect(() =>
+      requireModelSelection({
+        providerId: "provider-a",
+        modelId: "model-a",
+        name: " ",
+        brandId: "brand-a",
+      }),
+    ).toThrow(TypeError);
+    expect(() =>
+      requireModelSelection({
+        providerId: "provider-a",
+        modelId: "model-a",
+        name: "Model A",
+        brandId: " ",
+      }),
+    ).toThrow(TypeError);
+    expect(() =>
+      requireModelSelection({
+        providerId: "provider-a",
+        modelId: "model-a",
+        name: "Model A",
+        brandId: "brand-a",
+      }),
     ).not.toThrow();
   });
 });

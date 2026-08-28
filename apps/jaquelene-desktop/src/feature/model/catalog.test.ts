@@ -1,5 +1,17 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { createModelCatalog } from "./catalog";
+import { createModelCatalog, requireModelReference } from "./catalog";
+
+describe("model references", () => {
+  it("requires provider and model identities", () => {
+    expect(() => requireModelReference({ providerId: " ", modelId: "model-a" })).toThrow(TypeError);
+    expect(() => requireModelReference({ providerId: "provider-a", modelId: " " })).toThrow(
+      TypeError,
+    );
+    expect(() =>
+      requireModelReference({ providerId: "provider-a", modelId: "model-a" }),
+    ).not.toThrow();
+  });
+});
 
 describe("model catalog", () => {
   it("lists connected providers and routes model requests by provider identity", async () => {

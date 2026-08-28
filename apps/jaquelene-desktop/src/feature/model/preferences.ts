@@ -1,5 +1,5 @@
 import type { Schema } from "electron-store";
-import type { ModelReference } from "./catalog";
+import { requireModelReference, type ModelReference } from "./catalog";
 
 export type ModelPreferenceValues = {
   default?: ModelReference;
@@ -36,9 +36,7 @@ export function createModelPreferences(storage: ModelPreferencesStorage) {
     get,
 
     setDefault(reference: ModelReference) {
-      if (!reference.providerId.trim() || !reference.modelId.trim()) {
-        throw new TypeError("A default model requires a provider and model identity.");
-      }
+      requireModelReference(reference);
 
       const values = { ...get(), default: { ...reference } };
       storage.write(values);

@@ -15,7 +15,7 @@ import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { AvailableModel, ModelProvider, ModelReference } from "@jaquelene/ipc/renderer";
-import { Button, Input, cn } from "@jaquelene/ui";
+import { Button, Input, Skeleton, cn } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
 import { Select, type SelectProps } from "@jaquelene/ui/select";
 import { useQuery } from "@tanstack/react-query";
@@ -418,17 +418,20 @@ function ModelPickerModels() {
 
   if (modelList.status === "loading") {
     return (
-      <div role="status" className="grid min-h-0 flex-1 place-items-center text-sm text-muted">
-        <span className="flex items-center gap-2">
-          <HugeiconsIcon
-            icon={Loading03Icon}
-            size={16}
-            strokeWidth={1.5}
-            aria-hidden="true"
-            className="motion-safe:animate-spin"
-          />
-          <span className="text-box-trim">Loading models...</span>
-        </span>
+      <div role="status" className="min-h-0 flex-1 overflow-hidden p-2">
+        <span className="sr-only">Loading models...</span>
+
+        <div className="flex flex-col gap-1">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div key={index} className="flex h-14 items-start gap-3 px-3 py-2">
+              <Skeleton className="mt-0.5 size-4 shrink-0 rounded-sm" />
+              <div className="min-w-0 flex-1">
+                <Skeleton className="h-4 w-2/5" />
+                <Skeleton className="mt-1.5 h-3 w-3/5" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

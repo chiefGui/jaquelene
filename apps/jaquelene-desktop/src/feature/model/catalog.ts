@@ -3,6 +3,12 @@ export type ModelReference = {
   modelId: string;
 };
 
+export function requireModelReference(reference: ModelReference) {
+  if (!reference.providerId.trim() || !reference.modelId.trim()) {
+    throw new TypeError("A model reference requires provider and model identities.");
+  }
+}
+
 export type AvailableModel = {
   id: string;
   name: string;

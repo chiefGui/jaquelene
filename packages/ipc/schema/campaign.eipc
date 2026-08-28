@@ -19,3 +19,11 @@ interface Campaigns {
   listForScenario(scenarioId: string) -> Campaign[]
   get(id: string) -> Campaign?
 }
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface CampaignPreferences {
+  getDefaultModel() -> ModelReference?
+  setDefaultModel(reference: ModelReference) -> ModelReference
+}

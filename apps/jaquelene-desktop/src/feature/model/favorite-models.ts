@@ -1,15 +1,9 @@
-import type { ModelReference } from "./catalog";
+import { requireModelReference, type ModelReference } from "./catalog";
 
 export type FavoriteModelsStorage = {
   read(): ModelReference[] | undefined;
   write(models: ModelReference[]): void;
 };
-
-function requireModelReference(reference: ModelReference) {
-  if (!reference.providerId.trim() || !reference.modelId.trim()) {
-    throw new TypeError("A favorite model requires a provider and model identity.");
-  }
-}
 
 function sameModel(left: ModelReference, right: ModelReference) {
   return left.providerId === right.providerId && left.modelId === right.modelId;

@@ -49,7 +49,7 @@ function ItemLabel({ className, ...props }: RoleProps<"div">) {
 }
 
 function ItemDescription({ className, ...props }: RoleProps<"div">) {
-  return <Role.div {...props} className={cn("mt-0.5 text-sm leading-5 text-muted", className)} />;
+  return <Role.div {...props} className={cn("mt-1 text-xs text-muted", className)} />;
 }
 
 function ItemValue({ className, ...props }: RoleProps<"div">) {

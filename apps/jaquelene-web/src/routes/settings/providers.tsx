@@ -149,7 +149,7 @@ function ProvidersRoute() {
                     ) : null}
                   </div>
                   {connected && openRouterStatus.keyLabel ? (
-                    <Item.Description className="font-mono text-xs">
+                    <Item.Description className="font-mono">
                       {openRouterStatus.keyLabel}
                     </Item.Description>
                   ) : null}

@@ -75,7 +75,7 @@ function SelectContent({ className, ...props }: SelectContentProps) {
         alwaysVisible
         render={<Popover.Surface />}
         className={cn(
-          "z-50 flex flex-col gap-1 overflow-hidden rounded-lg border border-surface-raised-border bg-surface-raised p-1 text-foreground shadow-2xl outline-none",
+          "z-50 flex flex-col gap-1 overflow-hidden rounded-xl border border-surface-raised-border bg-surface-raised p-1 text-foreground shadow-2xl outline-none",
           className,
         )}
       />

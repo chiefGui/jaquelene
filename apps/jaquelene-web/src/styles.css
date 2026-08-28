@@ -22,6 +22,7 @@
 
   :where(*, *::before, *::after) {
     cursor: default;
+    user-select: none;
   }
 
   :where(
@@ -42,5 +43,6 @@
     [contenteditable="plaintext-only" i] *
   ) {
     cursor: text;
+    user-select: text;
   }
 }

@@ -28,6 +28,10 @@
   --text-lg--line-height: 1.5rem;
 
   /* Sizing */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
   --spacing-control: 2rem;
 }
 

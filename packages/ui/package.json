@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./popover": "./src/primitive/popover.tsx",
     "./select": "./src/primitive/select.tsx",
+    "./tooltip": "./src/primitive/tooltip.tsx",
     "./theme.css": "./src/theme.css"
   },
   "dependencies": {

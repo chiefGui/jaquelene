@@ -18,6 +18,7 @@ import type { AvailableModel, ModelProvider, ModelReference } from "@jaquelene/i
 import { Button, Input, Skeleton, cn } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
 import { Select, type SelectProps } from "@jaquelene/ui/select";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
@@ -370,7 +371,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                 aria-busy={pending}
                 aria-posinset={virtualItem.index + 1}
                 aria-setsize={options.length}
-                className="group flex h-full w-full items-center justify-between gap-4 rounded-lg px-3 py-2 text-sm outline-none hover:bg-accent/10 focus:bg-accent/10 data-active-item:bg-accent/10 aria-disabled:opacity-50 aria-selected:bg-accent/10"
+                className="group flex h-full w-full items-center justify-between gap-4 rounded-lg px-3 py-2 text-sm outline-none hover:bg-accent/10 focus:bg-accent/10 data-active-item:bg-accent/10 aria-disabled:opacity-50 aria-selected:bg-accent/10 aria-selected:hover:bg-accent/15"
               >
                 <span className="flex min-w-0 items-start gap-3">
                   <ModelMark
@@ -518,26 +519,33 @@ function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
           setSelectedId={selectProvider}
           orientation="vertical"
         >
-          <div className="grid h-full min-h-0 grid-cols-[10rem_minmax(0,1fr)]">
+          <div className="grid h-full min-h-0 grid-cols-[3.0625rem_minmax(0,1fr)]">
             <TabList
               aria-label="Providers"
-              className="min-h-0 overflow-y-auto border-r border-surface-raised-border p-2"
+              className="flex min-h-0 flex-col items-center gap-1 overflow-y-auto border-r border-surface-raised-border p-2"
             >
               {providers.map((provider) => (
-                <Tab
-                  key={provider.id}
-                  id={provider.tabId}
-                  disabled={pendingModelId !== null}
-                  render={
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-2 px-2 font-normal text-muted not-disabled:hover:bg-accent/10 aria-selected:bg-accent/10 aria-selected:text-foreground"
-                    />
-                  }
-                >
-                  <ProviderMark brandId={provider.brandId} className="size-3.5" />
-                  <Button.Label className="truncate">{provider.brandName}</Button.Label>
-                </Tab>
+                <Tooltip.Root key={provider.id} placement="left">
+                  <Tooltip.Anchor
+                    render={
+                      <Tab
+                        id={provider.tabId}
+                        aria-label={provider.brandName}
+                        disabled={pendingModelId !== null}
+                        render={
+                          <Button
+                            variant="ghost"
+                            className="w-control px-0 text-muted not-disabled:hover:bg-accent/10 aria-selected:bg-accent/10 aria-selected:text-foreground aria-selected:not-disabled:hover:bg-accent/15"
+                          />
+                        }
+                      />
+                    }
+                  >
+                    <ProviderMark brandId={provider.brandId} className="size-4" />
+                  </Tooltip.Anchor>
+
+                  <Tooltip>{provider.brandName}</Tooltip>
+                </Tooltip.Root>
               ))}
             </TabList>
 

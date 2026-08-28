@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./motion": "./src/primitive/motion.tsx",
     "./popover": "./src/primitive/popover.tsx",
     "./select": "./src/primitive/select.tsx",
     "./tooltip": "./src/primitive/tooltip.tsx",

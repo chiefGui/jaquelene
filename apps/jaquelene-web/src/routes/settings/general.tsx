@@ -13,10 +13,10 @@ export const Route = createFileRoute("/settings/general")({
 });
 
 function GeneralRoute() {
+  const controlId = useId();
+  const labelId = useId();
   const { data: preferences } = useSuspenseQuery(modelPreferencesQuery);
   const setDefaultModel = useSetDefaultModel();
-  const labelId = useId();
-  const valueId = useId();
 
   return (
     <>
@@ -37,7 +37,9 @@ function GeneralRoute() {
           <Item.Group>
             <Item.Root>
               <Item.Content>
-                <Item.Label id={labelId}>Default model</Item.Label>
+                <Item.Label id={labelId} render={<label htmlFor={controlId} />}>
+                  Default model
+                </Item.Label>
               </Item.Content>
 
               <Item.Value>
@@ -47,9 +49,7 @@ function GeneralRoute() {
                     await setDefaultModel.mutateAsync(model);
                   }}
                 >
-                  <ModelPicker.Trigger aria-labelledby={`${labelId} ${valueId}`}>
-                    <ModelPicker.Value id={valueId} />
-                  </ModelPicker.Trigger>
+                  <ModelPicker.Trigger id={controlId} aria-labelledby={labelId} />
                   <ModelPicker.Empty>
                     <Button render={<Link to="/settings/providers" />}>Connect a provider</Button>
                   </ModelPicker.Empty>

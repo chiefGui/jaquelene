@@ -17,6 +17,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { AvailableModel, ModelProvider, ModelReference } from "@jaquelene/ipc/renderer";
 import { Button, Input, Skeleton, cn } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
+import { useReducedMotion } from "@jaquelene/ui/motion";
 import { Select, type SelectProps } from "@jaquelene/ui/select";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
@@ -299,6 +300,7 @@ function ModelPickerEmpty({ children }: { children: ReactNode }) {
 
 function ModelPickerList({ options }: { options: ModelOption[] }) {
   const combobox = useComboboxContext();
+  const reducedMotion = useReducedMotion();
   const activeId = useStoreState(combobox, "activeId");
   const scrollElementRef = useRef<HTMLDivElement>(null);
   const { activeProvider, pendingModelId, value } = useModelPicker("Models");
@@ -394,7 +396,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                     size={16}
                     strokeWidth={1.5}
                     aria-hidden="true"
-                    className="shrink-0 text-muted motion-safe:animate-spin"
+                    className={cn("shrink-0 text-muted", !reducedMotion && "animate-spin")}
                   />
                 ) : selected ? (
                   <HugeiconsIcon

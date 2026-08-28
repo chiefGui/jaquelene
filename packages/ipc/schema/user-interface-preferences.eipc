@@ -13,9 +13,16 @@ enum InterfaceScale {
   Percent125 = "125"
 }
 
+enum MotionPreference {
+  System = "system"
+  Reduced = "reduced"
+  Full = "full"
+}
+
 structure UserInterfacePreferenceValues {
   font: UiFont
   scale: InterfaceScale
+  motion: MotionPreference
 }
 
 [RendererAPI]
@@ -25,4 +32,5 @@ interface UserInterfacePreferences {
   get() -> UserInterfacePreferenceValues
   setFont(font: UiFont) -> UserInterfacePreferenceValues
   setScale(scale: InterfaceScale) -> UserInterfacePreferenceValues
+  setMotion(motion: MotionPreference) -> UserInterfacePreferenceValues
 }

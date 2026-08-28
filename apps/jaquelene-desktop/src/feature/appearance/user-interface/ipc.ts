@@ -1,5 +1,6 @@
 import {
   InterfaceScale as IpcInterfaceScale,
+  MotionPreference as IpcMotionPreference,
   UserInterfacePreferences as UserInterfacePreferencesIpc,
   UiFont as IpcUiFont,
   type UserInterfacePreferenceValues as IpcUserInterfacePreferenceValues,
@@ -8,8 +9,10 @@ import type { WebContents } from "electron";
 import {
   getInterfaceScaleFactor,
   InterfaceScale,
+  MotionPreference,
   UiFont,
   type InterfaceScale as InterfaceScaleValue,
+  type MotionPreference as MotionPreferenceValue,
   type UserInterfacePreferences,
   type UserInterfacePreferenceValues,
   type UiFont as UiFontValue,
@@ -63,10 +66,33 @@ function fromIpcFont(font: IpcUiFont): UiFontValue {
   }
 }
 
+function toIpcMotion(motion: MotionPreferenceValue) {
+  switch (motion) {
+    case MotionPreference.System:
+      return IpcMotionPreference.System;
+    case MotionPreference.Reduced:
+      return IpcMotionPreference.Reduced;
+    case MotionPreference.Full:
+      return IpcMotionPreference.Full;
+  }
+}
+
+function fromIpcMotion(motion: IpcMotionPreference): MotionPreferenceValue {
+  switch (motion) {
+    case IpcMotionPreference.System:
+      return MotionPreference.System;
+    case IpcMotionPreference.Reduced:
+      return MotionPreference.Reduced;
+    case IpcMotionPreference.Full:
+      return MotionPreference.Full;
+  }
+}
+
 function toIpcValues(values: UserInterfacePreferenceValues): IpcUserInterfacePreferenceValues {
   return {
     font: toIpcFont(values.font),
     scale: toIpcScale(values.scale),
+    motion: toIpcMotion(values.motion),
   };
 }
 
@@ -82,5 +108,6 @@ export function exposeUserInterfacePreferences(
       contents.setZoomFactor(getInterfaceScaleFactor(values.scale));
       return toIpcValues(values);
     },
+    setMotion: (motion) => toIpcValues(preferences.setMotion(fromIpcMotion(motion))),
   });
 }

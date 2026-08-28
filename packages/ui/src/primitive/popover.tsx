@@ -1,6 +1,7 @@
 import { AnimatePresence, domAnimation, LazyMotion, MotionConfig } from "motion/react";
 import * as m from "motion/react-m";
 import type { ComponentProps, ReactElement } from "react";
+import { useReducedMotion } from "./motion";
 
 type PopoverPresenceProps = {
   children: ReactElement;
@@ -8,9 +9,11 @@ type PopoverPresenceProps = {
 };
 
 function PopoverPresence({ children, present }: PopoverPresenceProps) {
+  const reducedMotion = useReducedMotion();
+
   return (
     <LazyMotion features={domAnimation}>
-      <MotionConfig reducedMotion="user">
+      <MotionConfig reducedMotion={reducedMotion ? "always" : "never"}>
         <AnimatePresence initial={false}>{present ? children : null}</AnimatePresence>
       </MotionConfig>
     </LazyMotion>
@@ -21,7 +24,7 @@ type PopoverSurfaceProps = Omit<
   ComponentProps<typeof m.div>,
   "animate" | "exit" | "initial" | "transition"
 > & {
-  side?: "bottom" | "left" | "right" | "top";
+  side?: "bottom" | "left" | "right" | "top" | undefined;
 };
 
 const surfaceMotion = {

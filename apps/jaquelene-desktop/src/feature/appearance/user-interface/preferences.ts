@@ -17,9 +17,18 @@ export const InterfaceScale = {
 
 export type InterfaceScale = (typeof InterfaceScale)[keyof typeof InterfaceScale];
 
+export const MotionPreference = {
+  System: "system",
+  Reduced: "reduced",
+  Full: "full",
+} as const;
+
+export type MotionPreference = (typeof MotionPreference)[keyof typeof MotionPreference];
+
 export type UserInterfacePreferenceValues = {
   font: UiFont;
   scale: InterfaceScale;
+  motion: MotionPreference;
 };
 
 type UserInterfacePreferencesStorage = {
@@ -30,6 +39,7 @@ type UserInterfacePreferencesStorage = {
 const defaultValues = {
   font: UiFont.Inter,
   scale: InterfaceScale.Percent100,
+  motion: MotionPreference.System,
 } satisfies UserInterfacePreferenceValues;
 
 export const userInterfacePreferencesSchema = {
@@ -49,8 +59,12 @@ export const userInterfacePreferencesSchema = {
         InterfaceScale.Percent125,
       ],
     },
+    motion: {
+      type: "string",
+      enum: [MotionPreference.System, MotionPreference.Reduced, MotionPreference.Full],
+    },
   },
-  required: ["font", "scale"],
+  required: ["font", "scale", "motion"],
 } satisfies Schema<{ userInterface: UserInterfacePreferenceValues }>["userInterface"];
 
 function requireFont(font: UiFont) {
@@ -67,6 +81,16 @@ function requireScale(scale: InterfaceScale) {
     scale !== InterfaceScale.Percent125
   ) {
     throw new TypeError(`Unsupported interface scale "${scale}".`);
+  }
+}
+
+function requireMotion(motion: MotionPreference) {
+  if (
+    motion !== MotionPreference.System &&
+    motion !== MotionPreference.Reduced &&
+    motion !== MotionPreference.Full
+  ) {
+    throw new TypeError(`Unknown motion preference "${motion}".`);
   }
 }
 
@@ -92,6 +116,13 @@ export function createUserInterfacePreferences(storage: UserInterfacePreferences
     setScale(scale: InterfaceScale) {
       requireScale(scale);
       const values = { ...get(), scale };
+      storage.write(values);
+      return { ...values };
+    },
+
+    setMotion(motion: MotionPreference) {
+      requireMotion(motion);
+      const values = { ...get(), motion };
       storage.write(values);
       return { ...values };
     },

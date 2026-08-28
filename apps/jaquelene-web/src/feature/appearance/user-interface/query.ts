@@ -1,5 +1,6 @@
 import {
   InterfaceScale,
+  MotionPreference,
   UserInterfacePreferences,
   UiFont,
   type UserInterfacePreferenceValues,
@@ -10,6 +11,7 @@ import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 const getPreferences = requireIpcMethod(UserInterfacePreferences?.get);
 const setFont = requireIpcMethod(UserInterfacePreferences?.setFont);
 const setScale = requireIpcMethod(UserInterfacePreferences?.setScale);
+const setMotion = requireIpcMethod(UserInterfacePreferences?.setMotion);
 
 export const userInterfacePreferencesQuery = queryOptions({
   ...ipcQueryOptions,
@@ -39,4 +41,8 @@ export function useSetUiFont() {
 
 export function useSetInterfaceScale() {
   return useSetPreference<InterfaceScale>(setScale);
+}
+
+export function useSetMotion() {
+  return useSetPreference<MotionPreference>(setMotion);
 }

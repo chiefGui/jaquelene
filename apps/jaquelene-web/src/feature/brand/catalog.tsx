@@ -80,7 +80,6 @@ type BrandMarkProps = {
 
 export function BrandMark({ brandId, fallbackIcon, style }: BrandMarkProps) {
   const iconUrl = brands.get(brandId)?.iconUrl;
-  const styleProps = stylex.props(styles.mark, style);
 
   if (!iconUrl) {
     return (
@@ -89,10 +88,12 @@ export function BrandMark({ brandId, fallbackIcon, style }: BrandMarkProps) {
         size={16}
         strokeWidth={1.5}
         aria-hidden="true"
-        {...styleProps}
+        {...stylex.props(styles.base, style)}
       />
     );
   }
+
+  const styleProps = stylex.props(styles.base, styles.masked, style);
 
   return (
     <span
@@ -104,11 +105,13 @@ export function BrandMark({ brandId, fallbackIcon, style }: BrandMarkProps) {
 }
 
 const styles = stylex.create({
-  mark: {
-    backgroundColor: "currentColor",
-    display: "inline-block",
+  base: {
     flexShrink: 0,
     height: "1rem",
     width: "1rem",
+  },
+  masked: {
+    backgroundColor: "currentColor",
+    display: "inline-block",
   },
 });

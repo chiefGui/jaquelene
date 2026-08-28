@@ -547,7 +547,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                   role="button"
                   aria-current={selected || undefined}
                   aria-selected={undefined}
-                  className="col-span-2 row-start-1 grid h-full min-w-0 grid-cols-[1rem_minmax(0,1fr)] items-start gap-2 text-left outline-none"
+                  className="col-span-2 row-start-1 grid h-full min-w-0 content-center grid-cols-[1rem_minmax(0,1fr)] items-start gap-2 text-left outline-none"
                 >
                   {selected ? (
                     <HugeiconsIcon

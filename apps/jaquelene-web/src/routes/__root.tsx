@@ -26,7 +26,7 @@ function HomeSidebar() {
             to: "/scenarios",
           },
         ],
-        action: {
+        footerAction: {
           icon: Settings01Icon,
           label: "Settings",
           to: "/settings/general",

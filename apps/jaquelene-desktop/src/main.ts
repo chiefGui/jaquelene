@@ -5,7 +5,7 @@ import { closeDatabase, getDatabaseStoragePaths, openDatabase } from "./database
 import { exposeUserInterfacePreferences } from "./feature/appearance/user-interface/ipc";
 import { getInterfaceScaleFactor } from "./feature/appearance/user-interface/preferences";
 import { createCampaigns, type Campaigns } from "./feature/campaign/campaigns";
-import { exposeCampaigns } from "./feature/campaign/ipc";
+import { exposeCampaignPreferences, exposeCampaigns } from "./feature/campaign/ipc";
 import { createModelCatalog, type ModelCatalog } from "./feature/model/catalog";
 import { exposeModelCatalog } from "./feature/model/catalog-ipc";
 import { createFavoriteModels, type FavoriteModels } from "./feature/model/favorite-models";
@@ -14,7 +14,6 @@ import {
   createFavoriteModelsStorage,
   getFavoriteModelsStoragePaths,
 } from "./feature/model/favorite-models-store";
-import { exposeModelPreferences } from "./feature/model/preferences-ipc";
 import {
   createOpenRouterConnection,
   getOpenRouterConnectionStoragePaths,
@@ -87,9 +86,9 @@ async function createWindow(
 
   exposeScenarios(window.webContents.mainFrame, scenarios);
   exposeCampaigns(window.webContents.mainFrame, campaigns);
+  exposeCampaignPreferences(window.webContents.mainFrame, preferences.campaign);
   exposeModelCatalog(window.webContents.mainFrame, modelCatalog);
   exposeFavoriteModels(window.webContents.mainFrame, favoriteModels);
-  exposeModelPreferences(window.webContents.mainFrame, preferences.model);
   exposeUserInterfacePreferences(window.webContents, preferences.appearance.userInterface);
   exposeOpenRouterConnection(window.webContents.mainFrame, openRouterConnection);
   exposeStorage(window.webContents.mainFrame, storage);

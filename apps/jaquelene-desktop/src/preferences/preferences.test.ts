@@ -27,12 +27,12 @@ describe("preferences storage", () => {
   it("persists independently owned preference groups", () => {
     const directory = createUserDataDirectory();
     const preferences = createPreferences(directory);
-    const defaultModel = { providerId: "provider-a", modelId: "model-a" };
+    const defaultCampaignModel = { providerId: "provider-a", modelId: "model-a" };
 
     preferences.appearance.userInterface.setFont(UiFont.Geist);
     preferences.appearance.userInterface.setScale(InterfaceScale.Percent125);
     preferences.appearance.userInterface.setMotion(MotionPreference.Full);
-    preferences.model.setDefault(defaultModel);
+    preferences.campaign.setDefaultModel(defaultCampaignModel);
 
     const restored = createPreferences(directory);
     expect(restored.appearance.userInterface.get()).toEqual({
@@ -40,6 +40,6 @@ describe("preferences storage", () => {
       scale: InterfaceScale.Percent125,
       motion: MotionPreference.Full,
     });
-    expect(restored.model.get()).toEqual({ default: defaultModel });
+    expect(restored.campaign.getDefaultModel()).toEqual(defaultCampaignModel);
   });
 });

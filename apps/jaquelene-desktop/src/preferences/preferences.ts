@@ -6,16 +6,16 @@ import {
   userInterfacePreferencesSchema,
 } from "@/feature/appearance/user-interface/preferences";
 import {
-  createModelPreferences,
-  type ModelPreferenceValues,
-  modelPreferencesSchema,
-} from "@/feature/model/preferences";
+  createCampaignPreferences,
+  type CampaignPreferenceValues,
+  campaignPreferencesSchema,
+} from "@/feature/campaign/preferences";
 
 type PreferencesData = {
   appearance?: {
     userInterface?: UserInterfacePreferenceValues;
   };
-  model?: ModelPreferenceValues;
+  campaign?: CampaignPreferenceValues;
 };
 
 const storeName = "preferences";
@@ -28,7 +28,7 @@ const schema = {
       userInterface: userInterfacePreferencesSchema,
     },
   },
-  model: modelPreferencesSchema,
+  campaign: campaignPreferencesSchema,
 } satisfies Schema<PreferencesData>;
 
 export function getPreferencesStoragePaths(userDataDirectory: string) {
@@ -53,9 +53,9 @@ export function createPreferences(userDataDirectory: string) {
         },
       }),
     },
-    model: createModelPreferences({
-      read: () => store.get("model"),
-      write: (model) => store.set("model", model),
+    campaign: createCampaignPreferences({
+      read: () => store.get("campaign"),
+      write: (campaign) => store.set("campaign", campaign),
     }),
   };
 }

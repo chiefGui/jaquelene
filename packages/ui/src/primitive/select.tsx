@@ -11,6 +11,9 @@ import {
   type ComboboxSelectProps,
 } from "@ariakit/react/combobox";
 import { useStoreState } from "@ariakit/react/store";
+import ChevronDownIcon from "@hugeicons/core-free-icons/ChevronDownIcon";
+import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type { ComponentProps } from "react";
 import { cn } from "../util/cn";
 import { Popover } from "./popover";
@@ -35,20 +38,13 @@ function SelectTrigger({ children, className, ...props }: SelectProps) {
       )}
     >
       {children ?? <SelectValue />}
-      <svg
+      <HugeiconsIcon
+        icon={ChevronDownIcon}
+        size={14}
+        strokeWidth={1.5}
         aria-hidden="true"
-        viewBox="0 0 16 16"
-        fill="none"
         className="size-3.5 shrink-0 text-muted group-data-focus-visible:-rotate-90 group-aria-expanded:-rotate-90"
-      >
-        <path
-          d="m4.5 6 3.5 3.5L11.5 6"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="1.5"
-        />
-      </svg>
+      />
     </ComboboxSelect>
   );
 }
@@ -103,23 +99,18 @@ function SelectItemText({ className, ...props }: ComponentProps<"span">) {
   return <span {...props} className={cn("min-w-0 text-box-trim", className)} />;
 }
 
-function SelectIndicator({ className, ...props }: ComponentProps<"svg">) {
+type SelectIndicatorProps = Omit<ComponentProps<typeof HugeiconsIcon>, "icon">;
+
+function SelectIndicator({ className, ...props }: SelectIndicatorProps) {
   return (
-    <svg
+    <HugeiconsIcon
+      icon={Tick01Icon}
+      size={16}
+      strokeWidth={1.5}
       {...props}
       aria-hidden="true"
-      viewBox="0 0 16 16"
-      fill="none"
       className={cn("size-4 shrink-0 opacity-0 group-aria-selected:opacity-100", className)}
-    >
-      <path
-        d="m3.75 8 2.75 2.75 5.75-6"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </svg>
+    />
   );
 }
 

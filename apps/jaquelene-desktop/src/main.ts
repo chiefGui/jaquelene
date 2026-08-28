@@ -17,6 +17,12 @@ import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verificati
 import { exposeScenarios } from "./feature/scenario/ipc";
 import { createScenarios, type Scenarios } from "./feature/scenario/scenarios";
 import { createLocalState, getLocalStateStoragePaths, type LocalState } from "./local-state";
+import { exposePreferences } from "./preferences/ipc";
+import {
+  createPreferences,
+  getPreferencesStoragePaths,
+  type Preferences,
+} from "./preferences/preferences";
 import { exposeStorage } from "./storage/ipc";
 import { createStorage, type AppStorage } from "./storage/storage";
 
@@ -44,6 +50,7 @@ async function createWindow(
   scenarios: Scenarios,
   campaigns: Campaigns,
   modelCatalog: ModelCatalog,
+  preferences: Preferences,
   openRouterConnection: OpenRouterConnection,
   storage: AppStorage,
 ) {
@@ -70,6 +77,7 @@ async function createWindow(
   exposeScenarios(window.webContents.mainFrame, scenarios);
   exposeCampaigns(window.webContents.mainFrame, campaigns);
   exposeModelCatalog(window.webContents.mainFrame, modelCatalog);
+  exposePreferences(window.webContents.mainFrame, preferences);
   exposeOpenRouterConnection(window.webContents.mainFrame, openRouterConnection);
   exposeStorage(window.webContents.mainFrame, storage);
 
@@ -143,10 +151,12 @@ void app
       verify: verifyOpenRouterApiKey,
     });
     const modelCatalog = createModelCatalog([createOpenRouterModelProvider(openRouterConnection)]);
+    const preferences = createPreferences(userDataDirectory);
     const storage = createStorage([
       ...getDatabaseStoragePaths(databasePath),
       ...getLocalStateStoragePaths(userDataDirectory),
       ...getOpenRouterConnectionStoragePaths(userDataDirectory),
+      ...getPreferencesStoragePaths(userDataDirectory),
     ]);
 
     app.once("will-quit", () => closeDatabase(database));
@@ -156,6 +166,7 @@ void app
       scenarios,
       campaigns,
       modelCatalog,
+      preferences,
       openRouterConnection,
       storage,
     );
@@ -167,6 +178,7 @@ void app
           scenarios,
           campaigns,
           modelCatalog,
+          preferences,
           openRouterConnection,
           storage,
         ).catch(quitAfterFatalError);

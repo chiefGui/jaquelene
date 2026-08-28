@@ -1,0 +1,9 @@
+module jaquelene
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Preferences {
+  getDefaultModel() -> ModelReference?
+  setDefaultModel(reference: ModelReference) -> ModelReference
+}

@@ -40,7 +40,7 @@ function CampaignRoute() {
             <Breadcrumb.Item>
               <Breadcrumb.Link
                 render={<Link to="/scenarios" />}
-                className="text-muted transition-colors hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-muted"
+                className="text-muted hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
               >
                 Scenarios
               </Breadcrumb.Link>
@@ -53,7 +53,7 @@ function CampaignRoute() {
                     render={
                       <Link to="/scenarios/$scenarioId" params={{ scenarioId: scenario.id }} />
                     }
-                    className="block truncate text-muted transition-colors hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-muted"
+                    className="block truncate text-muted hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
                   >
                     {scenario.title}
                   </Breadcrumb.Link>

@@ -33,7 +33,7 @@ function SelectTrigger({ children, className, ...props }: SelectProps) {
     <ComboboxSelect
       {...props}
       className={cn(
-        "group inline-flex h-control shrink-0 items-center justify-between gap-3 rounded-md bg-foreground/[0.035] px-2.5 text-sm font-medium text-foreground/80 ring-inset ring-transparent outline-none not-disabled:hover:bg-foreground/6 disabled:opacity-50 data-focus-visible:ring-1 data-focus-visible:ring-foreground/25 aria-expanded:ring-1 aria-expanded:ring-foreground/25",
+        "group inline-flex h-control shrink-0 items-center justify-between gap-3 rounded-md bg-foreground/[0.035] px-2.5 text-sm font-medium text-foreground/80 ring-inset ring-transparent outline-none not-disabled:hover:bg-accent/10 disabled:opacity-50 data-focus-visible:ring-1 data-focus-visible:ring-accent/45 aria-expanded:ring-1 aria-expanded:ring-accent/45",
         className,
       )}
     >
@@ -43,7 +43,7 @@ function SelectTrigger({ children, className, ...props }: SelectProps) {
         size={14}
         strokeWidth={1.5}
         aria-hidden="true"
-        className="size-3.5 shrink-0 text-muted group-data-focus-visible:-rotate-90 group-aria-expanded:-rotate-90"
+        className="size-3.5 shrink-0 text-muted group-data-focus-visible:-rotate-90 group-data-focus-visible:text-accent group-aria-expanded:-rotate-90 group-aria-expanded:text-accent"
       />
     </ComboboxSelect>
   );
@@ -75,7 +75,7 @@ function SelectContent({ className, ...props }: SelectContentProps) {
         alwaysVisible
         render={<Popover.Surface />}
         className={cn(
-          "z-50 overflow-hidden rounded-lg border border-surface-raised-border bg-surface-raised p-1 text-foreground shadow-2xl outline-none",
+          "z-50 flex flex-col gap-1 overflow-hidden rounded-lg border border-surface-raised-border bg-surface-raised p-1 text-foreground shadow-2xl outline-none",
           className,
         )}
       />
@@ -88,7 +88,7 @@ function SelectItem({ className, ...props }: ComboboxItemProps) {
     <ComboboxItem
       {...props}
       className={cn(
-        "group flex h-control items-center justify-between gap-3 rounded-md px-2.5 text-sm text-muted outline-none hover:bg-foreground/[0.055] hover:text-foreground focus:bg-foreground/[0.055] focus:text-foreground data-active-item:bg-foreground/[0.055] data-active-item:text-foreground aria-selected:text-foreground",
+        "group flex h-control items-center justify-between gap-3 rounded-md px-2.5 text-sm text-muted outline-none hover:bg-accent/10 hover:text-foreground focus:bg-accent/10 focus:text-foreground data-active-item:bg-accent/10 data-active-item:text-foreground aria-selected:bg-accent/10 aria-selected:text-foreground",
         className,
       )}
     />
@@ -109,7 +109,10 @@ function SelectIndicator({ className, ...props }: SelectIndicatorProps) {
       strokeWidth={1.5}
       {...props}
       aria-hidden="true"
-      className={cn("size-4 shrink-0 opacity-0 group-aria-selected:opacity-100", className)}
+      className={cn(
+        "size-4 shrink-0 text-accent opacity-0 group-aria-selected:opacity-100",
+        className,
+      )}
     />
   );
 }

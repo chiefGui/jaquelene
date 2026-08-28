@@ -112,7 +112,7 @@ function ScenariosIndexRoute() {
                     <Link
                       to="/scenarios/$scenarioId"
                       params={{ scenarioId: scenario.id }}
-                      className="block px-4 py-3 text-sm transition-colors hover:bg-canvas focus-visible:-outline-offset-1 focus-visible:outline-1 focus-visible:outline-muted"
+                      className="block px-4 py-3 text-sm hover:bg-accent/10 focus-visible:-outline-offset-1 focus-visible:outline-1 focus-visible:outline-accent/60"
                     >
                       {scenario.title}
                     </Link>

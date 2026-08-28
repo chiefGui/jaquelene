@@ -370,7 +370,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                 aria-busy={pending}
                 aria-posinset={virtualItem.index + 1}
                 aria-setsize={options.length}
-                className="group flex h-full w-full items-center justify-between gap-4 rounded-lg px-3 py-2 text-sm outline-none hover:bg-foreground/[0.055] focus:bg-foreground/[0.055] data-active-item:bg-foreground/[0.055] aria-disabled:opacity-50 aria-selected:bg-foreground/[0.055]"
+                className="group flex h-full w-full items-center justify-between gap-4 rounded-lg px-3 py-2 text-sm outline-none hover:bg-accent/10 focus:bg-accent/10 data-active-item:bg-accent/10 aria-disabled:opacity-50 aria-selected:bg-accent/10"
               >
                 <span className="flex min-w-0 items-start gap-3">
                   <ModelMark
@@ -401,7 +401,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                     size={16}
                     strokeWidth={1.5}
                     aria-hidden="true"
-                    className="shrink-0 text-foreground"
+                    className="shrink-0 text-accent"
                   />
                 ) : null}
               </ComboboxItem>
@@ -446,7 +446,7 @@ function ModelPickerModels() {
             </Button>
             <Link
               to="/settings/providers"
-              className="rounded-sm text-sm text-muted outline-none hover:text-foreground hover:underline hover:underline-offset-4 focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-muted"
+              className="rounded-sm text-sm text-muted outline-none hover:text-foreground hover:underline hover:underline-offset-4 focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
             >
               Provider settings
             </Link>
@@ -528,7 +528,7 @@ function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
                   render={
                     <Button
                       variant="ghost"
-                      className="w-full justify-start gap-2 px-2 font-normal text-muted not-disabled:hover:bg-foreground/[0.045] aria-selected:bg-foreground/[0.06] aria-selected:text-foreground"
+                      className="w-full justify-start gap-2 px-2 font-normal text-muted not-disabled:hover:bg-accent/10 aria-selected:bg-accent/10 aria-selected:text-foreground"
                     />
                   }
                 >

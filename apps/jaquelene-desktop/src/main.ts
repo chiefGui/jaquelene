@@ -64,7 +64,8 @@ async function createWindow(
     ...(mainWindowState?.bounds ?? { width: 1180, height: 780 }),
     minWidth: 860,
     minHeight: 620,
-    backgroundColor: "rgb(8, 9, 10)",
+    // Electron's native window background parser does not support OKLCH.
+    backgroundColor: "rgb(7, 8, 12)",
     show: false,
     title: "Jaquelene",
     webPreferences: {

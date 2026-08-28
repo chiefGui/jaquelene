@@ -101,7 +101,7 @@ function ScenarioRoute() {
             <Breadcrumb.Item>
               <Breadcrumb.Link
                 render={<Link to="/scenarios" />}
-                className="text-muted transition-colors hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-muted"
+                className="text-muted hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
               >
                 Scenarios
               </Breadcrumb.Link>
@@ -183,7 +183,7 @@ function ScenarioRoute() {
                         <Link
                           to="/campaigns/$campaignId"
                           params={{ campaignId: campaign.id }}
-                          className="block px-4 py-3 text-sm transition-colors hover:bg-canvas focus-visible:-outline-offset-1 focus-visible:outline-1 focus-visible:outline-muted"
+                          className="block px-4 py-3 text-sm hover:bg-accent/10 focus-visible:-outline-offset-1 focus-visible:outline-1 focus-visible:outline-accent/60"
                         >
                           <time dateTime={new Date(campaign.startedAt).toISOString()}>
                             {formatTimestamp(campaign.startedAt)}

@@ -7,11 +7,11 @@ import type { ComponentProps } from "react";
 import { cn } from "../util/cn";
 
 const buttonClassName = tv({
-  base: "inline-flex h-control shrink-0 items-center justify-center rounded-md px-3 text-sm font-medium outline-none aria-disabled:opacity-50 data-focus-visible:outline-1 data-focus-visible:outline-offset-2 data-focus-visible:outline-muted disabled:opacity-50",
+  base: "inline-flex h-control shrink-0 items-center justify-center rounded-md px-3 text-sm font-medium outline-none aria-disabled:opacity-50 data-focus-visible:outline-1 data-focus-visible:outline-offset-2 data-focus-visible:outline-accent/60 disabled:opacity-50",
   variants: {
     variant: {
       solid: "bg-foreground/90 text-canvas not-disabled:hover:bg-foreground",
-      ghost: "not-disabled:hover:bg-border",
+      ghost: "not-disabled:hover:bg-accent/10",
     },
   },
   defaultVariants: {

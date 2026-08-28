@@ -4,9 +4,16 @@
 
 @layer base {
   :root {
+    accent-color: var(--color-accent);
+    background-color: var(--color-canvas);
     color-scheme: dark;
     font-family: var(--font-sans);
     scrollbar-color: color-mix(in oklch, var(--color-muted) 65%, transparent) transparent;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklch, var(--color-accent) 35%, transparent);
+    color: var(--color-foreground);
   }
 
   :where(*) {

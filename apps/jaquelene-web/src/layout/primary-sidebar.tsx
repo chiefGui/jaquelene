@@ -42,9 +42,9 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
               <Link
                 {...destination}
                 activeOptions={{ exact: true }}
-                className="flex h-9 min-w-0 items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-muted"
-                activeProps={{ className: "bg-surface text-foreground" }}
-                inactiveProps={{ className: "text-muted" }}
+                className="flex h-9 min-w-0 items-center gap-2 rounded-md px-2 text-sm hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
+                activeProps={{ className: "bg-accent/10 text-foreground hover:bg-accent/15" }}
+                inactiveProps={{ className: "text-muted hover:bg-accent/10" }}
               >
                 <HugeiconsIcon
                   icon={icon}
@@ -65,7 +65,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
         <Link
           {...actionDestination}
           aria-label={actionLabel}
-          className="flex size-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-muted"
+          className="flex size-9 items-center justify-center rounded-md text-muted hover:bg-accent/10 hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
         >
           <HugeiconsIcon
             icon={actionIcon}

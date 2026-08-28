@@ -1,0 +1,9 @@
+module jaquelene
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface FavoriteModels {
+  list() -> ModelReference[]
+  set(reference: ModelReference, favorite: boolean) -> ModelReference[]
+}

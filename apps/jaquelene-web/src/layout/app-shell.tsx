@@ -1,4 +1,6 @@
 import { MotionProvider } from "@jaquelene/ui/motion";
+import { tokens } from "@jaquelene/ui/theme.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useMatches } from "@tanstack/react-router";
 import { useApplyUiFont } from "@/feature/appearance/user-interface/font";
@@ -21,7 +23,7 @@ export function AppShell() {
 
   return (
     <MotionProvider mode={motionPreferences[preferences.motion].mode}>
-      <div className="grid h-dvh min-h-0 grid-cols-[14rem_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_2.25rem] overflow-hidden bg-canvas text-sm text-foreground">
+      <div {...stylex.props(styles.root)}>
         <Sidebar />
         <ContentPane.Root>
           <Outlet />
@@ -31,3 +33,18 @@ export function AppShell() {
     </MotionProvider>
   );
 }
+
+const styles = stylex.create({
+  root: {
+    backgroundColor: tokens.canvas,
+    color: tokens.foreground,
+    display: "grid",
+    fontSize: tokens.fontSizeSmall,
+    gridTemplateColumns: "14rem minmax(0, 1fr)",
+    gridTemplateRows: "minmax(0, 1fr) 2.25rem",
+    height: "100dvh",
+    lineHeight: tokens.lineHeightSmall,
+    minHeight: 0,
+    overflow: "hidden",
+  },
+});

@@ -12,6 +12,7 @@
     "moduleDetection": "force",
     "types": ["node"],
     "allowJs": false,
+    "allowImportingTsExtensions": true,
     "noEmit": true,
     "strict": true,
     "exactOptionalPropertyTypes": true,
@@ -26,6 +27,7 @@
     "src/**/*.ts",
     "drizzle.config.ts",
     "vite.config.ts",
-    "../jaquelene-web/vite.config.ts"
+    "../jaquelene-web/vite.config.ts",
+    "../jaquelene-web/stylex.config.ts"
   ]
 }

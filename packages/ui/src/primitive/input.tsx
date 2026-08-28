@@ -1,16 +1,43 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
-import { cn } from "../util/cn";
+import * as stylex from "@stylexjs/stylex";
+import type { StyleXStyles } from "@stylexjs/stylex";
+import { tokens } from "../theme.stylex";
 
-export type InputProps = Omit<RoleProps<"input">, "render">;
+export type InputProps = Omit<RoleProps<"input">, "className" | "render" | "style"> & {
+  style?: StyleXStyles;
+};
 
-export function Input({ className, ...props }: InputProps) {
-  return (
-    <Role.input
-      {...props}
-      className={cn(
-        "h-control appearance-none rounded-md border border-foreground/10 bg-foreground/[0.035] px-2.5 text-sm text-foreground caret-accent outline-none placeholder:text-muted focus:border-accent/45 focus:bg-foreground/[0.05] disabled:opacity-50",
-        className,
-      )}
-    />
-  );
+export function Input({ style, ...props }: InputProps) {
+  return <Role.input {...props} {...stylex.props(styles.root, style)} />;
 }
+
+const styles = stylex.create({
+  root: {
+    appearance: "none",
+    backgroundColor: {
+      default: `color-mix(in oklab, ${tokens.foreground} 3.5%, transparent)`,
+      ":focus": `color-mix(in oklab, ${tokens.foreground} 5%, transparent)`,
+    },
+    borderColor: {
+      default: `color-mix(in oklab, ${tokens.foreground} 10%, transparent)`,
+      ":focus": `color-mix(in oklab, ${tokens.accent} 45%, transparent)`,
+    },
+    borderRadius: tokens.radiusMedium,
+    borderStyle: "solid",
+    borderWidth: 1,
+    caretColor: tokens.accent,
+    color: tokens.foreground,
+    fontSize: tokens.fontSizeSmall,
+    height: tokens.controlHeight,
+    lineHeight: tokens.lineHeightSmall,
+    opacity: {
+      default: 1,
+      ":disabled": 0.5,
+    },
+    outline: "none",
+    paddingInline: "0.625rem",
+    "::placeholder": {
+      color: tokens.muted,
+    },
+  },
+});

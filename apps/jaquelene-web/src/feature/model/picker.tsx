@@ -8,16 +8,20 @@ import {
 } from "@ariakit/react/combobox";
 import { useStoreState } from "@ariakit/react/store";
 import { Tab, TabList, TabPanel, TabProvider } from "@ariakit/react/tab";
+import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import RoboticIcon from "@hugeicons/core-free-icons/RoboticIcon";
 import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import StarIcon from "@hugeicons/core-free-icons/StarIcon";
 import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { AvailableModel, ModelProvider, ModelReference } from "@jaquelene/ipc/renderer";
-import { Button, Input, Skeleton, cn } from "@jaquelene/ui";
+import { Button, Input, Skeleton } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
 import { Select, type SelectProps } from "@jaquelene/ui/select";
+import { tokens } from "@jaquelene/ui/theme.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
+import * as stylex from "@stylexjs/stylex";
+import type { StyleXStyles } from "@stylexjs/stylex";
 import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
@@ -100,11 +104,9 @@ const ModelPickerContext = createContext<ModelPickerContextValue | null>(null);
 const modelOptionHeight = 56;
 const modelOptionGap = 4;
 const modelOptionSize = modelOptionHeight + modelOptionGap;
-const modelRowLayoutClassName =
-  "grid grid-cols-[1rem_minmax(0,1fr)_2rem] items-center gap-2 px-3 py-2";
 
-function ModelMark({ brandId, className }: { brandId: string; className?: string }) {
-  return <BrandMark brandId={brandId} fallbackIcon={RoboticIcon} className={className} />;
+function ModelMark({ brandId, style }: { brandId: string; style?: StyleXStyles }) {
+  return <BrandMark brandId={brandId} fallbackIcon={RoboticIcon} style={style} />;
 }
 
 function sameModel(left: ModelReference, right: ModelReference) {
@@ -390,23 +392,19 @@ function ModelPickerSelectedValue({
 
   return (
     <>
-      {model ? (
-        <ModelMark
-          brandId={model.brandId}
-          className="col-start-1 row-start-1 size-3.5 text-muted"
-        />
-      ) : null}
-      <Select.Value className="col-start-2 row-start-1 truncate">
-        {model?.name ?? fallback}
-      </Select.Value>
+      {model ? <ModelMark brandId={model.brandId} style={styles.selectedModelMark} /> : null}
+      <Select.Value style={styles.selectedValue}>{model?.name ?? fallback}</Select.Value>
     </>
   );
 }
 
 function ModelPickerValue({
-  className,
+  style,
   ...props
-}: ComponentProps<"span"> & { placeholder?: string }) {
+}: Omit<ComponentProps<"span">, "className" | "style"> & {
+  placeholder?: string;
+  style?: StyleXStyles;
+}) {
   const { placeholder = "Choose model", ...spanProps } = props;
   const { tabs, value } = useModelPicker("Value");
   const selectedProvider = tabs.some(
@@ -414,26 +412,20 @@ function ModelPickerValue({
   );
 
   return (
-    <span
-      {...spanProps}
-      className={cn(
-        "grid min-w-0 flex-1 grid-cols-[0.875rem_minmax(0,1fr)] items-center gap-2 text-left",
-        className,
-      )}
-    >
+    <span {...spanProps} {...stylex.props(styles.value, style)}>
       {value ? (
         <ModelPickerSelectedValue
           reference={value}
           fallback={selectedProvider ? value.modelId : placeholder}
         />
       ) : (
-        <Select.Value className="col-span-2 truncate">{placeholder}</Select.Value>
+        <Select.Value style={styles.placeholderValue}>{placeholder}</Select.Value>
       )}
     </span>
   );
 }
 
-function ModelPickerTrigger({ children, className, disabled, ...props }: SelectProps) {
+function ModelPickerTrigger({ children, disabled, style, ...props }: SelectProps) {
   const { pickerStatus } = useModelPicker("Trigger");
 
   if (pickerStatus === "empty") {
@@ -445,7 +437,7 @@ function ModelPickerTrigger({ children, className, disabled, ...props }: SelectP
       {...props}
       aria-busy={pickerStatus === "loading"}
       disabled={disabled || pickerStatus !== "ready"}
-      className={cn("w-72 max-w-[calc(100vw-3rem)]", className)}
+      style={[styles.trigger, style]}
     >
       {children ?? <ModelPickerValue />}
     </Select>
@@ -495,16 +487,13 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
   }, [activeIndex, virtualizer]);
 
   return (
-    <div
-      ref={scrollElementRef}
-      className="min-h-0 flex-1 overflow-y-auto p-2 [scrollbar-gutter:stable]"
-    >
+    <div ref={scrollElementRef} {...stylex.props(styles.modelListViewport)}>
       <ul
         ref={virtualizer.containerRef}
         aria-label={
           activeTab.type === "favorites" ? "Favorite models" : `${activeTab.brandName} models`
         }
-        className="relative w-full"
+        {...stylex.props(styles.modelList)}
       >
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const option = options[virtualItem.index];
@@ -527,15 +516,15 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
               data-index={virtualItem.index}
               aria-posinset={virtualItem.index + 1}
               aria-setsize={options.length}
-              className="absolute top-0 left-0 w-full"
-              style={{ height: modelOptionSize, paddingBottom: modelOptionGap }}
+              {...stylex.props(styles.virtualItem)}
             >
               <div
                 data-active-item={active || undefined}
-                className={cn(
-                  modelRowLayoutClassName,
-                  "group h-full w-full rounded-lg text-sm hover:bg-accent/10 focus-within:bg-accent/10 data-active-item:bg-accent/10",
-                  selected && "bg-accent/10 hover:bg-accent/15",
+                {...stylex.props(
+                  styles.modelRow,
+                  styles.interactiveModelRow,
+                  selected && styles.selectedModelRow,
+                  stylex.defaultMarker(),
                 )}
               >
                 <ComboboxItem
@@ -547,7 +536,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                   role="button"
                   aria-current={selected || undefined}
                   aria-selected={undefined}
-                  className="col-span-2 row-start-1 grid h-full min-w-0 content-center grid-cols-[1rem_minmax(0,1fr)] items-start gap-2 text-left outline-none"
+                  {...stylex.props(styles.modelOption)}
                 >
                   {selected ? (
                     <HugeiconsIcon
@@ -555,28 +544,20 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                       size={16}
                       strokeWidth={1.5}
                       aria-hidden="true"
-                      className="col-start-1 row-start-1 mt-0.5 self-start text-accent"
+                      {...stylex.props(styles.selectedIndicator)}
                     />
                   ) : null}
 
-                  <span className="col-start-2 row-start-1 flex min-w-0 items-start gap-3">
+                  <span {...stylex.props(styles.modelDetails)}>
                     <ModelMark
                       brandId={model.brandId}
-                      className={cn(
-                        "mt-0.5 size-4 text-muted group-hover:text-foreground group-focus-within:text-foreground group-data-active-item:text-foreground",
-                        selected && "text-foreground",
-                      )}
+                      style={[styles.modelMark, selected && styles.selectedModel]}
                     />
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={cn(
-                          "block truncate text-foreground/75 group-hover:text-foreground group-focus-within:text-foreground group-data-active-item:text-foreground",
-                          selected && "text-foreground",
-                        )}
-                      >
+                    <span {...stylex.props(styles.modelText)}>
+                      <span {...stylex.props(styles.modelName, selected && styles.selectedModel)}>
                         {model.name}
                       </span>
-                      <span className="mt-0.5 block truncate text-xs text-muted">
+                      <span {...stylex.props(styles.modelMetadata)}>
                         {activeTab.type === "favorites" ? (
                           <>
                             {provider.brandName} &middot; {modelBrandName} &middot; {model.id}
@@ -604,10 +585,10 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                   disabled={updatingFavorite}
                   onPointerDown={(event) => event.preventDefault()}
                   onClick={() => setFavorite(reference, !favorite)}
-                  className={cn(
-                    "col-start-3 row-start-1 size-8 px-0 hover:bg-accent/10 hover:text-accent aria-disabled:opacity-100 disabled:opacity-100 group-data-active-item:opacity-100 group-focus-within:opacity-100",
-                    favorite ? "text-accent" : "text-muted opacity-0 group-hover:opacity-100",
-                  )}
+                  style={[
+                    styles.favoriteButton,
+                    favorite ? styles.favoriteButtonOn : styles.favoriteButtonOff,
+                  ]}
                 >
                   <HugeiconsIcon
                     icon={StarIcon}
@@ -631,17 +612,17 @@ function ModelPickerModels() {
 
   if (modelList.status === "loading") {
     return (
-      <div role="status" className="min-h-0 flex-1 overflow-hidden p-2 [scrollbar-gutter:stable]">
-        <span className="sr-only">Loading models...</span>
+      <div role="status" {...stylex.props(styles.loading)}>
+        <VisuallyHidden>Loading models...</VisuallyHidden>
 
-        <div className="flex flex-col gap-1">
+        <div {...stylex.props(styles.skeletonList)}>
           {Array.from({ length: 6 }, (_, index) => (
-            <div key={index} className={cn(modelRowLayoutClassName, "h-14")}>
-              <div className="col-start-2 flex min-w-0 items-start gap-3">
-                <Skeleton className="mt-0.5 size-4 shrink-0 rounded-sm" />
-                <div className="min-w-0 flex-1">
-                  <Skeleton className="h-4 w-2/5" />
-                  <Skeleton className="mt-1.5 h-3 w-3/5" />
+            <div key={index} {...stylex.props(styles.modelRow, styles.skeletonRow)}>
+              <div {...stylex.props(styles.skeletonContent)}>
+                <Skeleton style={styles.skeletonMark} />
+                <div {...stylex.props(styles.skeletonText)}>
+                  <Skeleton style={styles.skeletonTitle} />
+                  <Skeleton style={styles.skeletonMetadata} />
                 </div>
               </div>
             </div>
@@ -653,19 +634,16 @@ function ModelPickerModels() {
 
   if (modelList.status === "error") {
     return (
-      <div className="grid min-h-0 flex-1 place-items-center p-6 text-center">
+      <div {...stylex.props(styles.centerState)}>
         <div>
-          <p role="alert" className="text-sm text-muted">
+          <p role="alert" {...stylex.props(styles.stateMessage)}>
             Couldn't load models.
           </p>
-          <div className="mt-3 flex items-center justify-center gap-3">
+          <div {...stylex.props(styles.stateActions)}>
             <Button variant="ghost" onClick={modelList.reload}>
               Retry
             </Button>
-            <Link
-              to="/settings/providers"
-              className="rounded-sm text-sm text-muted outline-none hover:text-foreground hover:underline hover:underline-offset-4 focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
-            >
+            <Link to="/settings/providers" {...stylex.props(styles.settingsLink)}>
               Provider settings
             </Link>
           </div>
@@ -679,7 +657,7 @@ function ModelPickerModels() {
       {modelList.options.length > 0 ? (
         <ModelPickerList options={modelList.options} />
       ) : (
-        <p role="status" className="grid min-h-0 flex-1 place-items-center text-sm text-muted">
+        <p role="status" {...stylex.props(styles.emptyState)}>
           {inputValue.trim()
             ? "No matching models."
             : activeTab.type === "favorites"
@@ -689,10 +667,7 @@ function ModelPickerModels() {
       )}
 
       {actionError ? (
-        <p
-          role="alert"
-          className="shrink-0 border-t border-surface-raised-border px-3 py-2 text-xs text-danger"
-        >
+        <p role="alert" {...stylex.props(styles.actionError)}>
           {actionError}
         </p>
       ) : null}
@@ -702,10 +677,12 @@ function ModelPickerModels() {
 
 type ModelPickerContentProps = Omit<
   ComboboxPopoverProps,
-  "alwaysVisible" | "children" | "render" | "unmountOnHide"
->;
+  "alwaysVisible" | "children" | "className" | "render" | "style" | "unmountOnHide"
+> & {
+  style?: StyleXStyles;
+};
 
-function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
+function ModelPickerContent({ style, ...props }: ModelPickerContentProps) {
   const combobox = useComboboxContext();
   const mounted = useStoreState(combobox, "mounted") ?? false;
   const { activeTab, pickerStatus, selectTab, tabs } = useModelPicker("Content");
@@ -724,17 +701,11 @@ function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
         {...props}
         render={<Popover.Surface />}
         role="dialog"
-        className={cn(
-          "z-50 h-[26rem] w-[38rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-surface-raised-border bg-surface-raised text-foreground shadow-2xl outline-none",
-          className,
-        )}
+        {...stylex.props(styles.content, style)}
       >
         <TabProvider selectedId={activeTab.tabId} setSelectedId={selectTab} orientation="vertical">
-          <div className="grid h-full min-h-0 grid-cols-[3.0625rem_minmax(0,1fr)]">
-            <TabList
-              aria-label="Model sources"
-              className="flex min-h-0 flex-col items-center gap-1 overflow-y-auto border-r border-surface-raised-border p-2"
-            >
+          <div {...stylex.props(styles.contentLayout)}>
+            <TabList aria-label="Model sources" {...stylex.props(styles.tabList)}>
               {tabs.map((tab) => {
                 const label = tab.type === "favorites" ? "Favorites" : tab.brandName;
 
@@ -745,12 +716,7 @@ function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
                         <Tab
                           id={tab.tabId}
                           aria-label={label}
-                          render={
-                            <Button
-                              variant="ghost"
-                              className="w-control px-0 text-muted not-disabled:hover:bg-accent/10 aria-selected:bg-accent/10 aria-selected:text-foreground aria-selected:not-disabled:hover:bg-accent/15"
-                            />
-                          }
+                          render={<Button variant="ghost" style={styles.tabButton} />}
                         />
                       }
                     >
@@ -760,10 +726,10 @@ function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
                           size={16}
                           strokeWidth={1.5}
                           aria-hidden="true"
-                          className="size-4"
+                          {...stylex.props(styles.tabMark)}
                         />
                       ) : (
-                        <ProviderMark brandId={tab.brandId} className="size-4" />
+                        <ProviderMark brandId={tab.brandId} style={styles.tabMark} />
                       )}
                     </Tooltip.Anchor>
 
@@ -773,18 +739,14 @@ function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
               })}
             </TabList>
 
-            <TabPanel
-              tabId={activeTab.tabId}
-              tabIndex={-1}
-              className="flex min-h-0 flex-col outline-none"
-            >
-              <div className="relative shrink-0 border-b border-surface-raised-border p-2">
+            <TabPanel tabId={activeTab.tabId} tabIndex={-1} {...stylex.props(styles.tabPanel)}>
+              <div {...stylex.props(styles.search)}>
                 <HugeiconsIcon
                   icon={Search01Icon}
                   size={16}
                   strokeWidth={1.5}
                   aria-hidden="true"
-                  className="pointer-events-none absolute top-1/2 left-5 -translate-y-1/2 text-muted"
+                  {...stylex.props(styles.searchIcon)}
                 />
                 <Combobox
                   autoSelect="always"
@@ -793,9 +755,7 @@ function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
                   }
                   aria-label="Search models"
                   placeholder="Search models..."
-                  render={
-                    <Input className="h-10 w-full border-0 bg-transparent pr-3 pl-9 focus:border-0 focus:bg-transparent" />
-                  }
+                  render={<Input style={styles.searchInput} />}
                 />
               </div>
 
@@ -815,3 +775,388 @@ export const ModelPicker = {
   Empty: ModelPickerEmpty,
   Content: ModelPickerContent,
 } as const;
+
+const activeBackground = `color-mix(in oklab, ${tokens.accent} 10%, transparent)`;
+const focusOutline = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
+
+const styles = stylex.create({
+  selectedModelMark: {
+    color: tokens.muted,
+    gridColumnStart: "1",
+    gridRowStart: "1",
+    height: "0.875rem",
+    width: "0.875rem",
+  },
+  selectedValue: {
+    gridColumnStart: "2",
+    gridRowStart: "1",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  value: {
+    alignItems: "center",
+    display: "grid",
+    flex: 1,
+    gap: "0.5rem",
+    gridTemplateColumns: "0.875rem minmax(0, 1fr)",
+    minWidth: 0,
+    textAlign: "left",
+  },
+  placeholderValue: {
+    gridColumn: "span 2 / span 2",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  trigger: {
+    maxWidth: "calc(100vw - 3rem)",
+    width: "18rem",
+  },
+  modelListViewport: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    padding: "0.5rem",
+    scrollbarGutter: "stable",
+  },
+  modelList: {
+    position: "relative",
+    width: "100%",
+  },
+  virtualItem: {
+    height: modelOptionSize,
+    left: 0,
+    paddingBottom: modelOptionGap,
+    position: "absolute",
+    top: 0,
+    width: "100%",
+  },
+  modelRow: {
+    alignItems: "center",
+    display: "grid",
+    gap: "0.5rem",
+    gridTemplateColumns: "1rem minmax(0, 1fr) 2rem",
+    paddingBlock: "0.5rem",
+    paddingInline: "0.75rem",
+  },
+  interactiveModelRow: {
+    backgroundColor: {
+      default: "transparent",
+      ":focus-within": activeBackground,
+      ":hover": activeBackground,
+      ":is([data-active-item])": activeBackground,
+    },
+    borderRadius: tokens.radiusLarge,
+    fontSize: tokens.fontSizeSmall,
+    height: "100%",
+    lineHeight: tokens.lineHeightSmall,
+    width: "100%",
+  },
+  selectedModelRow: {
+    backgroundColor: {
+      default: activeBackground,
+      ":hover": `color-mix(in oklab, ${tokens.accent} 15%, transparent)`,
+    },
+  },
+  modelOption: {
+    alignContent: "center",
+    alignItems: "flex-start",
+    display: "grid",
+    gap: "0.5rem",
+    gridColumn: "span 2 / span 2",
+    gridRowStart: "1",
+    gridTemplateColumns: "1rem minmax(0, 1fr)",
+    height: "100%",
+    minWidth: 0,
+    outline: "none",
+    textAlign: "left",
+  },
+  selectedIndicator: {
+    alignSelf: "flex-start",
+    color: tokens.accent,
+    gridColumnStart: "1",
+    gridRowStart: "1",
+    marginTop: "0.125rem",
+  },
+  modelDetails: {
+    alignItems: "flex-start",
+    display: "flex",
+    gap: "0.75rem",
+    gridColumnStart: "2",
+    gridRowStart: "1",
+    minWidth: 0,
+  },
+  modelMark: {
+    color: {
+      default: tokens.muted,
+      [stylex.when.ancestor(":focus-within")]: tokens.foreground,
+      [stylex.when.ancestor(":hover")]: tokens.foreground,
+      [stylex.when.ancestor("[data-active-item]")]: tokens.foreground,
+    },
+    height: "1rem",
+    marginTop: "0.125rem",
+    width: "1rem",
+  },
+  selectedModel: {
+    color: tokens.foreground,
+  },
+  modelText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  modelName: {
+    color: {
+      default: `color-mix(in oklab, ${tokens.foreground} 75%, transparent)`,
+      [stylex.when.ancestor(":focus-within")]: tokens.foreground,
+      [stylex.when.ancestor(":hover")]: tokens.foreground,
+      [stylex.when.ancestor("[data-active-item]")]: tokens.foreground,
+    },
+    display: "block",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  modelMetadata: {
+    color: tokens.muted,
+    display: "block",
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    marginTop: "0.125rem",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  favoriteButton: {
+    backgroundColor: {
+      default: "transparent",
+      ":hover": activeBackground,
+    },
+    color: {
+      default: null,
+      ":hover": tokens.accent,
+    },
+    gridColumnStart: "3",
+    gridRowStart: "1",
+    height: "2rem",
+    opacity: {
+      default: null,
+      ":disabled": 1,
+      ':is([aria-disabled="true"])': 1,
+      [stylex.when.ancestor(":focus-within")]: 1,
+      [stylex.when.ancestor("[data-active-item]")]: 1,
+    },
+    paddingInline: 0,
+    width: "2rem",
+  },
+  favoriteButtonOn: {
+    color: tokens.accent,
+    opacity: 1,
+  },
+  favoriteButtonOff: {
+    color: tokens.muted,
+    opacity: {
+      default: 0,
+      [stylex.when.ancestor(":hover")]: 1,
+    },
+  },
+  loading: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    padding: "0.5rem",
+    scrollbarGutter: "stable",
+  },
+  skeletonList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.25rem",
+  },
+  skeletonRow: {
+    height: "3.5rem",
+  },
+  skeletonContent: {
+    alignItems: "flex-start",
+    display: "flex",
+    gap: "0.75rem",
+    gridColumnStart: "2",
+    minWidth: 0,
+  },
+  skeletonMark: {
+    borderRadius: tokens.radiusSmall,
+    flexShrink: 0,
+    height: "1rem",
+    marginTop: "0.125rem",
+    width: "1rem",
+  },
+  skeletonText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  skeletonTitle: {
+    height: "1rem",
+    width: "40%",
+  },
+  skeletonMetadata: {
+    height: "0.75rem",
+    marginTop: "0.375rem",
+    width: "60%",
+  },
+  centerState: {
+    display: "grid",
+    flex: 1,
+    minHeight: 0,
+    padding: "1.5rem",
+    placeItems: "center",
+    textAlign: "center",
+  },
+  stateMessage: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+  },
+  stateActions: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.75rem",
+    justifyContent: "center",
+    marginTop: "0.75rem",
+  },
+  settingsLink: {
+    borderRadius: tokens.radiusSmall,
+    color: {
+      default: tokens.muted,
+      ":hover": tokens.foreground,
+    },
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    outlineColor: {
+      default: null,
+      ":focus-visible": focusOutline,
+    },
+    outlineOffset: {
+      default: null,
+      ":focus-visible": 2,
+    },
+    outlineStyle: {
+      default: "none",
+      ":focus-visible": "solid",
+    },
+    outlineWidth: {
+      default: null,
+      ":focus-visible": 1,
+    },
+    textDecorationLine: {
+      default: "none",
+      ":hover": "underline",
+    },
+    textUnderlineOffset: {
+      default: null,
+      ":hover": 4,
+    },
+  },
+  emptyState: {
+    color: tokens.muted,
+    display: "grid",
+    flex: 1,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    minHeight: 0,
+    placeItems: "center",
+  },
+  actionError: {
+    borderTopColor: tokens.surfaceRaisedBorder,
+    borderTopStyle: "solid",
+    borderTopWidth: 1,
+    color: tokens.danger,
+    flexShrink: 0,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    paddingBlock: "0.5rem",
+    paddingInline: "0.75rem",
+  },
+  content: {
+    backgroundColor: tokens.surfaceRaised,
+    borderColor: tokens.surfaceRaisedBorder,
+    borderRadius: tokens.radiusXLarge,
+    borderStyle: "solid",
+    borderWidth: 1,
+    boxShadow: "0 25px 50px -12px rgb(0 0 0 / 25%)",
+    color: tokens.foreground,
+    height: "26rem",
+    maxWidth: "calc(100vw - 2rem)",
+    outline: "none",
+    overflow: "hidden",
+    width: "38rem",
+    zIndex: 50,
+  },
+  contentLayout: {
+    display: "grid",
+    gridTemplateColumns: "3.0625rem minmax(0, 1fr)",
+    height: "100%",
+    minHeight: 0,
+  },
+  tabList: {
+    alignItems: "center",
+    borderRightColor: tokens.surfaceRaisedBorder,
+    borderRightStyle: "solid",
+    borderRightWidth: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.25rem",
+    minHeight: 0,
+    overflowY: "auto",
+    padding: "0.5rem",
+  },
+  tabButton: {
+    backgroundColor: {
+      default: "transparent",
+      ":not(:disabled):hover": activeBackground,
+      ':is([aria-selected="true"])': activeBackground,
+      ':is([aria-selected="true"]):not(:disabled):hover': `color-mix(in oklab, ${tokens.accent} 15%, transparent)`,
+    },
+    color: {
+      default: tokens.muted,
+      ':is([aria-selected="true"])': tokens.foreground,
+    },
+    paddingInline: 0,
+    width: tokens.controlHeight,
+  },
+  tabMark: {
+    height: "1rem",
+    width: "1rem",
+  },
+  tabPanel: {
+    display: "flex",
+    flexDirection: "column",
+    minHeight: 0,
+    outline: "none",
+  },
+  search: {
+    borderBottomColor: tokens.surfaceRaisedBorder,
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    flexShrink: 0,
+    padding: "0.5rem",
+    position: "relative",
+  },
+  searchIcon: {
+    color: tokens.muted,
+    left: "1.25rem",
+    pointerEvents: "none",
+    position: "absolute",
+    top: "50%",
+    transform: "translateY(-50%)",
+  },
+  searchInput: {
+    backgroundColor: {
+      default: "transparent",
+      ":focus": "transparent",
+    },
+    borderWidth: 0,
+    height: "2.5rem",
+    paddingLeft: "2.25rem",
+    paddingRight: "0.75rem",
+    width: "100%",
+  },
+});

@@ -9,10 +9,17 @@ import {
   type TooltipProviderProps,
 } from "@ariakit/react/tooltip";
 import { useStoreState } from "@ariakit/react/store";
-import { cn } from "../util/cn";
+import * as stylex from "@stylexjs/stylex";
+import type { StyleXStyles } from "@stylexjs/stylex";
+import { tokens } from "../theme.stylex";
 import { Popover } from "./popover";
 
-export type TooltipProps = Omit<AriakitTooltipProps, "alwaysVisible" | "render" | "unmountOnHide">;
+export type TooltipProps = Omit<
+  AriakitTooltipProps,
+  "alwaysVisible" | "className" | "render" | "style" | "unmountOnHide"
+> & {
+  style?: StyleXStyles;
+};
 
 function getTooltipSide(placement: string | undefined) {
   if (placement?.startsWith("bottom")) return "bottom";
@@ -22,7 +29,7 @@ function getTooltipSide(placement: string | undefined) {
   return undefined;
 }
 
-function TooltipContent({ children, className, gutter = 4, ...props }: TooltipProps) {
+function TooltipContent({ children, gutter = 4, style, ...props }: TooltipProps) {
   const tooltip = useTooltipContext();
   const mounted = useStoreState(tooltip, "mounted") ?? false;
   const placement = useStoreState(tooltip, "currentPlacement");
@@ -34,10 +41,7 @@ function TooltipContent({ children, className, gutter = 4, ...props }: TooltipPr
         gutter={gutter}
         alwaysVisible
         render={<Popover.Surface side={getTooltipSide(placement)} />}
-        className={cn(
-          "z-50 max-w-64 rounded-md border border-surface-raised-border bg-surface-raised px-2 py-1.5 text-xs text-foreground shadow-xl outline-none",
-          className,
-        )}
+        {...stylex.props(styles.content, style)}
       >
         <TooltipArrow size={12} />
         {children}
@@ -52,3 +56,22 @@ export const Tooltip = Object.assign(TooltipContent, {
 });
 
 export type { TooltipAnchorProps, TooltipProviderProps as TooltipRootProps };
+
+const styles = stylex.create({
+  content: {
+    backgroundColor: tokens.surfaceRaised,
+    borderColor: tokens.surfaceRaisedBorder,
+    borderRadius: tokens.radiusMedium,
+    borderStyle: "solid",
+    borderWidth: 1,
+    boxShadow: "0 20px 25px -5px rgb(0 0 0 / 10%), 0 8px 10px -6px rgb(0 0 0 / 10%)",
+    color: tokens.foreground,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    maxWidth: "16rem",
+    outline: "none",
+    paddingBlock: "0.375rem",
+    paddingInline: "0.5rem",
+    zIndex: 50,
+  },
+});

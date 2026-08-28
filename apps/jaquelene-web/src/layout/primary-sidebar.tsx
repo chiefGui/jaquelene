@@ -1,4 +1,6 @@
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { tokens } from "@jaquelene/ui/theme.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { Link, type RegisteredRouter, type ToOptions } from "@tanstack/react-router";
 import type { ComponentType } from "react";
 import type { FileRoutesByTo } from "@/routeTree.gen";
@@ -33,19 +35,15 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
     const { icon, label, ...destination } = navigation.footerAction;
 
     footer = (
-      <footer className="shrink-0 p-2">
-        <Link
-          {...destination}
-          aria-label={label}
-          className="flex size-9 items-center justify-center rounded-md text-muted hover:bg-accent/10 hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
-        >
+      <footer {...stylex.props(styles.footer)}>
+        <Link {...destination} aria-label={label} {...stylex.props(styles.footerLink)}>
           <HugeiconsIcon
             icon={icon}
             size={16}
             color="currentColor"
             strokeWidth={1.5}
             aria-hidden="true"
-            className="shrink-0"
+            {...stylex.props(styles.icon)}
           />
         </Link>
       </footer>
@@ -53,21 +51,19 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
   }
 
   return (
-    <aside aria-label="Primary sidebar" className="flex min-h-0 flex-col bg-canvas">
-      <header className="flex h-14 shrink-0 items-center px-4">
-        <span className="text-sm font-semibold tracking-tight text-box-trim">Jaquelene</span>
+    <aside aria-label="Primary sidebar" {...stylex.props(styles.root)}>
+      <header {...stylex.props(styles.header)}>
+        <span {...stylex.props(styles.brand)}>Jaquelene</span>
       </header>
 
-      <nav aria-label={navigation.navigationLabel} className="min-h-0 flex-1 overflow-y-auto px-2">
-        <ul className="space-y-0.5">
+      <nav aria-label={navigation.navigationLabel} {...stylex.props(styles.navigation)}>
+        <ul {...stylex.props(styles.list)}>
           {navigation.items.map(({ id, icon, label, ...destination }) => (
             <li key={id}>
               <Link
                 {...destination}
                 activeOptions={{ exact: true }}
-                className="flex h-9 min-w-0 items-center gap-2 rounded-md px-2 text-sm hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
-                activeProps={{ className: "bg-accent/10 text-foreground hover:bg-accent/15" }}
-                inactiveProps={{ className: "text-muted hover:bg-accent/10" }}
+                {...stylex.props(styles.navigationLink)}
               >
                 <HugeiconsIcon
                   icon={icon}
@@ -75,9 +71,9 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
                   color="currentColor"
                   strokeWidth={1.5}
                   aria-hidden="true"
-                  className="shrink-0"
+                  {...stylex.props(styles.icon)}
                 />
-                <span className="truncate text-box-trim">{label}</span>
+                <span {...stylex.props(styles.label)}>{label}</span>
               </Link>
             </li>
           ))}
@@ -88,3 +84,123 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
     </aside>
   );
 }
+
+const focusColor = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
+const hoverBackground = `color-mix(in oklab, ${tokens.accent} 10%, transparent)`;
+
+const styles = stylex.create({
+  root: {
+    backgroundColor: tokens.canvas,
+    display: "flex",
+    flexDirection: "column",
+    minHeight: 0,
+  },
+  header: {
+    alignItems: "center",
+    display: "flex",
+    flexShrink: 0,
+    height: "3.5rem",
+    paddingInline: "1rem",
+  },
+  brand: {
+    fontSize: tokens.fontSizeSmall,
+    fontWeight: 600,
+    letterSpacing: "-0.025em",
+    lineHeight: tokens.lineHeightSmall,
+    textBox: "trim-both text",
+  },
+  navigation: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    paddingInline: "0.5rem",
+  },
+  list: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.125rem",
+  },
+  navigationLink: {
+    alignItems: "center",
+    backgroundColor: {
+      default: "transparent",
+      ":hover": hoverBackground,
+      ':is([data-status="active"])': hoverBackground,
+      ':is([data-status="active"]):hover': `color-mix(in oklab, ${tokens.accent} 15%, transparent)`,
+    },
+    borderRadius: tokens.radiusMedium,
+    color: {
+      default: tokens.muted,
+      ":hover": tokens.foreground,
+      ':is([data-status="active"])': tokens.foreground,
+    },
+    display: "flex",
+    fontSize: tokens.fontSizeSmall,
+    gap: "0.5rem",
+    height: "2.25rem",
+    lineHeight: tokens.lineHeightSmall,
+    minWidth: 0,
+    outlineColor: {
+      default: null,
+      ":focus-visible": focusColor,
+    },
+    outlineOffset: {
+      default: null,
+      ":focus-visible": 2,
+    },
+    outlineStyle: {
+      default: "none",
+      ":focus-visible": "solid",
+    },
+    outlineWidth: {
+      default: null,
+      ":focus-visible": 1,
+    },
+    paddingInline: "0.5rem",
+  },
+  icon: {
+    flexShrink: 0,
+  },
+  label: {
+    overflow: "hidden",
+    textBox: "trim-both text",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  footer: {
+    flexShrink: 0,
+    padding: "0.5rem",
+  },
+  footerLink: {
+    alignItems: "center",
+    borderRadius: tokens.radiusMedium,
+    color: {
+      default: tokens.muted,
+      ":hover": tokens.foreground,
+    },
+    display: "flex",
+    height: "2.25rem",
+    justifyContent: "center",
+    outlineColor: {
+      default: null,
+      ":focus-visible": focusColor,
+    },
+    outlineOffset: {
+      default: null,
+      ":focus-visible": 2,
+    },
+    outlineStyle: {
+      default: "none",
+      ":focus-visible": "solid",
+    },
+    outlineWidth: {
+      default: null,
+      ":focus-visible": 1,
+    },
+    width: "2.25rem",
+    backgroundColor: {
+      default: "transparent",
+      ":hover": hoverBackground,
+    },
+  },
+});

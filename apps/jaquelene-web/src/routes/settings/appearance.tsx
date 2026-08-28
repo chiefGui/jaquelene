@@ -1,5 +1,7 @@
 import { Item } from "@jaquelene/ui";
 import { Select } from "@jaquelene/ui/select";
+import { tokens } from "@jaquelene/ui/theme.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useId } from "react";
@@ -58,7 +60,7 @@ function PreferenceSelectItem<Value extends string>({
           {label}
         </Item.Label>
         {error ? (
-          <Item.Description id={errorId} role="alert" className="text-danger">
+          <Item.Description id={errorId} role="alert" style={styles.error}>
             {error}
           </Item.Description>
         ) : null}
@@ -84,7 +86,7 @@ function PreferenceSelectItem<Value extends string>({
             aria-labelledby={labelId}
             aria-describedby={error ? errorId : undefined}
             disabled={disabled}
-            className="min-w-32"
+            style={styles.select}
           >
             <Select.Value>{selectedOption.label}</Select.Value>
           </Select>
@@ -112,19 +114,19 @@ function AppearanceRoute() {
   return (
     <>
       <ContentPane.Header>
-        <Breadcrumb.Root className="min-w-0 text-sm">
-          <Breadcrumb.List className="flex min-w-0 items-center gap-2">
-            <Breadcrumb.Item className="text-muted">Settings</Breadcrumb.Item>
-            <Breadcrumb.Separator className="text-muted" />
+        <Breadcrumb.Root>
+          <Breadcrumb.List>
+            <Breadcrumb.Item>Settings</Breadcrumb.Item>
+            <Breadcrumb.Separator />
             <Breadcrumb.Item>
-              <Breadcrumb.Page className="font-medium text-foreground">Appearance</Breadcrumb.Page>
+              <Breadcrumb.Page>Appearance</Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
         </Breadcrumb.Root>
       </ContentPane.Header>
 
       <ContentPane.Viewport>
-        <div className="mx-auto w-full max-w-2xl p-6">
+        <ContentPane.Body>
           <Item.Section aria-labelledby="user-interface-heading">
             <Item.Heading id="user-interface-heading">User Interface</Item.Heading>
 
@@ -157,8 +159,17 @@ function AppearanceRoute() {
               />
             </Item.Group>
           </Item.Section>
-        </div>
+        </ContentPane.Body>
       </ContentPane.Viewport>
     </>
   );
 }
+
+const styles = stylex.create({
+  error: {
+    color: tokens.danger,
+  },
+  select: {
+    minWidth: "8rem",
+  },
+});

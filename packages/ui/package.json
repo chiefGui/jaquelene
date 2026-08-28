@@ -8,19 +8,15 @@
     "./motion": "./src/primitive/motion.tsx",
     "./popover": "./src/primitive/popover.tsx",
     "./select": "./src/primitive/select.tsx",
-    "./tooltip": "./src/primitive/tooltip.tsx",
-    "./theme.css": "./src/theme.css"
+    "./theme.stylex": "./src/theme.stylex.ts",
+    "./tooltip": "./src/primitive/tooltip.tsx"
   },
   "dependencies": {
     "@ariakit/react": "^0.4.38",
-    "@fontsource-variable/geist": "^5.3.0",
-    "@fontsource-variable/inter": "^5.3.0",
     "@hugeicons/core-free-icons": "^4.3.0",
     "@hugeicons/react": "^1.1.10",
-    "clsx": "^2.1.1",
-    "motion": "^13.1.1",
-    "tailwind-merge": "^3.6.0",
-    "tailwind-variants": "^3.3.1"
+    "@stylexjs/stylex": "^0.19.0",
+    "motion": "^13.1.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",

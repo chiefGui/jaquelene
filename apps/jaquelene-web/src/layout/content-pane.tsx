@@ -1,38 +1,73 @@
-import { cn } from "@jaquelene/ui";
+import { tokens } from "@jaquelene/ui/theme.stylex";
+import * as stylex from "@stylexjs/stylex";
+import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
 
+type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
+  style?: StyleXStyles;
+};
+
 function ContentPaneRoot({
-  className,
   "aria-label": ariaLabel = "Content pane",
+  style,
   ...props
-}: ComponentProps<"main">) {
-  return (
-    <main
-      {...props}
-      aria-label={ariaLabel}
-      className={cn(
-        "mt-2 mr-2 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-surface",
-        className,
-      )}
-    />
-  );
+}: StyleableProps<ComponentProps<"main">>) {
+  return <main {...props} aria-label={ariaLabel} {...stylex.props(styles.root, style)} />;
 }
 
-function ContentPaneHeader({ className, ...props }: ComponentProps<"header">) {
-  return (
-    <header
-      {...props}
-      className={cn("flex h-14 shrink-0 items-center border-b border-border px-5", className)}
-    />
-  );
+function ContentPaneHeader({ style, ...props }: StyleableProps<ComponentProps<"header">>) {
+  return <header {...props} {...stylex.props(styles.header, style)} />;
 }
 
-function ContentPaneViewport({ className, ...props }: ComponentProps<"div">) {
-  return <div {...props} className={cn("min-h-0 flex-1 overflow-auto", className)} />;
+function ContentPaneViewport({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
+  return <div {...props} {...stylex.props(styles.viewport, style)} />;
+}
+
+function ContentPaneBody({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
+  return <div {...props} {...stylex.props(styles.body, style)} />;
 }
 
 export const ContentPane = {
   Root: ContentPaneRoot,
   Header: ContentPaneHeader,
   Viewport: ContentPaneViewport,
+  Body: ContentPaneBody,
 } as const;
+
+const styles = stylex.create({
+  root: {
+    backgroundColor: tokens.surface,
+    borderColor: tokens.border,
+    borderRadius: tokens.radiusXLarge,
+    borderStyle: "solid",
+    borderWidth: 1,
+    display: "flex",
+    flexDirection: "column",
+    marginRight: "0.5rem",
+    marginTop: "0.5rem",
+    minHeight: 0,
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  header: {
+    alignItems: "center",
+    borderBottomColor: tokens.border,
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    display: "flex",
+    flexShrink: 0,
+    height: "3.5rem",
+    paddingInline: "1.25rem",
+  },
+  viewport: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "auto",
+  },
+  body: {
+    marginInline: "auto",
+    maxWidth: "42rem",
+    padding: "1.5rem",
+    width: "100%",
+  },
+});

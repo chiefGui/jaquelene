@@ -1,5 +1,4 @@
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { cn } from "@jaquelene/ui";
 import aionLabsIcon from "@lobehub/icons-static-svg/icons/aionlabs.svg?no-inline";
 import anthropicIcon from "@lobehub/icons-static-svg/icons/anthropic.svg?no-inline";
 import arceeIcon from "@lobehub/icons-static-svg/icons/arcee.svg?no-inline";
@@ -23,6 +22,8 @@ import qwenIcon from "@lobehub/icons-static-svg/icons/qwen.svg?no-inline";
 import tencentIcon from "@lobehub/icons-static-svg/icons/tencent.svg?no-inline";
 import xAiIcon from "@lobehub/icons-static-svg/icons/xai.svg?no-inline";
 import zAiIcon from "@lobehub/icons-static-svg/icons/zai.svg?no-inline";
+import * as stylex from "@stylexjs/stylex";
+import type { StyleXStyles } from "@stylexjs/stylex";
 
 type Brand = Readonly<{
   iconUrl: string;
@@ -73,11 +74,11 @@ export function getBrandName(brandId: string) {
 
 type BrandMarkProps = {
   brandId: string;
-  className?: string | undefined;
   fallbackIcon: IconSvgElement;
+  style?: StyleXStyles;
 };
 
-export function BrandMark({ brandId, className, fallbackIcon }: BrandMarkProps) {
+export function BrandMark({ brandId, fallbackIcon, style }: BrandMarkProps) {
   const iconUrl = brands.get(brandId)?.iconUrl;
 
   if (!iconUrl) {
@@ -87,16 +88,30 @@ export function BrandMark({ brandId, className, fallbackIcon }: BrandMarkProps) 
         size={16}
         strokeWidth={1.5}
         aria-hidden="true"
-        className={cn("size-4 shrink-0", className)}
+        {...stylex.props(styles.base, style)}
       />
     );
   }
 
+  const styleProps = stylex.props(styles.base, styles.masked, style);
+
   return (
     <span
       aria-hidden="true"
-      className={cn("inline-block size-4 shrink-0 bg-current", className)}
-      style={{ mask: `url("${iconUrl}") center / contain no-repeat` }}
+      className={styleProps.className}
+      style={{ ...styleProps.style, mask: `url("${iconUrl}") center / contain no-repeat` }}
     />
   );
 }
+
+const styles = stylex.create({
+  base: {
+    flexShrink: 0,
+    height: "1rem",
+    width: "1rem",
+  },
+  masked: {
+    backgroundColor: "currentColor",
+    display: "inline-block",
+  },
+});

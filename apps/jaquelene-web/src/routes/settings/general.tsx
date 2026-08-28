@@ -1,4 +1,6 @@
 import { Button, Item } from "@jaquelene/ui";
+import { tokens } from "@jaquelene/ui/theme.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useId } from "react";
@@ -25,19 +27,19 @@ function GeneralRoute() {
   return (
     <>
       <ContentPane.Header>
-        <Breadcrumb.Root className="min-w-0 text-sm">
-          <Breadcrumb.List className="flex min-w-0 items-center gap-2">
-            <Breadcrumb.Item className="text-muted">Settings</Breadcrumb.Item>
-            <Breadcrumb.Separator className="text-muted" />
+        <Breadcrumb.Root>
+          <Breadcrumb.List>
+            <Breadcrumb.Item>Settings</Breadcrumb.Item>
+            <Breadcrumb.Separator />
             <Breadcrumb.Item>
-              <Breadcrumb.Page className="font-medium text-foreground">General</Breadcrumb.Page>
+              <Breadcrumb.Page>General</Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
         </Breadcrumb.Root>
       </ContentPane.Header>
 
       <ContentPane.Viewport>
-        <div className="mx-auto w-full max-w-2xl p-6">
+        <ContentPane.Body>
           <Item.Section aria-labelledby="campaign-heading">
             <Item.Heading id="campaign-heading">Campaign</Item.Heading>
 
@@ -48,7 +50,7 @@ function GeneralRoute() {
                     Default model
                   </Item.Label>
                   {setDefaultCampaignModel.error ? (
-                    <Item.Description id={errorId} role="alert" className="text-danger">
+                    <Item.Description id={errorId} role="alert" style={styles.error}>
                       Couldn't save the default campaign model
                     </Item.Description>
                   ) : null}
@@ -73,8 +75,14 @@ function GeneralRoute() {
               </Item.Root>
             </Item.Group>
           </Item.Section>
-        </div>
+        </ContentPane.Body>
       </ContentPane.Viewport>
     </>
   );
 }
+
+const styles = stylex.create({
+  error: {
+    color: tokens.danger,
+  },
+});

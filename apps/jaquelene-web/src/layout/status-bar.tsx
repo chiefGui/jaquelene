@@ -1,12 +1,29 @@
+import { tokens } from "@jaquelene/ui/theme.stylex";
+import * as stylex from "@stylexjs/stylex";
+
 export function StatusBar() {
   return (
-    <footer
-      aria-label="Status bar"
-      className="col-span-2 flex min-w-0 items-center justify-end px-3 text-xs text-muted"
-    >
-      <span role="status" className="text-box-trim">
+    <footer aria-label="Status bar" {...stylex.props(styles.root)}>
+      <span role="status" {...stylex.props(styles.text)}>
         Ready
       </span>
     </footer>
   );
 }
+
+const styles = stylex.create({
+  root: {
+    alignItems: "center",
+    color: tokens.muted,
+    display: "flex",
+    fontSize: tokens.fontSizeXSmall,
+    gridColumn: "span 2 / span 2",
+    justifyContent: "flex-end",
+    lineHeight: tokens.lineHeightXSmall,
+    minWidth: 0,
+    paddingInline: "0.75rem",
+  },
+  text: {
+    textBox: "trim-both text",
+  },
+});

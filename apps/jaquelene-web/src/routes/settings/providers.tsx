@@ -1,5 +1,8 @@
 import { OpenRouterConnectionState } from "@jaquelene/ipc/renderer";
 import { Button, Input, Item, Ping } from "@jaquelene/ui";
+import { tokens } from "@jaquelene/ui/theme.stylex";
+import { VisuallyHidden } from "@ariakit/react/visually-hidden";
+import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
@@ -27,17 +30,14 @@ function ConnectionIssue({ state }: { state: OpenRouterConnectionState }) {
       return null;
     case OpenRouterConnectionState.Rejected:
       return (
-        <span
-          aria-live="polite"
-          className="mr-2 flex items-center gap-1.5 text-xs font-medium text-danger"
-        >
-          <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-          <span className="text-box-trim">Connection failed</span>
+        <span aria-live="polite" {...stylex.props(styles.connectionRejected)}>
+          <span aria-hidden="true" {...stylex.props(styles.connectionDot)} />
+          <span {...stylex.props(styles.textBox)}>Connection failed</span>
         </span>
       );
     case OpenRouterConnectionState.Unavailable:
       return (
-        <span aria-live="polite" className="mr-2 text-xs text-muted text-box-trim">
+        <span aria-live="polite" {...stylex.props(styles.connectionUnavailable)}>
           Couldn’t verify
         </span>
       );
@@ -119,44 +119,44 @@ function ProvidersRoute() {
   return (
     <>
       <ContentPane.Header>
-        <Breadcrumb.Root className="min-w-0 text-sm">
-          <Breadcrumb.List className="flex min-w-0 items-center gap-2">
-            <Breadcrumb.Item className="text-muted">Settings</Breadcrumb.Item>
-            <Breadcrumb.Separator className="text-muted" />
+        <Breadcrumb.Root>
+          <Breadcrumb.List>
+            <Breadcrumb.Item>Settings</Breadcrumb.Item>
+            <Breadcrumb.Separator />
             <Breadcrumb.Item>
-              <Breadcrumb.Page className="font-medium text-foreground">Providers</Breadcrumb.Page>
+              <Breadcrumb.Page>Providers</Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
         </Breadcrumb.Root>
       </ContentPane.Header>
 
       <ContentPane.Viewport>
-        <div className="mx-auto w-full max-w-2xl p-6">
+        <ContentPane.Body>
           <Item.Group>
             <Item.Root>
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-foreground/4">
-                  <ProviderMark brandId={openRouterProvider.brandId} className="size-3.5" />
+              <div {...stylex.props(styles.provider)}>
+                <span {...stylex.props(styles.providerMarkContainer)}>
+                  <ProviderMark brandId={openRouterProvider.brandId} style={styles.providerMark} />
                 </span>
                 <Item.Content>
-                  <div className="flex items-center gap-2">
+                  <div {...stylex.props(styles.providerLabel)}>
                     <Item.Label>{getBrandName(openRouterProvider.brandId)}</Item.Label>
                     {connected ? (
                       <>
-                        <Ping className="text-success" />
-                        <span className="sr-only">Connected</span>
+                        <Ping style={styles.connected} />
+                        <VisuallyHidden>Connected</VisuallyHidden>
                       </>
                     ) : null}
                   </div>
                   {connected && openRouterStatus.keyLabel ? (
-                    <Item.Description className="font-mono">
+                    <Item.Description style={styles.mono}>
                       {openRouterStatus.keyLabel}
                     </Item.Description>
                   ) : null}
                 </Item.Content>
               </div>
 
-              <div className="flex shrink-0 items-center gap-1">
+              <div {...stylex.props(styles.actions)}>
                 <ConnectionIssue state={openRouterStatus.state} />
 
                 {!editingConnection &&
@@ -178,7 +178,7 @@ function ProvidersRoute() {
                     <Button
                       variant="ghost"
                       disabled={pending}
-                      className="text-muted not-disabled:hover:bg-danger/10 not-disabled:hover:text-danger"
+                      style={styles.disconnect}
                       onClick={disconnect}
                     >
                       {disconnectOpenRouter.isPending ? "Disconnecting…" : "Disconnect"}
@@ -195,16 +195,16 @@ function ProvidersRoute() {
             </Item.Root>
 
             {editingConnection ? (
-              <Item.Root render={<form onSubmit={connect} />} className="items-start">
+              <Item.Root render={<form onSubmit={connect} />} style={styles.form}>
                 <Item.Label
                   render={<label htmlFor="openrouter-api-key" />}
-                  className="flex h-control items-center"
+                  style={styles.formLabel}
                 >
                   API key
                 </Item.Label>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex justify-end gap-2">
+                <div {...stylex.props(styles.formContent)}>
+                  <div {...stylex.props(styles.formActions)}>
                     <Input
                       id="openrouter-api-key"
                       name="apiKey"
@@ -214,7 +214,7 @@ function ProvidersRoute() {
                       disabled={pending}
                       spellCheck={false}
                       aria-describedby={error ? "openrouter-connection-error" : undefined}
-                      className="min-w-0 max-w-sm flex-1"
+                      style={styles.input}
                       placeholder={
                         connected && openRouterStatus.keyLabel
                           ? openRouterStatus.keyLabel
@@ -238,7 +238,7 @@ function ProvidersRoute() {
                     <p
                       id="openrouter-connection-error"
                       role="alert"
-                      className="mt-2 text-sm text-danger"
+                      {...stylex.props(styles.formError)}
                     >
                       {error}
                     </p>
@@ -249,12 +249,122 @@ function ProvidersRoute() {
           </Item.Group>
 
           {!editingConnection && error ? (
-            <p role="alert" className="mt-2 px-1 text-sm text-danger">
+            <p role="alert" {...stylex.props(styles.pageError)}>
               {error}
             </p>
           ) : null}
-        </div>
+        </ContentPane.Body>
       </ContentPane.Viewport>
     </>
   );
 }
+
+const styles = stylex.create({
+  connectionRejected: {
+    alignItems: "center",
+    color: tokens.danger,
+    display: "flex",
+    fontSize: tokens.fontSizeXSmall,
+    fontWeight: 500,
+    gap: "0.375rem",
+    lineHeight: tokens.lineHeightXSmall,
+    marginRight: "0.5rem",
+  },
+  connectionDot: {
+    backgroundColor: "currentColor",
+    borderRadius: "9999px",
+    height: "0.375rem",
+    width: "0.375rem",
+  },
+  textBox: {
+    textBox: "trim-both text",
+  },
+  connectionUnavailable: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    marginRight: "0.5rem",
+    textBox: "trim-both text",
+  },
+  provider: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.75rem",
+    minWidth: 0,
+  },
+  providerMarkContainer: {
+    backgroundColor: `color-mix(in oklab, ${tokens.foreground} 4%, transparent)`,
+    borderRadius: tokens.radiusLarge,
+    display: "grid",
+    flexShrink: 0,
+    height: "2rem",
+    placeItems: "center",
+    width: "2rem",
+  },
+  providerMark: {
+    height: "0.875rem",
+    width: "0.875rem",
+  },
+  providerLabel: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.5rem",
+  },
+  connected: {
+    color: tokens.success,
+  },
+  mono: {
+    fontFamily: tokens.fontMono,
+  },
+  actions: {
+    alignItems: "center",
+    display: "flex",
+    flexShrink: 0,
+    gap: "0.25rem",
+  },
+  disconnect: {
+    backgroundColor: {
+      default: "transparent",
+      ":not(:disabled):hover": `color-mix(in oklab, ${tokens.danger} 10%, transparent)`,
+    },
+    color: {
+      default: tokens.muted,
+      ":not(:disabled):hover": tokens.danger,
+    },
+  },
+  form: {
+    alignItems: "flex-start",
+  },
+  formLabel: {
+    alignItems: "center",
+    display: "flex",
+    height: tokens.controlHeight,
+  },
+  formContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  formActions: {
+    display: "flex",
+    gap: "0.5rem",
+    justifyContent: "flex-end",
+  },
+  input: {
+    flex: 1,
+    maxWidth: "24rem",
+    minWidth: 0,
+  },
+  formError: {
+    color: tokens.danger,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    marginTop: "0.5rem",
+  },
+  pageError: {
+    color: tokens.danger,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    marginTop: "0.5rem",
+    paddingInline: "0.25rem",
+  },
+});

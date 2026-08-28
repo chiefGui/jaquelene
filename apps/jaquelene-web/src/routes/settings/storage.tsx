@@ -18,19 +18,19 @@ function StorageRoute() {
   return (
     <>
       <ContentPane.Header>
-        <Breadcrumb.Root className="min-w-0 text-sm">
-          <Breadcrumb.List className="flex min-w-0 items-center gap-2">
-            <Breadcrumb.Item className="text-muted">Settings</Breadcrumb.Item>
-            <Breadcrumb.Separator className="text-muted" />
+        <Breadcrumb.Root>
+          <Breadcrumb.List>
+            <Breadcrumb.Item>Settings</Breadcrumb.Item>
+            <Breadcrumb.Separator />
             <Breadcrumb.Item>
-              <Breadcrumb.Page className="font-medium text-foreground">Storage</Breadcrumb.Page>
+              <Breadcrumb.Page>Storage</Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
         </Breadcrumb.Root>
       </ContentPane.Header>
 
       <ContentPane.Viewport>
-        <div className="mx-auto w-full max-w-2xl p-6">
+        <ContentPane.Body>
           <Item.Group>
             <Item.Root>
               <Item.Content>
@@ -44,7 +44,7 @@ function StorageRoute() {
               </Item.Value>
             </Item.Root>
           </Item.Group>
-        </div>
+        </ContentPane.Body>
       </ContentPane.Viewport>
     </>
   );

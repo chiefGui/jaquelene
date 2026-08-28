@@ -1,9 +1,9 @@
-import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
 import { defineConfig } from "vite-plus";
+import { createStylexPlugin } from "./stylex.config.ts";
 
 const appRoot = fileURLToPath(new URL(".", import.meta.url));
 
@@ -51,6 +51,7 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   plugins: [
+    createStylexPlugin(),
     ipcTestConditionPlugin,
     contentSecurityPolicyPlugin,
     tanstackRouter({
@@ -60,7 +61,6 @@ export default defineConfig({
       semicolons: true,
     }),
     react(),
-    tailwindcss(),
   ],
   server: {
     port: 5173,

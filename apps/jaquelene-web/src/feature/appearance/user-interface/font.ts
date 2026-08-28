@@ -1,37 +1,63 @@
 import { UiFont } from "@jaquelene/ipc/renderer";
+import { tokens } from "@jaquelene/ui/theme.stylex";
+import * as stylex from "@stylexjs/stylex";
+import type { StyleXStyles } from "@stylexjs/stylex";
 import { useLayoutEffect } from "react";
 
 type UiFontDefinition = {
-  className: string;
   label: string;
+  style: StyleXStyles;
   value: UiFont;
 };
 
+const styles = stylex.create({
+  document: {
+    accentColor: tokens.accent,
+    backgroundColor: tokens.canvas,
+    colorScheme: "dark",
+    scrollbarColor: `color-mix(in oklch, ${tokens.muted} 65%, transparent) transparent`,
+    "::selection": {
+      backgroundColor: `color-mix(in oklch, ${tokens.accent} 35%, transparent)`,
+      color: tokens.foreground,
+    },
+  },
+  geist: {
+    fontFamily: tokens.fontGeist,
+  },
+  inter: {
+    fontFamily: tokens.fontInter,
+  },
+  system: {
+    fontFamily: tokens.fontSystem,
+  },
+});
+
 export const uiFonts = {
   [UiFont.Inter]: {
-    className: "font-sans",
     label: "Inter",
+    style: styles.inter,
     value: UiFont.Inter,
   },
   [UiFont.Geist]: {
-    className: "font-geist",
     label: "Geist",
+    style: styles.geist,
     value: UiFont.Geist,
   },
   [UiFont.System]: {
-    className: "font-system",
     label: "System",
+    style: styles.system,
     value: UiFont.System,
   },
 } as const satisfies Record<UiFont, UiFontDefinition>;
 
 export function useApplyUiFont(font: UiFont) {
-  const className = uiFonts[font].className;
+  const { className } = stylex.props(styles.document, uiFonts[font].style);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-    root.classList.add(className);
+    const classNames = className?.split(" ").filter(Boolean) ?? [];
+    root.classList.add(...classNames);
 
-    return () => root.classList.remove(className);
+    return () => root.classList.remove(...classNames);
   }, [className]);
 }

@@ -1,4 +1,6 @@
 import { Button, Input, formatTimestamp } from "@jaquelene/ui";
+import { tokens } from "@jaquelene/ui/theme.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
@@ -96,19 +98,14 @@ function ScenarioRoute() {
   return (
     <>
       <ContentPane.Header>
-        <Breadcrumb.Root className="min-w-0 text-sm">
-          <Breadcrumb.List className="flex min-w-0 items-center gap-2">
+        <Breadcrumb.Root>
+          <Breadcrumb.List>
             <Breadcrumb.Item>
-              <Breadcrumb.Link
-                render={<Link to="/scenarios" />}
-                className="text-muted hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
-              >
-                Scenarios
-              </Breadcrumb.Link>
+              <Breadcrumb.Link render={<Link to="/scenarios" />}>Scenarios</Breadcrumb.Link>
             </Breadcrumb.Item>
-            <Breadcrumb.Separator className="text-muted" />
-            <Breadcrumb.Item className="min-w-0">
-              <Breadcrumb.Page className="block truncate font-medium text-foreground">
+            <Breadcrumb.Separator />
+            <Breadcrumb.Item style={styles.breadcrumbItem}>
+              <Breadcrumb.Page style={styles.breadcrumbPage}>
                 {scenario?.title ?? "Scenario"}
               </Breadcrumb.Page>
             </Breadcrumb.Item>
@@ -117,20 +114,20 @@ function ScenarioRoute() {
       </ContentPane.Header>
 
       <ContentPane.Viewport>
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-6">
+        <ContentPane.Body style={styles.page}>
           {scenario ? (
             <>
               <section aria-labelledby="scenario-heading">
-                <h1 id="scenario-heading" className="text-lg font-semibold tracking-tight">
+                <h1 id="scenario-heading" {...stylex.props(styles.title)}>
                   {scenario.title}
                 </h1>
-                <p className="mt-1 text-sm text-muted">Rename this scenario.</p>
+                <p {...stylex.props(styles.description)}>Rename this scenario.</p>
 
-                <form className="mt-5" onSubmit={renameScenario}>
-                  <label htmlFor="scenario-title" className="text-sm font-medium">
+                <form {...stylex.props(styles.form)} onSubmit={renameScenario}>
+                  <label htmlFor="scenario-title" {...stylex.props(styles.label)}>
                     Title
                   </label>
-                  <div className="mt-2 flex gap-2">
+                  <div {...stylex.props(styles.fieldRow)}>
                     <Input
                       key={scenario.title}
                       id="scenario-title"
@@ -139,14 +136,14 @@ function ScenarioRoute() {
                       required
                       defaultValue={scenario.title}
                       aria-describedby={renameError ? "rename-scenario-error" : undefined}
-                      className="min-w-0 flex-1"
+                      style={styles.input}
                     />
                     <Button type="submit" disabled={renameScenarioMutation.isPending}>
                       {renameScenarioMutation.isPending ? "Saving…" : "Save"}
                     </Button>
                   </div>
                   {renameError ? (
-                    <p id="rename-scenario-error" role="alert" className="mt-2 text-sm text-danger">
+                    <p id="rename-scenario-error" role="alert" {...stylex.props(styles.error)}>
                       {renameError}
                     </p>
                   ) : null}
@@ -154,8 +151,8 @@ function ScenarioRoute() {
               </section>
 
               <section aria-labelledby="campaigns-heading">
-                <div className="flex items-center justify-between gap-4">
-                  <h2 id="campaigns-heading" className="text-sm font-medium">
+                <div {...stylex.props(styles.sectionHeader)}>
+                  <h2 id="campaigns-heading" {...stylex.props(styles.sectionHeading)}>
                     Campaigns
                   </h2>
                   <Button
@@ -169,21 +166,21 @@ function ScenarioRoute() {
                 </div>
 
                 {campaignError ? (
-                  <p id="start-campaign-error" role="alert" className="mt-2 text-sm text-danger">
+                  <p id="start-campaign-error" role="alert" {...stylex.props(styles.error)}>
                     {campaignError}
                   </p>
                 ) : null}
 
                 {campaigns.length === 0 ? (
-                  <p className="mt-3 text-sm text-muted">No campaigns yet.</p>
+                  <p {...stylex.props(styles.empty)}>No campaigns yet.</p>
                 ) : (
-                  <ul className="mt-3 divide-y divide-border overflow-hidden rounded-lg border border-border">
+                  <ul {...stylex.props(styles.list)}>
                     {campaigns.map((campaign) => (
-                      <li key={campaign.id}>
+                      <li key={campaign.id} {...stylex.props(styles.listItem)}>
                         <Link
                           to="/campaigns/$campaignId"
                           params={{ campaignId: campaign.id }}
-                          className="block px-4 py-3 text-sm hover:bg-accent/10 focus-visible:-outline-offset-1 focus-visible:outline-1 focus-visible:outline-accent/60"
+                          {...stylex.props(styles.listLink)}
                         >
                           <time dateTime={new Date(campaign.startedAt).toISOString()}>
                             {formatTimestamp(campaign.startedAt)}
@@ -197,14 +194,126 @@ function ScenarioRoute() {
             </>
           ) : (
             <section aria-labelledby="missing-scenario-heading">
-              <h1 id="missing-scenario-heading" className="text-lg font-semibold tracking-tight">
+              <h1 id="missing-scenario-heading" {...stylex.props(styles.title)}>
                 Scenario not found
               </h1>
-              <p className="mt-1 text-sm text-muted">This scenario does not exist.</p>
+              <p {...stylex.props(styles.description)}>This scenario does not exist.</p>
             </section>
           )}
-        </div>
+        </ContentPane.Body>
       </ContentPane.Viewport>
     </>
   );
 }
+
+const styles = stylex.create({
+  breadcrumbItem: {
+    minWidth: 0,
+  },
+  breadcrumbPage: {
+    display: "block",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  page: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2rem",
+  },
+  title: {
+    fontSize: tokens.fontSizeLarge,
+    fontWeight: 600,
+    letterSpacing: "-0.025em",
+    lineHeight: tokens.lineHeightLarge,
+  },
+  description: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    marginTop: "0.25rem",
+  },
+  form: {
+    marginTop: "1.25rem",
+  },
+  label: {
+    fontSize: tokens.fontSizeSmall,
+    fontWeight: 500,
+    lineHeight: tokens.lineHeightSmall,
+  },
+  fieldRow: {
+    display: "flex",
+    gap: "0.5rem",
+    marginTop: "0.5rem",
+  },
+  input: {
+    flex: 1,
+    minWidth: 0,
+  },
+  error: {
+    color: tokens.danger,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    marginTop: "0.5rem",
+  },
+  sectionHeader: {
+    alignItems: "center",
+    display: "flex",
+    gap: "1rem",
+    justifyContent: "space-between",
+  },
+  sectionHeading: {
+    fontSize: tokens.fontSizeSmall,
+    fontWeight: 500,
+    lineHeight: tokens.lineHeightSmall,
+  },
+  empty: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    marginTop: "0.75rem",
+  },
+  list: {
+    borderColor: tokens.border,
+    borderRadius: tokens.radiusLarge,
+    borderStyle: "solid",
+    borderWidth: 1,
+    marginTop: "0.75rem",
+    overflow: "hidden",
+  },
+  listItem: {
+    borderColor: tokens.border,
+    borderStyle: "solid",
+    borderTopWidth: {
+      default: 0,
+      ":not(:first-child)": 1,
+    },
+  },
+  listLink: {
+    backgroundColor: {
+      default: "transparent",
+      ":hover": `color-mix(in oklab, ${tokens.accent} 10%, transparent)`,
+    },
+    display: "block",
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    outlineColor: {
+      default: null,
+      ":focus-visible": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
+    },
+    outlineOffset: {
+      default: null,
+      ":focus-visible": -1,
+    },
+    outlineStyle: {
+      default: "none",
+      ":focus-visible": "solid",
+    },
+    outlineWidth: {
+      default: null,
+      ":focus-visible": 1,
+    },
+    paddingBlock: "0.75rem",
+    paddingInline: "1rem",
+  },
+});

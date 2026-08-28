@@ -1,3 +1,5 @@
+import { tokens } from "@jaquelene/ui/theme.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { createFileRoute } from "@tanstack/react-router";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
@@ -10,18 +12,30 @@ function HomeRoute() {
   return (
     <>
       <ContentPane.Header>
-        <Breadcrumb.Root className="min-w-0 text-sm">
-          <Breadcrumb.List className="flex min-w-0 items-center gap-2">
+        <Breadcrumb.Root>
+          <Breadcrumb.List>
             <Breadcrumb.Item>
-              <Breadcrumb.Page className="font-medium text-foreground">Home</Breadcrumb.Page>
+              <Breadcrumb.Page>Home</Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
         </Breadcrumb.Root>
       </ContentPane.Header>
 
-      <ContentPane.Viewport className="grid place-items-center">
-        <h1 className="text-sm font-medium">Hello world</h1>
+      <ContentPane.Viewport style={styles.viewport}>
+        <h1 {...stylex.props(styles.heading)}>Hello world</h1>
       </ContentPane.Viewport>
     </>
   );
 }
+
+const styles = stylex.create({
+  viewport: {
+    display: "grid",
+    placeItems: "center",
+  },
+  heading: {
+    fontSize: tokens.fontSizeSmall,
+    fontWeight: 500,
+    lineHeight: tokens.lineHeightSmall,
+  },
+});

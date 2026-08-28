@@ -2,42 +2,88 @@ import {
   Button as AriakitButton,
   type ButtonProps as AriakitButtonProps,
 } from "@ariakit/react/button";
-import { tv, type VariantProps } from "tailwind-variants/lite";
+import * as stylex from "@stylexjs/stylex";
+import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
-import { cn } from "../util/cn";
+import { tokens } from "../theme.stylex";
 
-const buttonClassName = tv({
-  base: "inline-flex h-control shrink-0 items-center justify-center rounded-md px-3 text-sm font-medium outline-none aria-disabled:opacity-50 data-focus-visible:outline-1 data-focus-visible:outline-offset-2 data-focus-visible:outline-accent/60 disabled:opacity-50",
-  variants: {
-    variant: {
-      solid: "bg-foreground/90 text-canvas not-disabled:hover:bg-foreground",
-      ghost: "not-disabled:hover:bg-accent/10",
-    },
-  },
-  defaultVariants: {
-    variant: "solid",
-  },
-});
+type ButtonVariant = "ghost" | "solid";
 
-export type ButtonProps = AriakitButtonProps & VariantProps<typeof buttonClassName>;
+export type ButtonProps = Omit<AriakitButtonProps, "className" | "style"> & {
+  style?: StyleXStyles;
+  variant?: ButtonVariant;
+};
 
-function ButtonLabel({ className, ...props }: ComponentProps<"span">) {
-  return <span {...props} className={cn("text-box-trim", className)} />;
+type ButtonLabelProps = Omit<ComponentProps<"span">, "className" | "style"> & {
+  style?: StyleXStyles;
+};
+
+function ButtonLabel({ style, ...props }: ButtonLabelProps) {
+  return <span {...props} {...stylex.props(styles.label, style)} />;
 }
 
-function ButtonRoot({ children, className, variant, ...props }: ButtonProps) {
-  const content =
-    typeof children === "string" || typeof children === "number" ? (
-      <ButtonLabel>{children}</ButtonLabel>
-    ) : (
-      children
-    );
-
+function ButtonRoot({ children, style, variant = "solid", ...props }: ButtonProps) {
   return (
-    <AriakitButton {...props} className={cn(buttonClassName({ variant }), className)}>
-      {content}
+    <AriakitButton {...props} {...stylex.props(styles.root, styles[variant], style)}>
+      {typeof children === "string" || typeof children === "number" ? (
+        <ButtonLabel>{children}</ButtonLabel>
+      ) : (
+        children
+      )}
     </AriakitButton>
   );
 }
 
 export const Button = Object.assign(ButtonRoot, { Label: ButtonLabel });
+
+const styles = stylex.create({
+  root: {
+    alignItems: "center",
+    borderRadius: tokens.radiusMedium,
+    display: "inline-flex",
+    flexShrink: 0,
+    fontSize: tokens.fontSizeSmall,
+    fontWeight: 500,
+    height: tokens.controlHeight,
+    justifyContent: "center",
+    lineHeight: tokens.lineHeightSmall,
+    opacity: {
+      default: 1,
+      ":disabled": 0.5,
+      ':is([aria-disabled="true"])': 0.5,
+    },
+    outlineColor: {
+      default: null,
+      ":is([data-focus-visible])": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
+    },
+    outlineOffset: {
+      default: null,
+      ":is([data-focus-visible])": 2,
+    },
+    outlineStyle: {
+      default: "none",
+      ":is([data-focus-visible])": "solid",
+    },
+    outlineWidth: {
+      default: null,
+      ":is([data-focus-visible])": 1,
+    },
+    paddingInline: "0.75rem",
+  },
+  solid: {
+    backgroundColor: {
+      default: `color-mix(in oklab, ${tokens.foreground} 90%, transparent)`,
+      ":not(:disabled):hover": tokens.foreground,
+    },
+    color: tokens.canvas,
+  },
+  ghost: {
+    backgroundColor: {
+      default: "transparent",
+      ":not(:disabled):hover": `color-mix(in oklab, ${tokens.accent} 10%, transparent)`,
+    },
+  },
+  label: {
+    textBox: "trim-both text",
+  },
+});

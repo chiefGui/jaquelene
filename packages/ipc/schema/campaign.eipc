@@ -11,6 +11,13 @@ structure Campaign {
   startedAt: UnixTimeMilliseconds
 }
 
+structure CampaignModelPreference {
+  providerId: string
+  modelId: string
+  name?: string
+  brandId?: string
+}
+
 [RendererAPI]
 [Validator=TrustedRenderer]
 [ContextBridge]
@@ -24,6 +31,6 @@ interface Campaigns {
 [Validator=TrustedRenderer]
 [ContextBridge]
 interface CampaignPreferences {
-  getDefaultModel() -> ModelReference?
-  setDefaultModel(reference: ModelReference) -> ModelReference
+  getDefaultModel() -> CampaignModelPreference?
+  setDefaultModel(selection: ModelSelection) -> ModelSelection
 }

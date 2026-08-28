@@ -15,6 +15,16 @@ export type AvailableModel = {
   brandId: string;
 };
 
+export type ModelSelection = ModelReference & Omit<AvailableModel, "id">;
+
+export function requireModelSelection(selection: ModelSelection) {
+  requireModelReference(selection);
+
+  if (!selection.name.trim() || !selection.brandId.trim()) {
+    throw new TypeError("A model selection requires display metadata.");
+  }
+}
+
 export type ModelProvider = {
   id: string;
   brandId: string;

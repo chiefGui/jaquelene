@@ -16,6 +16,13 @@ structure AvailableModel {
   brandId: string
 }
 
+structure ModelSelection {
+  providerId: string
+  modelId: string
+  name: string
+  brandId: string
+}
+
 [RendererAPI]
 [Validator=TrustedRenderer]
 [ContextBridge]

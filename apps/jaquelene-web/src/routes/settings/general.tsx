@@ -38,37 +38,41 @@ function GeneralRoute() {
 
       <ContentPane.Viewport>
         <div className="mx-auto w-full max-w-2xl p-6">
-          <Item.Group>
-            <Item.Root>
-              <Item.Content>
-                <Item.Label id={labelId} render={<label htmlFor={controlId} />}>
-                  Default campaign model
-                </Item.Label>
-                {setDefaultCampaignModel.error ? (
-                  <Item.Description id={errorId} role="alert" className="text-danger">
-                    Couldn't save the default campaign model
-                  </Item.Description>
-                ) : null}
-              </Item.Content>
+          <Item.Section aria-labelledby="campaign-heading">
+            <Item.Heading id="campaign-heading">Campaign</Item.Heading>
 
-              <Item.Value>
-                <ModelPicker.Root
-                  value={defaultCampaignModel}
-                  onValueChange={setDefaultCampaignModel.mutate}
-                >
-                  <ModelPicker.Trigger
-                    id={controlId}
-                    aria-labelledby={labelId}
-                    aria-describedby={setDefaultCampaignModel.error ? errorId : undefined}
-                  />
-                  <ModelPicker.Empty>
-                    <Button render={<Link to="/settings/providers" />}>Connect a provider</Button>
-                  </ModelPicker.Empty>
-                  <ModelPicker.Content />
-                </ModelPicker.Root>
-              </Item.Value>
-            </Item.Root>
-          </Item.Group>
+            <Item.Group>
+              <Item.Root>
+                <Item.Content>
+                  <Item.Label id={labelId} render={<label htmlFor={controlId} />}>
+                    Default model
+                  </Item.Label>
+                  {setDefaultCampaignModel.error ? (
+                    <Item.Description id={errorId} role="alert" className="text-danger">
+                      Couldn't save the default campaign model
+                    </Item.Description>
+                  ) : null}
+                </Item.Content>
+
+                <Item.Value>
+                  <ModelPicker.Root
+                    value={defaultCampaignModel}
+                    onValueChange={setDefaultCampaignModel.mutate}
+                  >
+                    <ModelPicker.Trigger
+                      id={controlId}
+                      aria-labelledby={labelId}
+                      aria-describedby={setDefaultCampaignModel.error ? errorId : undefined}
+                    />
+                    <ModelPicker.Empty>
+                      <Button render={<Link to="/settings/providers" />}>Connect a provider</Button>
+                    </ModelPicker.Empty>
+                    <ModelPicker.Content />
+                  </ModelPicker.Root>
+                </Item.Value>
+              </Item.Root>
+            </Item.Group>
+          </Item.Section>
         </div>
       </ContentPane.Viewport>
     </>

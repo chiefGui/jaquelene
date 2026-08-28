@@ -14,6 +14,12 @@ export function ScenariosSidebar() {
         navigationLabel: "Scenarios",
         items: [
           {
+            id: "back",
+            icon: ArrowLeft01Icon,
+            label: "Back",
+            to: "/",
+          },
+          {
             id: "all-scenarios",
             icon: Books01Icon,
             label: "All scenarios",
@@ -27,11 +33,6 @@ export function ScenariosSidebar() {
             params: { scenarioId: scenario.id },
           })),
         ],
-        action: {
-          icon: ArrowLeft01Icon,
-          label: "Back to home",
-          to: "/",
-        },
       }}
     />
   );

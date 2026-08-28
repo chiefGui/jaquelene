@@ -13,6 +13,12 @@ function SettingsSidebar() {
         navigationLabel: "Settings",
         items: [
           {
+            id: "back",
+            icon: ArrowLeft01Icon,
+            label: "Back",
+            to: "/",
+          },
+          {
             id: "general",
             icon: Settings01Icon,
             label: "General",
@@ -37,11 +43,6 @@ function SettingsSidebar() {
             to: "/settings/storage",
           },
         ],
-        action: {
-          icon: ArrowLeft01Icon,
-          label: "Back to home",
-          to: "/",
-        },
       }}
     />
   );

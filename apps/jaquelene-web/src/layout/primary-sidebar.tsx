@@ -17,7 +17,7 @@ type PrimarySidebarItem = PrimarySidebarLink & { id: string };
 interface PrimarySidebarNavigation {
   navigationLabel: string;
   items: readonly PrimarySidebarItem[];
-  action: PrimarySidebarLink;
+  footerAction?: PrimarySidebarLink;
 }
 
 declare module "@tanstack/react-router" {
@@ -27,7 +27,30 @@ declare module "@tanstack/react-router" {
 }
 
 export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavigation }) {
-  const { icon: actionIcon, label: actionLabel, ...actionDestination } = navigation.action;
+  let footer = null;
+
+  if (navigation.footerAction) {
+    const { icon, label, ...destination } = navigation.footerAction;
+
+    footer = (
+      <footer className="shrink-0 p-2">
+        <Link
+          {...destination}
+          aria-label={label}
+          className="flex size-9 items-center justify-center rounded-md text-muted hover:bg-accent/10 hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
+        >
+          <HugeiconsIcon
+            icon={icon}
+            size={16}
+            color="currentColor"
+            strokeWidth={1.5}
+            aria-hidden="true"
+            className="shrink-0"
+          />
+        </Link>
+      </footer>
+    );
+  }
 
   return (
     <aside aria-label="Primary sidebar" className="flex min-h-0 flex-col bg-canvas">
@@ -61,22 +84,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
         </ul>
       </nav>
 
-      <footer className="shrink-0 p-2">
-        <Link
-          {...actionDestination}
-          aria-label={actionLabel}
-          className="flex size-9 items-center justify-center rounded-md text-muted hover:bg-accent/10 hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
-        >
-          <HugeiconsIcon
-            icon={actionIcon}
-            size={16}
-            color="currentColor"
-            strokeWidth={1.5}
-            aria-hidden="true"
-            className="shrink-0"
-          />
-        </Link>
-      </footer>
+      {footer}
     </aside>
   );
 }

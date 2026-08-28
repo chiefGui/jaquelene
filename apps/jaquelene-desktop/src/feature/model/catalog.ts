@@ -6,11 +6,13 @@ export type ModelReference = {
 export type AvailableModel = {
   id: string;
   name: string;
+  brandId: string;
 };
 
 export type ModelProvider = {
   id: string;
-  name: string;
+  brandId: string;
+  isConnected: () => Promise<boolean>;
   listModels: () => Promise<AvailableModel[]>;
 };
 
@@ -18,8 +20,8 @@ export function createModelCatalog(providers: readonly ModelProvider[]) {
   const providersById = new Map<string, ModelProvider>();
 
   for (const provider of providers) {
-    if (!provider.id.trim() || !provider.name.trim()) {
-      throw new TypeError("Model providers require an identity and name.");
+    if (!provider.id.trim() || !provider.brandId.trim()) {
+      throw new TypeError("Model providers require provider and brand identities.");
     }
 
     if (providersById.has(provider.id)) {
@@ -30,7 +32,18 @@ export function createModelCatalog(providers: readonly ModelProvider[]) {
   }
 
   return {
-    listProviders: () => [...providersById.values()].map(({ id, name }) => ({ id, name })),
+    async listProviders() {
+      const connectedProviders = await Promise.all(
+        [...providersById.values()].map(async (provider) => ({
+          provider,
+          connected: await provider.isConnected(),
+        })),
+      );
+
+      return connectedProviders.flatMap(({ provider: { brandId, id }, connected }) =>
+        connected ? [{ brandId, id }] : [],
+      );
+    },
 
     listModels(providerId: string) {
       const provider = providersById.get(providerId);

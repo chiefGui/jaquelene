@@ -7,12 +7,13 @@ structure ModelReference {
 
 structure ModelProvider {
   id: string
-  name: string
+  brandId: string
 }
 
 structure AvailableModel {
   id: string
   name: string
+  brandId: string
 }
 
 [RendererAPI]

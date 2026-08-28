@@ -1,5 +1,5 @@
 import { ModelCatalog } from "@jaquelene/ipc/renderer";
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { ipcQueryOptions, requireIpcMethod } from "@/ipc";
 
 const listModelProviders = requireIpcMethod(ModelCatalog?.listProviders);
@@ -24,4 +24,14 @@ export function modelsForProviderQuery(providerId: string) {
     queryKey: [...modelCatalogKey, "models", providerId],
     queryFn: () => listModels(providerId),
   });
+}
+
+export function resetModelProvider(queryClient: QueryClient, providerId: string) {
+  return Promise.all([
+    queryClient.resetQueries({ queryKey: modelProvidersQuery.queryKey, exact: true }),
+    queryClient.resetQueries({
+      queryKey: modelsForProviderQuery(providerId).queryKey,
+      exact: true,
+    }),
+  ]);
 }

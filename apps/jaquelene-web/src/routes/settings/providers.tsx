@@ -3,9 +3,11 @@ import { Button, Input, Item, Ping } from "@jaquelene/ui";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
-import { OpenRouterIcon } from "@/feature/provider/openrouter/icon";
+import { getBrandName } from "@/feature/brand/catalog";
+import { ProviderMark } from "@/feature/provider/mark";
 import {
   openRouterConnectionQuery,
+  openRouterProvider,
   useConnectOpenRouter,
   useDisconnectOpenRouter,
 } from "@/feature/provider/openrouter/query";
@@ -133,12 +135,12 @@ function ProvidersRoute() {
           <Item.Group>
             <Item.Root>
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground/4">
-                  <OpenRouterIcon className="h-3.5 w-auto" />
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-foreground/4">
+                  <ProviderMark brandId={openRouterProvider.brandId} className="size-3.5" />
                 </span>
                 <Item.Content>
                   <div className="flex items-center gap-2">
-                    <Item.Label>OpenRouter</Item.Label>
+                    <Item.Label>{getBrandName(openRouterProvider.brandId)}</Item.Label>
                     {connected ? (
                       <>
                         <Ping className="text-success" />

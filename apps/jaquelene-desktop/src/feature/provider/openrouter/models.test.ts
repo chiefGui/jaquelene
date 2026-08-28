@@ -6,6 +6,7 @@ describe("OpenRouter model provider", () => {
     const apiKey = "openrouter-model-key";
     const useCredential = vi.fn();
     const connection = {
+      getStatus: async () => ({ state: "connected", keyLabel: "Jaquelene" }) as const,
       async withApiKey<Result>(use: (value: string) => Promise<Result>) {
         useCredential();
         return use(apiKey);
@@ -13,8 +14,18 @@ describe("OpenRouter model provider", () => {
     };
     const loadModels = vi.fn(async () => [
       {
-        id: "author/text-model",
-        name: "Text model",
+        id: "meta-llama/text-model",
+        name: "Meta: Text model",
+        architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+      },
+      {
+        id: "new-lab/research-model",
+        name: "New Lab: Research model",
+        architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+      },
+      {
+        id: "x-ai/grok-model",
+        name: "SpaceXAI: Grok model",
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
       },
       {
@@ -26,15 +37,20 @@ describe("OpenRouter model provider", () => {
     const provider = createOpenRouterModelProvider(connection, loadModels);
 
     await expect(provider.listModels()).resolves.toEqual([
-      { id: "author/text-model", name: "Text model" },
+      { id: "meta-llama/text-model", name: "Text model", brandId: "meta" },
+      { id: "new-lab/research-model", name: "Research model", brandId: "new-lab" },
+      { id: "x-ai/grok-model", name: "Grok model", brandId: "x-ai" },
     ]);
+    expect(provider.brandId).toBe("openrouter");
     expect(useCredential).toHaveBeenCalledOnce();
     expect(loadModels).toHaveBeenCalledWith(apiKey);
+    await expect(provider.isConnected()).resolves.toBe(true);
   });
 
   it("preserves catalog failures", async () => {
     const failure = new Error("Catalog unavailable");
     const connection = {
+      getStatus: async () => ({ state: "connected", keyLabel: "Jaquelene" }) as const,
       async withApiKey<Result>(use: (value: string) => Promise<Result>) {
         return use("openrouter-failing-key");
       },

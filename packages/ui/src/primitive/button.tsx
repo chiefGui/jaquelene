@@ -18,7 +18,7 @@ const buttonClassName = tv({
   },
 });
 
-export type ButtonProps = Omit<AriakitButtonProps, "render"> & VariantProps<typeof buttonClassName>;
+export type ButtonProps = AriakitButtonProps & VariantProps<typeof buttonClassName>;
 
 export function Button({ className, variant, ...props }: ButtonProps) {
   return <AriakitButton {...props} className={cn(buttonClassName({ variant }), className)} />;

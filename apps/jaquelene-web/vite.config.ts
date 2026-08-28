@@ -55,6 +55,7 @@ export default defineConfig({
     contentSecurityPolicyPlugin,
     tanstackRouter({
       target: "react",
+      autoCodeSplitting: true,
       quoteStyle: "double",
       semicolons: true,
     }),

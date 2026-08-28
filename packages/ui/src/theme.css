@@ -1,10 +1,15 @@
 @theme {
+  /* Color */
   --color-canvas: oklch(0.13895 0.00295 246.256);
   --color-surface: oklch(0.1728 0.00445 264.452);
+  --color-surface-raised: oklch(0.215 0.00445 264.452);
+  --color-surface-raised-border: oklch(0.273 0.00595 271.153);
   --color-border: oklch(0.23094 0.00595 271.153);
   --color-foreground: oklch(0.96743 0.00133 286.375);
   --color-muted: oklch(0.64365 0.00919 271.272);
   --color-success: oklch(0.765 0.177 163.223);
   --color-danger: oklch(0.71063 0.16615 22.216);
+
+  /* Sizing */
   --spacing-control: 2rem;
 }

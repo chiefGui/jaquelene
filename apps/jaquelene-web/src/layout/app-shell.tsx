@@ -13,7 +13,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="grid h-dvh min-h-0 grid-cols-[15rem_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_2.25rem] overflow-hidden bg-canvas text-foreground">
+    <div className="grid h-dvh min-h-0 grid-cols-[15rem_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_2.25rem] overflow-hidden bg-canvas text-sm text-foreground">
       <Sidebar />
       <ContentPane.Root>
         <Outlet />

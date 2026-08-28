@@ -14,6 +14,7 @@ export const Route = createFileRoute("/settings/general")({
 
 function GeneralRoute() {
   const controlId = useId();
+  const errorId = useId();
   const labelId = useId();
   const { data: preferences } = useSuspenseQuery(modelPreferencesQuery);
   const setDefaultModel = useSetDefaultModel();
@@ -40,16 +41,23 @@ function GeneralRoute() {
                 <Item.Label id={labelId} render={<label htmlFor={controlId} />}>
                   Default model
                 </Item.Label>
+                {setDefaultModel.error ? (
+                  <Item.Description id={errorId} role="alert" className="text-danger">
+                    Couldn't save the default model
+                  </Item.Description>
+                ) : null}
               </Item.Content>
 
               <Item.Value>
                 <ModelPicker.Root
                   value={preferences.default ?? null}
-                  onValueChange={async (model) => {
-                    await setDefaultModel.mutateAsync(model);
-                  }}
+                  onValueChange={setDefaultModel.mutate}
                 >
-                  <ModelPicker.Trigger id={controlId} aria-labelledby={labelId} />
+                  <ModelPicker.Trigger
+                    id={controlId}
+                    aria-labelledby={labelId}
+                    aria-describedby={setDefaultModel.error ? errorId : undefined}
+                  />
                   <ModelPicker.Empty>
                     <Button render={<Link to="/settings/providers" />}>Connect a provider</Button>
                   </ModelPicker.Empty>

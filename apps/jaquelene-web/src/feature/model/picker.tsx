@@ -1,7 +1,6 @@
 import {
   Combobox,
   ComboboxItem,
-  ComboboxList,
   ComboboxPopover,
   ComboboxProvider,
   useComboboxContext,
@@ -9,18 +8,17 @@ import {
 } from "@ariakit/react/combobox";
 import { useStoreState } from "@ariakit/react/store";
 import { Tab, TabList, TabPanel, TabProvider } from "@ariakit/react/tab";
-import Loading03Icon from "@hugeicons/core-free-icons/Loading03Icon";
 import RoboticIcon from "@hugeicons/core-free-icons/RoboticIcon";
 import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
+import StarIcon from "@hugeicons/core-free-icons/StarIcon";
 import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { AvailableModel, ModelProvider, ModelReference } from "@jaquelene/ipc/renderer";
 import { Button, Input, Skeleton, cn } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
-import { useReducedMotion } from "@jaquelene/ui/motion";
 import { Select, type SelectProps } from "@jaquelene/ui/select";
 import { Tooltip } from "@jaquelene/ui/tooltip";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
 import {
@@ -38,36 +36,63 @@ import {
 import { BrandMark, getBrandName } from "@/feature/brand/catalog";
 import { ProviderMark } from "@/feature/provider/mark";
 import { modelProvidersQuery, modelsForProviderQuery } from "./catalog-query";
+import {
+  favoriteModelsQuery,
+  usePendingFavoriteModels,
+  useSetFavoriteModel,
+} from "./favorite-models";
 
-type ProviderTab = ModelProvider & { brandName: string; tabId: string };
+type ProviderTab = ModelProvider & {
+  brandName: string;
+  tabId: string;
+  type: "provider";
+};
+
+type FavoriteTab = {
+  tabId: string;
+  type: "favorites";
+};
+
+type ModelTab = FavoriteTab | ProviderTab;
 
 type ModelOption = {
-  brandName: string;
   children: string;
+  favorite: boolean;
   id: string;
   model: AvailableModel;
+  modelBrandName: string;
+  provider: ProviderTab;
+  reference: ModelReference;
   searchText: string;
   typeaheadText: string;
   value: string;
 };
+
+type ProviderModelsState =
+  | { status: "loading" }
+  | { status: "error"; reload: () => void }
+  | {
+      status: "ready";
+      catalogs: { models: AvailableModel[]; provider: ProviderTab }[];
+    };
 
 type ModelListState =
   | { status: "loading" }
   | { status: "error"; reload: () => void }
   | { status: "ready"; options: ModelOption[] };
 
-type ProviderListStatus = "loading" | "empty" | "ready";
+type ModelPickerStatus = "loading" | "empty" | "ready";
 
 type ModelPickerContextValue = {
-  activeProvider: ProviderTab | undefined;
+  activeTab: ModelTab;
+  actionError: string | null;
   inputValue: string;
   modelList: ModelListState;
-  pendingModelId: string | null;
-  providerListStatus: ProviderListStatus;
-  providers: ProviderTab[];
-  selectionError: string | null;
-  selectedModel: AvailableModel | undefined;
-  selectProvider: (tabId: string | null | undefined) => void;
+  pendingFavorites: ModelReference[];
+  pickerStatus: ModelPickerStatus;
+  selectTab: (tabId: string | null | undefined) => void;
+  setFavorite: (reference: ModelReference, favorite: boolean) => void;
+  tabs: ModelTab[];
   value: ModelReference | null;
 };
 
@@ -75,9 +100,15 @@ const ModelPickerContext = createContext<ModelPickerContextValue | null>(null);
 const modelOptionHeight = 56;
 const modelOptionGap = 4;
 const modelOptionSize = modelOptionHeight + modelOptionGap;
+const modelRowLayoutClassName =
+  "grid grid-cols-[1rem_minmax(0,1fr)_2rem] items-center gap-2 px-3 py-2";
 
 function ModelMark({ brandId, className }: { brandId: string; className?: string }) {
   return <BrandMark brandId={brandId} fallbackIcon={RoboticIcon} className={className} />;
+}
+
+function sameModel(left: ModelReference, right: ModelReference) {
+  return left.providerId === right.providerId && left.modelId === right.modelId;
 }
 
 function useModelPicker(component: string) {
@@ -93,51 +124,141 @@ function useModelPicker(component: string) {
 type ModelPickerRootProps = {
   children: ReactNode;
   value: ModelReference | null;
-  onValueChange: (value: ModelReference) => void | Promise<void>;
+  onValueChange: (value: ModelReference) => void;
 };
 
 function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProps) {
   const providersQuery = useQuery({ ...modelProvidersQuery, throwOnError: true });
-  const modelProviders = providersQuery.data ?? [];
+  const favoriteModels = useQuery({ ...favoriteModelsQuery, throwOnError: true });
+  const setFavoriteModel = useSetFavoriteModel();
+  const pendingFavorites = usePendingFavoriteModels();
   const pickerId = useId();
-  const providers = modelProviders.map((provider) => ({
-    ...provider,
-    brandName: getBrandName(provider.brandId),
-    tabId: `${pickerId}-provider-${encodeURIComponent(provider.id)}`,
-  }));
+  const providers = useMemo(
+    () =>
+      (providersQuery.data ?? []).map((provider) => ({
+        ...provider,
+        brandName: getBrandName(provider.brandId),
+        tabId: `${pickerId}-provider-${encodeURIComponent(provider.id)}`,
+        type: "provider" as const,
+      })),
+    [pickerId, providersQuery.data],
+  );
+  const favoriteTab = useMemo(
+    () => ({ tabId: `${pickerId}-favorites`, type: "favorites" as const }),
+    [pickerId],
+  );
+  const tabs = useMemo<ModelTab[]>(() => [favoriteTab, ...providers], [favoriteTab, providers]);
+  const favorites = favoriteModels.data ?? [];
+  const favoriteModelIdsByProvider = useMemo(() => {
+    const modelIdsByProvider = new Map<string, Set<string>>();
+
+    for (const { modelId, providerId } of favorites) {
+      const modelIds = modelIdsByProvider.get(providerId) ?? new Set<string>();
+      modelIds.add(modelId);
+      modelIdsByProvider.set(providerId, modelIds);
+    }
+
+    return modelIdsByProvider;
+  }, [favorites]);
   const preferredProvider = providers.find(({ id }) => id === value?.providerId) ?? providers[0];
-  const providerListStatus: ProviderListStatus = providersQuery.isPending
-    ? "loading"
-    : providers.length > 0
-      ? "ready"
-      : "empty";
-  const [providerId, setProviderId] = useState(preferredProvider?.id ?? "");
-  const activeProvider = providers.find(({ id }) => id === providerId) ?? preferredProvider;
+  const pickerStatus: ModelPickerStatus =
+    providersQuery.isPending || favoriteModels.isPending
+      ? "loading"
+      : providers.length > 0
+        ? "ready"
+        : "empty";
+  const [selectedTabId, setSelectedTabId] = useState<string>();
+  const activeTab =
+    tabs.find(({ tabId }) => tabId === selectedTabId) ?? preferredProvider ?? favoriteTab;
   const [open, setOpenState] = useState(false);
   const [inputValue, setInputValue] = useState("");
-  const [pendingModelId, setPendingModelId] = useState<string | null>(null);
-  const [selectionError, setSelectionError] = useState<string | null>(null);
-  const modelsQuery = useQuery({
-    ...modelsForProviderQuery(activeProvider?.id ?? ""),
-    enabled: open && activeProvider !== undefined,
-  });
-  const modelOptions = useMemo(
-    () =>
-      (modelsQuery.data ?? []).map((model) => {
-        const brandName = getBrandName(model.brandId);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const requestedProviders = useMemo(() => {
+    if (activeTab.type === "provider") {
+      return [activeTab];
+    }
 
+    return providers.filter(({ id }) => favoriteModelIdsByProvider.has(id));
+  }, [activeTab, favoriteModelIdsByProvider, providers]);
+  const combineProviderModels = useCallback(
+    (results: UseQueryResult<AvailableModel[], Error>[]): ProviderModelsState => {
+      if (results.every(({ data }) => data !== undefined)) {
         return {
-          brandName,
-          children: model.name,
-          id: `${pickerId}-model-${encodeURIComponent(activeProvider?.id ?? "")}-${encodeURIComponent(model.id)}`,
-          model,
-          searchText: `${brandName} ${model.name} ${model.id}`.toLowerCase(),
-          typeaheadText: `${model.name} ${brandName}`,
-          value: model.id,
+          status: "ready",
+          catalogs: results.map((result, index) => ({
+            models: result.data!,
+            provider: requestedProviders[index]!,
+          })),
         };
-      }),
-    [activeProvider?.id, modelsQuery.data, pickerId],
+      }
+
+      if (results.some(({ isError }) => isError)) {
+        return {
+          status: "error",
+          reload() {
+            for (const result of results) {
+              if (result.isError) {
+                void result.refetch();
+              }
+            }
+          },
+        };
+      }
+
+      return { status: "loading" };
+    },
+    [requestedProviders],
   );
+  const providerModels = useQueries({
+    queries: requestedProviders.map((provider) => ({
+      ...modelsForProviderQuery(provider.id),
+      enabled: open,
+    })),
+    combine: combineProviderModels,
+  });
+  const modelOptions = useMemo(() => {
+    if (providerModels.status !== "ready") {
+      return [];
+    }
+
+    function createOption(provider: ProviderTab, model: AvailableModel): ModelOption {
+      const reference = { providerId: provider.id, modelId: model.id };
+      const modelBrandName = getBrandName(model.brandId);
+      const id = `${pickerId}-model-${encodeURIComponent(provider.id)}-${encodeURIComponent(model.id)}`;
+
+      return {
+        children: model.name,
+        favorite: favoriteModelIdsByProvider.get(provider.id)?.has(model.id) ?? false,
+        id,
+        model,
+        modelBrandName,
+        provider,
+        reference,
+        searchText:
+          `${provider.brandName} ${provider.id} ${modelBrandName} ${model.name} ${model.id}`.toLowerCase(),
+        typeaheadText: `${model.name} ${modelBrandName} ${provider.brandName}`,
+        value: id,
+      };
+    }
+
+    if (activeTab.type === "provider") {
+      const catalog = providerModels.catalogs.find(({ provider }) => provider.id === activeTab.id);
+      return catalog?.models.map((model) => createOption(activeTab, model)) ?? [];
+    }
+
+    const catalogs = new Map(
+      providerModels.catalogs.map(({ models, provider }) => [
+        provider.id,
+        { models: new Map(models.map((model) => [model.id, model])), provider },
+      ]),
+    );
+
+    return favorites.flatMap((reference) => {
+      const catalog = catalogs.get(reference.providerId);
+      const model = catalog?.models.get(reference.modelId);
+      return catalog && model ? [createOption(catalog.provider, model)] : [];
+    });
+  }, [activeTab, favoriteModelIdsByProvider, favorites, pickerId, providerModels]);
   const visibleModelOptions = useMemo(() => {
     const query = inputValue.trim().toLowerCase();
 
@@ -147,81 +268,84 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
   }, [inputValue, modelOptions]);
 
   function reloadModels() {
-    setSelectionError(null);
-    void modelsQuery.refetch();
+    setActionError(null);
+
+    if (providerModels.status === "error") {
+      providerModels.reload();
+    }
   }
 
-  const modelList: ModelListState = modelsQuery.data
-    ? { status: "ready", options: visibleModelOptions }
-    : modelsQuery.isError
-      ? { status: "error", reload: reloadModels }
-      : { status: "loading" };
-  const selectedModel =
-    value && value.providerId === activeProvider?.id
-      ? modelsQuery.data?.find(({ id }) => id === value.modelId)
-      : undefined;
+  const modelList: ModelListState =
+    providerModels.status === "ready"
+      ? { status: "ready", options: visibleModelOptions }
+      : providerModels.status === "error"
+        ? { status: "error", reload: reloadModels }
+        : { status: "loading" };
+  const selectedOption = value
+    ? modelOptions.find(({ reference }) => sameModel(reference, value))
+    : undefined;
 
   function setOpen(nextOpen: boolean) {
-    if (!nextOpen && pendingModelId !== null) {
-      return;
-    }
-
     setOpenState(nextOpen);
     setInputValue("");
-    setSelectionError(null);
+    setActionError(null);
 
     if (nextOpen) {
-      setProviderId(preferredProvider?.id ?? "");
+      setSelectedTabId(preferredProvider?.tabId);
     }
   }
 
-  function selectProvider(tabId: string | null | undefined) {
-    const provider = providers.find((candidate) => candidate.tabId === tabId);
+  function selectTab(tabId: string | null | undefined) {
+    const tab = tabs.find((candidate) => candidate.tabId === tabId);
 
-    if (!provider || provider.id === activeProvider?.id) {
+    if (!tab || tab.tabId === activeTab.tabId) {
       return;
     }
 
-    setProviderId(provider.id);
+    setSelectedTabId(tab.tabId);
     setInputValue("");
-    setSelectionError(null);
+    setActionError(null);
   }
 
-  async function selectModel(modelId: string) {
-    if (!activeProvider || pendingModelId !== null) {
-      return;
-    }
-
-    if (value?.providerId === activeProvider.id && value.modelId === modelId) {
+  function selectModel(reference: ModelReference) {
+    if (value && sameModel(value, reference)) {
       setOpenState(false);
       return;
     }
 
-    setPendingModelId(modelId);
-    setSelectionError(null);
+    setActionError(null);
 
     try {
-      await onValueChange({ providerId: activeProvider.id, modelId });
+      onValueChange({ ...reference });
       setOpenState(false);
       setInputValue("");
     } catch (cause) {
       console.error("Could not select model.", cause);
-      setSelectionError("Couldn't select this model.");
-    } finally {
-      setPendingModelId(null);
+      setActionError("Couldn't select this model.");
+    }
+  }
+
+  async function setFavorite(reference: ModelReference, favorite: boolean) {
+    setActionError(null);
+
+    try {
+      await setFavoriteModel.mutateAsync({ favorite, reference });
+    } catch (cause) {
+      console.error("Could not update favorite models.", cause);
+      setActionError("Couldn't update favorite models.");
     }
   }
 
   const context = {
-    activeProvider,
+    activeTab,
+    actionError,
     inputValue,
     modelList,
-    pendingModelId,
-    providerListStatus,
-    providers,
-    selectionError,
-    selectedModel,
-    selectProvider,
+    pendingFavorites,
+    pickerStatus,
+    selectTab,
+    setFavorite,
+    tabs,
     value,
   } satisfies ModelPickerContextValue;
 
@@ -233,20 +357,49 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
       inputValue={inputValue}
       setInputValue={(nextInputValue) => {
         setInputValue(nextInputValue);
-        setSelectionError(null);
+        setActionError(null);
       }}
-      selectedValue={value !== null && value.providerId === activeProvider?.id ? value.modelId : ""}
-      setSelectedValue={(modelId) => {
-        if (modelId) {
-          void selectModel(modelId);
+      selectedValue={selectedOption?.value ?? ""}
+      setSelectedValue={(optionValue) => {
+        const option = modelOptions.find(({ value: candidate }) => candidate === optionValue);
+
+        if (option) {
+          selectModel(option.reference);
         }
       }}
       selectOnMove={false}
       focusLoop
-      placement="bottom-end"
     >
       <ModelPickerContext.Provider value={context}>{children}</ModelPickerContext.Provider>
     </ComboboxProvider>
+  );
+}
+
+function ModelPickerSelectedValue({
+  fallback,
+  reference,
+}: {
+  fallback: string;
+  reference: ModelReference;
+}) {
+  const cachedModelsQuery = useQuery({
+    ...modelsForProviderQuery(reference.providerId),
+    enabled: false,
+  });
+  const model = cachedModelsQuery.data?.find(({ id }) => id === reference.modelId);
+
+  return (
+    <>
+      {model ? (
+        <ModelMark
+          brandId={model.brandId}
+          className="col-start-1 row-start-1 size-3.5 text-muted"
+        />
+      ) : null}
+      <Select.Value className="col-start-2 row-start-1 truncate">
+        {model?.name ?? fallback}
+      </Select.Value>
+    </>
   );
 }
 
@@ -255,37 +408,44 @@ function ModelPickerValue({
   ...props
 }: ComponentProps<"span"> & { placeholder?: string }) {
   const { placeholder = "Choose model", ...spanProps } = props;
-  const { providers, selectedModel, value } = useModelPicker("Value");
-  const selectedProvider = providers.some(({ id }) => id === value?.providerId);
-  const label =
-    selectedModel?.name ?? (selectedProvider ? value?.modelId : undefined) ?? placeholder;
+  const { tabs, value } = useModelPicker("Value");
+  const selectedProvider = tabs.some(
+    (tab) => tab.type === "provider" && tab.id === value?.providerId,
+  );
 
   return (
     <span
       {...spanProps}
-      className={cn("flex min-w-0 flex-1 items-center gap-2 text-left", className)}
+      className={cn(
+        "grid min-w-0 flex-1 grid-cols-[0.875rem_minmax(0,1fr)] items-center gap-2 text-left",
+        className,
+      )}
     >
-      {selectedModel ? (
-        <ModelMark brandId={selectedModel.brandId} className="size-3.5 text-muted" />
-      ) : null}
-      <Select.Value className="truncate">{label}</Select.Value>
+      {value ? (
+        <ModelPickerSelectedValue
+          reference={value}
+          fallback={selectedProvider ? value.modelId : placeholder}
+        />
+      ) : (
+        <Select.Value className="col-span-2 truncate">{placeholder}</Select.Value>
+      )}
     </span>
   );
 }
 
 function ModelPickerTrigger({ children, className, disabled, ...props }: SelectProps) {
-  const { pendingModelId, providerListStatus } = useModelPicker("Trigger");
+  const { pickerStatus } = useModelPicker("Trigger");
 
-  if (providerListStatus === "empty") {
+  if (pickerStatus === "empty") {
     return null;
   }
 
   return (
     <Select
       {...props}
-      aria-busy={providerListStatus === "loading"}
-      disabled={disabled || providerListStatus !== "ready" || pendingModelId !== null}
-      className={cn("min-w-48 max-w-72", className)}
+      aria-busy={pickerStatus === "loading"}
+      disabled={disabled || pickerStatus !== "ready"}
+      className={cn("w-72 max-w-[calc(100vw-3rem)]", className)}
     >
       {children ?? <ModelPickerValue />}
     </Select>
@@ -293,17 +453,16 @@ function ModelPickerTrigger({ children, className, disabled, ...props }: SelectP
 }
 
 function ModelPickerEmpty({ children }: { children: ReactNode }) {
-  const { providerListStatus } = useModelPicker("Empty");
+  const { pickerStatus } = useModelPicker("Empty");
 
-  return providerListStatus === "empty" ? children : null;
+  return pickerStatus === "empty" ? children : null;
 }
 
 function ModelPickerList({ options }: { options: ModelOption[] }) {
   const combobox = useComboboxContext();
-  const reducedMotion = useReducedMotion();
   const activeId = useStoreState(combobox, "activeId");
   const scrollElementRef = useRef<HTMLDivElement>(null);
-  const { activeProvider, pendingModelId, value } = useModelPicker("Models");
+  const { activeTab, pendingFavorites, setFavorite, value } = useModelPicker("Models");
   const activeIndex = options.findIndex(({ id }) => id === activeId);
   const getItemKey = useCallback((index: number) => options[index]?.value ?? index, [options]);
   const rangeExtractor = useCallback(
@@ -318,7 +477,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
     },
     [activeIndex],
   );
-  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLLIElement>({
     count: options.length,
     directDomUpdates: true,
     estimateSize: () => modelOptionSize,
@@ -336,13 +495,17 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
   }, [activeIndex, virtualizer]);
 
   return (
-    <ComboboxList
+    <div
       ref={scrollElementRef}
-      aria-busy={pendingModelId !== null}
-      aria-label={`${activeProvider?.brandName ?? "Provider"} models`}
-      className="min-h-0 flex-1 overflow-y-auto p-2"
+      className="min-h-0 flex-1 overflow-y-auto p-2 [scrollbar-gutter:stable]"
     >
-      <div ref={virtualizer.containerRef} className="relative w-full">
+      <ul
+        ref={virtualizer.containerRef}
+        aria-label={
+          activeTab.type === "favorites" ? "Favorite models" : `${activeTab.brandName} models`
+        }
+        className="relative w-full"
+      >
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const option = options[virtualItem.index];
 
@@ -350,87 +513,136 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
             return null;
           }
 
-          const { brandName, model } = option;
-          const selected =
-            value !== null && value.providerId === activeProvider?.id && value.modelId === model.id;
-          const pending = pendingModelId === model.id;
+          const { favorite, model, modelBrandName, provider, reference } = option;
+          const active = virtualItem.index === activeIndex;
+          const selected = value !== null && sameModel(value, reference);
+          const updatingFavorite = pendingFavorites.some((pending) =>
+            sameModel(pending, reference),
+          );
 
           return (
-            <div
+            <li
               key={virtualItem.key}
               ref={virtualizer.measureElement}
               data-index={virtualItem.index}
-              role="presentation"
+              aria-posinset={virtualItem.index + 1}
+              aria-setsize={options.length}
               className="absolute top-0 left-0 w-full"
               style={{ height: modelOptionSize, paddingBottom: modelOptionGap }}
             >
-              <ComboboxItem
-                id={option.id}
-                value={option.value}
-                disabled={pendingModelId !== null}
-                hideOnClick={false}
-                typeaheadText={option.typeaheadText}
-                aria-busy={pending}
-                aria-posinset={virtualItem.index + 1}
-                aria-setsize={options.length}
-                className="group flex h-full w-full items-center justify-between gap-4 rounded-lg px-3 py-2 text-sm outline-none hover:bg-accent/10 focus:bg-accent/10 data-active-item:bg-accent/10 aria-disabled:opacity-50 aria-selected:bg-accent/10 aria-selected:hover:bg-accent/15"
+              <div
+                data-active-item={active || undefined}
+                className={cn(
+                  modelRowLayoutClassName,
+                  "group h-full w-full rounded-lg text-sm hover:bg-accent/10 focus-within:bg-accent/10 data-active-item:bg-accent/10",
+                  selected && "bg-accent/10 hover:bg-accent/15",
+                )}
               >
-                <span className="flex min-w-0 items-start gap-3">
-                  <ModelMark
-                    brandId={model.brandId}
-                    className="mt-0.5 size-4 text-muted group-hover:text-foreground group-focus:text-foreground group-data-active-item:text-foreground group-aria-selected:text-foreground"
-                  />
-                  <span className="min-w-0">
-                    <span className="block truncate text-foreground/75 group-hover:text-foreground group-focus:text-foreground group-data-active-item:text-foreground group-aria-selected:text-foreground">
-                      {model.name}
-                    </span>
-                    <span className="mt-0.5 block truncate text-xs text-muted">
-                      {brandName} &middot; {model.id}
+                <ComboboxItem
+                  id={option.id}
+                  value={option.value}
+                  hideOnClick={false}
+                  typeaheadText={option.typeaheadText}
+                  render={<button type="button" />}
+                  role="button"
+                  aria-current={selected || undefined}
+                  aria-selected={undefined}
+                  className="col-span-2 row-start-1 grid h-full min-w-0 grid-cols-[1rem_minmax(0,1fr)] items-start gap-2 text-left outline-none"
+                >
+                  {selected ? (
+                    <HugeiconsIcon
+                      icon={Tick01Icon}
+                      size={16}
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                      className="col-start-1 row-start-1 mt-0.5 self-start text-accent"
+                    />
+                  ) : null}
+
+                  <span className="col-start-2 row-start-1 flex min-w-0 items-start gap-3">
+                    <ModelMark
+                      brandId={model.brandId}
+                      className={cn(
+                        "mt-0.5 size-4 text-muted group-hover:text-foreground group-focus-within:text-foreground group-data-active-item:text-foreground",
+                        selected && "text-foreground",
+                      )}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={cn(
+                          "block truncate text-foreground/75 group-hover:text-foreground group-focus-within:text-foreground group-data-active-item:text-foreground",
+                          selected && "text-foreground",
+                        )}
+                      >
+                        {model.name}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-muted">
+                        {activeTab.type === "favorites" ? (
+                          <>
+                            {provider.brandName} &middot; {modelBrandName} &middot; {model.id}
+                          </>
+                        ) : (
+                          <>
+                            {modelBrandName} &middot; {model.id}
+                          </>
+                        )}
+                      </span>
                     </span>
                   </span>
-                </span>
+                </ComboboxItem>
 
-                {pending ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-busy={updatingFavorite}
+                  aria-label={
+                    favorite
+                      ? `Remove ${model.name} on ${provider.brandName} from favorites`
+                      : `Add ${model.name} on ${provider.brandName} to favorites`
+                  }
+                  aria-pressed={favorite}
+                  disabled={updatingFavorite}
+                  onPointerDown={(event) => event.preventDefault()}
+                  onClick={() => setFavorite(reference, !favorite)}
+                  className={cn(
+                    "col-start-3 row-start-1 size-8 px-0 hover:bg-accent/10 hover:text-accent aria-disabled:opacity-100 disabled:opacity-100 group-data-active-item:opacity-100 group-focus-within:opacity-100",
+                    favorite ? "text-accent" : "text-muted opacity-0 group-hover:opacity-100",
+                  )}
+                >
                   <HugeiconsIcon
-                    icon={Loading03Icon}
+                    icon={StarIcon}
                     size={16}
                     strokeWidth={1.5}
+                    fill={favorite ? "currentColor" : "none"}
                     aria-hidden="true"
-                    className={cn("shrink-0 text-muted", !reducedMotion && "animate-spin")}
                   />
-                ) : selected ? (
-                  <HugeiconsIcon
-                    icon={Tick01Icon}
-                    size={16}
-                    strokeWidth={1.5}
-                    aria-hidden="true"
-                    className="shrink-0 text-accent"
-                  />
-                ) : null}
-              </ComboboxItem>
-            </div>
+                </Button>
+              </div>
+            </li>
           );
         })}
-      </div>
-    </ComboboxList>
+      </ul>
+    </div>
   );
 }
 
 function ModelPickerModels() {
-  const { inputValue, modelList, selectionError } = useModelPicker("Content");
+  const { actionError, activeTab, inputValue, modelList } = useModelPicker("Content");
 
   if (modelList.status === "loading") {
     return (
-      <div role="status" className="min-h-0 flex-1 overflow-hidden p-2">
+      <div role="status" className="min-h-0 flex-1 overflow-hidden p-2 [scrollbar-gutter:stable]">
         <span className="sr-only">Loading models...</span>
 
         <div className="flex flex-col gap-1">
           {Array.from({ length: 6 }, (_, index) => (
-            <div key={index} className="flex h-14 items-start gap-3 px-3 py-2">
-              <Skeleton className="mt-0.5 size-4 shrink-0 rounded-sm" />
-              <div className="min-w-0 flex-1">
-                <Skeleton className="h-4 w-2/5" />
-                <Skeleton className="mt-1.5 h-3 w-3/5" />
+            <div key={index} className={cn(modelRowLayoutClassName, "h-14")}>
+              <div className="col-start-2 flex min-w-0 items-start gap-3">
+                <Skeleton className="mt-0.5 size-4 shrink-0 rounded-sm" />
+                <div className="min-w-0 flex-1">
+                  <Skeleton className="h-4 w-2/5" />
+                  <Skeleton className="mt-1.5 h-3 w-3/5" />
+                </div>
               </div>
             </div>
           ))}
@@ -462,24 +674,26 @@ function ModelPickerModels() {
     );
   }
 
-  if (modelList.options.length === 0) {
-    return (
-      <p role="status" className="grid min-h-0 flex-1 place-items-center text-sm text-muted">
-        {inputValue.trim() ? "No matching models." : "No models available."}
-      </p>
-    );
-  }
-
   return (
     <>
-      <ModelPickerList options={modelList.options} />
+      {modelList.options.length > 0 ? (
+        <ModelPickerList options={modelList.options} />
+      ) : (
+        <p role="status" className="grid min-h-0 flex-1 place-items-center text-sm text-muted">
+          {inputValue.trim()
+            ? "No matching models."
+            : activeTab.type === "favorites"
+              ? "No favorite models yet"
+              : "No models available."}
+        </p>
+      )}
 
-      {selectionError ? (
+      {actionError ? (
         <p
           role="alert"
           className="shrink-0 border-t border-surface-raised-border px-3 py-2 text-xs text-danger"
         >
-          {selectionError}
+          {actionError}
         </p>
       ) : null}
     </>
@@ -494,10 +708,9 @@ type ModelPickerContentProps = Omit<
 function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
   const combobox = useComboboxContext();
   const mounted = useStoreState(combobox, "mounted") ?? false;
-  const { activeProvider, pendingModelId, providerListStatus, providers, selectProvider } =
-    useModelPicker("Content");
+  const { activeTab, pickerStatus, selectTab, tabs } = useModelPicker("Content");
 
-  if (providerListStatus !== "ready") {
+  if (pickerStatus !== "ready") {
     return null;
   }
 
@@ -516,71 +729,78 @@ function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
           className,
         )}
       >
-        <TabProvider
-          selectedId={activeProvider?.tabId}
-          setSelectedId={selectProvider}
-          orientation="vertical"
-        >
+        <TabProvider selectedId={activeTab.tabId} setSelectedId={selectTab} orientation="vertical">
           <div className="grid h-full min-h-0 grid-cols-[3.0625rem_minmax(0,1fr)]">
             <TabList
-              aria-label="Providers"
+              aria-label="Model sources"
               className="flex min-h-0 flex-col items-center gap-1 overflow-y-auto border-r border-surface-raised-border p-2"
             >
-              {providers.map((provider) => (
-                <Tooltip.Root key={provider.id} placement="left">
-                  <Tooltip.Anchor
-                    render={
-                      <Tab
-                        id={provider.tabId}
-                        aria-label={provider.brandName}
-                        disabled={pendingModelId !== null}
-                        render={
-                          <Button
-                            variant="ghost"
-                            className="w-control px-0 text-muted not-disabled:hover:bg-accent/10 aria-selected:bg-accent/10 aria-selected:text-foreground aria-selected:not-disabled:hover:bg-accent/15"
-                          />
-                        }
-                      />
-                    }
-                  >
-                    <ProviderMark brandId={provider.brandId} className="size-4" />
-                  </Tooltip.Anchor>
+              {tabs.map((tab) => {
+                const label = tab.type === "favorites" ? "Favorites" : tab.brandName;
 
-                  <Tooltip>{provider.brandName}</Tooltip>
-                </Tooltip.Root>
-              ))}
+                return (
+                  <Tooltip.Root key={tab.tabId} placement="left">
+                    <Tooltip.Anchor
+                      render={
+                        <Tab
+                          id={tab.tabId}
+                          aria-label={label}
+                          render={
+                            <Button
+                              variant="ghost"
+                              className="w-control px-0 text-muted not-disabled:hover:bg-accent/10 aria-selected:bg-accent/10 aria-selected:text-foreground aria-selected:not-disabled:hover:bg-accent/15"
+                            />
+                          }
+                        />
+                      }
+                    >
+                      {tab.type === "favorites" ? (
+                        <HugeiconsIcon
+                          icon={StarIcon}
+                          size={16}
+                          strokeWidth={1.5}
+                          aria-hidden="true"
+                          className="size-4"
+                        />
+                      ) : (
+                        <ProviderMark brandId={tab.brandId} className="size-4" />
+                      )}
+                    </Tooltip.Anchor>
+
+                    <Tooltip>{label}</Tooltip>
+                  </Tooltip.Root>
+                );
+              })}
             </TabList>
 
-            {activeProvider ? (
-              <TabPanel
-                tabId={activeProvider.tabId}
-                tabIndex={-1}
-                className="flex min-h-0 flex-col outline-none"
-              >
-                <div className="relative shrink-0 border-b border-surface-raised-border p-2">
-                  <HugeiconsIcon
-                    icon={Search01Icon}
-                    size={16}
-                    strokeWidth={1.5}
-                    aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 left-5 -translate-y-1/2 text-muted"
-                  />
-                  <Combobox
-                    autoSelect="always"
-                    getAutoSelectId={(items) =>
-                      items.find((item) => !item.disabled && item.value)?.id
-                    }
-                    aria-label="Search models"
-                    placeholder="Search models..."
-                    render={
-                      <Input className="h-10 w-full border-0 bg-transparent pr-3 pl-9 focus:border-0 focus:bg-transparent" />
-                    }
-                  />
-                </div>
+            <TabPanel
+              tabId={activeTab.tabId}
+              tabIndex={-1}
+              className="flex min-h-0 flex-col outline-none"
+            >
+              <div className="relative shrink-0 border-b border-surface-raised-border p-2">
+                <HugeiconsIcon
+                  icon={Search01Icon}
+                  size={16}
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1/2 left-5 -translate-y-1/2 text-muted"
+                />
+                <Combobox
+                  autoSelect="always"
+                  getAutoSelectId={(items) =>
+                    items.find((item) => !item.disabled && item.value)?.id
+                  }
+                  aria-label="Search models"
+                  placeholder="Search models..."
+                  render={
+                    <Input className="h-10 w-full border-0 bg-transparent pr-3 pl-9 focus:border-0 focus:bg-transparent" />
+                  }
+                />
+              </div>
 
-                <ModelPickerModels />
-              </TabPanel>
-            ) : null}
+              <ModelPickerModels />
+            </TabPanel>
           </div>
         </TabProvider>
       </ComboboxPopover>

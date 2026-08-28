@@ -8,6 +8,12 @@ import { createCampaigns, type Campaigns } from "./feature/campaign/campaigns";
 import { exposeCampaigns } from "./feature/campaign/ipc";
 import { createModelCatalog, type ModelCatalog } from "./feature/model/catalog";
 import { exposeModelCatalog } from "./feature/model/catalog-ipc";
+import { createFavoriteModels, type FavoriteModels } from "./feature/model/favorite-models";
+import { exposeFavoriteModels } from "./feature/model/favorite-models-ipc";
+import {
+  createFavoriteModelsStorage,
+  getFavoriteModelsStoragePaths,
+} from "./feature/model/favorite-models-store";
 import { exposeModelPreferences } from "./feature/model/preferences-ipc";
 import {
   createOpenRouterConnection,
@@ -52,6 +58,7 @@ async function createWindow(
   scenarios: Scenarios,
   campaigns: Campaigns,
   modelCatalog: ModelCatalog,
+  favoriteModels: FavoriteModels,
   preferences: Preferences,
   openRouterConnection: OpenRouterConnection,
   storage: AppStorage,
@@ -81,6 +88,7 @@ async function createWindow(
   exposeScenarios(window.webContents.mainFrame, scenarios);
   exposeCampaigns(window.webContents.mainFrame, campaigns);
   exposeModelCatalog(window.webContents.mainFrame, modelCatalog);
+  exposeFavoriteModels(window.webContents.mainFrame, favoriteModels);
   exposeModelPreferences(window.webContents.mainFrame, preferences.model);
   exposeUserInterfacePreferences(window.webContents, preferences.appearance.userInterface);
   exposeOpenRouterConnection(window.webContents.mainFrame, openRouterConnection);
@@ -156,11 +164,13 @@ void app
       verify: verifyOpenRouterApiKey,
     });
     const modelCatalog = createModelCatalog([createOpenRouterModelProvider(openRouterConnection)]);
+    const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
     const preferences = createPreferences(userDataDirectory);
     const storage = createStorage([
       ...getDatabaseStoragePaths(databasePath),
       ...getLocalStateStoragePaths(userDataDirectory),
       ...getOpenRouterConnectionStoragePaths(userDataDirectory),
+      ...getFavoriteModelsStoragePaths(userDataDirectory),
       ...getPreferencesStoragePaths(userDataDirectory),
     ]);
 
@@ -171,6 +181,7 @@ void app
       scenarios,
       campaigns,
       modelCatalog,
+      favoriteModels,
       preferences,
       openRouterConnection,
       storage,
@@ -183,6 +194,7 @@ void app
           scenarios,
           campaigns,
           modelCatalog,
+          favoriteModels,
           preferences,
           openRouterConnection,
           storage,

@@ -1,6 +1,7 @@
-import AiNetworkIcon from "@hugeicons/core-free-icons/AiNetworkIcon";
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
+import ConnectIcon from "@hugeicons/core-free-icons/ConnectIcon";
 import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
+import PaletteIcon from "@hugeicons/core-free-icons/PaletteIcon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { PrimarySidebar } from "@/layout/primary-sidebar";
@@ -18,8 +19,14 @@ function SettingsSidebar() {
             to: "/settings/general",
           },
           {
+            id: "appearance",
+            icon: PaletteIcon,
+            label: "Appearance",
+            to: "/settings/appearance",
+          },
+          {
             id: "providers",
-            icon: AiNetworkIcon,
+            icon: ConnectIcon,
             label: "Providers",
             to: "/settings/providers",
           },

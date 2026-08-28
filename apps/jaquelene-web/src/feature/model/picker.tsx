@@ -35,7 +35,7 @@ import {
 } from "react";
 import { BrandMark, getBrandName } from "@/feature/brand/catalog";
 import { ProviderMark } from "@/feature/provider/mark";
-import { modelProvidersQuery, modelsForProviderQuery } from "./query";
+import { modelProvidersQuery, modelsForProviderQuery } from "./catalog-query";
 
 type ProviderTab = ModelProvider & { brandName: string; tabId: string };
 
@@ -266,7 +266,7 @@ function ModelPickerValue({
       {selectedModel ? (
         <ModelMark brandId={selectedModel.brandId} className="size-3.5 text-muted" />
       ) : null}
-      <span className="truncate">{label}</span>
+      <Select.Value className="truncate">{label}</Select.Value>
     </span>
   );
 }
@@ -427,7 +427,7 @@ function ModelPickerModels() {
             aria-hidden="true"
             className="motion-safe:animate-spin"
           />
-          Loading models...
+          <span className="text-box-trim">Loading models...</span>
         </span>
       </div>
     );
@@ -533,7 +533,7 @@ function ModelPickerContent({ className, ...props }: ModelPickerContentProps) {
                   }
                 >
                   <ProviderMark brandId={provider.brandId} className="size-3.5" />
-                  <span className="truncate">{provider.brandName}</span>
+                  <Button.Label className="truncate">{provider.brandName}</Button.Label>
                 </Tab>
               ))}
             </TabList>

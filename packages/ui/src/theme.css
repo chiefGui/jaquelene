@@ -1,3 +1,6 @@
+@import "@fontsource-variable/geist/wght.css";
+@import "@fontsource-variable/inter/wght.css";
+
 @theme {
   /* Color */
   --color-canvas: oklch(0.13895 0.00295 246.256);
@@ -11,6 +14,9 @@
   --color-danger: oklch(0.71063 0.16615 22.216);
 
   /* Typography */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-geist: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-system: ui-sans-serif, system-ui, sans-serif;
   --text-xs: 0.75rem;
   --text-xs--line-height: 1rem;
   --text-sm: 0.8125rem;
@@ -22,4 +28,8 @@
 
   /* Sizing */
   --spacing-control: 2rem;
+}
+
+@utility text-box-trim {
+  text-box: trim-both text;
 }

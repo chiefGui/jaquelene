@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import { InterfaceScale, UiFont } from "@/feature/appearance/user-interface/preferences";
 import { createPreferences } from "./preferences";
 
 const directories: string[] = [];
@@ -18,30 +19,21 @@ afterEach(() => {
   }
 });
 
-describe("preferences", () => {
-  it("persists a default model", () => {
-    const directory = createUserDataDirectory();
-    const reference = { providerId: "provider-a", modelId: "model-a" };
-
-    expect(createPreferences(directory).setDefaultModel(reference)).toEqual(reference);
-    expect(createPreferences(directory).getDefaultModel()).toEqual(reference);
-  });
-
-  it("replaces the saved default model", () => {
+describe("preferences storage", () => {
+  it("persists independently owned preference groups", () => {
     const directory = createUserDataDirectory();
     const preferences = createPreferences(directory);
-    const replacement = { providerId: "provider-b", modelId: "replacement-model" };
-    preferences.setDefaultModel({ providerId: "provider-a", modelId: "initial-model" });
+    const defaultModel = { providerId: "provider-a", modelId: "model-a" };
 
-    expect(preferences.setDefaultModel(replacement)).toEqual(replacement);
-    expect(preferences.getDefaultModel()).toEqual(replacement);
-  });
+    preferences.appearance.userInterface.setFont(UiFont.Geist);
+    preferences.appearance.userInterface.setScale(InterfaceScale.Percent125);
+    preferences.model.setDefault(defaultModel);
 
-  it("rejects a reference without provider or model identity", () => {
-    const preferences = createPreferences(createUserDataDirectory());
-
-    expect(() => preferences.setDefaultModel({ providerId: " ", modelId: "model-a" })).toThrow(
-      TypeError,
-    );
+    const restored = createPreferences(directory);
+    expect(restored.appearance.userInterface.get()).toEqual({
+      font: UiFont.Geist,
+      scale: InterfaceScale.Percent125,
+    });
+    expect(restored.model.get()).toEqual({ default: defaultModel });
   });
 });

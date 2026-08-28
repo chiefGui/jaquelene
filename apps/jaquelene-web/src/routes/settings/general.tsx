@@ -3,17 +3,17 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useId } from "react";
 import { ModelPicker } from "@/feature/model/picker";
-import { defaultModelQuery, useSetDefaultModel } from "@/feature/preferences/query";
+import { modelPreferencesQuery, useSetDefaultModel } from "@/feature/model/preferences";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/general")({
-  loader: ({ context }) => context.queryClient.query(defaultModelQuery),
+  loader: ({ context }) => context.queryClient.query(modelPreferencesQuery),
   component: GeneralRoute,
 });
 
 function GeneralRoute() {
-  const { data: defaultModel } = useSuspenseQuery(defaultModelQuery);
+  const { data: preferences } = useSuspenseQuery(modelPreferencesQuery);
   const setDefaultModel = useSetDefaultModel();
   const labelId = useId();
   const valueId = useId();
@@ -42,7 +42,7 @@ function GeneralRoute() {
 
               <Item.Value>
                 <ModelPicker.Root
-                  value={defaultModel}
+                  value={preferences.default ?? null}
                   onValueChange={async (model) => {
                     await setDefaultModel.mutateAsync(model);
                   }}

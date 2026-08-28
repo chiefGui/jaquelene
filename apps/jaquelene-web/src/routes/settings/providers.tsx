@@ -32,12 +32,12 @@ function ConnectionIssue({ state }: { state: OpenRouterConnectionState }) {
           className="mr-2 flex items-center gap-1.5 text-xs font-medium text-danger"
         >
           <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
-          Connection failed
+          <span className="text-box-trim">Connection failed</span>
         </span>
       );
     case OpenRouterConnectionState.Unavailable:
       return (
-        <span aria-live="polite" className="mr-2 text-xs text-muted">
+        <span aria-live="polite" className="mr-2 text-xs text-muted text-box-trim">
           Couldn’t verify
         </span>
       );

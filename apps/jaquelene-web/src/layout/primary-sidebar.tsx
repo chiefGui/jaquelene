@@ -32,7 +32,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
   return (
     <aside aria-label="Primary sidebar" className="flex min-h-0 flex-col bg-canvas">
       <header className="flex h-14 shrink-0 items-center px-4">
-        <span className="text-sm font-semibold tracking-tight">Jaquelene</span>
+        <span className="text-sm font-semibold tracking-tight text-box-trim">Jaquelene</span>
       </header>
 
       <nav aria-label={navigation.navigationLabel} className="min-h-0 flex-1 overflow-y-auto px-2">
@@ -54,7 +54,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
                   aria-hidden="true"
                   className="shrink-0"
                 />
-                <span className="truncate">{label}</span>
+                <span className="truncate text-box-trim">{label}</span>
               </Link>
             </li>
           ))}

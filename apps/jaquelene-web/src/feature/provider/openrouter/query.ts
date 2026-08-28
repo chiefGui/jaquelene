@@ -1,7 +1,7 @@
 import { OpenRouterConnection, OpenRouterConnectionState } from "@jaquelene/ipc/renderer";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { resetModelProvider } from "@/feature/model/catalog-query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
-import { resetModelProvider } from "@/feature/model/query";
 
 export const openRouterProvider = {
   brandId: "openrouter",

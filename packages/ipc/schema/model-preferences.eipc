@@ -1,0 +1,13 @@
+module jaquelene
+
+structure ModelPreferenceValues {
+  default?: ModelReference
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface ModelPreferences {
+  get() -> ModelPreferenceValues
+  setDefault(reference: ModelReference) -> ModelPreferenceValues
+}

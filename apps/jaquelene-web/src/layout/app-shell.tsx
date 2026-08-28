@@ -1,12 +1,17 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useMatches } from "@tanstack/react-router";
+import { useApplyUiFont } from "@/feature/appearance/user-interface/font";
+import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
 import { ContentPane } from "./content-pane";
 import { StatusBar } from "./status-bar";
 
 export function AppShell() {
+  const { data: preferences } = useSuspenseQuery(userInterfacePreferencesQuery);
   const Sidebar = useMatches({
     select: (matches) =>
       matches.findLast(({ staticData }) => staticData.primarySidebar)?.staticData.primarySidebar,
   });
+  useApplyUiFont(preferences.font);
 
   if (!Sidebar) {
     throw new Error("The matched route tree does not define a primary sidebar.");

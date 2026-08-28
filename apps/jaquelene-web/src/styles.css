@@ -5,6 +5,7 @@
 @layer base {
   :root {
     color-scheme: dark;
+    font-family: var(--font-sans);
     scrollbar-color: color-mix(in oklch, var(--color-muted) 65%, transparent) transparent;
   }
 

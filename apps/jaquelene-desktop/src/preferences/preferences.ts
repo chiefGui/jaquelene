@@ -1,23 +1,34 @@
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
-import type { ModelReference } from "@/feature/model/catalog";
+import {
+  createUserInterfacePreferences,
+  type UserInterfacePreferenceValues,
+  userInterfacePreferencesSchema,
+} from "@/feature/appearance/user-interface/preferences";
+import {
+  createModelPreferences,
+  type ModelPreferenceValues,
+  modelPreferencesSchema,
+} from "@/feature/model/preferences";
 
 type PreferencesData = {
-  defaultModel?: ModelReference;
+  appearance?: {
+    userInterface?: UserInterfacePreferenceValues;
+  };
+  model?: ModelPreferenceValues;
 };
 
 const storeName = "preferences";
 
 const schema = {
-  defaultModel: {
+  appearance: {
     type: "object",
     additionalProperties: false,
     properties: {
-      providerId: { type: "string", minLength: 1 },
-      modelId: { type: "string", minLength: 1 },
+      userInterface: userInterfacePreferencesSchema,
     },
-    required: ["providerId", "modelId"],
   },
+  model: modelPreferencesSchema,
 } satisfies Schema<PreferencesData>;
 
 export function getPreferencesStoragePaths(userDataDirectory: string) {
@@ -32,23 +43,20 @@ export function createPreferences(userDataDirectory: string) {
     schema,
     rootSchema: { additionalProperties: false },
   });
-  function getDefaultModel() {
-    const defaultModel = store.get("defaultModel");
-    return defaultModel ? { ...defaultModel } : undefined;
-  }
 
   return {
-    getDefaultModel,
-
-    setDefaultModel(reference: ModelReference) {
-      if (!reference.providerId.trim() || !reference.modelId.trim()) {
-        throw new TypeError("A default model requires a provider and model identity.");
-      }
-
-      const defaultModel = { ...reference };
-      store.set("defaultModel", defaultModel);
-      return { ...defaultModel };
+    appearance: {
+      userInterface: createUserInterfacePreferences({
+        read: () => store.get("appearance")?.userInterface,
+        write(userInterface) {
+          store.set("appearance", { ...store.get("appearance"), userInterface });
+        },
+      }),
     },
+    model: createModelPreferences({
+      read: () => store.get("model"),
+      write: (model) => store.set("model", model),
+    }),
   };
 }
 

@@ -2,10 +2,13 @@ import { app, BrowserWindow, safeStorage, screen, shell } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
 import { closeDatabase, getDatabaseStoragePaths, openDatabase } from "./database";
+import { exposeUserInterfacePreferences } from "./feature/appearance/user-interface/ipc";
+import { getInterfaceScaleFactor } from "./feature/appearance/user-interface/preferences";
 import { createCampaigns, type Campaigns } from "./feature/campaign/campaigns";
 import { exposeCampaigns } from "./feature/campaign/ipc";
 import { createModelCatalog, type ModelCatalog } from "./feature/model/catalog";
-import { exposeModelCatalog } from "./feature/model/ipc";
+import { exposeModelCatalog } from "./feature/model/catalog-ipc";
+import { exposeModelPreferences } from "./feature/model/preferences-ipc";
 import {
   createOpenRouterConnection,
   getOpenRouterConnectionStoragePaths,
@@ -17,7 +20,6 @@ import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verificati
 import { exposeScenarios } from "./feature/scenario/ipc";
 import { createScenarios, type Scenarios } from "./feature/scenario/scenarios";
 import { createLocalState, getLocalStateStoragePaths, type LocalState } from "./local-state";
-import { exposePreferences } from "./preferences/ipc";
 import {
   createPreferences,
   getPreferencesStoragePaths,
@@ -71,13 +73,15 @@ async function createWindow(
       preload: preloadPath,
       sandbox: true,
       webSecurity: true,
+      zoomFactor: getInterfaceScaleFactor(preferences.appearance.userInterface.get().scale),
     },
   });
 
   exposeScenarios(window.webContents.mainFrame, scenarios);
   exposeCampaigns(window.webContents.mainFrame, campaigns);
   exposeModelCatalog(window.webContents.mainFrame, modelCatalog);
-  exposePreferences(window.webContents.mainFrame, preferences);
+  exposeModelPreferences(window.webContents.mainFrame, preferences.model);
+  exposeUserInterfacePreferences(window.webContents, preferences.appearance.userInterface);
   exposeOpenRouterConnection(window.webContents.mainFrame, openRouterConnection);
   exposeStorage(window.webContents.mainFrame, storage);
 

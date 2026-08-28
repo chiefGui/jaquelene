@@ -1,6 +1,19 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
 import { cn } from "../util/cn";
 
+function ItemSection({ className, ...props }: RoleProps<"section">) {
+  return <Role.section {...props} className={cn("flex flex-col gap-3", className)} />;
+}
+
+function ItemHeading({ className, ...props }: RoleProps<"h2">) {
+  return (
+    <Role.h2
+      {...props}
+      className={cn("px-4 text-sm font-medium text-foreground text-box-trim", className)}
+    />
+  );
+}
+
 function ItemGroup({ className, ...props }: RoleProps<"div">) {
   return (
     <Role.div
@@ -27,7 +40,12 @@ function ItemContent({ className, ...props }: RoleProps<"div">) {
 }
 
 function ItemLabel({ className, ...props }: RoleProps<"div">) {
-  return <Role.div {...props} className={cn("text-sm font-medium text-foreground", className)} />;
+  return (
+    <Role.div
+      {...props}
+      className={cn("text-sm font-medium text-foreground text-box-trim", className)}
+    />
+  );
 }
 
 function ItemDescription({ className, ...props }: RoleProps<"div">) {
@@ -43,11 +61,18 @@ function ItemValue({ className, ...props }: RoleProps<"div">) {
   );
 }
 
+function ItemValueText({ className, ...props }: RoleProps<"span">) {
+  return <Role.span {...props} className={cn("text-box-trim", className)} />;
+}
+
 export const Item = {
+  Section: ItemSection,
+  Heading: ItemHeading,
   Group: ItemGroup,
   Root: ItemRoot,
   Content: ItemContent,
   Label: ItemLabel,
   Description: ItemDescription,
   Value: ItemValue,
+  ValueText: ItemValueText,
 } as const;

@@ -39,7 +39,9 @@ function StorageRoute() {
                   Scenarios, preferences, and supporting app data.
                 </Item.Description>
               </Item.Content>
-              <Item.Value>{formatBytes(totalBytes)}</Item.Value>
+              <Item.Value>
+                <Item.ValueText>{formatBytes(totalBytes)}</Item.ValueText>
+              </Item.Value>
             </Item.Root>
           </Item.Group>
         </div>

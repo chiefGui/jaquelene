@@ -1,0 +1,28 @@
+module jaquelene
+
+enum UiFont {
+  System = "system"
+  Inter = "inter"
+  Geist = "geist"
+}
+
+enum InterfaceScale {
+  Percent90 = "90"
+  Percent100 = "100"
+  Percent110 = "110"
+  Percent125 = "125"
+}
+
+structure UserInterfacePreferenceValues {
+  font: UiFont
+  scale: InterfaceScale
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface UserInterfacePreferences {
+  get() -> UserInterfacePreferenceValues
+  setFont(font: UiFont) -> UserInterfacePreferenceValues
+  setScale(scale: InterfaceScale) -> UserInterfacePreferenceValues
+}

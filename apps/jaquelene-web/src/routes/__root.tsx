@@ -3,6 +3,7 @@ import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext } from "@tanstack/react-router";
+import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
 import { AppShell } from "@/layout/app-shell";
 import { PrimarySidebar } from "@/layout/primary-sidebar";
 
@@ -36,6 +37,7 @@ function HomeSidebar() {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  loader: ({ context }) => context.queryClient.query(userInterfacePreferencesQuery),
   staticData: {
     primarySidebar: HomeSidebar,
   },

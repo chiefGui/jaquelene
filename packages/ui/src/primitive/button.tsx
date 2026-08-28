@@ -3,6 +3,7 @@ import {
   type ButtonProps as AriakitButtonProps,
 } from "@ariakit/react/button";
 import { tv, type VariantProps } from "tailwind-variants/lite";
+import type { ComponentProps } from "react";
 import { cn } from "../util/cn";
 
 const buttonClassName = tv({
@@ -20,6 +21,23 @@ const buttonClassName = tv({
 
 export type ButtonProps = AriakitButtonProps & VariantProps<typeof buttonClassName>;
 
-export function Button({ className, variant, ...props }: ButtonProps) {
-  return <AriakitButton {...props} className={cn(buttonClassName({ variant }), className)} />;
+function ButtonLabel({ className, ...props }: ComponentProps<"span">) {
+  return <span {...props} className={cn("text-box-trim", className)} />;
 }
+
+function ButtonRoot({ children, className, variant, ...props }: ButtonProps) {
+  const content =
+    typeof children === "string" || typeof children === "number" ? (
+      <ButtonLabel>{children}</ButtonLabel>
+    ) : (
+      children
+    );
+
+  return (
+    <AriakitButton {...props} className={cn(buttonClassName({ variant }), className)}>
+      {content}
+    </AriakitButton>
+  );
+}
+
+export const Button = Object.assign(ButtonRoot, { Label: ButtonLabel });

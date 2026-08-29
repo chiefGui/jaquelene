@@ -30,4 +30,12 @@ describe("backend build directories", () => {
       "The backend bundle directory must be absolute.",
     );
   });
+
+  it("rejects output that would overwrite source migrations", () => {
+    const sourceDatabaseDirectory = resolve(import.meta.dirname, "database");
+
+    expect(() => getBackendBuildDirectories(sourceDatabaseDirectory)).toThrow(
+      "Backend build and source directories must not overlap.",
+    );
+  });
 });

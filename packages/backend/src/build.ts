@@ -1,4 +1,4 @@
-import { isAbsolute } from "node:path";
+import { isAbsolute, relative, sep } from "node:path";
 import {
   databaseMigrationsDirectory,
   resolveDatabaseMigrationsDirectory,
@@ -9,6 +9,11 @@ export interface BackendBuildDirectory {
   readonly destinationDirectory: string;
 }
 
+function containsDirectory(parent: string, candidate: string) {
+  const path = relative(parent, candidate);
+  return path === "" || (path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path));
+}
+
 export function getBackendBuildDirectories(
   bundleDirectory: string,
 ): readonly BackendBuildDirectory[] {
@@ -16,10 +21,19 @@ export function getBackendBuildDirectories(
     throw new TypeError("The backend bundle directory must be absolute.");
   }
 
+  const destinationDirectory = resolveDatabaseMigrationsDirectory(bundleDirectory);
+
+  if (
+    containsDirectory(databaseMigrationsDirectory, destinationDirectory) ||
+    containsDirectory(destinationDirectory, databaseMigrationsDirectory)
+  ) {
+    throw new TypeError("Backend build and source directories must not overlap.");
+  }
+
   return [
     {
       sourceDirectory: databaseMigrationsDirectory,
-      destinationDirectory: resolveDatabaseMigrationsDirectory(bundleDirectory),
+      destinationDirectory,
     },
   ];
 }

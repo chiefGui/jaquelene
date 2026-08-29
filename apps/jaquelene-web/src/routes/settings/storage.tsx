@@ -119,7 +119,7 @@ function StorageUsageBar({
   );
 }
 
-function DiagnosticsStorage({ area }: { area: StorageAreaUsage }) {
+function LogsStorage({ area }: { area: StorageAreaUsage }) {
   const queryClient = useQueryClient();
   const deleteStorageArea = useDeleteStorageArea();
   const storageMutationPending = useIsMutating({ mutationKey: ["storage"] }) > 0;
@@ -151,49 +151,43 @@ function DiagnosticsStorage({ area }: { area: StorageAreaUsage }) {
   }
 
   return (
-    <Item.Section aria-labelledby="storage-diagnostics-heading">
-      <Item.Heading id="storage-diagnostics-heading">Diagnostics</Item.Heading>
+    <Item.Root style={styles.logsItem}>
+      <Item.Content>
+        <Item.Label>Logs</Item.Label>
+        <Item.Description>Troubleshooting logs included in app data.</Item.Description>
+        {openDiagnostics.isError ? (
+          <Item.Description role="alert" style={styles.error}>
+            Couldn’t open the folder
+          </Item.Description>
+        ) : null}
+      </Item.Content>
 
-      <Item.Group>
-        <Item.Root style={styles.diagnosticsItem}>
-          <Item.Content>
-            <Item.Label>App logs</Item.Label>
-            <Item.Description>Troubleshooting logs included in app data.</Item.Description>
-            {openDiagnostics.isError ? (
-              <Item.Description role="alert" style={styles.error}>
-                Couldn’t open the folder
-              </Item.Description>
-            ) : null}
-          </Item.Content>
+      <div {...stylex.props(styles.itemEnd)}>
+        <Item.Value>
+          <Item.ValueText>{formatBytes(area.bytes)}</Item.ValueText>
+        </Item.Value>
 
-          <div {...stylex.props(styles.itemEnd)}>
-            <Item.Value>
-              <Item.ValueText>{formatBytes(area.bytes)}</Item.ValueText>
-            </Item.Value>
+        <Button variant="ghost" disabled={pending} onClick={() => openDiagnostics.mutate()}>
+          Open folder
+        </Button>
 
-            <Button variant="ghost" disabled={pending} onClick={() => openDiagnostics.mutate()}>
-              Open folder
+        <ConfirmDialog
+          open={confirmingDeletion}
+          setOpen={setDeletionConfirmationOpen}
+          trigger={
+            <Button variant="ghost" tone="danger" disabled={pending}>
+              Delete
             </Button>
-
-            <ConfirmDialog
-              open={confirmingDeletion}
-              setOpen={setDeletionConfirmationOpen}
-              trigger={
-                <Button variant="ghost" tone="danger" disabled={pending}>
-                  Delete logs
-                </Button>
-              }
-              heading="Delete diagnostic logs?"
-              description="Removes saved app logs from this device. New logs may be created later."
-              confirmLabel="Delete"
-              pending={deleteStorageArea.isPending}
-              error={deleteStorageArea.isError ? "Couldn’t delete diagnostic logs." : undefined}
-              onConfirm={() => void deleteDiagnostics()}
-            />
-          </div>
-        </Item.Root>
-      </Item.Group>
-    </Item.Section>
+          }
+          heading="Delete logs?"
+          description="Removes saved logs from this device. New logs may be created later."
+          confirmLabel="Delete"
+          pending={deleteStorageArea.isPending}
+          error={deleteStorageArea.isError ? "Couldn’t delete logs." : undefined}
+          onConfirm={() => void deleteDiagnostics()}
+        />
+      </div>
+    </Item.Root>
   );
 }
 
@@ -318,10 +312,10 @@ function StorageRoute() {
                   </Item.Root>
                 );
               })}
+
+              <LogsStorage area={diagnosticsArea} />
             </Item.Group>
           </Item.Section>
-
-          <DiagnosticsStorage area={diagnosticsArea} />
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>
@@ -378,7 +372,7 @@ const styles = stylex.create({
     height: "0.5rem",
     width: "0.5rem",
   },
-  diagnosticsItem: {
+  logsItem: {
     alignItems: "flex-start",
   },
   error: {

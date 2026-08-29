@@ -1,8 +1,12 @@
 import { extractFile, listPackage } from "@electron/asar";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { open, readFile, readdir, stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { pipeline } from "node:stream/promises";
 import packageManifest from "../package.json" with { type: "json" };
+import { productVersion } from "./product-version";
 
 const architecture = "x64";
 const applicationName = packageManifest.productName;
@@ -10,7 +14,7 @@ const applicationPublisher = packageManifest.author;
 const desktopDirectory = resolve(import.meta.dirname, "..");
 const outputDirectory = resolve(desktopDirectory, "../..", "release/jaquelene-desktop");
 const unpackedDirectory = resolve(outputDirectory, "win-unpacked");
-const artifactBaseName = `${applicationName}-${packageManifest.version}-windows-${architecture}-setup.exe`;
+const artifactBaseName = `${applicationName}-${productVersion}-windows-${architecture}-setup.exe`;
 const installerPath = resolve(outputDirectory, artifactBaseName);
 const blockMapPath = `${installerPath}.blockmap`;
 const updateMetadataPath = resolve(outputDirectory, "latest.yml");
@@ -29,6 +33,12 @@ async function assertFile(path: string) {
   assert(file.isFile(), `Expected a file at ${path}`);
   assert(file.size > 0, `Expected a non-empty file at ${path}`);
   return file;
+}
+
+async function calculateSha512(path: string) {
+  const hash = createHash("sha512");
+  await pipeline(createReadStream(path), hash);
+  return hash.digest("base64");
 }
 
 async function readPortableExecutable(path: string) {
@@ -170,9 +180,12 @@ const [installer, blockMap] = await Promise.all([
   assertFile(webIndexPath),
 ]);
 
-const updateMetadata = await readFile(updateMetadataPath, "utf8");
+const [updateMetadata, installerSha512] = await Promise.all([
+  readFile(updateMetadataPath, "utf8"),
+  calculateSha512(installerPath),
+]);
 for (const expectedMetadata of [
-  `version: ${packageManifest.version}`,
+  `version: ${productVersion}`,
   `url: ${artifactBaseName}`,
   `path: ${artifactBaseName}`,
   `size: ${String(installer.size)}`,
@@ -182,6 +195,18 @@ for (const expectedMetadata of [
     `Update metadata is missing ${expectedMetadata}.`,
   );
 }
+const updateMetadataChecksums = Array.from(
+  updateMetadata.matchAll(/^[ \t]*sha512:[ \t]*(\S+)[ \t]*\r?$/gm),
+  (match) => match[1],
+);
+assert(
+  updateMetadataChecksums.length === 2,
+  `Update metadata contains ${String(updateMetadataChecksums.length)} SHA-512 checksums instead of 2.`,
+);
+assert(
+  updateMetadataChecksums.every((checksum) => checksum === installerSha512),
+  "Update metadata SHA-512 does not match the installer.",
+);
 
 const [installerExecutable, applicationExecutable] = await Promise.all([
   readPortableExecutable(installerPath),
@@ -218,8 +243,8 @@ for (const [label, metadata] of [
     `${label} has an unexpected company name: ${metadata.CompanyName}`,
   );
   assert(
-    metadata.FileVersion === packageManifest.version,
-    `${label} version ${metadata.FileVersion} does not match ${packageManifest.version}.`,
+    metadata.FileVersion === productVersion,
+    `${label} version ${metadata.FileVersion} does not match ${productVersion}.`,
   );
 }
 assert(
@@ -244,7 +269,7 @@ assert(
 );
 assert(packagedManifest.productName === applicationName, "The packaged product name is incorrect.");
 assert(
-  packagedManifest.version === packageManifest.version,
+  packagedManifest.version === productVersion,
   "The packaged application version is incorrect.",
 );
 assert(packagedManifest.main === packageManifest.main, "The packaged main entry is incorrect.");
@@ -301,7 +326,7 @@ assert(
 const mebibytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
 console.info(
   [
-    `Verified ${applicationName} ${packageManifest.version} for Windows ${architecture}.`,
+    `Verified ${applicationName} ${productVersion} for Windows ${architecture}.`,
     `Installer: ${mebibytes(installer.size)} MiB`,
     `Block map: ${mebibytes(blockMap.size)} MiB`,
     `ASAR entries: ${String(asarEntries.length)}`,

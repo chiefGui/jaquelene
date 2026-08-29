@@ -5,8 +5,6 @@ import { tokens } from "@jaquelene/ui/theme.stylex";
 export function Home() {
   return (
     <main {...stylex.props(styles.root)}>
-      <div aria-hidden="true" {...stylex.props(styles.atmosphere)} />
-
       <section aria-labelledby="introduction" {...stylex.props(styles.introduction)}>
         <div {...stylex.props(styles.symbolFrame)}>
           <img
@@ -23,8 +21,7 @@ export function Home() {
           jaquelene
         </h1>
         <p {...stylex.props(styles.pitch)}>
-          An easy, beautiful, modern and opinionated LLM frontend for everyone, crafted for
-          roleplay.
+          Free and open source. Obsessively beautiful, easy to use, and crafted for AI roleplay.
         </p>
         <div {...stylex.props(styles.release)}>
           <span {...stylex.props(styles.status)}>
@@ -63,19 +60,10 @@ const styles = stylex.create({
     display: "flex",
     justifyContent: "center",
     minHeight: "100svh",
-    overflow: "hidden",
     padding: {
       default: "3rem",
       "@media (max-width: 47.99rem)": "1.5rem",
     },
-    position: "relative",
-  },
-  atmosphere: {
-    backgroundImage:
-      "radial-gradient(circle at 50% 46%, oklch(0.4 0.065 18 / 14%), transparent min(30rem, 52vw))",
-    inset: "-20%",
-    pointerEvents: "none",
-    position: "absolute",
   },
   introduction: {
     alignItems: "center",
@@ -89,7 +77,6 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     maxWidth: "40rem",
-    position: "relative",
     textAlign: "center",
     width: "100%",
   },

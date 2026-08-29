@@ -1,3 +1,4 @@
+import { StorageAreaId, StorageCategory, type StorageArea } from "@jaquelene/backend";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import type { OpenRouterVerification } from "./verification";
@@ -28,6 +29,18 @@ const schema = {
 
 export function getOpenRouterConnectionStoragePaths(userDataDirectory: string) {
   return [join(userDataDirectory, `${storeName}.json`)] as const;
+}
+
+export function createOpenRouterConnectionStorageArea(
+  userDataDirectory: string,
+  connection: OpenRouterConnection,
+): StorageArea {
+  return {
+    id: StorageAreaId.OpenRouterConnection,
+    category: StorageCategory.AppData,
+    paths: getOpenRouterConnectionStoragePaths(userDataDirectory),
+    delete: connection.disconnect,
+  };
 }
 
 export function createOpenRouterConnection(

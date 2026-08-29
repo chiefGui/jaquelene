@@ -100,14 +100,15 @@ export function exposeUserInterfacePreferences(
   contents: WebContents,
   preferences: UserInterfacePreferences,
 ) {
+  const unsubscribe = preferences.subscribe((values) => {
+    applyInterfaceScale(contents, values.scale);
+  });
+  contents.once("destroyed", unsubscribe);
+
   UserInterfacePreferencesIpc.for(contents.mainFrame).setImplementation({
     get: () => toIpcValues(preferences.get()),
     setFont: (font) => toIpcValues(preferences.setFont(fromIpcFont(font))),
-    setScale(scale) {
-      const values = preferences.setScale(fromIpcScale(scale));
-      applyInterfaceScale(contents, values.scale);
-      return toIpcValues(values);
-    },
+    setScale: (scale) => toIpcValues(preferences.setScale(fromIpcScale(scale))),
     setMotion: (motion) => toIpcValues(preferences.setMotion(fromIpcMotion(motion))),
   });
 }

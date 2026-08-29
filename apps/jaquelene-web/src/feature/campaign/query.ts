@@ -5,12 +5,12 @@ import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 const startCampaign = requireIpcMethod(Campaigns?.start);
 const listCampaignsForScenario = requireIpcMethod(Campaigns?.listForScenario);
 const getCampaign = requireIpcMethod(Campaigns?.get);
-const campaignKey = ["campaigns"] as const;
+export const campaignQueryKey = ["campaigns"] as const;
 
 export function campaignsForScenarioQuery(scenarioId: string) {
   return queryOptions({
     ...ipcQueryOptions,
-    queryKey: [...campaignKey, { scenarioId }],
+    queryKey: [...campaignQueryKey, { scenarioId }],
     queryFn: () => listCampaignsForScenario(scenarioId),
   });
 }
@@ -18,7 +18,7 @@ export function campaignsForScenarioQuery(scenarioId: string) {
 export function campaignQuery(id: string) {
   return queryOptions({
     ...ipcQueryOptions,
-    queryKey: [...campaignKey, id],
+    queryKey: [...campaignQueryKey, id],
     queryFn: () => getCampaign(id),
   });
 }

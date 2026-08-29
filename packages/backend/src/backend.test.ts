@@ -24,7 +24,7 @@ function backendOptions(
   return {
     databasePath,
     generationProviders,
-    storageManifest: { userContent: [databasePath], applicationData: [] },
+    storageAreas: [],
   };
 }
 

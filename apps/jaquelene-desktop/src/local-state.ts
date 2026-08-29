@@ -1,4 +1,5 @@
-import { renameSync } from "node:fs";
+import { StorageAreaId, StorageCategory, type StorageArea } from "@jaquelene/backend";
+import { renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Rectangle } from "electron";
 import Store, { type Schema } from "electron-store";
@@ -50,6 +51,18 @@ export function getLocalStateStoragePaths(userDataDirectory: string) {
   return [filePath, `${filePath}.invalid`] as const;
 }
 
+export function createLocalStateStorageArea(
+  userDataDirectory: string,
+  localState: LocalState,
+): StorageArea {
+  return {
+    id: StorageAreaId.LocalState,
+    category: StorageCategory.AppData,
+    paths: getLocalStateStoragePaths(userDataDirectory),
+    delete: localState.deleteAll,
+  };
+}
+
 function isInvalidLocalState(error: unknown) {
   return (
     error instanceof SyntaxError ||
@@ -68,6 +81,7 @@ function rectanglesIntersect(left: Rectangle, right: Rectangle) {
 
 export function createLocalState(userDataDirectory: string) {
   let store: Store<LocalStateData>;
+  let skipNextSave = false;
 
   try {
     store = openStore(userDataDirectory);
@@ -92,6 +106,11 @@ export function createLocalState(userDataDirectory: string) {
   }
 
   return {
+    deleteAll() {
+      store.clear();
+      rmSync(getLocalStateStoragePaths(userDataDirectory)[1], { force: true });
+      skipNextSave = true;
+    },
     loadMainWindowState: (workAreas: readonly Rectangle[]) => {
       const mainWindow = store.get("mainWindow");
       return mainWindow &&
@@ -100,6 +119,11 @@ export function createLocalState(userDataDirectory: string) {
         : undefined;
     },
     saveMainWindowState: (mainWindow: MainWindowState) => {
+      if (skipNextSave) {
+        skipNextSave = false;
+        return;
+      }
+
       store.set("mainWindow", mainWindow);
     },
   };

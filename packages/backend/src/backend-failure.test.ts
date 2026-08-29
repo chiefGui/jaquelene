@@ -32,7 +32,7 @@ describe("backend startup failure", () => {
       await createBackend({
         databasePath: "unused.sqlite",
         generationProviders: [],
-        storageManifest: { userContent: [], applicationData: [] },
+        storageAreas: [],
       });
     } catch (error) {
       failure = error;

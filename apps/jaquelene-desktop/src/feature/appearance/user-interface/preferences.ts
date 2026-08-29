@@ -34,6 +34,7 @@ export type UserInterfacePreferenceValues = {
 type UserInterfacePreferencesStorage = {
   read(): UserInterfacePreferenceValues | undefined;
   write(values: UserInterfacePreferenceValues): void;
+  subscribe(listener: () => void): () => void;
 };
 
 const defaultValues = {
@@ -101,6 +102,10 @@ export function createUserInterfacePreferences(storage: UserInterfacePreferences
 
   return {
     get,
+
+    subscribe(listener: (values: UserInterfacePreferenceValues) => void) {
+      return storage.subscribe(() => listener(get()));
+    },
 
     setFont(font: UiFont) {
       requireFont(font);

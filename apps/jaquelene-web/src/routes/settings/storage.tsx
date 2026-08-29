@@ -1,14 +1,18 @@
-import { Storage, type StorageUsage } from "@jaquelene/ipc/renderer";
+import {
+  StorageCategory,
+  type StorageCategoryUsage,
+  type StorageUsage,
+} from "@jaquelene/ipc/renderer";
 import { Button, Item, formatBytes } from "@jaquelene/ui";
+import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { requireIpcMethod } from "@/ipc";
+import { useState } from "react";
+import { measureStorageUsage, useDeleteStorageCategory } from "@/feature/storage/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
-
-const measureStorageUsage = requireIpcMethod(Storage?.measureUsage);
 
 export const Route = createFileRoute("/settings/storage")({
   loader: {
@@ -21,34 +25,23 @@ export const Route = createFileRoute("/settings/storage")({
   component: StorageRoute,
 });
 
-type StorageCategory = {
-  id: string;
+type StorageCategoryPresentation = Readonly<{
   label: string;
-  description: string;
-  bytes: number;
   color: StyleXStyles;
-};
+  confirmation: Readonly<{
+    heading: string;
+    description: string;
+    error: string;
+  }>;
+}>;
 
-function getStorageCategories({
-  userContentBytes,
-  applicationDataBytes,
-}: StorageUsage): readonly StorageCategory[] {
-  return [
-    {
-      id: "user-content",
-      label: "Content",
-      description: "Scenarios, campaigns, and threads",
-      bytes: userContentBytes,
-      color: styles.userContent,
-    },
-    {
-      id: "application-data",
-      label: "App data",
-      description: "Preferences, favorites, and connections",
-      bytes: applicationDataBytes,
-      color: styles.applicationData,
-    },
-  ];
+type StorageCategoryView = StorageCategoryUsage & StorageCategoryPresentation;
+
+function presentStorageCategories({ categories }: StorageUsage): readonly StorageCategoryView[] {
+  return categories.map((category) => ({
+    ...category,
+    ...storageCategoryPresentations[category.id],
+  }));
 }
 
 function StorageHeader() {
@@ -71,7 +64,7 @@ function StorageUsageBar({
   categories,
   totalBytes,
 }: {
-  categories: readonly StorageCategory[];
+  categories: readonly StorageCategoryView[];
   totalBytes: number;
 }) {
   const visibleCategories = categories.filter(({ bytes }) => bytes > 0);
@@ -119,9 +112,35 @@ function StorageRouteError() {
 }
 
 function StorageRoute() {
-  const usage = Route.useLoaderData();
-  const categories = getStorageCategories(usage);
+  const loadedUsage = Route.useLoaderData();
+  const [latestUsage, setLatestUsage] = useState<StorageUsage | null>(null);
+  const [confirmation, setConfirmation] = useState<StorageCategory | null>(null);
+  const deleteStorageCategory = useDeleteStorageCategory();
+  const usage = latestUsage ?? loadedUsage;
+  const categories = presentStorageCategories(usage);
   const totalBytes = categories.reduce((total, category) => total + category.bytes, 0);
+
+  async function deleteCategory(category: StorageCategoryView) {
+    try {
+      const nextUsage = await deleteStorageCategory.mutateAsync(category.id);
+      setLatestUsage(nextUsage);
+      setConfirmation(null);
+    } catch (cause) {
+      console.error(`Could not delete storage category "${category.id}".`, cause);
+    }
+  }
+
+  function setConfirmationOpen(category: StorageCategoryView, open: boolean) {
+    if (open) {
+      deleteStorageCategory.reset();
+      setConfirmation(category.id);
+      return;
+    }
+
+    if (!deleteStorageCategory.isPending && confirmation === category.id) {
+      setConfirmation(null);
+    }
+  }
 
   return (
     <>
@@ -135,10 +154,7 @@ function StorageRoute() {
             <Item.Group>
               <Item.Root style={styles.summary}>
                 <div {...stylex.props(styles.summaryHeader)}>
-                  <Item.Content>
-                    <Item.Label>Total</Item.Label>
-                    <Item.Description>Caches excluded</Item.Description>
-                  </Item.Content>
+                  <Item.Label>Total</Item.Label>
 
                   <Item.Value style={styles.totalValue}>
                     <Item.ValueText>{formatBytes(totalBytes)}</Item.ValueText>
@@ -148,24 +164,52 @@ function StorageRoute() {
                 <StorageUsageBar categories={categories} totalBytes={totalBytes} />
               </Item.Root>
 
-              {categories.map((category) => (
-                <Item.Root key={category.id}>
-                  <div {...stylex.props(styles.category)}>
-                    <span
-                      aria-hidden="true"
-                      {...stylex.props(styles.categoryMarker, category.color)}
-                    />
-                    <Item.Content>
-                      <Item.Label>{category.label}</Item.Label>
-                      <Item.Description>{category.description}</Item.Description>
-                    </Item.Content>
-                  </div>
+              {categories.map((category) => {
+                const open = confirmation === category.id;
+                const pending = open && deleteStorageCategory.isPending;
 
-                  <Item.Value>
-                    <Item.ValueText>{formatBytes(category.bytes)}</Item.ValueText>
-                  </Item.Value>
-                </Item.Root>
-              ))}
+                return (
+                  <Item.Root key={category.id}>
+                    <div {...stylex.props(styles.category)}>
+                      <span
+                        aria-hidden="true"
+                        {...stylex.props(styles.categoryMarker, category.color)}
+                      />
+                      <Item.Label>{category.label}</Item.Label>
+                    </div>
+
+                    <div {...stylex.props(styles.categoryEnd)}>
+                      <Item.Value>
+                        <Item.ValueText>{formatBytes(category.bytes)}</Item.ValueText>
+                      </Item.Value>
+
+                      <ConfirmDialog
+                        open={open}
+                        setOpen={(nextOpen) => setConfirmationOpen(category, nextOpen)}
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            tone="danger"
+                            disabled={deleteStorageCategory.isPending}
+                          >
+                            Delete
+                          </Button>
+                        }
+                        heading={category.confirmation.heading}
+                        description={category.confirmation.description}
+                        confirmLabel="Delete"
+                        pending={pending}
+                        error={
+                          open && deleteStorageCategory.isError
+                            ? category.confirmation.error
+                            : undefined
+                        }
+                        onConfirm={() => void deleteCategory(category)}
+                      />
+                    </div>
+                  </Item.Root>
+                );
+              })}
             </Item.Group>
           </Item.Section>
         </ContentPane.Body>
@@ -211,6 +255,12 @@ const styles = stylex.create({
     gap: "0.75rem",
     minWidth: 0,
   },
+  categoryEnd: {
+    alignItems: "center",
+    display: "flex",
+    flexShrink: 0,
+    gap: "0.75rem",
+  },
   categoryMarker: {
     backgroundColor: "currentColor",
     borderRadius: "9999px",
@@ -218,10 +268,31 @@ const styles = stylex.create({
     height: "0.5rem",
     width: "0.5rem",
   },
-  userContent: {
+  content: {
     color: tokens.accent,
   },
-  applicationData: {
+  appData: {
     color: `color-mix(in oklch, ${tokens.muted} 60%, ${tokens.surfaceRaised})`,
   },
 });
+
+const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPresentation> = {
+  [StorageCategory.Content]: {
+    label: "Content",
+    color: styles.content,
+    confirmation: {
+      heading: "Delete content?",
+      description: "This can’t be undone.",
+      error: "Couldn’t delete content.",
+    },
+  },
+  [StorageCategory.AppData]: {
+    label: "App data",
+    color: styles.appData,
+    confirmation: {
+      heading: "Delete app data?",
+      description: "This resets the app without deleting your content.",
+      error: "Couldn’t delete app data.",
+    },
+  },
+};

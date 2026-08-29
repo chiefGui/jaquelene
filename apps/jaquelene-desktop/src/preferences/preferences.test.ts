@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   InterfaceScale,
   MotionPreference,
@@ -57,5 +57,35 @@ describe("preferences storage", () => {
     );
 
     expect(createPreferences(directory).campaign.getDefaultModel()).toBeNull();
+  });
+
+  it("deletes every preference group and reports the restored interface defaults", () => {
+    const directory = createUserDataDirectory();
+    const preferences = createPreferences(directory);
+    const listener = vi.fn();
+    preferences.appearance.userInterface.subscribe(listener);
+    preferences.appearance.userInterface.setFont(UiFont.Geist);
+    preferences.campaign.setDefaultModel({
+      providerId: "provider-a",
+      modelId: "model-a",
+      name: "Model A",
+      brandId: "brand-a",
+    });
+    listener.mockClear();
+
+    preferences.deleteAll();
+
+    expect(preferences.appearance.userInterface.get()).toEqual({
+      font: UiFont.Inter,
+      scale: InterfaceScale.Percent100,
+      motion: MotionPreference.System,
+    });
+    expect(preferences.campaign.getDefaultModel()).toBeNull();
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener).toHaveBeenCalledWith({
+      font: UiFont.Inter,
+      scale: InterfaceScale.Percent100,
+      motion: MotionPreference.System,
+    });
   });
 });

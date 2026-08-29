@@ -2,18 +2,18 @@ import { queryOptions, useMutation, useQueryClient, type QueryClient } from "@ta
 import { ipcMutationOptions, ipcQueryOptions } from "@/ipc";
 import { scenarioIpc, type Scenario } from "./ipc";
 
-const scenarioKey = ["scenarios"] as const;
+export const scenarioQueryKey = ["scenarios"] as const;
 
 export const scenariosQuery = queryOptions({
   ...ipcQueryOptions,
-  queryKey: scenarioKey,
+  queryKey: scenarioQueryKey,
   queryFn: scenarioIpc.list,
 });
 
 export function scenarioQuery(id: string) {
   return queryOptions({
     ...ipcQueryOptions,
-    queryKey: [...scenarioKey, id],
+    queryKey: [...scenarioQueryKey, id],
     queryFn: () => scenarioIpc.get(id),
   });
 }

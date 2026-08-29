@@ -1,7 +1,8 @@
+import { StorageAreaId, StorageCategory, type StorageArea } from "@jaquelene/backend";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import type { ModelReference } from "./catalog";
-import type { FavoriteModelsStorage } from "./favorite-models";
+import type { FavoriteModels, FavoriteModelsStorage } from "./favorite-models";
 
 type FavoriteModelsData = {
   models?: ModelReference[];
@@ -41,5 +42,18 @@ export function createFavoriteModelsStorage(userDataDirectory: string): Favorite
   return {
     read: () => store.get("models"),
     write: (models) => store.set("models", models),
+    deleteAll: () => store.delete("models"),
+  };
+}
+
+export function createFavoriteModelsStorageArea(
+  userDataDirectory: string,
+  favoriteModels: FavoriteModels,
+): StorageArea {
+  return {
+    id: StorageAreaId.FavoriteModels,
+    category: StorageCategory.AppData,
+    paths: getFavoriteModelsStoragePaths(userDataDirectory),
+    delete: favoriteModels.deleteAll,
   };
 }

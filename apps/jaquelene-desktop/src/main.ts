@@ -1,3 +1,4 @@
+import { createBackend, type Backend } from "@jaquelene/backend";
 import { app, safeStorage } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
@@ -18,7 +19,6 @@ import { createLocalState } from "./local-state";
 import { createMainWindow } from "./main-window";
 import { createPreferences } from "./preferences/preferences";
 import { createStorageManifest } from "./storage/manifest";
-import { createStorage } from "./storage/storage";
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
@@ -41,6 +41,29 @@ async function requireSecureStorage() {
   }
 }
 
+function closeBackendBeforeQuit(backend: Backend) {
+  let canQuit = false;
+  let closePromise: Promise<void> | undefined;
+
+  app.on("before-quit", (event) => {
+    if (canQuit) {
+      return;
+    }
+
+    event.preventDefault();
+
+    closePromise ??= backend
+      .close()
+      .catch((error: unknown) => {
+        console.error("Could not close the backend cleanly.", error);
+      })
+      .finally(() => {
+        canQuit = true;
+        app.quit();
+      });
+  });
+}
+
 void app
   .whenReady()
   .then(async () => {
@@ -58,6 +81,10 @@ void app
 
     const userDataDirectory = app.getPath("userData");
     const databasePath = join(userDataDirectory, "jaquelene.sqlite");
+    const backend = await createBackend({
+      storageManifest: createStorageManifest({ databasePath, userDataDirectory }),
+    });
+    closeBackendBeforeQuit(backend);
     const localState = createLocalState(userDataDirectory);
     const database = openDatabase(databasePath);
     app.once("will-quit", () => closeDatabase(database));
@@ -84,7 +111,6 @@ void app
     const modelCatalog = createModelCatalog([createOpenRouterModelProvider(openRouterConnection)]);
     const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
     const preferences = createPreferences(userDataDirectory);
-    const storage = createStorage(createStorageManifest({ databasePath, userDataDirectory }));
 
     const mainWindow = createMainWindow({
       rendererUrl: developmentServerUrl ?? appUrl,
@@ -96,7 +122,7 @@ void app
       favoriteModels,
       preferences,
       openRouterConnection,
-      storage,
+      storage: backend.storage,
     });
 
     app.on("second-instance", () => {

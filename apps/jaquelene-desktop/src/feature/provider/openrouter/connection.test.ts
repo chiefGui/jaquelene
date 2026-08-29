@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { createOpenRouterConnection, getOpenRouterConnectionStoragePaths } from "./connection";
-import type { OpenRouterVerification } from "./verification";
 
 const directories: string[] = [];
 
@@ -31,7 +30,7 @@ describe("OpenRouter connection", () => {
     const verify = vi.fn(async () => ({ state: "connected" as const, keyLabel }));
     const connection = createOpenRouterConnection(directory, { encrypt, decrypt, verify });
 
-    await expect(connection.getStatus()).resolves.toEqual({ state: "disconnected" });
+    expect(connection.getConfiguration()).toEqual({ state: "disconnected" });
     await expect(connection.connect(`  ${apiKey}  `)).resolves.toEqual({
       state: "connected",
       keyLabel,
@@ -41,9 +40,11 @@ describe("OpenRouter connection", () => {
 
     const [filePath] = getOpenRouterConnectionStoragePaths(directory);
     expect(readFileSync(filePath, "utf8")).not.toContain(apiKey);
-    await expect(
-      createOpenRouterConnection(directory, { encrypt, decrypt, verify }).getStatus(),
-    ).resolves.toEqual({ state: "connected", keyLabel });
+    const reopenedConnection = createOpenRouterConnection(directory, { encrypt, decrypt, verify });
+    expect(reopenedConnection.getConfiguration()).toEqual({ state: "configured", keyLabel });
+    expect(verify).toHaveBeenCalledOnce();
+    expect(decrypt).not.toHaveBeenCalled();
+    await expect(reopenedConnection.withApiKey(async (value) => value)).resolves.toBe(apiKey);
   });
 
   it("keeps credential use inside the connected provider boundary", async () => {
@@ -101,7 +102,7 @@ describe("OpenRouter connection", () => {
 
     const connection = createOpenRouterConnection(directory, { encrypt, decrypt, verify });
 
-    await expect(connection.getStatus()).resolves.toEqual({ state: "disconnected" });
+    expect(connection.getConfiguration()).toEqual({ state: "disconnected" });
     expect(decrypt).not.toHaveBeenCalled();
     expect(verify).not.toHaveBeenCalled();
   });
@@ -120,30 +121,7 @@ describe("OpenRouter connection", () => {
 
       await expect(connection.connect(`openrouter-${state}-key`)).resolves.toEqual({ state });
       expect(encrypt).not.toHaveBeenCalled();
-      await expect(connection.getStatus()).resolves.toEqual({ state: "disconnected" });
-    },
-  );
-
-  it.each(["rejected", "unavailable"] as const)(
-    "reports a stored API key as %s when its verification changes",
-    async (state) => {
-      const encrypt = vi.fn(async (value: string) => Buffer.from(value));
-      const decrypt = vi.fn(async (value: Buffer) => value.toString());
-      let verification: OpenRouterVerification = {
-        state: "connected",
-        keyLabel: "sk-or-v1-changing...456",
-      };
-      const verify = vi.fn(async () => verification);
-      const connection = createOpenRouterConnection(createUserDataDirectory(), {
-        encrypt,
-        decrypt,
-        verify,
-      });
-
-      await connection.connect("openrouter-changing-key");
-      verification = { state };
-
-      await expect(connection.getStatus()).resolves.toEqual({ state });
+      expect(connection.getConfiguration()).toEqual({ state: "disconnected" });
     },
   );
 
@@ -168,10 +146,13 @@ describe("OpenRouter connection", () => {
       state: "rejected",
     });
     expect(encrypt).not.toHaveBeenCalledWith("openrouter-replacement-key");
-    await expect(connection.getStatus()).resolves.toEqual({
-      state: "connected",
+    expect(connection.getConfiguration()).toEqual({
+      state: "configured",
       keyLabel: "sk-or-v1-current...789",
     });
+    await expect(connection.withApiKey(async (value) => value)).resolves.toBe(
+      "openrouter-current-key",
+    );
   });
 
   it("preserves encryption failures without changing the connection", async () => {
@@ -190,7 +171,7 @@ describe("OpenRouter connection", () => {
     });
 
     await expect(connection.connect("openrouter-first-key")).rejects.toBe(failure);
-    await expect(connection.getStatus()).resolves.toEqual({ state: "disconnected" });
+    expect(connection.getConfiguration()).toEqual({ state: "disconnected" });
     await expect(connection.connect("openrouter-second-key")).resolves.toEqual({
       state: "connected",
       keyLabel: "sk-or-v1-test...012",
@@ -223,6 +204,6 @@ describe("OpenRouter connection", () => {
       keyLabel: "sk-or-v1-ordered...345",
     });
     await expect(disconnecting).resolves.toEqual({ state: "disconnected" });
-    await expect(connection.getStatus()).resolves.toEqual({ state: "disconnected" });
+    expect(connection.getConfiguration()).toEqual({ state: "disconnected" });
   });
 });

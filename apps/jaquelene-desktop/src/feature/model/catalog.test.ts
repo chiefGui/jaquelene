@@ -43,7 +43,7 @@ describe("model selections", () => {
 });
 
 describe("model catalog", () => {
-  it("lists connected providers and routes model requests by provider identity", async () => {
+  it("lists configured providers and routes model requests by provider identity", async () => {
     const listFirstModels = vi.fn(async () => [
       { id: "first/model", name: "First model", brandId: "first-maker" },
     ]);
@@ -54,18 +54,18 @@ describe("model catalog", () => {
       {
         id: "first",
         brandId: "first-brand",
-        isConnected: async () => true,
+        isConfigured: () => true,
         listModels: listFirstModels,
       },
       {
         id: "second",
         brandId: "second-brand",
-        isConnected: async () => true,
+        isConfigured: () => true,
         listModels: listSecondModels,
       },
     ]);
 
-    await expect(catalog.listProviders()).resolves.toEqual([
+    expect(catalog.listProviders()).toEqual([
       { id: "first", brandId: "first-brand" },
       { id: "second", brandId: "second-brand" },
     ]);
@@ -76,25 +76,23 @@ describe("model catalog", () => {
     expect(listSecondModels).toHaveBeenCalledOnce();
   });
 
-  it("omits disconnected providers", async () => {
+  it("omits unconfigured providers", () => {
     const catalog = createModelCatalog([
       {
         id: "connected",
         brandId: "connected-brand",
-        isConnected: async () => true,
+        isConfigured: () => true,
         listModels: async () => [],
       },
       {
         id: "disconnected",
         brandId: "disconnected-brand",
-        isConnected: async () => false,
+        isConfigured: () => false,
         listModels: async () => [],
       },
     ]);
 
-    await expect(catalog.listProviders()).resolves.toEqual([
-      { id: "connected", brandId: "connected-brand" },
-    ]);
+    expect(catalog.listProviders()).toEqual([{ id: "connected", brandId: "connected-brand" }]);
   });
 
   it("rejects an unknown provider", () => {
@@ -107,7 +105,7 @@ describe("model catalog", () => {
     const provider = {
       id: "duplicate",
       brandId: "duplicate-brand",
-      isConnected: async () => true,
+      isConfigured: () => true,
       listModels: async () => [],
     };
 

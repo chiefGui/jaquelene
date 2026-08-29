@@ -32,7 +32,7 @@ export function requireModelSelection(selection: ModelSelection) {
 export type ModelProvider = {
   id: string;
   brandId: string;
-  isConnected: () => Promise<boolean>;
+  isConfigured: () => boolean;
   listModels: () => Promise<AvailableModel[]>;
 };
 
@@ -52,16 +52,9 @@ export function createModelCatalog(providers: readonly ModelProvider[]) {
   }
 
   return {
-    async listProviders() {
-      const connectedProviders = await Promise.all(
-        [...providersById.values()].map(async (provider) => ({
-          provider,
-          connected: await provider.isConnected(),
-        })),
-      );
-
-      return connectedProviders.flatMap(({ provider: { brandId, id }, connected }) =>
-        connected ? [{ brandId, id }] : [],
+    listProviders() {
+      return [...providersById.values()].flatMap(({ brandId, id, isConfigured }) =>
+        isConfigured() ? [{ brandId, id }] : [],
       );
     },
 

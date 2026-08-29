@@ -1,8 +1,7 @@
-import { OpenRouterConnectionState } from "@jaquelene/ipc/renderer";
-import { Button, Input, Item, Ping } from "@jaquelene/ui";
+import { OpenRouterConfigurationState, OpenRouterConnectionState } from "@jaquelene/ipc/renderer";
+import { Button, Input, Item } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
-import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -10,7 +9,7 @@ import { useRef, useState, type SubmitEvent } from "react";
 import { getBrandName } from "@/feature/brand/catalog";
 import { ProviderMark } from "@/feature/provider/mark";
 import {
-  openRouterConnectionQuery,
+  openRouterConfigurationQuery,
   openRouterProvider,
   useConnectOpenRouter,
   useDisconnectOpenRouter,
@@ -19,38 +18,13 @@ import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/providers")({
-  loader: ({ context }) =>
-    context.queryClient.query({ ...openRouterConnectionQuery, staleTime: "static" }),
+  loader: ({ context }) => context.queryClient.query(openRouterConfigurationQuery),
   component: ProvidersRoute,
 });
 
-function ConnectionIssue({ state }: { state: OpenRouterConnectionState }) {
-  switch (state) {
-    case OpenRouterConnectionState.Disconnected:
-    case OpenRouterConnectionState.Connected:
-      return null;
-    case OpenRouterConnectionState.Rejected:
-      return (
-        <span aria-live="polite" {...stylex.props(styles.connectionRejected)}>
-          <span aria-hidden="true" {...stylex.props(styles.connectionDot)} />
-          <span {...stylex.props(styles.textBox)}>Connection failed</span>
-        </span>
-      );
-    case OpenRouterConnectionState.Unavailable:
-      return (
-        <span aria-live="polite" {...stylex.props(styles.connectionUnavailable)}>
-          Couldn’t verify
-        </span>
-      );
-  }
-}
-
 function ProvidersRoute() {
-  const {
-    data: openRouterStatus,
-    isFetching,
-    refetch,
-  } = useSuspenseQuery(openRouterConnectionQuery);
+  const { data: configuration } = useSuspenseQuery(openRouterConfigurationQuery);
+  const configured = configuration.state === OpenRouterConfigurationState.Configured;
   const connectOpenRouter = useConnectOpenRouter();
   const disconnectOpenRouter = useDisconnectOpenRouter();
   const [editingConnection, setEditingConnection] = useState(false);
@@ -58,8 +32,7 @@ function ProvidersRoute() {
   const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
   const connectButton = useRef<HTMLButtonElement>(null);
   const pending = connectOpenRouter.isPending || disconnectOpenRouter.isPending;
-  const connected = openRouterStatus.state === OpenRouterConnectionState.Connected;
-  const hasCredential = openRouterStatus.state !== OpenRouterConnectionState.Disconnected;
+  const keyLabel = configured ? configuration.keyLabel : undefined;
 
   function startEditingConnection() {
     setConnectionError(null);
@@ -144,38 +117,15 @@ function ProvidersRoute() {
                   <ProviderMark brandId={openRouterProvider.brandId} style={styles.providerMark} />
                 </span>
                 <Item.Content>
-                  <div {...stylex.props(styles.providerLabel)}>
-                    <Item.Label>{getBrandName(openRouterProvider.brandId)}</Item.Label>
-                    {connected ? (
-                      <>
-                        <Ping style={styles.connected} />
-                        <VisuallyHidden>Connected</VisuallyHidden>
-                      </>
-                    ) : null}
-                  </div>
-                  {connected && openRouterStatus.keyLabel ? (
-                    <Item.Description style={styles.mono}>
-                      {openRouterStatus.keyLabel}
-                    </Item.Description>
+                  <Item.Label>{getBrandName(openRouterProvider.brandId)}</Item.Label>
+                  {configured && keyLabel ? (
+                    <Item.Description style={styles.mono}>{keyLabel}</Item.Description>
                   ) : null}
                 </Item.Content>
               </div>
 
               <div {...stylex.props(styles.actions)}>
-                <ConnectionIssue state={openRouterStatus.state} />
-
-                {!editingConnection &&
-                openRouterStatus.state === OpenRouterConnectionState.Unavailable ? (
-                  <Button
-                    variant="ghost"
-                    disabled={pending || isFetching}
-                    onClick={() => void refetch()}
-                  >
-                    {isFetching ? "Retrying…" : "Retry"}
-                  </Button>
-                ) : null}
-
-                {!editingConnection && hasCredential ? (
+                {!editingConnection && configured ? (
                   <Button variant="ghost" disabled={pending} onClick={startEditingConnection}>
                     Manage
                   </Button>
@@ -185,7 +135,7 @@ function ProvidersRoute() {
                   open={confirmingDisconnect}
                   setOpen={setDisconnectConfirmationOpen}
                   trigger={
-                    !editingConnection && hasCredential ? (
+                    !editingConnection && configured ? (
                       <Button variant="ghost" disabled={pending} style={styles.disconnect}>
                         Disconnect
                       </Button>
@@ -202,7 +152,7 @@ function ProvidersRoute() {
                   onConfirm={() => void disconnect()}
                 />
 
-                {!editingConnection && !hasCredential ? (
+                {!editingConnection && !configured ? (
                   <Button ref={connectButton} disabled={pending} onClick={startEditingConnection}>
                     Connect
                   </Button>
@@ -231,11 +181,7 @@ function ProvidersRoute() {
                       spellCheck={false}
                       aria-describedby={connectionError ? "openrouter-connection-error" : undefined}
                       style={styles.input}
-                      placeholder={
-                        connected && openRouterStatus.keyLabel
-                          ? openRouterStatus.keyLabel
-                          : "sk-or-v1-…"
-                      }
+                      placeholder={configured && keyLabel ? keyLabel : "sk-or-v1-…"}
                     />
                     <Button type="submit" disabled={pending}>
                       {connectOpenRouter.isPending ? "Connecting…" : "Connect"}
@@ -270,32 +216,6 @@ function ProvidersRoute() {
 }
 
 const styles = stylex.create({
-  connectionRejected: {
-    alignItems: "center",
-    color: tokens.danger,
-    display: "flex",
-    fontSize: tokens.fontSizeXSmall,
-    fontWeight: 500,
-    gap: "0.375rem",
-    lineHeight: tokens.lineHeightXSmall,
-    marginRight: "0.5rem",
-  },
-  connectionDot: {
-    backgroundColor: "currentColor",
-    borderRadius: "9999px",
-    height: "0.375rem",
-    width: "0.375rem",
-  },
-  textBox: {
-    textBox: "trim-both text",
-  },
-  connectionUnavailable: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeXSmall,
-    lineHeight: tokens.lineHeightXSmall,
-    marginRight: "0.5rem",
-    textBox: "trim-both text",
-  },
   provider: {
     alignItems: "center",
     display: "flex",
@@ -314,14 +234,6 @@ const styles = stylex.create({
   providerMark: {
     height: "0.875rem",
     width: "0.875rem",
-  },
-  providerLabel: {
-    alignItems: "center",
-    display: "flex",
-    gap: "0.5rem",
-  },
-  connected: {
-    color: tokens.success,
   },
   mono: {
     fontFamily: tokens.fontMono,

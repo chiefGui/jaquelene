@@ -6,7 +6,7 @@ describe("OpenRouter model provider", () => {
     const apiKey = "openrouter-model-key";
     const useCredential = vi.fn();
     const connection = {
-      getStatus: async () => ({ state: "connected", keyLabel: "Jaquelene" }) as const,
+      getConfiguration: () => ({ state: "configured", keyLabel: "Jaquelene" }) as const,
       async withApiKey<Result>(use: (value: string) => Promise<Result>) {
         useCredential();
         return use(apiKey);
@@ -72,13 +72,13 @@ describe("OpenRouter model provider", () => {
     expect(provider.brandId).toBe("openrouter");
     expect(useCredential).toHaveBeenCalledOnce();
     expect(loadModels).toHaveBeenCalledWith(apiKey);
-    await expect(provider.isConnected()).resolves.toBe(true);
+    expect(provider.isConfigured()).toBe(true);
   });
 
   it("preserves catalog failures", async () => {
     const failure = new Error("Catalog unavailable");
     const connection = {
-      getStatus: async () => ({ state: "connected", keyLabel: "Jaquelene" }) as const,
+      getConfiguration: () => ({ state: "configured", keyLabel: "Jaquelene" }) as const,
       async withApiKey<Result>(use: (value: string) => Promise<Result>) {
         return use("openrouter-failing-key");
       },
@@ -93,7 +93,7 @@ describe("OpenRouter model provider", () => {
 
   it("rejects invalid model pricing", async () => {
     const connection = {
-      getStatus: async () => ({ state: "connected", keyLabel: "Jaquelene" }) as const,
+      getConfiguration: () => ({ state: "configured", keyLabel: "Jaquelene" }) as const,
       async withApiKey<Result>(use: (value: string) => Promise<Result>) {
         return use("openrouter-model-key");
       },

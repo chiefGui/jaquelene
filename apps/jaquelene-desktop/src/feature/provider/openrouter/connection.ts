@@ -4,6 +4,7 @@ import type { OpenRouterVerification } from "./verification";
 
 type StoredOpenRouterCredential = {
   encryptedApiKey?: string;
+  keyLabel?: string;
 };
 
 type OpenRouterConnectionDependencies = {
@@ -13,11 +14,15 @@ type OpenRouterConnectionDependencies = {
 };
 
 export type OpenRouterConnectionStatus = { state: "disconnected" } | OpenRouterVerification;
+export type OpenRouterConfiguration =
+  | { state: "disconnected" }
+  | { state: "configured"; keyLabel?: string };
 
 const storeName = "openrouter";
 
 const schema = {
   encryptedApiKey: { type: "string", minLength: 1 },
+  keyLabel: { type: "string", minLength: 1 },
 } satisfies Schema<StoredOpenRouterCredential>;
 
 export function getOpenRouterConnectionStoragePaths(userDataDirectory: string) {
@@ -38,10 +43,16 @@ export function createOpenRouterConnection(
 
   let pendingMutation: Promise<unknown> = Promise.resolve();
 
-  async function getStatus(): Promise<OpenRouterConnectionStatus> {
-    const apiKey = await readApiKey();
+  function getConfiguration(): OpenRouterConfiguration {
+    if (!store.has("encryptedApiKey")) {
+      return { state: "disconnected" };
+    }
 
-    return apiKey === undefined ? { state: "disconnected" } : verify(apiKey);
+    const keyLabel = store.get("keyLabel");
+    return {
+      state: "configured",
+      ...(keyLabel ? { keyLabel } : {}),
+    };
   }
 
   async function readApiKey() {
@@ -61,7 +72,7 @@ export function createOpenRouterConnection(
   }
 
   return {
-    getStatus,
+    getConfiguration,
 
     async withApiKey<Result>(use: (apiKey: string) => Promise<Result>) {
       const apiKey = await readApiKey();
@@ -88,14 +99,17 @@ export function createOpenRouterConnection(
         }
 
         const encryptedApiKey = await encrypt(apiKey);
-        store.set("encryptedApiKey", encryptedApiKey.toString("base64"));
+        store.set({
+          encryptedApiKey: encryptedApiKey.toString("base64"),
+          keyLabel: verification.keyLabel,
+        });
         return verification;
       });
     },
 
     disconnect() {
       return mutate(() => {
-        store.delete("encryptedApiKey");
+        store.clear();
         return { state: "disconnected" } as const;
       });
     },

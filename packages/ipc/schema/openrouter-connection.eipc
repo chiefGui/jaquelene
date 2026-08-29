@@ -1,5 +1,15 @@
 module jaquelene
 
+enum OpenRouterConfigurationState {
+  Disconnected = "disconnected"
+  Configured = "configured"
+}
+
+structure OpenRouterConfiguration {
+  state: OpenRouterConfigurationState
+  keyLabel?: string
+}
+
 enum OpenRouterConnectionState {
   Disconnected = "disconnected"
   Connected = "connected"
@@ -16,7 +26,7 @@ structure OpenRouterConnectionStatus {
 [Validator=TrustedRenderer]
 [ContextBridge]
 interface OpenRouterConnection {
-  getStatus() -> OpenRouterConnectionStatus
+  getConfiguration() -> OpenRouterConfiguration
   connect(apiKey: string) -> OpenRouterConnectionStatus
   disconnect() -> OpenRouterConnectionStatus
 }

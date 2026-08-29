@@ -71,6 +71,7 @@ function GeneralRoute() {
                       id={controlId}
                       aria-labelledby={labelId}
                       aria-describedby={setDefaultCampaignModel.error ? errorId : undefined}
+                      disabled={setDefaultCampaignModel.isPending}
                     />
                     <ModelPicker.Empty>
                       <Button render={<Link to="/settings/providers" />}>Connect a provider</Button>

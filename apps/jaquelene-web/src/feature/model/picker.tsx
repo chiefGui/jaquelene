@@ -321,15 +321,9 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
     }
 
     setActionError(null);
-
-    try {
-      onValueChange({ ...reference, name: model.name, brandId: model.brandId });
-      setOpenState(false);
-      setInputValue("");
-    } catch (cause) {
-      console.error("Could not select model.", cause);
-      setActionError("Couldn't select this model.");
-    }
+    onValueChange({ ...reference, name: model.name, brandId: model.brandId });
+    setOpenState(false);
+    setInputValue("");
   }
 
   async function setFavorite(reference: ModelReference, favorite: boolean) {

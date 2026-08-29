@@ -1,7 +1,7 @@
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { modelsListForUser } from "@openrouter/sdk/funcs/modelsListForUser.js";
-import type { ModelProvider } from "@/feature/model/catalog";
-import type { OpenRouterConnection } from "./connection";
+import type { ProviderModelsAdapter } from "@jaquelene/backend";
+import type { OpenRouterConfiguration } from "./connection";
 
 type OpenRouterCatalogModel = {
   id: string;
@@ -17,7 +17,10 @@ type OpenRouterCatalogModel = {
   };
 };
 
-type LoadOpenRouterModels = (apiKey: string) => Promise<readonly OpenRouterCatalogModel[]>;
+type LoadOpenRouterModels = (
+  apiKey: string,
+  signal: AbortSignal,
+) => Promise<readonly OpenRouterCatalogModel[]>;
 
 type AuthorIdentity = {
   brandId: string;
@@ -40,8 +43,8 @@ const client = new OpenRouterCore({
   timeoutMs: 10_000,
 });
 
-async function loadOpenRouterModels(apiKey: string) {
-  const pages = await modelsListForUser(client, { bearer: apiKey });
+async function loadOpenRouterModels(apiKey: string, signal: AbortSignal) {
+  const pages = await modelsListForUser(client, { bearer: apiKey }, undefined, { signal });
   const models: OpenRouterCatalogModel[] = [];
 
   for await (const page of pages) {
@@ -138,17 +141,14 @@ function normalizeModel({ id, name, pricing }: OpenRouterCatalogModel) {
   };
 }
 
-export function createOpenRouterModelProvider(
-  connection: Pick<OpenRouterConnection, "getConfiguration" | "withApiKey">,
+export function createOpenRouterModels(
+  configuration: Pick<OpenRouterConfiguration, "withApiKey">,
   loadModels: LoadOpenRouterModels = loadOpenRouterModels,
-): ModelProvider {
+): ProviderModelsAdapter {
   return {
-    id: "openrouter",
-    brandId: "openrouter",
-    isConfigured: () => connection.getConfiguration().state === "configured",
-    listModels: () =>
-      connection.withApiKey(async (apiKey) =>
-        (await loadModels(apiKey))
+    list: (signal) =>
+      configuration.withApiKey(async (apiKey) =>
+        (await loadModels(apiKey, signal))
           .filter(
             ({ architecture }) =>
               architecture.inputModalities.includes("text") &&

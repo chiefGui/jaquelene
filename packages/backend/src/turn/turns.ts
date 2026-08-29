@@ -1,5 +1,5 @@
 import type { GenerationEngine } from "#backend/generation/generations";
-import type { ModelReference } from "#backend/generation/provider";
+import type { ModelReference } from "#backend/provider/provider";
 import type { Generation } from "#backend/generation/schema";
 import type { ThreadId, TurnId } from "#backend/id";
 import type { ThreadMessage, Turn } from "#backend/thread/schema";

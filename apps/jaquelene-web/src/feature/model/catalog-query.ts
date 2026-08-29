@@ -35,3 +35,7 @@ export function resetModelProvider(queryClient: QueryClient, providerId: string)
     }),
   ]);
 }
+
+export function resetModelCatalog(queryClient: QueryClient) {
+  return queryClient.resetQueries({ queryKey: modelCatalogKey });
+}

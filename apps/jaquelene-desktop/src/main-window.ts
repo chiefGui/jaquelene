@@ -1,4 +1,4 @@
-import type { Campaigns, Scenarios, Storage, Turns } from "@jaquelene/backend";
+import type { Campaigns, Providers, Scenarios, Storage, Turns } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
@@ -11,8 +11,7 @@ import type { ModelCatalog } from "./feature/model/catalog";
 import { exposeModelCatalog } from "./feature/model/catalog-ipc";
 import type { FavoriteModels } from "./feature/model/favorite-models";
 import { exposeFavoriteModels } from "./feature/model/favorite-models-ipc";
-import type { OpenRouterConnection } from "./feature/provider/openrouter/connection";
-import { exposeOpenRouterConnection } from "./feature/provider/openrouter/ipc";
+import { exposeProviders } from "./feature/provider/ipc";
 import { exposeScenarios } from "./feature/scenario/ipc";
 import { exposeThreadMessaging } from "./feature/thread/ipc";
 import type { LocalState } from "./local-state";
@@ -40,7 +39,7 @@ export function createMainWindow({
   modelCatalog,
   favoriteModels,
   preferences,
-  openRouterConnection,
+  providers,
   storage,
 }: {
   rendererUrl: string;
@@ -52,7 +51,7 @@ export function createMainWindow({
   modelCatalog: ModelCatalog;
   favoriteModels: FavoriteModels;
   preferences: Preferences;
-  openRouterConnection: OpenRouterConnection;
+  providers: Providers;
   storage: Storage;
 }) {
   let currentWindow:
@@ -94,7 +93,7 @@ export function createMainWindow({
     exposeModelCatalog(browserWindow.webContents.mainFrame, modelCatalog);
     exposeFavoriteModels(browserWindow.webContents.mainFrame, favoriteModels);
     exposeUserInterfacePreferences(browserWindow.webContents, preferences.appearance.userInterface);
-    exposeOpenRouterConnection(browserWindow.webContents.mainFrame, openRouterConnection);
+    exposeProviders(browserWindow.webContents.mainFrame, providers);
     exposeStorage(browserWindow.webContents.mainFrame, storage);
 
     browserWindow.on("close", () => {

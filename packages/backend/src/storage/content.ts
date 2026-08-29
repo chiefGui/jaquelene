@@ -3,7 +3,7 @@ import { campaignTable } from "#backend/campaign/schema";
 import { getDatabaseStoragePaths, type Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { scenarioTable } from "#backend/scenario/schema";
-import { StorageAreaId, StorageCategory, type StorageArea } from "#backend/storage/storage";
+import { StorageCategory, type StorageArea } from "#backend/storage/storage";
 import { threadTable } from "#backend/thread/schema";
 
 function deleteContent(database: Database) {
@@ -29,7 +29,7 @@ function deleteContent(database: Database) {
 
 export function createContentStorageArea(database: Database, databasePath: string): StorageArea {
   return {
-    id: StorageAreaId.Content,
+    id: "content",
     category: StorageCategory.Content,
     paths: getDatabaseStoragePaths(databasePath),
     delete: () => deleteContent(database),

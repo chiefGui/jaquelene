@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { createOpenRouterModelProvider } from "./models";
+import { createOpenRouterModels } from "./models";
+
+function operationSignal() {
+  return new AbortController().signal;
+}
 
 describe("OpenRouter model provider", () => {
   it("lists text models available to the connected API key", async () => {
     const apiKey = "openrouter-model-key";
     const useCredential = vi.fn();
     const connection = {
-      getConfiguration: () => ({ state: "configured", keyLabel: "Jaquelene" }) as const,
       async withApiKey<Result>(use: (value: string) => Promise<Result>) {
         useCredential();
         return use(apiKey);
@@ -45,10 +48,11 @@ describe("OpenRouter model provider", () => {
         pricing,
       },
     ]);
-    const provider = createOpenRouterModelProvider(connection, loadModels);
+    const models = createOpenRouterModels(connection, loadModels);
     const tokenPricing = { inputUsdPerMillion: 1, outputUsdPerMillion: 3 };
+    const signal = operationSignal();
 
-    await expect(provider.listModels()).resolves.toEqual([
+    await expect(models.list(signal)).resolves.toEqual([
       {
         id: "meta-llama/text-model",
         name: "Text model",
@@ -69,16 +73,13 @@ describe("OpenRouter model provider", () => {
       },
       { id: "openrouter/auto-beta", name: "Auto Beta", brandId: "openrouter" },
     ]);
-    expect(provider.brandId).toBe("openrouter");
     expect(useCredential).toHaveBeenCalledOnce();
-    expect(loadModels).toHaveBeenCalledWith(apiKey);
-    expect(provider.isConfigured()).toBe(true);
+    expect(loadModels).toHaveBeenCalledWith(apiKey, signal);
   });
 
   it("preserves catalog failures", async () => {
     const failure = new Error("Catalog unavailable");
     const connection = {
-      getConfiguration: () => ({ state: "configured", keyLabel: "Jaquelene" }) as const,
       async withApiKey<Result>(use: (value: string) => Promise<Result>) {
         return use("openrouter-failing-key");
       },
@@ -86,19 +87,18 @@ describe("OpenRouter model provider", () => {
     const loadModels = vi.fn(async () => {
       throw failure;
     });
-    const provider = createOpenRouterModelProvider(connection, loadModels);
+    const models = createOpenRouterModels(connection, loadModels);
 
-    await expect(provider.listModels()).rejects.toBe(failure);
+    await expect(models.list(operationSignal())).rejects.toBe(failure);
   });
 
   it("rejects invalid model pricing", async () => {
     const connection = {
-      getConfiguration: () => ({ state: "configured", keyLabel: "Jaquelene" }) as const,
       async withApiKey<Result>(use: (value: string) => Promise<Result>) {
         return use("openrouter-model-key");
       },
     };
-    const provider = createOpenRouterModelProvider(connection, async () => [
+    const models = createOpenRouterModels(connection, async () => [
       {
         id: "author/invalid-price",
         name: "Invalid price",
@@ -107,7 +107,7 @@ describe("OpenRouter model provider", () => {
       },
     ]);
 
-    await expect(provider.listModels()).rejects.toThrow(
+    await expect(models.list(operationSignal())).rejects.toThrow(
       'OpenRouter model "author/invalid-price" has invalid pricing.',
     );
   });

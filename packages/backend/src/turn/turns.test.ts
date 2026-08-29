@@ -5,8 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createGenerations } from "#backend/generation/generations";
 import { createTurnPromptCompiler } from "#backend/generation/prompt";
-import type { GenerationProvider, GenerationProviderResult } from "#backend/generation/provider";
 import { ids } from "#backend/id";
+import type {
+  ProviderGenerationRequest,
+  ProviderGenerationResult,
+} from "#backend/provider/provider";
 import {
   createThreads,
   THREAD_MESSAGE_CONTENT_MAX_LENGTH,
@@ -17,22 +20,32 @@ import { createTurns } from "./turns";
 const directories: string[] = [];
 const databases: Database[] = [];
 
+type TestGenerate = (
+  request: ProviderGenerationRequest & { signal?: AbortSignal },
+) => Promise<ProviderGenerationResult>;
+
 function createDatabasePath() {
   const directory = mkdtempSync(join(tmpdir(), "jaquelene-turns-"));
   directories.push(directory);
   return join(directory, "jaquelene.sqlite");
 }
 
-function openTurnEnvironment(
-  generate: GenerationProvider["generate"],
-  now: () => number = Date.now,
-) {
+function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
   const threads = createThreads(database, now);
   const generationEngine = createGenerations(
     database,
     createTurnPromptCompiler(threads),
-    [{ id: "provider-a", generate }],
+    {
+      get(providerId) {
+        return providerId === "provider-a"
+          ? {
+              generate: (request, signal) =>
+                generate({ ...request, ...(signal ? { signal } : {}) }),
+            }
+          : undefined;
+      },
+    },
     now,
   );
   const turns = createTurns(threads, generationEngine);
@@ -115,7 +128,7 @@ describe("turns", () => {
 
   it("returns durable generation failures and advances them through retry", async () => {
     const providerFailure = new Error("Provider unavailable");
-    const results: Array<GenerationProviderResult | Error> = [
+    const results: Array<ProviderGenerationResult | Error> = [
       providerFailure,
       { text: "Recovered reply" },
     ];
@@ -169,9 +182,9 @@ describe("turns", () => {
   });
 
   it("rejects overlapping operations within a thread without blocking other threads", async () => {
-    const firstReply = deferred<GenerationProviderResult>();
+    const firstReply = deferred<ProviderGenerationResult>();
     const generate = vi
-      .fn<GenerationProvider["generate"]>()
+      .fn<TestGenerate>()
       .mockImplementationOnce(() => firstReply.promise)
       .mockResolvedValue({ text: "Next reply" });
     const { threads, turns } = openTurnEnvironment(generate);

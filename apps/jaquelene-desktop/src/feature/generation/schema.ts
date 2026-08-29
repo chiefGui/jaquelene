@@ -9,6 +9,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import type { GenerationId, MessageId, ThreadId } from "@/id";
 import { threadMessageTable, threadTable } from "../thread/schema";
 
 export const generationStatuses = ["pending", "completed", "failed"] as const;
@@ -23,8 +24,9 @@ export const generationFailureKinds = [
 export const generationTable = sqliteTable(
   "generations",
   {
-    id: text().notNull(),
+    id: text().$type<GenerationId>().notNull(),
     threadId: text("thread_id")
+      .$type<ThreadId>()
       .notNull()
       .references(() => threadTable.id, { onDelete: "cascade" }),
     contextSequence: integer("context_sequence").notNull(),
@@ -38,7 +40,9 @@ export const generationTable = sqliteTable(
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
     totalTokens: integer("total_tokens"),
-    outputMessageId: text("output_message_id").references(() => threadMessageTable.id),
+    outputMessageId: text("output_message_id")
+      .$type<MessageId>()
+      .references(() => threadMessageTable.id),
     startedAt: integer("started_at").notNull(),
     finishedAt: integer("finished_at"),
   },

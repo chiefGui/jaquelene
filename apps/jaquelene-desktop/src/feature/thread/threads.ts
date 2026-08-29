@@ -1,18 +1,18 @@
 import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
 import type { Database } from "@/database";
+import { ids, type ThreadId } from "@/id";
 import { threadMessageTable, threadTable, type ThreadMessage } from "./schema";
 
 export const THREAD_MESSAGE_CONTENT_MAX_LENGTH = 100_000;
 export const THREAD_MESSAGE_PAGE_SIZE = 50;
 
 type ListThreadMessagesRequest = {
-  threadId: string;
+  threadId: ThreadId;
   before?: string;
 };
 
 type AppendThreadMessageRequest = {
-  threadId: string;
+  threadId: ThreadId;
   author: ThreadMessage["author"];
   content: string;
   createdAt: number;
@@ -56,18 +56,18 @@ function decodeBeforeCursor(cursor: string | undefined) {
   return sequence;
 }
 
-function threadNotFound(id: string) {
+function threadNotFound(id: ThreadId) {
   return new RangeError(`Thread "${id}" does not exist.`);
 }
 
-function threadExists(database: Database, id: string) {
+function threadExists(database: Database, id: ThreadId) {
   return Boolean(
     database.select({ id: threadTable.id }).from(threadTable).where(eq(threadTable.id, id)).get(),
   );
 }
 
 export class ThreadSequenceConflictError extends Error {
-  constructor(threadId: string, expectedSequence: number) {
+  constructor(threadId: ThreadId, expectedSequence: number) {
     super(`Thread "${threadId}" no longer ends at message ${expectedSequence}.`);
     this.name = "ThreadSequenceConflictError";
   }
@@ -75,7 +75,7 @@ export class ThreadSequenceConflictError extends Error {
 
 export function insertThread(database: Pick<Database, "insert">, createdAt: number) {
   const thread = {
-    id: randomUUID(),
+    id: ids.thread.create(),
     createdAt,
     lastMessageSequence: 0,
   };
@@ -111,7 +111,7 @@ export function appendThreadMessageInTransaction(
   }
 
   const message = {
-    id: randomUUID(),
+    id: ids.message.create(),
     threadId,
     sequence: allocation.sequence,
     author,
@@ -129,14 +129,14 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       return insertThread(database, now());
     },
 
-    get(id: string) {
+    get(id: ThreadId) {
       return (
         database.select(threadSelection).from(threadTable).where(eq(threadTable.id, id)).get() ??
         null
       );
     },
 
-    appendUserMessage(threadId: string, value: string) {
+    appendUserMessage(threadId: ThreadId, value: string) {
       return database.transaction((transaction) =>
         appendThreadMessageInTransaction(transaction, {
           threadId,
@@ -147,7 +147,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       );
     },
 
-    listAllMessages(threadId: string) {
+    listAllMessages(threadId: ThreadId) {
       const messages = database
         .select()
         .from(threadMessageTable)

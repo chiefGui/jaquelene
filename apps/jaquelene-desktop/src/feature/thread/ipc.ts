@@ -3,6 +3,7 @@ import {
   Threads as ThreadsIpc,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
+import { ids } from "@/id";
 import type { ThreadMessage } from "./schema";
 import type { Threads } from "./threads";
 
@@ -22,11 +23,14 @@ function toIpcMessage(message: ThreadMessage) {
 export function exposeThreads(target: WebFrameMain, threads: Threads) {
   ThreadsIpc.for(target).setImplementation({
     listMessages(request) {
-      const page = threads.listMessages(request);
+      const page = threads.listMessages({
+        ...request,
+        threadId: ids.thread.parse(request.threadId),
+      });
       return { ...page, messages: page.messages.map(toIpcMessage) };
     },
-    appendUserMessage(threadId, content) {
-      return toIpcMessage(threads.appendUserMessage(threadId, content));
+    appendUserMessage(id, content) {
+      return toIpcMessage(threads.appendUserMessage(ids.thread.parse(id), content));
     },
   });
 }

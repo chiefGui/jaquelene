@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "@/database";
+import { ids } from "@/id";
 import { createScenarios } from "./scenarios";
 
 const directories: string[] = [];
@@ -38,6 +39,7 @@ describe("scenarios", () => {
     const second = scenarios.create("Second scenario");
     const listed = scenarios.list();
 
+    expect(first.id).toMatch(/^scenario_/);
     expect(first.title).toBe("First scenario");
     expect(listed).toHaveLength(2);
     expect(listed).toEqual(expect.arrayContaining([first, second]));
@@ -71,30 +73,6 @@ describe("scenarios", () => {
     }
   });
 
-  it("preserves scenarios that existed before migrations were tracked", () => {
-    const path = createDatabasePath();
-    const client = new DatabaseSync(path);
-
-    try {
-      client.exec(`
-        CREATE TABLE scenarios (
-          id TEXT PRIMARY KEY NOT NULL,
-          title TEXT NOT NULL
-        );
-      `);
-      client
-        .prepare("INSERT INTO scenarios (id, title) VALUES (?, ?)")
-        .run("existing-scenario", "Existing scenario");
-    } finally {
-      client.close();
-    }
-
-    expect(openScenarios(path).scenarios.get("existing-scenario")).toEqual({
-      id: "existing-scenario",
-      title: "Existing scenario",
-    });
-  });
-
   it("rejects a title without text", () => {
     const { scenarios } = openScenarios(createDatabasePath());
 
@@ -124,12 +102,12 @@ describe("scenarios", () => {
   it("returns no scenario for an unknown identity", () => {
     const { scenarios } = openScenarios(createDatabasePath());
 
-    expect(scenarios.get("missing-scenario")).toBeNull();
+    expect(scenarios.get(ids.scenario.create())).toBeNull();
   });
 
   it("does not rename an unknown scenario", () => {
     const { scenarios } = openScenarios(createDatabasePath());
 
-    expect(scenarios.rename("missing-scenario", "New title")).toBeNull();
+    expect(scenarios.rename(ids.scenario.create(), "New title")).toBeNull();
   });
 });

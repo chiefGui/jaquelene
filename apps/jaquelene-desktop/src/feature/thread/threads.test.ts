@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "@/database";
+import { ids } from "@/id";
 import {
   createThreads,
   THREAD_MESSAGE_CONTENT_MAX_LENGTH,
@@ -43,9 +44,9 @@ describe("threads", () => {
     const { threads } = openThreads(createDatabasePath(), () => 100);
     const thread = threads.create();
 
-    expect(thread).toEqual({ id: expect.any(String), createdAt: 100 });
+    expect(thread).toEqual({ id: expect.stringMatching(/^thread_/), createdAt: 100 });
     expect(threads.get(thread.id)).toEqual(thread);
-    expect(threads.get("missing-thread")).toBeNull();
+    expect(threads.get(ids.thread.create())).toBeNull();
   });
 
   it("appends human messages in a stable per-thread order without changing their content", () => {
@@ -58,7 +59,7 @@ describe("threads", () => {
     threads.appendUserMessage(otherThread.id, "Other thread message");
 
     expect(first).toEqual({
-      id: expect.any(String),
+      id: expect.stringMatching(/^message_/),
       threadId: thread.id,
       sequence: 1,
       author: "user",
@@ -161,27 +162,29 @@ describe("threads", () => {
   it("rejects empty, oversized, and missing-thread messages", () => {
     const { threads } = openThreads(createDatabasePath());
     const thread = threads.create();
+    const missingThreadId = ids.thread.create();
 
     expect(() => threads.appendUserMessage(thread.id, " \n\t ")).toThrow(TypeError);
     expect(() =>
       threads.appendUserMessage(thread.id, "x".repeat(THREAD_MESSAGE_CONTENT_MAX_LENGTH + 1)),
     ).toThrow(RangeError);
-    expect(() => threads.appendUserMessage("missing-thread", "Hello")).toThrow(
-      'Thread "missing-thread" does not exist.',
+    expect(() => threads.appendUserMessage(missingThreadId, "Hello")).toThrow(
+      `Thread "${missingThreadId}" does not exist.`,
     );
   });
 
   it("rejects invalid cursors and listing messages for an unknown thread", () => {
     const { threads } = openThreads(createDatabasePath());
     const thread = threads.create();
+    const missingThreadId = ids.thread.create();
 
     expect(() => threads.listMessages({ threadId: thread.id, before: "0" })).toThrow(TypeError);
     expect(() => threads.listMessages({ threadId: thread.id, before: "01" })).toThrow(TypeError);
     expect(() => threads.listMessages({ threadId: thread.id, before: "not-a-cursor" })).toThrow(
       TypeError,
     );
-    expect(() => threads.listMessages({ threadId: "missing-thread" })).toThrow(
-      'Thread "missing-thread" does not exist.',
+    expect(() => threads.listMessages({ threadId: missingThreadId })).toThrow(
+      `Thread "${missingThreadId}" does not exist.`,
     );
   });
 });

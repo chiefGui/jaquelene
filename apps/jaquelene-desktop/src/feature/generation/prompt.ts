@@ -1,14 +1,15 @@
 import type { Threads } from "@/feature/thread/threads";
+import type { ThreadId } from "@/id";
 import type { GenerationMessage } from "./provider";
 
 export type GenerationPrompt = {
-  threadId: string;
+  threadId: ThreadId;
   contextSequence: number;
   messages: readonly GenerationMessage[];
 };
 
 export type GenerationPromptCompiler = {
-  compile(threadId: string): GenerationPrompt | Promise<GenerationPrompt>;
+  compile(threadId: ThreadId): GenerationPrompt | Promise<GenerationPrompt>;
 };
 
 export function createThreadPromptCompiler(

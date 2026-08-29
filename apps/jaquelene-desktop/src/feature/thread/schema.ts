@@ -7,13 +7,14 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import type { MessageId, ThreadId } from "@/id";
 
 export const threadMessageAuthors = ["user", "assistant"] as const;
 
 export const threadTable = sqliteTable(
   "threads",
   {
-    id: text().notNull(),
+    id: text().$type<ThreadId>().notNull(),
     createdAt: integer("created_at").notNull(),
     lastMessageSequence: integer("last_message_sequence").notNull().default(0),
   },
@@ -27,8 +28,9 @@ export const threadTable = sqliteTable(
 export const threadMessageTable = sqliteTable(
   "thread_messages",
   {
-    id: text().notNull(),
+    id: text().$type<MessageId>().notNull(),
     threadId: text("thread_id")
+      .$type<ThreadId>()
       .notNull()
       .references(() => threadTable.id, { onDelete: "cascade" }),
     sequence: integer().notNull(),

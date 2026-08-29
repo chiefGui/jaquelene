@@ -1,5 +1,4 @@
 import { and, eq, sql } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
 import type { Database } from "@/database";
 import { requireModelReference, type ModelReference } from "@/feature/model/catalog";
 import {
@@ -7,12 +6,13 @@ import {
   requireThreadMessageContent,
   ThreadSequenceConflictError,
 } from "@/feature/thread/threads";
+import { ids, type GenerationId, type ThreadId } from "@/id";
 import type { GenerationPrompt, GenerationPromptCompiler } from "./prompt";
 import type { GenerationProvider, GenerationProviderResult, GenerationUsage } from "./provider";
 import { generationTable, type Generation, type GenerationFailureKind } from "./schema";
 
 type GenerateReplyRequest = {
-  threadId: string;
+  threadId: ThreadId;
   model: ModelReference;
   signal?: AbortSignal;
 };
@@ -74,7 +74,7 @@ function providerResultFields(output: NormalizedProviderResult) {
   };
 }
 
-function requirePrompt(prompt: GenerationPrompt, threadId: string) {
+function requirePrompt(prompt: GenerationPrompt, threadId: ThreadId) {
   if (prompt.threadId !== threadId) {
     throw new Error(`The generation prompt does not belong to thread "${threadId}".`);
   }
@@ -123,7 +123,7 @@ export function createGenerations(
     cause: unknown,
     output?: NormalizedProviderResult,
   ): never {
-    let failedGeneration: { id: string } | undefined;
+    let failedGeneration: { id: GenerationId } | undefined;
 
     try {
       failedGeneration = database
@@ -197,7 +197,7 @@ export function createGenerations(
       }
 
       const generation = {
-        id: randomUUID(),
+        id: ids.generation.create(),
         threadId,
         contextSequence: prompt.contextSequence,
         providerId: model.providerId,

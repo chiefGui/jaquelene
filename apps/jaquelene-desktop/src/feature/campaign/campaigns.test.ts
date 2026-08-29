@@ -7,6 +7,7 @@ import { closeDatabase, openDatabase, type Database } from "@/database";
 import { createScenarios } from "@/feature/scenario/scenarios";
 import { threadTable } from "@/feature/thread/schema";
 import { createThreads } from "@/feature/thread/threads";
+import { ids } from "@/id";
 import { createCampaigns } from "./campaigns";
 import { campaignTable } from "./schema";
 
@@ -52,9 +53,9 @@ describe("campaigns", () => {
     campaigns.start(otherScenario.id);
 
     expect(first).toEqual({
-      id: expect.any(String),
+      id: expect.stringMatching(/^campaign_/),
       scenarioId: scenario.id,
-      threadId: expect.any(String),
+      threadId: expect.stringMatching(/^thread_/),
       startedAt: 100,
     });
     expect(campaigns.listForScenario(scenario.id)).toEqual([second, first]);
@@ -112,7 +113,7 @@ describe("campaigns", () => {
   it("rejects a campaign without an existing scenario", () => {
     const { campaigns, database } = openCampaigns(createDatabasePath());
 
-    expect(() => campaigns.start("missing-scenario")).toThrow();
+    expect(() => campaigns.start(ids.scenario.create())).toThrow();
     expect(database.select().from(campaignTable).all()).toEqual([]);
     expect(database.select().from(threadTable).all()).toEqual([]);
   });
@@ -120,6 +121,6 @@ describe("campaigns", () => {
   it("returns no campaign for an unknown identity", () => {
     const { campaigns } = openCampaigns(createDatabasePath());
 
-    expect(campaigns.get("missing-campaign")).toBeNull();
+    expect(campaigns.get(ids.campaign.create())).toBeNull();
   });
 });

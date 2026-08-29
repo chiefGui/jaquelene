@@ -1,3 +1,5 @@
+import type { GenerationId, ThreadId } from "@/id";
+
 export type GenerationMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -10,8 +12,8 @@ export type GenerationUsage = {
 };
 
 export type GenerationProviderRequest = {
-  generationId: string;
-  threadId: string;
+  generationId: GenerationId;
+  threadId: ThreadId;
   modelId: string;
   messages: readonly GenerationMessage[];
   signal?: AbortSignal;

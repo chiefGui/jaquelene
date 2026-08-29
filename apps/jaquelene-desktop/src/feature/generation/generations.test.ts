@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "@/database";
 import { createThreads } from "@/feature/thread/threads";
+import { ids } from "@/id";
 import { createGenerations } from "./generations";
 import { createThreadPromptCompiler } from "./prompt";
 import type { GenerationProvider, GenerationProviderResult } from "./provider";
@@ -80,7 +81,7 @@ describe("generations", () => {
       messages: [{ role: "user", content: "Hello" }],
     });
     expect(result.message).toEqual({
-      id: expect.any(String),
+      id: expect.stringMatching(/^message_/),
       threadId: thread.id,
       sequence: 2,
       author: "assistant",
@@ -325,7 +326,7 @@ describe("generations", () => {
     database
       .insert(generationTable)
       .values({
-        id: "interrupted-generation",
+        id: ids.generation.create(),
         threadId: thread.id,
         contextSequence: userMessage.sequence,
         providerId: provider.id,
@@ -363,20 +364,20 @@ describe("generations", () => {
 
     database
       .insert(generationTable)
-      .values({ id: "pending-1", ...pending })
+      .values({ id: ids.generation.create(), ...pending })
       .run();
 
     expect(() =>
       database
         .insert(generationTable)
-        .values({ id: "pending-2", ...pending })
+        .values({ id: ids.generation.create(), ...pending })
         .run(),
     ).toThrow();
     expect(() =>
       database
         .insert(generationTable)
         .values({
-          id: "completed-without-output",
+          id: ids.generation.create(),
           ...pending,
           status: "completed",
           finishedAt: 701,
@@ -387,7 +388,7 @@ describe("generations", () => {
       database
         .insert(generationTable)
         .values({
-          id: "partial-usage",
+          id: ids.generation.create(),
           ...pending,
           status: "failed",
           failureKind: "provider",

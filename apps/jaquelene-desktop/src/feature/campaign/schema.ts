@@ -6,17 +6,20 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import type { CampaignId, ScenarioId, ThreadId } from "@/id";
 import { scenarioTable } from "../scenario/schema";
 import { threadTable } from "../thread/schema";
 
 export const campaignTable = sqliteTable(
   "campaigns",
   {
-    id: text().notNull(),
+    id: text().$type<CampaignId>().notNull(),
     scenarioId: text("scenario_id")
+      .$type<ScenarioId>()
       .notNull()
       .references(() => scenarioTable.id),
     threadId: text("thread_id")
+      .$type<ThreadId>()
       .notNull()
       .references(() => threadTable.id),
     startedAt: integer("started_at").notNull(),

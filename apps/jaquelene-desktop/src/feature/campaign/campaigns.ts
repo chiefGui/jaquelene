@@ -1,18 +1,18 @@
 import { desc, eq } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
 import type { Database } from "@/database";
 import { insertThread } from "@/feature/thread/threads";
+import { ids, type CampaignId, type ScenarioId } from "@/id";
 import { campaignTable } from "./schema";
 
 export function createCampaigns(database: Database, now: () => number = Date.now) {
   return {
-    start(scenarioId: string) {
+    start(scenarioId: ScenarioId) {
       const startedAt = now();
 
       return database.transaction((transaction) => {
         const thread = insertThread(transaction, startedAt);
         const campaign = {
-          id: randomUUID(),
+          id: ids.campaign.create(),
           scenarioId,
           threadId: thread.id,
           startedAt,
@@ -23,7 +23,7 @@ export function createCampaigns(database: Database, now: () => number = Date.now
       });
     },
 
-    listForScenario(scenarioId: string) {
+    listForScenario(scenarioId: ScenarioId) {
       return database
         .select()
         .from(campaignTable)
@@ -32,7 +32,7 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         .all();
     },
 
-    get(id: string) {
+    get(id: CampaignId) {
       return database.select().from(campaignTable).where(eq(campaignTable.id, id)).get() ?? null;
     },
   };

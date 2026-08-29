@@ -1,6 +1,7 @@
 import type { ChatResult } from "@openrouter/sdk/models";
 import { describe, expect, it, vi } from "vite-plus/test";
 import type { GenerationProviderRequest } from "@/feature/generation/provider";
+import { ids } from "@/id";
 import { createOpenRouterGenerationProvider } from "./generation";
 
 function chatResult(overrides: Partial<ChatResult> = {}): ChatResult {
@@ -24,8 +25,8 @@ function chatResult(overrides: Partial<ChatResult> = {}): ChatResult {
 
 function generationRequest(): GenerationProviderRequest {
   return {
-    generationId: "generation-1",
-    threadId: "thread-1",
+    generationId: ids.generation.create(),
+    threadId: ids.thread.create(),
     modelId: "maker/requested-model",
     messages: [
       { role: "system", content: "System instruction" },

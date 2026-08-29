@@ -5,6 +5,9 @@
       "path": "./packages/backend"
     },
     {
+      "path": "./packages/diagnostics"
+    },
+    {
       "path": "./packages/ipc"
     },
     {

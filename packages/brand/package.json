@@ -1,0 +1,8 @@
+{
+  "name": "@jaquelene/brand",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./symbol.svg": "./symbol.svg"
+  }
+}

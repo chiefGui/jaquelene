@@ -1,4 +1,4 @@
-import { cpSync, realpathSync } from "node:fs";
+import { cpSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mergeConfig } from "vite";
@@ -18,6 +18,7 @@ const electronOutput = fileURLToPath(new URL("./dist-electron", import.meta.url)
 const mainOutput = join(electronOutput, "main");
 const mainEntry = fileURLToPath(new URL("./src/main.ts", import.meta.url));
 const migrationsDirectory = fileURLToPath(new URL("./src/migrations", import.meta.url));
+const migrationsOutput = join(mainOutput, "migrations");
 const preloadOutput = join(electronOutput, "preload");
 const preloadEntry = fileURLToPath(new URL("./src/preload.ts", import.meta.url));
 
@@ -25,7 +26,8 @@ const migrationsPlugin = {
   name: "jaquelene-database-migrations",
   apply: "build",
   writeBundle: () => {
-    cpSync(migrationsDirectory, join(mainOutput, "migrations"), { recursive: true });
+    rmSync(migrationsOutput, { recursive: true, force: true });
+    cpSync(migrationsDirectory, migrationsOutput, { recursive: true });
   },
 } satisfies Plugin;
 

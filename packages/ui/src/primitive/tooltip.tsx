@@ -64,7 +64,7 @@ const styles = stylex.create({
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: "0 20px 25px -5px rgb(0 0 0 / 10%), 0 8px 10px -6px rgb(0 0 0 / 10%)",
+    boxShadow: tokens.shadowLarge,
     color: tokens.foreground,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,

@@ -1123,7 +1123,7 @@ const styles = stylex.create({
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: "0 25px 50px -12px rgb(0 0 0 / 25%)",
+    boxShadow: tokens.shadowXLarge,
     color: tokens.foreground,
     height: "26rem",
     maxWidth: "calc(100vw - 2rem)",

@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./confirm-dialog": "./src/primitive/confirm-dialog.tsx",
+    "./dialog": "./src/primitive/dialog.tsx",
     "./motion": "./src/primitive/motion.tsx",
     "./popover": "./src/primitive/popover.tsx",
     "./select": "./src/primitive/select.tsx",

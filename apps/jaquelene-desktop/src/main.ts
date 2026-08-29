@@ -1,28 +1,23 @@
 import { app, safeStorage } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
-import { closeDatabase, getDatabaseStoragePaths, openDatabase } from "./database";
+import { closeDatabase, openDatabase } from "./database";
 import { createCampaigns } from "./feature/campaign/campaigns";
 import { createGenerations } from "./feature/generation/generations";
 import { createThreadPromptCompiler } from "./feature/generation/prompt";
 import { createModelCatalog } from "./feature/model/catalog";
 import { createFavoriteModels } from "./feature/model/favorite-models";
-import {
-  createFavoriteModelsStorage,
-  getFavoriteModelsStoragePaths,
-} from "./feature/model/favorite-models-store";
-import {
-  createOpenRouterConnection,
-  getOpenRouterConnectionStoragePaths,
-} from "./feature/provider/openrouter/connection";
+import { createFavoriteModelsStorage } from "./feature/model/favorite-models-store";
+import { createOpenRouterConnection } from "./feature/provider/openrouter/connection";
 import { createOpenRouterGenerationProvider } from "./feature/provider/openrouter/generation";
 import { createOpenRouterModelProvider } from "./feature/provider/openrouter/models";
 import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verification";
 import { createScenarios } from "./feature/scenario/scenarios";
 import { createThreads } from "./feature/thread/threads";
-import { createLocalState, getLocalStateStoragePaths } from "./local-state";
+import { createLocalState } from "./local-state";
 import { createMainWindow } from "./main-window";
-import { createPreferences, getPreferencesStoragePaths } from "./preferences/preferences";
+import { createPreferences } from "./preferences/preferences";
+import { createStorageManifest } from "./storage/manifest";
 import { createStorage } from "./storage/storage";
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -89,13 +84,7 @@ void app
     const modelCatalog = createModelCatalog([createOpenRouterModelProvider(openRouterConnection)]);
     const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
     const preferences = createPreferences(userDataDirectory);
-    const storage = createStorage([
-      ...getDatabaseStoragePaths(databasePath),
-      ...getLocalStateStoragePaths(userDataDirectory),
-      ...getOpenRouterConnectionStoragePaths(userDataDirectory),
-      ...getFavoriteModelsStoragePaths(userDataDirectory),
-      ...getPreferencesStoragePaths(userDataDirectory),
-    ]);
+    const storage = createStorage(createStorageManifest({ databasePath, userDataDirectory }));
 
     const mainWindow = createMainWindow({
       rendererUrl: developmentServerUrl ?? appUrl,

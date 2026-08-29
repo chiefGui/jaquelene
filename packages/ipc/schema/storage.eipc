@@ -6,7 +6,8 @@ subtype ByteCount = number(
 )
 
 structure StorageUsage {
-  totalBytes: ByteCount
+  userContentBytes: ByteCount
+  applicationDataBytes: ByteCount
 }
 
 [RendererAPI]

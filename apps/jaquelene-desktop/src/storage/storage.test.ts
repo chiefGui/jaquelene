@@ -21,31 +21,50 @@ afterEach(() => {
 describe("storage", () => {
   it("reports no usage when owned paths do not exist", async () => {
     const directory = createUserDataDirectory();
-    const storage = createStorage([
-      join(directory, "jaquelene.sqlite"),
-      join(directory, "attachments"),
-    ]);
+    const storage = createStorage({
+      userContent: [join(directory, "jaquelene.sqlite"), join(directory, "attachments")],
+      applicationData: [join(directory, "preferences.json")],
+    });
 
-    await expect(storage.measureUsage()).resolves.toEqual({ totalBytes: 0 });
+    await expect(storage.measureUsage()).resolves.toEqual({
+      userContentBytes: 0,
+      applicationDataBytes: 0,
+    });
   });
 
-  it("measures only owned files and directories", async () => {
+  it("rejects usage for invalid owned paths", async () => {
+    const directory = createUserDataDirectory();
+
+    const storage = createStorage({
+      userContent: [`${directory}\0`],
+      applicationData: [],
+    });
+
+    await expect(storage.measureUsage()).rejects.toMatchObject({ code: "ERR_INVALID_ARG_VALUE" });
+  });
+
+  it("measures owned files and directories by category", async () => {
     const directory = createUserDataDirectory();
     const databasePath = join(directory, "jaquelene.sqlite");
     const localStatePath = join(directory, "local-state.json");
     const attachmentsPath = join(directory, "attachments");
+    const portraitsPath = join(attachmentsPath, "portraits");
     const cachePath = join(directory, "Cache");
-    mkdirSync(attachmentsPath);
+    mkdirSync(portraitsPath, { recursive: true });
     mkdirSync(cachePath);
     writeFileSync(databasePath, Buffer.alloc(2_049));
     writeFileSync(localStatePath, Buffer.alloc(137));
-    writeFileSync(join(attachmentsPath, "portrait.png"), Buffer.alloc(512));
+    writeFileSync(join(portraitsPath, "portrait.png"), Buffer.alloc(512));
     writeFileSync(join(cachePath, "ignored"), Buffer.alloc(10_000));
 
     await expect(
-      createStorage([databasePath, localStatePath, attachmentsPath]).measureUsage(),
+      createStorage({
+        userContent: [databasePath, attachmentsPath],
+        applicationData: [localStatePath],
+      }).measureUsage(),
     ).resolves.toEqual({
-      totalBytes: 2_698,
+      userContentBytes: 2_561,
+      applicationDataBytes: 137,
     });
   });
 });

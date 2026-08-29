@@ -1,11 +1,11 @@
+import type { ProviderConfigureResult } from "@jaquelene/backend";
+
 const currentKeyEndpoint = "https://openrouter.ai/api/v1/key";
 
-export type OpenRouterVerification =
-  | { state: "connected"; keyLabel: string }
-  | { state: "rejected" }
-  | { state: "unavailable" };
-
-export async function verifyOpenRouterApiKey(apiKey: string): Promise<OpenRouterVerification> {
+export async function verifyOpenRouterApiKey(
+  apiKey: string,
+  signal: AbortSignal,
+): Promise<ProviderConfigureResult> {
   let response: Response;
 
   try {
@@ -14,9 +14,11 @@ export async function verifyOpenRouterApiKey(apiKey: string): Promise<OpenRouter
         Accept: "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
     });
   } catch (cause) {
+    signal.throwIfAborted();
+
     if (cause instanceof TypeError || cause instanceof DOMException) {
       return { state: "unavailable" };
     }
@@ -57,5 +59,5 @@ export async function verifyOpenRouterApiKey(apiKey: string): Promise<OpenRouter
     return { state: "unavailable" };
   }
 
-  return { state: "connected", keyLabel: body.data.label };
+  return { state: "configured", keyLabel: body.data.label };
 }

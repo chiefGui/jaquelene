@@ -1,27 +1,29 @@
-import { StorageAreaId, StorageCategory, type StorageArea } from "@jaquelene/backend";
+import type {
+  ApiKeyProviderConfiguration,
+  ProviderConfigurationAdapter,
+  ProviderConfigureResult,
+} from "@jaquelene/backend";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import { deleteStoreFile } from "@/storage/delete-store-file";
-import type { OpenRouterVerification } from "./verification";
+import { openRouterProviderId } from "./identity";
 
 type StoredOpenRouterCredential = {
   encryptedApiKey?: string;
   keyLabel?: string;
 };
 
-export type OpenRouterConnectResult = OpenRouterVerification;
-
-type OpenRouterConnectionDependencies = {
+export type OpenRouterConfigurationDependencies = {
   encrypt: (value: string) => Promise<Buffer>;
   decrypt: (value: Buffer) => Promise<string>;
-  verify: (apiKey: string) => Promise<OpenRouterConnectResult>;
+  verify: (apiKey: string, signal: AbortSignal) => Promise<ProviderConfigureResult>;
 };
 
-export type OpenRouterConfiguration =
-  | { state: "disconnected" }
-  | { state: "configured"; keyLabel?: string };
+export type OpenRouterConfiguration = Extract<ProviderConfigurationAdapter, { kind: "api-key" }> & {
+  withApiKey: <Result>(use: (apiKey: string) => Promise<Result>) => Promise<Result>;
+};
 
-const storeName = "openrouter";
+const storeName = openRouterProviderId;
 
 const schema = {
   encryptedApiKey: { type: "string", minLength: 1 },
@@ -32,22 +34,10 @@ export function getOpenRouterConnectionStoragePaths(userDataDirectory: string) {
   return [join(userDataDirectory, `${storeName}.json`)] as const;
 }
 
-export function createOpenRouterConnectionStorageArea(
+export function createOpenRouterConfiguration(
   userDataDirectory: string,
-  connection: OpenRouterConnection,
-): StorageArea {
-  return {
-    id: StorageAreaId.OpenRouterConnection,
-    category: StorageCategory.AppData,
-    paths: getOpenRouterConnectionStoragePaths(userDataDirectory),
-    delete: connection.disconnect,
-  };
-}
-
-export function createOpenRouterConnection(
-  userDataDirectory: string,
-  { encrypt, decrypt, verify }: OpenRouterConnectionDependencies,
-) {
+  { encrypt, decrypt, verify }: OpenRouterConfigurationDependencies,
+): OpenRouterConfiguration {
   const store = new Store<StoredOpenRouterCredential>({
     clearInvalidConfig: true,
     cwd: userDataDirectory,
@@ -56,11 +46,9 @@ export function createOpenRouterConnection(
     rootSchema: { additionalProperties: false },
   });
 
-  let pendingMutation: Promise<unknown> = Promise.resolve();
-
-  function getConfiguration(): OpenRouterConfiguration {
+  function inspect(): ApiKeyProviderConfiguration {
     if (!store.has("encryptedApiKey")) {
-      return { state: "disconnected" };
+      return { state: "unconfigured" };
     }
 
     const keyLabel = store.get("keyLabel");
@@ -80,14 +68,10 @@ export function createOpenRouterConnection(
     return decrypt(Buffer.from(encryptedApiKey, "base64"));
   }
 
-  function mutate<Result>(operation: () => Promise<Result> | Result) {
-    const result = pendingMutation.then(operation);
-    pendingMutation = result.catch(() => undefined);
-    return result;
-  }
-
   return {
-    getConfiguration,
+    kind: "api-key",
+    inspect,
+    storagePaths: getOpenRouterConnectionStoragePaths(userDataDirectory),
 
     async withApiKey<Result>(use: (apiKey: string) => Promise<Result>) {
       const apiKey = await readApiKey();
@@ -99,33 +83,32 @@ export function createOpenRouterConnection(
       return use(apiKey);
     },
 
-    connect(value: string) {
+    async configure(value: string, signal: AbortSignal) {
       const apiKey = value.trim();
 
       if (!apiKey) {
         throw new TypeError("OpenRouter API key must contain text.");
       }
 
-      return mutate(async () => {
-        const verification = await verify(apiKey);
+      signal.throwIfAborted();
+      const verification = await verify(apiKey, signal);
 
-        if (verification.state !== "connected") {
-          return verification;
-        }
-
-        const encryptedApiKey = await encrypt(apiKey);
-        store.set({
-          encryptedApiKey: encryptedApiKey.toString("base64"),
-          keyLabel: verification.keyLabel,
-        });
+      if (verification.state !== "configured") {
         return verification;
+      }
+
+      signal.throwIfAborted();
+      const encryptedApiKey = await encrypt(apiKey);
+      signal.throwIfAborted();
+      store.set({
+        encryptedApiKey: encryptedApiKey.toString("base64"),
+        ...(verification.keyLabel ? { keyLabel: verification.keyLabel } : {}),
       });
+      return verification;
     },
 
-    disconnect() {
-      return mutate(() => deleteStoreFile(store));
+    async clear() {
+      deleteStoreFile(store);
     },
   };
 }
-
-export type OpenRouterConnection = ReturnType<typeof createOpenRouterConnection>;

@@ -1,4 +1,4 @@
-import { StorageAreaId, StorageCategory, type StorageArea } from "@jaquelene/backend";
+import { StorageCategory, type StorageArea } from "@jaquelene/backend";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import { deleteStoreFile } from "@/storage/delete-store-file";
@@ -52,7 +52,7 @@ export function createFavoriteModelsStorageArea(
   favoriteModels: FavoriteModels,
 ): StorageArea {
   return {
-    id: StorageAreaId.FavoriteModels,
+    id: "favorite-models",
     category: StorageCategory.AppData,
     paths: getFavoriteModelsStoragePaths(userDataDirectory),
     delete: favoriteModels.deleteAll,

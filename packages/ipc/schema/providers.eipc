@@ -1,0 +1,44 @@
+module jaquelene
+
+enum ProviderConfigurationKind {
+  ApiKey = "api-key"
+  None = "none"
+}
+
+enum ProviderConfigurationState {
+  Unconfigured = "unconfigured"
+  Configured = "configured"
+}
+
+structure ProviderConfiguration {
+  kind: ProviderConfigurationKind
+  state: ProviderConfigurationState
+  keyLabel?: string
+}
+
+structure Provider {
+  id: string
+  name: string
+  brandId: string
+  configuration: ProviderConfiguration
+}
+
+enum ProviderConfigureState {
+  Configured = "configured"
+  Rejected = "rejected"
+  Unavailable = "unavailable"
+}
+
+structure ProviderConfigureResult {
+  state: ProviderConfigureState
+  keyLabel?: string
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Providers {
+  list() -> Provider[]
+  configureApiKey(providerId: string, apiKey: string) -> ProviderConfigureResult
+  clearConfiguration(providerId: string)
+}

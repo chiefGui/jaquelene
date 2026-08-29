@@ -4,13 +4,10 @@ import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-q
 import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
 import { campaignQueryKey } from "@/feature/campaign/query";
 import { defaultCampaignModelQuery } from "@/feature/campaign/preferences";
-import { resetModelProvider } from "@/feature/model/catalog-query";
+import { resetModelCatalog } from "@/feature/model/catalog-query";
 import { favoriteModelsQuery } from "@/feature/model/favorite-models";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import {
-  openRouterConfigurationQuery,
-  openRouterProvider,
-} from "@/feature/provider/openrouter/query";
+import { providersQuery } from "@/feature/provider/query";
 import { scenarioQueryKey } from "@/feature/scenario/query";
 import { threadQueryKey } from "@/feature/thread/query";
 import { ipcMutationOptions, requireIpcMethod } from "@/ipc";
@@ -23,7 +20,7 @@ const appDataQueryKeys = [
   favoriteModelsQuery.queryKey,
   userInterfacePreferencesQuery.queryKey,
   defaultCampaignModelQuery.queryKey,
-  openRouterConfigurationQuery.queryKey,
+  providersQuery.queryKey,
 ] as const;
 
 async function cancelCategoryQueries(queryClient: QueryClient, id: StorageCategory) {
@@ -53,7 +50,7 @@ async function refreshCategoryQueries(queryClient: QueryClient, id: StorageCateg
       ...appDataQueryKeys.map((queryKey) =>
         queryClient.invalidateQueries({ queryKey, exact: true }),
       ),
-      resetModelProvider(queryClient, openRouterProvider.id),
+      resetModelCatalog(queryClient),
     ]);
   }
 }

@@ -1,4 +1,4 @@
-import { StorageAreaId, StorageCategory, type StorageArea } from "@jaquelene/backend";
+import { StorageCategory, type StorageArea } from "@jaquelene/backend";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import { deleteStoreFile } from "@/storage/delete-store-file";
@@ -42,7 +42,7 @@ export function createPreferencesStorageArea(
   preferences: Preferences,
 ): StorageArea {
   return {
-    id: StorageAreaId.Preferences,
+    id: "preferences",
     category: StorageCategory.AppData,
     paths: getPreferencesStoragePaths(userDataDirectory),
     delete: preferences.deleteAll,

@@ -1,4 +1,4 @@
-import { StorageAreaId, StorageCategory } from "@jaquelene/backend";
+import { StorageCategory } from "@jaquelene/backend";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { ApplicationDiagnostics } from "@/diagnostics/diagnostics";
 import { createFavoriteModels } from "@/feature/model/favorite-models";
 import { createFavoriteModelsStorage } from "@/feature/model/favorite-models-store";
-import { createOpenRouterConnection } from "@/feature/provider/openrouter/connection";
 import { createLocalState } from "@/local-state";
 import { createPreferences } from "@/preferences/preferences";
 import { createStorageAreas } from "./areas";
@@ -37,11 +36,6 @@ describe("storage areas", () => {
     const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
     const diagnostics = createDiagnostics();
     const localState = createLocalState(userDataDirectory, diagnostics);
-    const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
-      encrypt: async (value) => Buffer.from(value),
-      decrypt: async (value) => value.toString(),
-      verify: async () => ({ state: "connected", keyLabel: "sk-or-v1-test...000" }),
-    });
     const preferences = createPreferences(userDataDirectory);
     directories.push(userDataDirectory);
 
@@ -49,7 +43,6 @@ describe("storage areas", () => {
       diagnostics,
       favoriteModels,
       localState,
-      openRouterConnection,
       preferences,
       userDataDirectory,
     });
@@ -63,31 +56,25 @@ describe("storage areas", () => {
       })),
     ).toEqual([
       {
-        id: StorageAreaId.Diagnostics,
+        id: "diagnostics",
         category: StorageCategory.AppData,
         paths: [join(userDataDirectory, "diagnostics")],
         deletable: true,
       },
       {
-        id: StorageAreaId.FavoriteModels,
+        id: "favorite-models",
         category: StorageCategory.AppData,
         paths: [join(userDataDirectory, "favorite-models.json")],
         deletable: true,
       },
       {
-        id: StorageAreaId.Preferences,
+        id: "preferences",
         category: StorageCategory.AppData,
         paths: [join(userDataDirectory, "preferences.json")],
         deletable: true,
       },
       {
-        id: StorageAreaId.OpenRouterConnection,
-        category: StorageCategory.AppData,
-        paths: [join(userDataDirectory, "openrouter.json")],
-        deletable: true,
-      },
-      {
-        id: StorageAreaId.LocalState,
+        id: "local-state",
         category: StorageCategory.AppData,
         paths: [
           join(userDataDirectory, "local-state.json"),
@@ -104,11 +91,6 @@ describe("storage areas", () => {
     const deleteDiagnostics = vi.fn(async () => undefined);
     const diagnostics = createDiagnostics(deleteDiagnostics);
     const localState = createLocalState(userDataDirectory, diagnostics);
-    const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
-      encrypt: async (value) => Buffer.from(value),
-      decrypt: async (value) => value.toString(),
-      verify: async () => ({ state: "connected", keyLabel: "sk-or-v1-test...000" }),
-    });
     const preferences = createPreferences(userDataDirectory);
     directories.push(userDataDirectory);
     favoriteModels.set({ providerId: "provider-a", modelId: "model-a" }, true);
@@ -122,13 +104,10 @@ describe("storage areas", () => {
       name: "Model A",
       brandId: "brand-a",
     });
-    await openRouterConnection.connect("openrouter-test-key");
-
     const areas = createStorageAreas({
       diagnostics,
       favoriteModels,
       localState,
-      openRouterConnection,
       preferences,
       userDataDirectory,
     });
@@ -143,7 +122,6 @@ describe("storage areas", () => {
       localState.loadMainWindowState([{ x: 0, y: 0, width: 1920, height: 1080 }]),
     ).toBeUndefined();
     expect(preferences.campaign.getDefaultModel()).toBeNull();
-    expect(openRouterConnection.getConfiguration()).toEqual({ state: "disconnected" });
     expect(deleteDiagnostics).toHaveBeenCalledOnce();
 
     for (const path of areas.flatMap(({ paths }) => paths)) {

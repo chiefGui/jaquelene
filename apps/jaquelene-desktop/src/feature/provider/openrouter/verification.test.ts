@@ -3,6 +3,10 @@ import { verifyOpenRouterApiKey } from "./verification";
 
 afterEach(() => vi.restoreAllMocks());
 
+function operationSignal() {
+  return new AbortController().signal;
+}
+
 describe("OpenRouter API key verification", () => {
   it("returns OpenRouter's redacted label for an accepted key", async () => {
     const apiKey = "openrouter-accepted-key";
@@ -11,8 +15,8 @@ describe("OpenRouter API key verification", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(Response.json({ data: { label: keyLabel } }, { status: 200 }));
 
-    await expect(verifyOpenRouterApiKey(apiKey)).resolves.toEqual({
-      state: "connected",
+    await expect(verifyOpenRouterApiKey(apiKey, operationSignal())).resolves.toEqual({
+      state: "configured",
       keyLabel,
     });
     expect(request).toHaveBeenCalledWith("https://openrouter.ai/api/v1/key", {
@@ -27,9 +31,9 @@ describe("OpenRouter API key verification", () => {
   it("reports rejected authentication", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 401 }));
 
-    await expect(verifyOpenRouterApiKey("openrouter-rejected-key")).resolves.toEqual({
-      state: "rejected",
-    });
+    await expect(
+      verifyOpenRouterApiKey("openrouter-rejected-key", operationSignal()),
+    ).resolves.toEqual({ state: "rejected" });
   });
 
   it.each([
@@ -43,23 +47,25 @@ describe("OpenRouter API key verification", () => {
   ] as const)("reports %s as unavailable", async (_failure, request) => {
     vi.spyOn(globalThis, "fetch").mockImplementation(request);
 
-    await expect(verifyOpenRouterApiKey("openrouter-test-key")).resolves.toEqual({
-      state: "unavailable",
-    });
+    await expect(verifyOpenRouterApiKey("openrouter-test-key", operationSignal())).resolves.toEqual(
+      { state: "unavailable" },
+    );
   });
 
   it("preserves unexpected request failures", async () => {
     const failure = new Error("Unexpected failure");
     vi.spyOn(globalThis, "fetch").mockRejectedValue(failure);
 
-    await expect(verifyOpenRouterApiKey("openrouter-test-key")).rejects.toBe(failure);
+    await expect(verifyOpenRouterApiKey("openrouter-test-key", operationSignal())).rejects.toBe(
+      failure,
+    );
   });
 
   it("treats malformed success responses as unavailable", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ data: {} }, { status: 200 }));
 
-    await expect(verifyOpenRouterApiKey("openrouter-test-key")).resolves.toEqual({
-      state: "unavailable",
-    });
+    await expect(verifyOpenRouterApiKey("openrouter-test-key", operationSignal())).resolves.toEqual(
+      { state: "unavailable" },
+    );
   });
 });

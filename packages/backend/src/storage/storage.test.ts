@@ -4,12 +4,10 @@ import { join } from "node:path";
 import { Cause, Exit, ManagedRuntime } from "effect";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
-  StorageAreaId,
   StorageCategory,
   StorageService,
   type Storage,
   type StorageArea,
-  type StorageAreaId as StorageAreaIdValue,
   type StorageCategory as StorageCategoryValue,
 } from "./storage";
 
@@ -67,13 +65,13 @@ describe("storage", () => {
     const directory = createUserDataDirectory();
     const storage = await createTestStorage([
       {
-        id: StorageAreaId.Content,
+        id: "content",
         category: StorageCategory.Content,
         paths: [join(directory, "jaquelene.sqlite"), join(directory, "attachments")],
         delete: vi.fn(),
       },
       {
-        id: StorageAreaId.Preferences,
+        id: "preferences",
         category: StorageCategory.AppData,
         paths: [join(directory, "preferences.json")],
         delete: vi.fn(),
@@ -92,7 +90,7 @@ describe("storage", () => {
     const directory = createUserDataDirectory();
     const storage = await createTestStorage([
       {
-        id: StorageAreaId.Content,
+        id: "content",
         category: StorageCategory.Content,
         paths: [`${directory}\0`],
         delete: vi.fn(),
@@ -122,13 +120,13 @@ describe("storage", () => {
 
     const storage = await createTestStorage([
       {
-        id: StorageAreaId.Content,
+        id: "content",
         category: StorageCategory.Content,
         paths: [databasePath, attachmentsPath],
         delete: vi.fn(),
       },
       {
-        id: StorageAreaId.LocalState,
+        id: "local-state",
         category: StorageCategory.AppData,
         paths: [localStatePath],
         delete: vi.fn(),
@@ -148,7 +146,7 @@ describe("storage", () => {
     const databasePath = join(directory, "jaquelene.sqlite");
     const storage = await createTestStorage([
       {
-        id: StorageAreaId.Content,
+        id: "content",
         category: StorageCategory.Content,
         paths: [databasePath],
         delete: vi.fn(),
@@ -185,19 +183,19 @@ describe("storage", () => {
     writeFileSync(preferencesPath, Buffer.alloc(32));
     const storage = await createTestStorage([
       {
-        id: StorageAreaId.Content,
+        id: "content",
         category: StorageCategory.Content,
         paths: [contentPath],
         delete: deleteContent,
       },
       {
-        id: StorageAreaId.FavoriteModels,
+        id: "favorite-models",
         category: StorageCategory.AppData,
         paths: [favoritesPath],
         delete: deleteFavorites,
       },
       {
-        id: StorageAreaId.Preferences,
+        id: "preferences",
         category: StorageCategory.AppData,
         paths: [preferencesPath],
         delete: deletePreferences,
@@ -221,7 +219,7 @@ describe("storage", () => {
     const deletePreferences = vi.fn();
     const storage = await createTestStorage([
       {
-        id: StorageAreaId.FavoriteModels,
+        id: "favorite-models",
         category: StorageCategory.AppData,
         paths: [join(directory, "favorite-models.json")],
         delete: () => {
@@ -229,7 +227,7 @@ describe("storage", () => {
         },
       },
       {
-        id: StorageAreaId.Preferences,
+        id: "preferences",
         category: StorageCategory.AppData,
         paths: [join(directory, "preferences.json")],
         delete: deletePreferences,
@@ -257,7 +255,7 @@ describe("storage", () => {
     const events: string[] = [];
     const storage = await createTestStorage([
       {
-        id: StorageAreaId.Content,
+        id: "content",
         category: StorageCategory.Content,
         paths: [join(directory, "jaquelene.sqlite")],
         delete: async () => {
@@ -268,7 +266,7 @@ describe("storage", () => {
         },
       },
       {
-        id: StorageAreaId.FavoriteModels,
+        id: "favorite-models",
         category: StorageCategory.AppData,
         paths: [join(directory, "favorite-models.json")],
         delete: () => {
@@ -297,14 +295,14 @@ describe("storage", () => {
     });
   });
 
-  it("rejects unknown and conflicting owners during startup", async () => {
+  it("rejects missing and conflicting owner identities during startup", async () => {
     const directory = createUserDataDirectory();
     const sharedPath = join(directory, "shared.json");
 
     await expect(
       createTestStorage([
         {
-          id: "unknown" as StorageAreaIdValue,
+          id: "",
           category: StorageCategory.AppData,
           paths: [join(directory, "unknown.json")],
           delete: vi.fn(),
@@ -312,19 +310,19 @@ describe("storage", () => {
       ]),
     ).rejects.toMatchObject({
       name: "StorageConfigurationError",
-      cause: { message: 'Storage area "unknown" has an unknown identity.' },
+      cause: { message: "Storage areas require an identity." },
     });
 
     await expect(
       createTestStorage([
         {
-          id: StorageAreaId.Preferences,
+          id: "preferences",
           category: StorageCategory.AppData,
           paths: [sharedPath],
           delete: vi.fn(),
         },
         {
-          id: StorageAreaId.Preferences,
+          id: "preferences",
           category: StorageCategory.AppData,
           paths: [join(directory, "other.json")],
           delete: vi.fn(),
@@ -333,20 +331,20 @@ describe("storage", () => {
     ).rejects.toMatchObject({
       name: "StorageConfigurationError",
       cause: {
-        message: `Storage area "${StorageAreaId.Preferences}" is registered more than once.`,
+        message: 'Storage area "preferences" is registered more than once.',
       },
     });
 
     await expect(
       createTestStorage([
         {
-          id: StorageAreaId.Preferences,
+          id: "preferences",
           category: StorageCategory.AppData,
           paths: [sharedPath],
           delete: vi.fn(),
         },
         {
-          id: StorageAreaId.LocalState,
+          id: "local-state",
           category: StorageCategory.AppData,
           paths: [sharedPath],
           delete: vi.fn(),
@@ -363,13 +361,13 @@ describe("storage", () => {
     await expect(
       createTestStorage([
         {
-          id: StorageAreaId.Content,
+          id: "content",
           category: StorageCategory.Content,
           paths: [ownedDirectory],
           delete: vi.fn(),
         },
         {
-          id: StorageAreaId.LocalState,
+          id: "local-state",
           category: StorageCategory.AppData,
           paths: [nestedPath],
           delete: vi.fn(),

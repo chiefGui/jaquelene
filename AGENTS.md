@@ -28,9 +28,10 @@
 
 ## Git
 
-- Use plain-language Conventional Commit subjects.
+- Use plain-language Conventional Commit subjects and pull request titles.
 - Keep each commit to one coherent change.
 - In commit bodies, state the problem in one or two sentences, then explain the fix.
+- Open every pull request description with a short, plain-language value pitch: in one or two sentences, explain what the change makes possible and why it matters. Keep implementation details out of the pitch.
 
 ## Verifying
 

@@ -21,10 +21,7 @@ export function Home() {
           jaquelene
         </h1>
         <p {...stylex.props(styles.pitch)}>
-          <span {...stylex.props(styles.pitchLead)}>AI roleplay for everyone.</span>
-          <span {...stylex.props(styles.pitchDetail)}>
-            Powerful without complexity. Beautiful by design. Free and open source.
-          </span>
+          An app for roleplaying with AI—beautiful, simple, free, and open source.
         </p>
         <div {...stylex.props(styles.release)}>
           <span {...stylex.props(styles.status)}>
@@ -102,22 +99,13 @@ const styles = stylex.create({
     margin: "2rem 0 0",
   },
   pitch: {
-    display: "flex",
-    flexDirection: "column",
+    color: `color-mix(in oklab, ${tokens.foreground} 68%, transparent)`,
     fontSize: "clamp(1rem, 1.5vw, 1.125rem)",
     fontWeight: 400,
-    gap: "0.5rem",
     letterSpacing: "-0.02em",
     lineHeight: 1.55,
     margin: "1.75rem 0 0",
     maxWidth: "34rem",
-  },
-  pitchLead: {
-    color: tokens.foreground,
-    fontWeight: 500,
-  },
-  pitchDetail: {
-    color: `color-mix(in oklab, ${tokens.foreground} 68%, transparent)`,
   },
   release: {
     alignItems: "center",

@@ -79,7 +79,7 @@ function ComposerSubmit({
       type="submit"
       aria-busy={pending || undefined}
       aria-label={ariaLabel ?? (pending ? "Generating reply" : "Send message")}
-      disabled={pending || disabled}
+      disabled={pending || disabled === true}
       style={[styles.submit, style]}
     >
       <HugeiconsIcon

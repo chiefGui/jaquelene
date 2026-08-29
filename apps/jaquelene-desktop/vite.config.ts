@@ -1,6 +1,7 @@
 import { cpSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getBackendBuildDirectories } from "@jaquelene/backend/build";
 import { mergeConfig } from "vite";
 import type { Plugin } from "vite";
 import { defineConfig } from "vite-plus";
@@ -17,19 +18,18 @@ const worktreeRoot = realpathSync.native(fileURLToPath(new URL("../..", import.m
 const electronOutput = fileURLToPath(new URL("./dist-electron", import.meta.url));
 const mainOutput = join(electronOutput, "main");
 const mainEntry = fileURLToPath(new URL("./src/main.ts", import.meta.url));
-const migrationsDirectory = fileURLToPath(
-  new URL("../../packages/backend/src/migrations", import.meta.url),
-);
-const migrationsOutput = join(mainOutput, "migrations");
 const preloadOutput = join(electronOutput, "preload");
 const preloadEntry = fileURLToPath(new URL("./src/preload.ts", import.meta.url));
+const backendBuildDirectories = getBackendBuildDirectories(mainOutput);
 
-const migrationsPlugin = {
-  name: "jaquelene-database-migrations",
+const backendBuildPlugin = {
+  name: "jaquelene-backend-build-directories",
   apply: "build",
   writeBundle: () => {
-    rmSync(migrationsOutput, { recursive: true, force: true });
-    cpSync(migrationsDirectory, migrationsOutput, { recursive: true });
+    for (const { sourceDirectory, destinationDirectory } of backendBuildDirectories) {
+      rmSync(destinationDirectory, { recursive: true, force: true });
+      cpSync(sourceDirectory, destinationDirectory, { recursive: true });
+    }
   },
 } satisfies Plugin;
 
@@ -47,7 +47,7 @@ export default defineConfig(({ command }) => {
               conditions: ipcConditions,
               tsconfigPaths: true,
             },
-            plugins: [migrationsPlugin],
+            plugins: [backendBuildPlugin],
             build: {
               outDir: mainOutput,
               emptyOutDir: true,

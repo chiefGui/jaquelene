@@ -1,8 +1,8 @@
 import { drizzle } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
 import { Context, Effect, Layer } from "effect";
-import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { databaseMigrationsDirectory } from "./migrations";
 
 class DatabaseOpeningError extends Error {
   override readonly name = "DatabaseOpeningError";
@@ -23,7 +23,7 @@ export function openDatabase(path: string) {
     client.exec("PRAGMA foreign_keys = ON;");
 
     const database = drizzle({ client });
-    migrate(database, { migrationsFolder: join(import.meta.dirname, "../migrations") });
+    migrate(database, { migrationsFolder: databaseMigrationsDirectory });
 
     return database;
   } catch (error) {

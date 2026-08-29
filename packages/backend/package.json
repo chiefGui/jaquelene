@@ -7,7 +7,8 @@
     "#backend/*": "./src/*.ts"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./build": "./src/build.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate --config drizzle.config.ts"

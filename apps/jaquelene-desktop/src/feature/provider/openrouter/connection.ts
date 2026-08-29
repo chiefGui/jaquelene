@@ -7,13 +7,14 @@ type StoredOpenRouterCredential = {
   keyLabel?: string;
 };
 
+export type OpenRouterConnectResult = OpenRouterVerification;
+
 type OpenRouterConnectionDependencies = {
   encrypt: (value: string) => Promise<Buffer>;
   decrypt: (value: Buffer) => Promise<string>;
-  verify: (apiKey: string) => Promise<OpenRouterVerification>;
+  verify: (apiKey: string) => Promise<OpenRouterConnectResult>;
 };
 
-export type OpenRouterConnectionStatus = { state: "disconnected" } | OpenRouterVerification;
 export type OpenRouterConfiguration =
   | { state: "disconnected" }
   | { state: "configured"; keyLabel?: string };
@@ -108,10 +109,7 @@ export function createOpenRouterConnection(
     },
 
     disconnect() {
-      return mutate(() => {
-        store.clear();
-        return { state: "disconnected" } as const;
-      });
+      return mutate(() => store.clear());
     },
   };
 }

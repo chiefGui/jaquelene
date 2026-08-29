@@ -100,7 +100,6 @@ type ModelPickerContextValue = {
   modelList: ModelListState;
   pendingFavorites: ModelReference[];
   pickerStatus: ModelPickerStatus;
-  onValueChange: (value: ModelSelection) => void;
   selectTab: (tabId: string | null | undefined) => void;
   setFavorite: (reference: ModelReference, favorite: boolean) => void;
   tabs: ModelTab[];
@@ -351,7 +350,6 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
     modelList,
     pendingFavorites,
     pickerStatus,
-    onValueChange,
     selectTab,
     setFavorite,
     tabs,
@@ -384,15 +382,6 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
   );
 }
 
-function ModelPickerSelectedValue({ selection }: { selection: ModelSelection }) {
-  return (
-    <>
-      <ModelMark brandId={selection.brandId} style={styles.selectedModelMark} />
-      <Select.Value style={styles.selectedValue}>{selection.name}</Select.Value>
-    </>
-  );
-}
-
 function ModelPickerValue({
   style,
   ...props
@@ -406,7 +395,10 @@ function ModelPickerValue({
   return (
     <span {...spanProps} {...stylex.props(styles.value, style)}>
       {value ? (
-        <ModelPickerSelectedValue selection={value} />
+        <>
+          <ModelMark brandId={value.brandId} style={styles.selectedModelMark} />
+          <Select.Value style={styles.selectedValue}>{value.name}</Select.Value>
+        </>
       ) : (
         <Select.Value style={styles.placeholderValue}>{placeholder}</Select.Value>
       )}

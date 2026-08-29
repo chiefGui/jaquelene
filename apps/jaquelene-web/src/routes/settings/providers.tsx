@@ -1,4 +1,4 @@
-import { OpenRouterConfigurationState, OpenRouterConnectionState } from "@jaquelene/ipc/renderer";
+import { OpenRouterConfigurationState, OpenRouterConnectState } from "@jaquelene/ipc/renderer";
 import { Button, Input, Item } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
@@ -66,18 +66,16 @@ function ProvidersRoute() {
       const status = await connectOpenRouter.mutateAsync(apiKey);
 
       switch (status.state) {
-        case OpenRouterConnectionState.Connected:
+        case OpenRouterConnectState.Connected:
           form.reset();
           setEditingConnection(false);
           return;
-        case OpenRouterConnectionState.Rejected:
+        case OpenRouterConnectState.Rejected:
           setConnectionError("OpenRouter rejected this API key.");
           return;
-        case OpenRouterConnectionState.Unavailable:
+        case OpenRouterConnectState.Unavailable:
           setConnectionError("Couldn’t reach OpenRouter. Try again.");
           return;
-        case OpenRouterConnectionState.Disconnected:
-          throw new Error("OpenRouter returned an invalid connection state.");
       }
     } catch (cause) {
       console.error("Could not connect to OpenRouter.", cause);

@@ -1,6 +1,6 @@
 import {
   OpenRouterConnection,
-  OpenRouterConnectionState,
+  OpenRouterConnectState,
   OpenRouterConfigurationState,
   type OpenRouterConfiguration,
 } from "@jaquelene/ipc/renderer";
@@ -31,7 +31,7 @@ export function useConnectOpenRouter() {
     ...ipcMutationOptions,
     mutationFn: connectOpenRouter,
     onSuccess(status) {
-      if (status.state === OpenRouterConnectionState.Connected) {
+      if (status.state === OpenRouterConnectState.Connected) {
         queryClient.setQueryData<OpenRouterConfiguration>(openRouterConfigurationQuery.queryKey, {
           state: OpenRouterConfigurationState.Configured,
           ...(status.keyLabel ? { keyLabel: status.keyLabel } : {}),

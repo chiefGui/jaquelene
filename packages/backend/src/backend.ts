@@ -1,9 +1,9 @@
 import { Cause, Context, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { createCampaigns, type Campaigns } from "#backend/campaign/campaigns";
 import { DatabaseService } from "#backend/database/database";
-import { createGenerations, type Generations } from "#backend/generation/generations";
+import type { Generations } from "#backend/generation/generations";
 import { createTurnPromptCompiler } from "#backend/generation/prompt";
-import { superviseGenerations } from "#backend/generation/supervisor";
+import { createGenerationSubsystem } from "#backend/generation/subsystem";
 import type { ProviderAdapter } from "#backend/provider/provider";
 import { ProvidersService, type Models, type Providers } from "#backend/provider/providers";
 import { createScenarios, type Scenarios } from "#backend/scenario/scenarios";
@@ -62,18 +62,12 @@ function createApplicationLayer() {
           const scenarios = createScenarios(database);
           const campaigns = createCampaigns(database);
           const threads = createThreads(database);
-          const generationEngine = createGenerations(
+          const generationSubsystem = createGenerationSubsystem({
             database,
-            createTurnPromptCompiler(threads),
-            providers.generations,
-          );
-          generationEngine.recoverInterrupted();
-          const supervisedGenerations = superviseGenerations(generationEngine);
-          const turns = createTurns(threads, {
-            executeReply: supervisedGenerations.executeReply,
-            listLatestForTurns: generationEngine.listLatestForTurns,
-            requireRegisteredModel: generationEngine.requireRegisteredModel,
+            promptCompiler: createTurnPromptCompiler(threads),
+            providers: providers.generations,
           });
+          const turns = createTurns(threads, generationSubsystem.replies);
 
           return ApplicationService.of({
             scenarios,
@@ -82,8 +76,8 @@ function createApplicationLayer() {
             turns,
             providers: providers.providers,
             models: providers.models,
-            generations: supervisedGenerations.generations,
-            close: supervisedGenerations.close,
+            generations: generationSubsystem.generations,
+            close: generationSubsystem.close,
           });
         }),
         (application) => Effect.promise(() => application.close()),

@@ -1,7 +1,7 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { Database } from "@/database";
-import { threadMessageTable, threadTable } from "./schema";
+import { threadMessageTable, threadTable, type ThreadMessage } from "./schema";
 
 export const THREAD_MESSAGE_CONTENT_MAX_LENGTH = 100_000;
 export const THREAD_MESSAGE_PAGE_SIZE = 50;
@@ -11,12 +11,20 @@ type ListThreadMessagesRequest = {
   before?: string;
 };
 
+type AppendThreadMessageRequest = {
+  threadId: string;
+  author: ThreadMessage["author"];
+  content: string;
+  createdAt: number;
+  expectedSequence?: number;
+};
+
 const threadSelection = {
   id: threadTable.id,
   createdAt: threadTable.createdAt,
 } as const;
 
-function requireMessageContent(content: string) {
+export function requireThreadMessageContent(content: string) {
   if (content.length > THREAD_MESSAGE_CONTENT_MAX_LENGTH) {
     throw new RangeError(
       `Thread message content cannot exceed ${THREAD_MESSAGE_CONTENT_MAX_LENGTH} characters.`,
@@ -52,6 +60,19 @@ function threadNotFound(id: string) {
   return new RangeError(`Thread "${id}" does not exist.`);
 }
 
+function threadExists(database: Database, id: string) {
+  return Boolean(
+    database.select({ id: threadTable.id }).from(threadTable).where(eq(threadTable.id, id)).get(),
+  );
+}
+
+export class ThreadSequenceConflictError extends Error {
+  constructor(threadId: string, expectedSequence: number) {
+    super(`Thread "${threadId}" no longer ends at message ${expectedSequence}.`);
+    this.name = "ThreadSequenceConflictError";
+  }
+}
+
 export function insertThread(database: Pick<Database, "insert">, createdAt: number) {
   const thread = {
     id: randomUUID(),
@@ -61,6 +82,45 @@ export function insertThread(database: Pick<Database, "insert">, createdAt: numb
 
   database.insert(threadTable).values(thread).run();
   return { id: thread.id, createdAt: thread.createdAt };
+}
+
+export function appendThreadMessageInTransaction(
+  database: Pick<Database, "insert" | "update">,
+  { threadId, author, content: value, createdAt, expectedSequence }: AppendThreadMessageRequest,
+) {
+  const content = requireThreadMessageContent(value);
+  const predicate =
+    expectedSequence === undefined
+      ? eq(threadTable.id, threadId)
+      : and(eq(threadTable.id, threadId), eq(threadTable.lastMessageSequence, expectedSequence));
+  const allocation = database
+    .update(threadTable)
+    .set({
+      lastMessageSequence: sql`${threadTable.lastMessageSequence} + 1`,
+    })
+    .where(predicate)
+    .returning({ sequence: threadTable.lastMessageSequence })
+    .get();
+
+  if (!allocation) {
+    if (expectedSequence !== undefined) {
+      throw new ThreadSequenceConflictError(threadId, expectedSequence);
+    }
+
+    throw threadNotFound(threadId);
+  }
+
+  const message = {
+    id: randomUUID(),
+    threadId,
+    sequence: allocation.sequence,
+    author,
+    content,
+    createdAt,
+  };
+
+  database.insert(threadMessageTable).values(message).run();
+  return message;
 }
 
 export function createThreads(database: Database, now: () => number = Date.now) {
@@ -77,34 +137,29 @@ export function createThreads(database: Database, now: () => number = Date.now) 
     },
 
     appendUserMessage(threadId: string, value: string) {
-      const content = requireMessageContent(value);
-
-      return database.transaction((transaction) => {
-        const allocation = transaction
-          .update(threadTable)
-          .set({
-            lastMessageSequence: sql`${threadTable.lastMessageSequence} + 1`,
-          })
-          .where(eq(threadTable.id, threadId))
-          .returning({ sequence: threadTable.lastMessageSequence })
-          .get();
-
-        if (!allocation) {
-          throw threadNotFound(threadId);
-        }
-
-        const message = {
-          id: randomUUID(),
+      return database.transaction((transaction) =>
+        appendThreadMessageInTransaction(transaction, {
           threadId,
-          sequence: allocation.sequence,
           author: "user",
-          content,
+          content: value,
           createdAt: now(),
-        } as const;
+        }),
+      );
+    },
 
-        transaction.insert(threadMessageTable).values(message).run();
-        return message;
-      });
+    listAllMessages(threadId: string) {
+      const messages = database
+        .select()
+        .from(threadMessageTable)
+        .where(eq(threadMessageTable.threadId, threadId))
+        .orderBy(asc(threadMessageTable.sequence))
+        .all();
+
+      if (messages.length === 0 && !threadExists(database, threadId)) {
+        throw threadNotFound(threadId);
+      }
+
+      return messages;
     },
 
     listMessages({ threadId, before }: ListThreadMessagesRequest) {
@@ -124,14 +179,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
         .limit(THREAD_MESSAGE_PAGE_SIZE + 1)
         .all();
 
-      if (
-        newestFirst.length === 0 &&
-        !database
-          .select({ id: threadTable.id })
-          .from(threadTable)
-          .where(eq(threadTable.id, threadId))
-          .get()
-      ) {
+      if (newestFirst.length === 0 && !threadExists(database, threadId)) {
         throw threadNotFound(threadId);
       }
 

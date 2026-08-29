@@ -6,6 +6,8 @@ import { exposeUserInterfacePreferences } from "./feature/appearance/user-interf
 import { getInterfaceScaleFactor } from "./feature/appearance/user-interface/preferences";
 import { createCampaigns, type Campaigns } from "./feature/campaign/campaigns";
 import { exposeCampaignPreferences, exposeCampaigns } from "./feature/campaign/ipc";
+import { createGenerations } from "./feature/generation/generations";
+import { createThreadPromptCompiler } from "./feature/generation/prompt";
 import { createModelCatalog, type ModelCatalog } from "./feature/model/catalog";
 import { exposeModelCatalog } from "./feature/model/catalog-ipc";
 import { createFavoriteModels, type FavoriteModels } from "./feature/model/favorite-models";
@@ -19,6 +21,7 @@ import {
   getOpenRouterConnectionStoragePaths,
   type OpenRouterConnection,
 } from "./feature/provider/openrouter/connection";
+import { createOpenRouterGenerationProvider } from "./feature/provider/openrouter/generation";
 import { exposeOpenRouterConnection } from "./feature/provider/openrouter/ipc";
 import { createOpenRouterModelProvider } from "./feature/provider/openrouter/models";
 import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verification";
@@ -34,6 +37,12 @@ import {
 } from "./preferences/preferences";
 import { exposeStorage } from "./storage/ipc";
 import { createStorage, type AppStorage } from "./storage/storage";
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
 
 registerAppScheme();
 
@@ -137,9 +146,27 @@ async function requireSecureStorage() {
   }
 }
 
+if (hasSingleInstanceLock) {
+  app.on("second-instance", () => {
+    const [window] = BrowserWindow.getAllWindows();
+
+    if (window) {
+      if (window.isMinimized()) {
+        window.restore();
+      }
+
+      window.focus();
+    }
+  });
+}
+
 void app
   .whenReady()
   .then(async () => {
+    if (!hasSingleInstanceLock) {
+      return;
+    }
+
     if (!developmentServerUrl) {
       const webAppDirectory = app.isPackaged
         ? join(process.resourcesPath, "web")
@@ -167,6 +194,10 @@ void app
       },
       verify: verifyOpenRouterApiKey,
     });
+    const generations = createGenerations(database, createThreadPromptCompiler(threads), [
+      createOpenRouterGenerationProvider(openRouterConnection),
+    ]);
+    generations.recoverInterrupted();
     const modelCatalog = createModelCatalog([createOpenRouterModelProvider(openRouterConnection)]);
     const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
     const preferences = createPreferences(userDataDirectory);

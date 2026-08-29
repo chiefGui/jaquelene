@@ -69,6 +69,10 @@
         "@types/node": "^26.3.0",
       },
     },
+    "packages/diagnostics": {
+      "name": "@jaquelene/diagnostics",
+      "version": "0.0.0",
+    },
     "packages/ipc": {
       "name": "@jaquelene/ipc",
       "version": "0.0.0",
@@ -265,6 +269,8 @@
     "@isaacs/fs-minipass": ["@isaacs/fs-minipass@4.0.1", "", { "dependencies": { "minipass": "^7.0.4" } }, "sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w=="],
 
     "@jaquelene/backend": ["@jaquelene/backend@workspace:packages/backend"],
+
+    "@jaquelene/diagnostics": ["@jaquelene/diagnostics@workspace:packages/diagnostics"],
 
     "@jaquelene/ipc": ["@jaquelene/ipc@workspace:packages/ipc"],
 

@@ -3,6 +3,10 @@ import { app, safeStorage } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
 import { closeDatabase, openDatabase } from "./database";
+import {
+  developmentProfileEnvironmentVariable,
+  prepareApplicationInstance,
+} from "./development-profile";
 import { createCampaigns } from "./feature/campaign/campaigns";
 import { createGenerations } from "./feature/generation/generations";
 import { createThreadPromptCompiler } from "./feature/generation/prompt";
@@ -20,7 +24,14 @@ import { createMainWindow } from "./main-window";
 import { createPreferences } from "./preferences/preferences";
 import { createStorageManifest } from "./storage/manifest";
 
-const hasSingleInstanceLock = app.requestSingleInstanceLock();
+const { developmentProfile, hasSingleInstanceLock } = prepareApplicationInstance(
+  app,
+  process.env[developmentProfileEnvironmentVariable],
+);
+
+if (developmentProfile) {
+  console.info(`Jaquelene development profile: ${developmentProfile.userDataDirectory}`);
+}
 
 if (!hasSingleInstanceLock) {
   app.quit();

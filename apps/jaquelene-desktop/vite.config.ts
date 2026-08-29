@@ -1,4 +1,4 @@
-import { cpSync } from "node:fs";
+import { cpSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mergeConfig } from "vite";
@@ -6,8 +6,14 @@ import type { Plugin } from "vite";
 import { defineConfig } from "vite-plus";
 import electron from "vite-plugin-electron/simple";
 import webConfig from "../jaquelene-web/vite.config";
+import {
+  createDevelopmentProfileId,
+  developmentProfileEnvironmentVariable,
+  requireDevelopmentProfileId,
+} from "./src/development-profile";
 
 const desktopRoot = fileURLToPath(new URL(".", import.meta.url));
+const worktreeRoot = realpathSync.native(fileURLToPath(new URL("../..", import.meta.url)));
 const electronOutput = fileURLToPath(new URL("./dist-electron", import.meta.url));
 const mainOutput = join(electronOutput, "main");
 const mainEntry = fileURLToPath(new URL("./src/main.ts", import.meta.url));
@@ -47,7 +53,18 @@ export default defineConfig(({ command }) => {
             },
           },
           onstart: async ({ startup }) => {
-            await startup(["."], { cwd: desktopRoot });
+            const developmentProfileId = requireDevelopmentProfileId(
+              process.env[developmentProfileEnvironmentVariable] ??
+                createDevelopmentProfileId(worktreeRoot),
+            );
+
+            await startup(["."], {
+              cwd: desktopRoot,
+              env: {
+                ...process.env,
+                [developmentProfileEnvironmentVariable]: developmentProfileId,
+              },
+            });
           },
         },
         preload: {

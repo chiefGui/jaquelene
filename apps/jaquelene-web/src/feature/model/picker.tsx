@@ -50,6 +50,7 @@ import {
   usePendingFavoriteModels,
   useSetFavoriteModel,
 } from "./favorite-models";
+import { formatTokenPrice } from "./format-token-price";
 
 type ProviderTab = ModelProvider & {
   brandName: string;
@@ -598,16 +599,23 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                     <span {...stylex.props(styles.modelText)}>
                       <span {...stylex.props(styles.modelName, selected && styles.selectedModel)}>
                         {model.name}
+                        <span {...stylex.props(styles.modelAttribution)}>
+                          {" · "}
+                          {modelBrandName}
+                          {activeTab.type === "favorites" && provider.brandName !== modelBrandName
+                            ? ` via ${provider.brandName}`
+                            : null}
+                        </span>
                       </span>
                       <span {...stylex.props(styles.modelMetadata)}>
-                        {activeTab.type === "favorites" ? (
+                        {model.tokenPricing ? (
                           <>
-                            {provider.brandName} &middot; {modelBrandName} &middot; {model.id}
+                            Input {formatTokenPrice(model.tokenPricing.inputUsdPerMillion)}
+                            {" · "}
+                            Output {formatTokenPrice(model.tokenPricing.outputUsdPerMillion)}
                           </>
                         ) : (
-                          <>
-                            {modelBrandName} &middot; {model.id}
-                          </>
+                          "Pricing varies"
                         )}
                       </span>
                     </span>
@@ -959,6 +967,9 @@ const styles = stylex.create({
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
+  modelAttribution: {
+    color: tokens.muted,
+  },
   modelMetadata: {
     color: tokens.muted,
     display: "block",
@@ -1015,7 +1026,7 @@ const styles = stylex.create({
     gap: "0.25rem",
   },
   skeletonRow: {
-    height: "3.5rem",
+    height: modelOptionHeight,
   },
   skeletonContent: {
     alignItems: "flex-start",
@@ -1196,7 +1207,6 @@ const styles = stylex.create({
       ":focus": "transparent",
     },
     borderWidth: 0,
-    height: "2.5rem",
     paddingLeft: "2.25rem",
     paddingRight: "0.75rem",
     width: "100%",

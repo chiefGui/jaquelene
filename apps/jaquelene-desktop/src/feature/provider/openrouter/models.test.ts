@@ -12,34 +12,62 @@ describe("OpenRouter model provider", () => {
         return use(apiKey);
       },
     };
+    const pricing = { prompt: "0.000002", completion: "0.000006", discount: 0.5 };
     const loadModels = vi.fn(async () => [
       {
         id: "meta-llama/text-model",
         name: "Meta: Text model",
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+        pricing,
       },
       {
         id: "new-lab/research-model",
         name: "New Lab: Research model",
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+        pricing,
       },
       {
         id: "x-ai/grok-model",
         name: "SpaceXAI: Grok model",
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+        pricing,
+      },
+      {
+        id: "openrouter/auto-beta",
+        name: "OpenRouter: Auto Beta",
+        architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+        pricing: { prompt: "-1", completion: "-1" },
       },
       {
         id: "author/image-model",
         name: "Image model",
         architecture: { inputModalities: ["text"], outputModalities: ["image"] },
+        pricing,
       },
     ]);
     const provider = createOpenRouterModelProvider(connection, loadModels);
+    const tokenPricing = { inputUsdPerMillion: 1, outputUsdPerMillion: 3 };
 
     await expect(provider.listModels()).resolves.toEqual([
-      { id: "meta-llama/text-model", name: "Text model", brandId: "meta" },
-      { id: "new-lab/research-model", name: "Research model", brandId: "new-lab" },
-      { id: "x-ai/grok-model", name: "Grok model", brandId: "x-ai" },
+      {
+        id: "meta-llama/text-model",
+        name: "Text model",
+        brandId: "meta",
+        tokenPricing,
+      },
+      {
+        id: "new-lab/research-model",
+        name: "Research model",
+        brandId: "new-lab",
+        tokenPricing,
+      },
+      {
+        id: "x-ai/grok-model",
+        name: "Grok model",
+        brandId: "x-ai",
+        tokenPricing,
+      },
+      { id: "openrouter/auto-beta", name: "Auto Beta", brandId: "openrouter" },
     ]);
     expect(provider.brandId).toBe("openrouter");
     expect(useCredential).toHaveBeenCalledOnce();
@@ -61,5 +89,26 @@ describe("OpenRouter model provider", () => {
     const provider = createOpenRouterModelProvider(connection, loadModels);
 
     await expect(provider.listModels()).rejects.toBe(failure);
+  });
+
+  it("rejects invalid model pricing", async () => {
+    const connection = {
+      getStatus: async () => ({ state: "connected", keyLabel: "Jaquelene" }) as const,
+      async withApiKey<Result>(use: (value: string) => Promise<Result>) {
+        return use("openrouter-model-key");
+      },
+    };
+    const provider = createOpenRouterModelProvider(connection, async () => [
+      {
+        id: "author/invalid-price",
+        name: "Invalid price",
+        architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+        pricing: { prompt: "not-a-price", completion: "0.000001" },
+      },
+    ]);
+
+    await expect(provider.listModels()).rejects.toThrow(
+      'OpenRouter model "author/invalid-price" has invalid pricing.',
+    );
   });
 });

@@ -10,6 +10,11 @@ type OpenRouterCatalogModel = {
     inputModalities: readonly string[];
     outputModalities: readonly string[];
   };
+  pricing: {
+    prompt: string;
+    completion: string;
+    discount?: number | undefined;
+  };
 };
 
 type LoadOpenRouterModels = (apiKey: string) => Promise<readonly OpenRouterCatalogModel[]>;
@@ -54,7 +59,46 @@ function normalizeIdentity(value: string) {
   return value.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
 }
 
-function normalizeModel({ id, name }: OpenRouterCatalogModel) {
+function normalizeTokenPricing(
+  id: string,
+  { prompt, completion, discount = 0 }: OpenRouterCatalogModel["pricing"],
+) {
+  const inputUsdPerToken = Number(prompt);
+  const outputUsdPerToken = Number(completion);
+
+  if (
+    !prompt.trim() ||
+    !completion.trim() ||
+    !Number.isFinite(inputUsdPerToken) ||
+    !Number.isFinite(outputUsdPerToken) ||
+    !Number.isFinite(discount) ||
+    discount < 0 ||
+    discount > 1
+  ) {
+    throw new TypeError(`OpenRouter model "${id}" has invalid pricing.`);
+  }
+
+  if (inputUsdPerToken === -1 || outputUsdPerToken === -1) {
+    return undefined;
+  }
+
+  const multiplier = (1 - discount) * 1_000_000;
+  const inputUsdPerMillion = inputUsdPerToken * multiplier;
+  const outputUsdPerMillion = outputUsdPerToken * multiplier;
+
+  if (
+    !Number.isFinite(inputUsdPerMillion) ||
+    inputUsdPerMillion < 0 ||
+    !Number.isFinite(outputUsdPerMillion) ||
+    outputUsdPerMillion < 0
+  ) {
+    throw new TypeError(`OpenRouter model "${id}" has invalid pricing.`);
+  }
+
+  return { inputUsdPerMillion, outputUsdPerMillion };
+}
+
+function normalizeModel({ id, name, pricing }: OpenRouterCatalogModel) {
   const separator = id.indexOf("/");
   const authorId =
     separator > 0 ? id.slice(0, separator).replace(/^~+/, "").trim().toLowerCase() : "";
@@ -84,7 +128,14 @@ function normalizeModel({ id, name }: OpenRouterCatalogModel) {
     throw new TypeError(`OpenRouter model "${id}" has no name.`);
   }
 
-  return { brandId, id, name: displayName };
+  const tokenPricing = normalizeTokenPricing(id, pricing);
+
+  return {
+    brandId,
+    id,
+    name: displayName,
+    ...(tokenPricing ? { tokenPricing } : {}),
+  };
 }
 
 export function createOpenRouterModelProvider(

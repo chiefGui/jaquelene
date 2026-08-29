@@ -13,9 +13,13 @@ export type AvailableModel = {
   id: string;
   name: string;
   brandId: string;
+  tokenPricing?: {
+    inputUsdPerMillion: number;
+    outputUsdPerMillion: number;
+  };
 };
 
-export type ModelSelection = ModelReference & Omit<AvailableModel, "id">;
+export type ModelSelection = ModelReference & Pick<AvailableModel, "brandId" | "name">;
 
 export function requireModelSelection(selection: ModelSelection) {
   requireModelReference(selection);

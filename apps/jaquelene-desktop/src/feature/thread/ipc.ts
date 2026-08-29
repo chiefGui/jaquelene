@@ -1,11 +1,9 @@
+import { ids, type ThreadMessage, type Threads } from "@jaquelene/backend";
 import {
   ThreadMessageAuthor as IpcThreadMessageAuthor,
   Threads as ThreadsIpc,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
-import { ids } from "@/id";
-import type { ThreadMessage } from "./schema";
-import type { Threads } from "./threads";
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
   switch (author) {

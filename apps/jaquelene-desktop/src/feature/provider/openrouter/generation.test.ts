@@ -1,7 +1,6 @@
 import type { ChatResult } from "@openrouter/sdk/models";
+import { ids, type GenerationProviderRequest } from "@jaquelene/backend";
 import { describe, expect, it, vi } from "vite-plus/test";
-import type { GenerationProviderRequest } from "@/feature/generation/provider";
-import { ids } from "@/id";
 import { createOpenRouterGenerationProvider } from "./generation";
 
 function chatResult(overrides: Partial<ChatResult> = {}): ChatResult {

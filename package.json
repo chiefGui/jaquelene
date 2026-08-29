@@ -11,7 +11,7 @@
     "audit": "bun audit --audit-level=high",
     "build:ipc": "bun run --cwd packages/ipc build",
     "build:ipc:development": "bun run --cwd packages/ipc build:development",
-    "db:generate": "bun run --cwd apps/jaquelene-desktop db:generate",
+    "db:generate": "bun run --cwd packages/backend db:generate",
     "dev": "bun run build:ipc:development && vp dev",
     "dev:web": "bun run --cwd apps/jaquelene-web dev",
     "build": "bun run typecheck && vp build",

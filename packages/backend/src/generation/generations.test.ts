@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { closeDatabase, openDatabase, type Database } from "@/database";
-import { threadMessageTable } from "@/feature/thread/schema";
-import { createThreads } from "@/feature/thread/threads";
-import { ids } from "@/id";
+import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
+import { ids } from "#backend/id";
+import { threadMessageTable } from "#backend/thread/schema";
+import { createThreads } from "#backend/thread/threads";
 import { createGenerations } from "./generations";
 import { createTurnPromptCompiler } from "./prompt";
 import type { GenerationProvider, GenerationProviderResult } from "./provider";
@@ -317,6 +317,34 @@ describe("generations", () => {
     });
   });
 
+  it("records interruption without waiting for an uncooperative provider", async () => {
+    const provider = {
+      id: "provider-a",
+      generate: vi.fn(() => new Promise<GenerationProviderResult>(() => {})),
+    };
+    const { database, generations, threads } = openGenerationEnvironment(provider);
+    const thread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
+    const controller = new AbortController();
+    const interruption = new Error("Generation interrupted by test.");
+    const pending = generations.generateReply({
+      turnId: started.turn.id,
+      model: { providerId: provider.id, modelId: "maker/model" },
+      signal: controller.signal,
+    });
+    await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledOnce());
+
+    controller.abort(interruption);
+
+    await expect(pending).rejects.toBe(interruption);
+    expect(database.select().from(generationTable).get()).toEqual(
+      expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
+    );
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [started.message],
+    });
+  });
+
   it("rolls back the assistant message and head when completion storage fails", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { database, generations, threads } = openGenerationEnvironment(provider);
@@ -533,6 +561,31 @@ describe("generations", () => {
         model: { providerId: "missing-provider", modelId: "maker/model" },
       }),
     ).rejects.toThrow('Unknown generation provider "missing-provider".');
+    expect(provider.generate).not.toHaveBeenCalled();
+    expect(database.select().from(generationTable).all()).toEqual([]);
+  });
+
+  it("stops waiting for an uncooperative prompt compiler when interrupted", async () => {
+    const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
+    const { database, threads } = openGenerationEnvironment(provider);
+    const thread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
+    const compile = vi.fn(() => new Promise<never>(() => {}));
+    const generations = createGenerations(database, { compile }, [provider]);
+    const controller = new AbortController();
+    const interruption = new Error("Prompt compilation interrupted by test.");
+    const pending = generations.generateReply({
+      turnId: started.turn.id,
+      model: { providerId: provider.id, modelId: "maker/model" },
+      signal: controller.signal,
+    });
+    await vi.waitFor(() =>
+      expect(compile).toHaveBeenCalledWith(started.turn.id, controller.signal),
+    );
+
+    controller.abort(interruption);
+
+    await expect(pending).rejects.toBe(interruption);
     expect(provider.generate).not.toHaveBeenCalled();
     expect(database.select().from(generationTable).all()).toEqual([]);
   });

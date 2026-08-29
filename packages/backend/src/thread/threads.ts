@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import type { Database } from "@/database";
-import { ids, type MessageId, type ThreadId, type TurnId } from "@/id";
+import type { Database } from "#backend/database/database";
+import { ids, type MessageId, type ThreadId, type TurnId } from "#backend/id";
 import {
   threadMessageTable,
   threadTable,

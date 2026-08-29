@@ -1,17 +1,22 @@
 import { and, eq, sql } from "drizzle-orm";
-import type { Database } from "@/database";
-import { requireModelReference, type ModelReference } from "@/feature/model/catalog";
+import type { Database } from "#backend/database/database";
 import {
   appendAssistantMessageInTransaction,
   requireThreadMessageContent,
-} from "@/feature/thread/threads";
-import { threadTable } from "@/feature/thread/schema";
-import { ids, type GenerationId, type TurnId } from "@/id";
+} from "#backend/thread/threads";
+import { threadTable } from "#backend/thread/schema";
+import { ids, type GenerationId, type TurnId } from "#backend/id";
 import type { GenerationPrompt, GenerationPromptCompiler } from "./prompt";
-import type { GenerationProvider, GenerationProviderResult, GenerationUsage } from "./provider";
+import {
+  requireModelReference,
+  type GenerationProvider,
+  type GenerationProviderResult,
+  type GenerationUsage,
+  type ModelReference,
+} from "./provider";
 import { generationTable, type Generation, type GenerationFailureKind } from "./schema";
 
-type GenerateReplyRequest = {
+export type GenerateReplyRequest = {
   turnId: TurnId;
   model: ModelReference;
   signal?: AbortSignal;
@@ -24,6 +29,66 @@ type NormalizedProviderResult = {
   finishReason: string | null;
   usage: GenerationUsage | null;
 };
+
+function interruptionCause(signal: AbortSignal) {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("Generation was interrupted.", { cause: signal.reason });
+}
+
+function waitForOperation<Result>(operation: Promise<Result>, signal?: AbortSignal) {
+  if (!signal) {
+    return operation;
+  }
+
+  if (signal.aborted) {
+    void operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return Promise.reject(interruptionCause(signal));
+  }
+
+  const interruptionSignal = signal;
+
+  return new Promise<Result>((resolve, reject) => {
+    let settled = false;
+
+    function beginSettlement() {
+      if (settled) {
+        return false;
+      }
+
+      settled = true;
+      interruptionSignal.removeEventListener("abort", onAbort);
+      return true;
+    }
+
+    function onAbort() {
+      if (beginSettlement()) {
+        reject(interruptionCause(interruptionSignal));
+      }
+    }
+
+    interruptionSignal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => {
+        if (beginSettlement()) {
+          resolve(value);
+        }
+      },
+      (cause: unknown) => {
+        if (beginSettlement()) {
+          reject(cause);
+        }
+      },
+    );
+
+    if (interruptionSignal.aborted) {
+      onAbort();
+    }
+  });
+}
 
 function requireOptionalText(value: string | undefined, field: string) {
   if (value === undefined) {
@@ -181,7 +246,14 @@ export function createGenerations(
         throw new RangeError(`Unknown generation provider "${model.providerId}".`);
       }
 
-      const prompt = requirePrompt(await promptCompiler.compile(turnId), turnId);
+      if (signal?.aborted) {
+        throw interruptionCause(signal);
+      }
+
+      const prompt = requirePrompt(
+        await waitForOperation(Promise.resolve(promptCompiler.compile(turnId, signal)), signal),
+        turnId,
+      );
       const thread = database
         .select({ activeMessageId: threadTable.activeMessageId })
         .from(threadTable)
@@ -216,15 +288,22 @@ export function createGenerations(
       let providerResult: GenerationProviderResult;
 
       try {
-        providerResult = await provider.generate({
-          generationId: generation.id,
-          threadId: prompt.threadId,
-          modelId: model.modelId,
-          messages: prompt.messages,
-          ...(signal ? { signal } : {}),
-        });
+        if (signal?.aborted) {
+          throw interruptionCause(signal);
+        }
+
+        providerResult = await waitForOperation(
+          provider.generate({
+            generationId: generation.id,
+            threadId: prompt.threadId,
+            modelId: model.modelId,
+            messages: prompt.messages,
+            ...(signal ? { signal } : {}),
+          }),
+          signal,
+        );
       } catch (cause) {
-        failAndThrow(generation, "provider", cause);
+        failAndThrow(generation, signal?.aborted ? "interrupted" : "provider", cause);
       }
 
       let output: NormalizedProviderResult;
@@ -272,3 +351,5 @@ export function createGenerations(
     },
   };
 }
+
+export type Generations = Pick<ReturnType<typeof createGenerations>, "generateReply">;

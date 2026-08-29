@@ -25,7 +25,6 @@
   },
   "include": [
     "src/**/*.ts",
-    "drizzle.config.ts",
     "vite.config.ts",
     "../jaquelene-web/vite.config.ts",
     "../jaquelene-web/stylex.config.ts"

@@ -1,13 +1,6 @@
-export type ModelReference = {
-  providerId: string;
-  modelId: string;
-};
+import { requireModelReference, type ModelReference } from "@jaquelene/backend";
 
-export function requireModelReference(reference: ModelReference) {
-  if (!reference.providerId.trim() || !reference.modelId.trim()) {
-    throw new TypeError("A model reference requires provider and model identities.");
-  }
-}
+export { requireModelReference, type ModelReference };
 
 export type AvailableModel = {
   id: string;

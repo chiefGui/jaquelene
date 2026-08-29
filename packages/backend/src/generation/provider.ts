@@ -1,4 +1,15 @@
-import type { GenerationId, ThreadId } from "@/id";
+import type { GenerationId, ThreadId } from "#backend/id";
+
+export type ModelReference = {
+  providerId: string;
+  modelId: string;
+};
+
+export function requireModelReference(reference: ModelReference) {
+  if (!reference.providerId.trim() || !reference.modelId.trim()) {
+    throw new TypeError("A model reference requires provider and model identities.");
+  }
+}
 
 export type GenerationMessage = {
   role: "system" | "user" | "assistant";

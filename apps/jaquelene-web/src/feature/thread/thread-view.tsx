@@ -77,9 +77,9 @@ export function ThreadView({
         pages: messagesQuery.data.pages,
         retryActivity:
           retryTurnId && retryStatus ? { turnId: retryTurnId, status: retryStatus } : null,
-        hasModel: model !== null && !modelPending,
+        hasModel: model !== null,
       }),
-    [messagesQuery.data.pages, model, modelPending, retryStatus, retryTurnId],
+    [messagesQuery.data.pages, model, retryStatus, retryTurnId],
   );
   const operationPending = turnOperationPending || threadView.replyPending;
 
@@ -208,7 +208,7 @@ export function ThreadView({
                             type="button"
                             variant="ghost"
                             style={styles.retryButton}
-                            disabled={operationPending}
+                            disabled={operationPending || modelPending}
                             onClick={() => void retryReply(message.turnId)}
                           >
                             Retry
@@ -254,7 +254,7 @@ export function ThreadView({
             </Composer.Controls>
             <Composer.Submit
               pending={operationPending}
-              disabled={!model || modelPending || operationPending || !draft.trim()}
+              disabled={!model || modelPending || !draft.trim()}
             />
           </Composer.Footer>
         </Composer>

@@ -3,6 +3,7 @@ import { Button } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { Link } from "@tanstack/react-router";
+import { useId } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { ModelPicker } from "@/feature/model/picker";
 import { useSetCampaignModelOverride } from "./query";
@@ -17,6 +18,7 @@ export function CampaignModelPicker({
   model: ModelSelection | null;
 }) {
   const setModelOverride = useSetCampaignModelOverride(campaignId);
+  const errorId = useId();
 
   function updateModel(nextModel: ModelSelection | null) {
     setModelOverride.reset();
@@ -38,6 +40,7 @@ export function CampaignModelPicker({
               : "Choose a campaign model"
           }
           aria-busy={setModelOverride.isPending}
+          aria-describedby={setModelOverride.isError ? errorId : undefined}
           disabled={setModelOverride.isPending}
           style={styles.trigger}
         >
@@ -65,7 +68,7 @@ export function CampaignModelPicker({
       ) : null}
 
       {setModelOverride.isError ? (
-        <p role="alert" {...stylex.props(styles.error)}>
+        <p id={errorId} role="alert" {...stylex.props(styles.error)}>
           Couldn’t save model.
         </p>
       ) : null}

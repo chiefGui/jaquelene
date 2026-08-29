@@ -148,8 +148,12 @@ describe("campaigns", () => {
       modelOverride: model,
     });
     expect(campaigns.get(campaign.id)).toEqual({ ...campaign, modelOverride: model });
+    expect(campaigns.listForScenario(campaign.scenarioId)).toEqual([
+      { ...campaign, modelOverride: model },
+    ]);
     expect(campaigns.setModelOverride(campaign.id, null)).toEqual(campaign);
     expect(campaigns.get(campaign.id)).toEqual(campaign);
+    expect(campaigns.listForScenario(campaign.scenarioId)).toEqual([campaign]);
   });
 
   it("rejects an incomplete campaign model override", () => {

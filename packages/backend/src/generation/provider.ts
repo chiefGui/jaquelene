@@ -1,4 +1,4 @@
-import type { GenerationId, ThreadId } from "../id";
+import type { GenerationId, ThreadId } from "#backend/id";
 
 export type ModelReference = {
   providerId: string;

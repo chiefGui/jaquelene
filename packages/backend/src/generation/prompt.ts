@@ -1,5 +1,5 @@
-import type { MessageId, ThreadId, TurnId } from "../id";
-import type { Threads } from "../thread/threads";
+import type { MessageId, ThreadId, TurnId } from "#backend/id";
+import type { Threads } from "#backend/thread/threads";
 import type { GenerationMessage } from "./provider";
 
 export type GenerationPrompt = {

@@ -1,8 +1,8 @@
-export { createBackend } from "./backend";
-export type { Backend, BackendOptions } from "./backend";
-export type { Campaigns } from "./campaign/campaigns";
-export { getDatabaseStoragePaths } from "./database/database";
-export type { Generations, GenerateReplyRequest } from "./generation/generations";
+export { createBackend } from "#backend/backend";
+export type { Backend, BackendOptions } from "#backend/backend";
+export type { Campaigns } from "#backend/campaign/campaigns";
+export { getDatabaseStoragePaths } from "#backend/database/database";
+export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
 export {
   requireModelReference,
   type GenerationMessage,
@@ -11,7 +11,7 @@ export {
   type GenerationProviderResult,
   type GenerationUsage,
   type ModelReference,
-} from "./generation/provider";
+} from "#backend/generation/provider";
 export {
   ids,
   type CampaignId,
@@ -20,8 +20,8 @@ export {
   type ScenarioId,
   type ThreadId,
   type TurnId,
-} from "./id";
-export type { Scenarios } from "./scenario/scenarios";
-export type { Storage, StorageManifest, StorageUsage } from "./storage/storage";
-export type { ThreadMessage } from "./thread/schema";
-export type { Threads } from "./thread/threads";
+} from "#backend/id";
+export type { Scenarios } from "#backend/scenario/scenarios";
+export type { Storage, StorageManifest, StorageUsage } from "#backend/storage/storage";
+export type { ThreadMessage } from "#backend/thread/schema";
+export type { Threads } from "#backend/thread/threads";

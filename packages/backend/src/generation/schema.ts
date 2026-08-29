@@ -9,8 +9,8 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { GenerationId, MessageId, TurnId } from "../id";
-import { threadMessageTable, turnTable } from "../thread/schema";
+import type { GenerationId, MessageId, TurnId } from "#backend/id";
+import { threadMessageTable, turnTable } from "#backend/thread/schema";
 
 export const generationStatuses = ["pending", "completed", "failed"] as const;
 export const generationFailureKinds = [

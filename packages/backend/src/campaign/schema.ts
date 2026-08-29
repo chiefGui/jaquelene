@@ -6,9 +6,9 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { CampaignId, ScenarioId, ThreadId } from "../id";
-import { scenarioTable } from "../scenario/schema";
-import { threadTable } from "../thread/schema";
+import type { CampaignId, ScenarioId, ThreadId } from "#backend/id";
+import { scenarioTable } from "#backend/scenario/schema";
+import { threadTable } from "#backend/thread/schema";
 
 export const campaignTable = sqliteTable(
   "campaigns",

@@ -1,11 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
-import type { Database } from "../database/database";
+import type { Database } from "#backend/database/database";
 import {
   appendAssistantMessageInTransaction,
   requireThreadMessageContent,
-} from "../thread/threads";
-import { threadTable } from "../thread/schema";
-import { ids, type GenerationId, type TurnId } from "../id";
+} from "#backend/thread/threads";
+import { threadTable } from "#backend/thread/schema";
+import { ids, type GenerationId, type TurnId } from "#backend/id";
 import type { GenerationPrompt, GenerationPromptCompiler } from "./prompt";
 import {
   requireModelReference,

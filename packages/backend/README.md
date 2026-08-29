@@ -6,4 +6,6 @@ It owns SQLite, migrations, IDs, scenarios, campaigns, threads, prompt compilati
 
 Electron, IPC, windows, secure credential storage, and provider SDK details remain outside this package. Effect is an internal resource-management tool: it acquires backend resources once and releases them in dependency order, while synchronous SQLite operations stay on the direct hot path.
 
+Within the package, same-feature imports stay relative and cross-feature imports use the private `#backend/*` package map.
+
 Closing the backend stops new work, interrupts and drains active generations, and closes SQLite last. A closed backend cannot be reused; create a new backend to reopen persisted state.

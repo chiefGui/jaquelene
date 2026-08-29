@@ -11,7 +11,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { MessageId, ThreadId, TurnId } from "../id";
+import type { MessageId, ThreadId, TurnId } from "#backend/id";
 
 export const threadMessageAuthors = ["user", "assistant"] as const;
 

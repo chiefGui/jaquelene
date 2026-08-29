@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { createBackend, type Backend, type StorageManifest } from "../index";
+import { createBackend, type Backend, type StorageManifest } from "@jaquelene/backend";
 
 const backends: Backend[] = [];
 const directories: string[] = [];

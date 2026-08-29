@@ -2,12 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import { closeDatabase, openDatabase } from "#backend/database/database";
+import { generationTable } from "#backend/generation/schema";
+import type { GenerationProvider, GenerationProviderResult } from "#backend/generation/provider";
+import { ids } from "#backend/id";
+import { createThreads } from "#backend/thread/threads";
 import { createBackend, type BackendOptions } from "./backend";
-import { closeDatabase, openDatabase } from "./database/database";
-import { generationTable } from "./generation/schema";
-import type { GenerationProvider, GenerationProviderResult } from "./generation/provider";
-import { ids } from "./id";
-import { createThreads } from "./thread/threads";
 
 const directories: string[] = [];
 

@@ -1,13 +1,13 @@
 import { Cause, Context, Effect, Exit, Layer, ManagedRuntime } from "effect";
-import { createCampaigns, type Campaigns } from "./campaign/campaigns";
-import { DatabaseService } from "./database/database";
-import { createGenerations, type Generations } from "./generation/generations";
-import { createTurnPromptCompiler } from "./generation/prompt";
-import type { GenerationProvider } from "./generation/provider";
-import { superviseGenerations } from "./generation/supervisor";
-import { createScenarios, type Scenarios } from "./scenario/scenarios";
-import { StorageService, type Storage, type StorageManifest } from "./storage/storage";
-import { createThreads, type Threads } from "./thread/threads";
+import { createCampaigns, type Campaigns } from "#backend/campaign/campaigns";
+import { DatabaseService } from "#backend/database/database";
+import { createGenerations, type Generations } from "#backend/generation/generations";
+import { createTurnPromptCompiler } from "#backend/generation/prompt";
+import type { GenerationProvider } from "#backend/generation/provider";
+import { superviseGenerations } from "#backend/generation/supervisor";
+import { createScenarios, type Scenarios } from "#backend/scenario/scenarios";
+import { StorageService, type Storage, type StorageManifest } from "#backend/storage/storage";
+import { createThreads, type Threads } from "#backend/thread/threads";
 
 export type BackendOptions = Readonly<{
   databasePath: string;

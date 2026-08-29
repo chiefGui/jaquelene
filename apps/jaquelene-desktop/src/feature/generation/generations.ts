@@ -2,17 +2,17 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Database } from "@/database";
 import { requireModelReference, type ModelReference } from "@/feature/model/catalog";
 import {
-  appendThreadMessageInTransaction,
+  appendAssistantMessageInTransaction,
   requireThreadMessageContent,
-  ThreadSequenceConflictError,
 } from "@/feature/thread/threads";
-import { ids, type GenerationId, type ThreadId } from "@/id";
+import { threadTable } from "@/feature/thread/schema";
+import { ids, type GenerationId, type TurnId } from "@/id";
 import type { GenerationPrompt, GenerationPromptCompiler } from "./prompt";
 import type { GenerationProvider, GenerationProviderResult, GenerationUsage } from "./provider";
 import { generationTable, type Generation, type GenerationFailureKind } from "./schema";
 
 type GenerateReplyRequest = {
-  threadId: ThreadId;
+  turnId: TurnId;
   model: ModelReference;
   signal?: AbortSignal;
 };
@@ -74,13 +74,9 @@ function providerResultFields(output: NormalizedProviderResult) {
   };
 }
 
-function requirePrompt(prompt: GenerationPrompt, threadId: ThreadId) {
-  if (prompt.threadId !== threadId) {
-    throw new Error(`The generation prompt does not belong to thread "${threadId}".`);
-  }
-
-  if (!Number.isSafeInteger(prompt.contextSequence) || prompt.contextSequence < 1) {
-    throw new TypeError("The generation prompt has an invalid context sequence.");
+function requirePrompt(prompt: GenerationPrompt, turnId: TurnId) {
+  if (prompt.turnId !== turnId) {
+    throw new Error(`The generation prompt does not belong to turn "${turnId}".`);
   }
 
   if (prompt.messages.length === 0 || prompt.messages.at(-1)?.role !== "user") {
@@ -176,7 +172,7 @@ export function createGenerations(
         .run();
     },
 
-    async generateReply({ threadId, model, signal }: GenerateReplyRequest) {
+    async generateReply({ turnId, model, signal }: GenerateReplyRequest) {
       requireModelReference(model);
 
       const provider = providersById.get(model.providerId);
@@ -185,21 +181,30 @@ export function createGenerations(
         throw new RangeError(`Unknown generation provider "${model.providerId}".`);
       }
 
-      const prompt = requirePrompt(await promptCompiler.compile(threadId), threadId);
+      const prompt = requirePrompt(await promptCompiler.compile(turnId), turnId);
+      const thread = database
+        .select({ activeMessageId: threadTable.activeMessageId })
+        .from(threadTable)
+        .where(eq(threadTable.id, prompt.threadId))
+        .get();
+
+      if (!thread) {
+        throw new Error(`Turn "${turnId}" belongs to a missing thread.`);
+      }
+
       const pendingGeneration = database
         .select({ id: generationTable.id })
         .from(generationTable)
-        .where(and(eq(generationTable.threadId, threadId), eq(generationTable.status, "pending")))
+        .where(and(eq(generationTable.turnId, turnId), eq(generationTable.status, "pending")))
         .get();
 
       if (pendingGeneration) {
-        throw new RangeError(`Thread "${threadId}" already has a pending generation.`);
+        throw new RangeError(`Turn "${turnId}" already has a pending generation.`);
       }
 
       const generation = {
         id: ids.generation.create(),
-        threadId,
-        contextSequence: prompt.contextSequence,
+        turnId,
         providerId: model.providerId,
         modelId: model.modelId,
         status: "pending",
@@ -213,7 +218,7 @@ export function createGenerations(
       try {
         providerResult = await provider.generate({
           generationId: generation.id,
-          threadId,
+          threadId: prompt.threadId,
           modelId: model.modelId,
           messages: prompt.messages,
           ...(signal ? { signal } : {}),
@@ -233,12 +238,13 @@ export function createGenerations(
       try {
         return database.transaction((transaction) => {
           const completionTime = finishedAt(generation);
-          const message = appendThreadMessageInTransaction(transaction, {
-            threadId,
-            author: "assistant",
+          const { message, activated } = appendAssistantMessageInTransaction(transaction, {
+            threadId: prompt.threadId,
+            turnId,
+            parentMessageId: prompt.inputMessageId,
+            activateIfMessageId: thread.activeMessageId,
             content: output.text,
             createdAt: completionTime,
-            expectedSequence: generation.contextSequence,
           });
           const completedGeneration = transaction
             .update(generationTable)
@@ -258,20 +264,9 @@ export function createGenerations(
             throw new Error(`Generation "${generation.id}" is no longer pending.`);
           }
 
-          return { generation: completedGeneration, message };
+          return { generation: completedGeneration, message, activated };
         });
       } catch (cause) {
-        if (cause instanceof ThreadSequenceConflictError) {
-          failAndThrow(
-            generation,
-            "superseded",
-            new Error(`Generation "${generation.id}" was superseded by a newer message.`, {
-              cause,
-            }),
-            output,
-          );
-        }
-
         failAndThrow(generation, "storage", cause, output);
       }
     },

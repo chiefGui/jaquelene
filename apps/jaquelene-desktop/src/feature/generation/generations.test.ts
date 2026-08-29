@@ -4,10 +4,11 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "@/database";
+import { threadMessageTable } from "@/feature/thread/schema";
 import { createThreads } from "@/feature/thread/threads";
 import { ids } from "@/id";
 import { createGenerations } from "./generations";
-import { createThreadPromptCompiler } from "./prompt";
+import { createTurnPromptCompiler } from "./prompt";
 import type { GenerationProvider, GenerationProviderResult } from "./provider";
 import { generationTable } from "./schema";
 
@@ -25,7 +26,7 @@ function openGenerationEnvironment(provider: GenerationProvider, now: () => numb
   const threads = createThreads(database, now);
   const generations = createGenerations(
     database,
-    createThreadPromptCompiler(threads),
+    createTurnPromptCompiler(threads),
     [provider],
     now,
   );
@@ -52,7 +53,7 @@ afterEach(() => {
 });
 
 describe("generations", () => {
-  it("routes a prompt by provider identity and atomically stores the assistant reply", async () => {
+  it("routes a turn prompt and atomically stores its assistant reply", async () => {
     let timestamp = 100;
     const generate = vi.fn(async () => ({
       text: "Assistant reply",
@@ -67,10 +68,10 @@ describe("generations", () => {
       () => timestamp++,
     );
     const thread = threads.create();
-    const userMessage = threads.appendUserMessage(thread.id, "Hello");
+    const started = threads.startTurn(thread.id, "Hello");
 
     const result = await generations.generateReply({
-      threadId: thread.id,
+      turnId: started.turn.id,
       model: { providerId: provider.id, modelId: "maker/requested-model" },
     });
 
@@ -80,111 +81,156 @@ describe("generations", () => {
       modelId: "maker/requested-model",
       messages: [{ role: "user", content: "Hello" }],
     });
-    expect(result.message).toEqual({
-      id: expect.stringMatching(/^message_/),
-      threadId: thread.id,
-      sequence: 2,
-      author: "assistant",
-      content: "Assistant reply",
-      createdAt: 103,
+    expect(result).toEqual({
+      activated: true,
+      message: {
+        id: expect.stringMatching(/^message_/),
+        threadId: thread.id,
+        turnId: started.turn.id,
+        parentMessageId: started.message.id,
+        sequence: 2,
+        author: "assistant",
+        content: "Assistant reply",
+        createdAt: 103,
+      },
+      generation: {
+        id: expect.stringMatching(/^generation_/),
+        turnId: started.turn.id,
+        providerId: provider.id,
+        modelId: "maker/requested-model",
+        status: "completed",
+        failureKind: null,
+        providerGenerationId: "provider-generation-1",
+        resolvedModelId: "maker/resolved-model",
+        finishReason: "stop",
+        inputTokens: 12,
+        outputTokens: 5,
+        totalTokens: 17,
+        outputMessageId: expect.stringMatching(/^message_/),
+        startedAt: 102,
+        finishedAt: 103,
+      },
     });
-    expect(result.generation).toEqual({
-      id: result.generation.id,
-      threadId: thread.id,
-      contextSequence: userMessage.sequence,
-      providerId: provider.id,
-      modelId: "maker/requested-model",
-      status: "completed",
-      failureKind: null,
-      providerGenerationId: "provider-generation-1",
-      resolvedModelId: "maker/resolved-model",
-      finishReason: "stop",
-      inputTokens: 12,
-      outputTokens: 5,
-      totalTokens: 17,
-      outputMessageId: result.message.id,
-      startedAt: 102,
-      finishedAt: 103,
-    });
+    expect(result.generation.outputMessageId).toBe(result.message.id);
     expect(database.select().from(generationTable).get()).toEqual(result.generation);
-    expect(threads.listAllMessages(thread.id)).toEqual([userMessage, result.message]);
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [started.message, result.message],
+    });
   });
 
-  it("records provider failures without creating an assistant message", async () => {
-    let timestamp = 200;
-    const failure = new Error("Provider unavailable");
+  it("compiles only the selected turn ancestry", async () => {
+    const replies = ["First reply", "Second reply"];
     const provider = {
       id: "provider-a",
-      generate: vi.fn(async () => {
-        throw failure;
-      }),
-    };
-    const { database, generations, threads } = openGenerationEnvironment(
-      provider,
-      () => timestamp++,
-    );
-    const thread = threads.create();
-    const userMessage = threads.appendUserMessage(thread.id, "Hello");
-
-    await expect(
-      generations.generateReply({
-        threadId: thread.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
-      }),
-    ).rejects.toBe(failure);
-
-    expect(database.select().from(generationTable).get()).toEqual(
-      expect.objectContaining({
-        threadId: thread.id,
-        contextSequence: userMessage.sequence,
-        status: "failed",
-        failureKind: "provider",
-        outputMessageId: null,
-        startedAt: 202,
-        finishedAt: 203,
-      }),
-    );
-    expect(threads.listAllMessages(thread.id)).toEqual([userMessage]);
-  });
-
-  it("rejects invalid provider output and records the failed attempt", async () => {
-    const provider = {
-      id: "provider-a",
-      generate: vi.fn(async () => ({ text: " \n\t " })),
-    };
-    const { database, generations, threads } = openGenerationEnvironment(provider);
-    const thread = threads.create();
-    threads.appendUserMessage(thread.id, "Hello");
-
-    await expect(
-      generations.generateReply({
-        threadId: thread.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
-      }),
-    ).rejects.toThrow(TypeError);
-    expect(database.select().from(generationTable).get()).toEqual(
-      expect.objectContaining({ status: "failed", failureKind: "invalid-output" }),
-    );
-    expect(threads.listAllMessages(thread.id)).toHaveLength(1);
-  });
-
-  it("allows only one pending generation for a thread", async () => {
-    const completion = deferred<GenerationProviderResult>();
-    const provider = {
-      id: "provider-a",
-      generate: vi.fn(() => completion.promise),
+      generate: vi.fn(async () => ({ text: replies.shift() ?? "Unexpected reply" })),
     };
     const { generations, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
-    threads.appendUserMessage(thread.id, "Hello");
+    const first = threads.startTurn(thread.id, "First user message");
+    await generations.generateReply({
+      turnId: first.turn.id,
+      model: { providerId: provider.id, modelId: "maker/model" },
+    });
+    const second = threads.startTurn(thread.id, "Second user message");
+
+    await generations.generateReply({
+      turnId: second.turn.id,
+      model: { providerId: provider.id, modelId: "maker/model" },
+    });
+
+    expect(provider.generate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        messages: [
+          { role: "user", content: "First user message" },
+          { role: "assistant", content: "First reply" },
+          { role: "user", content: "Second user message" },
+        ],
+      }),
+    );
+  });
+
+  it("regenerates a turn as a sibling output and selects the new branch", async () => {
+    const replies = ["First reply", "Regenerated reply"];
+    const provider = {
+      id: "provider-a",
+      generate: vi.fn(async () => ({ text: replies.shift() ?? "Unexpected reply" })),
+    };
+    const { database, generations, threads } = openGenerationEnvironment(provider);
+    const thread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
+    const first = await generations.generateReply({
+      turnId: started.turn.id,
+      model: { providerId: provider.id, modelId: "maker/model" },
+    });
+    const regenerated = await generations.generateReply({
+      turnId: started.turn.id,
+      model: { providerId: provider.id, modelId: "maker/model" },
+    });
+
+    expect(regenerated.activated).toBe(true);
+    expect(regenerated.message.parentMessageId).toBe(started.message.id);
+    expect(provider.generate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ messages: [{ role: "user", content: "Hello" }] }),
+    );
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [started.message, regenerated.message],
+    });
+    expect(database.select().from(threadMessageTable).all()).toEqual(
+      expect.arrayContaining([started.message, first.message, regenerated.message]),
+    );
+    expect(database.select().from(generationTable).all()).toHaveLength(2);
+  });
+
+  it("preserves a late reply as an inactive branch when the thread advances", async () => {
+    const completion = deferred<GenerationProviderResult>();
+    const provider = { id: "provider-a", generate: vi.fn(() => completion.promise) };
+    const { database, generations, threads } = openGenerationEnvironment(provider);
+    const thread = threads.create();
+    const first = threads.startTurn(thread.id, "First user message");
+    const pending = generations.generateReply({
+      turnId: first.turn.id,
+      model: { providerId: provider.id, modelId: "maker/model" },
+    });
+    await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledOnce());
+    const second = threads.startTurn(thread.id, "Newer user message");
+
+    completion.resolve({
+      text: "Late reply",
+      providerGenerationId: "late-provider-generation",
+      usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+    });
+    const result = await pending;
+
+    expect(result.activated).toBe(false);
+    expect(result.generation).toEqual(
+      expect.objectContaining({
+        status: "completed",
+        providerGenerationId: "late-provider-generation",
+        outputMessageId: result.message.id,
+      }),
+    );
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [first.message, second.message],
+    });
+    expect(database.select().from(threadMessageTable).all()).toEqual(
+      expect.arrayContaining([first.message, second.message, result.message]),
+    );
+  });
+
+  it("allows only one pending generation for each turn", async () => {
+    const completion = deferred<GenerationProviderResult>();
+    const provider = { id: "provider-a", generate: vi.fn(() => completion.promise) };
+    const { generations, threads } = openGenerationEnvironment(provider);
+    const thread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
     const request = {
-      threadId: thread.id,
+      turnId: started.turn.id,
       model: { providerId: provider.id, modelId: "maker/model" },
     };
     const firstGeneration = generations.generateReply(request);
 
     await expect(generations.generateReply(request)).rejects.toThrow(
-      `Thread "${thread.id}" already has a pending generation.`,
+      `Turn "${started.turn.id}" already has a pending generation.`,
     );
     expect(provider.generate).toHaveBeenCalledOnce();
 
@@ -194,46 +240,88 @@ describe("generations", () => {
     );
   });
 
-  it("does not append a stale reply when the thread changes during generation", async () => {
-    const completion = deferred<GenerationProviderResult>();
+  it("allows independent turns to generate concurrently without racing the active head", async () => {
+    const firstCompletion = deferred<GenerationProviderResult>();
+    const secondCompletion = deferred<GenerationProviderResult>();
+    const completions = [firstCompletion, secondCompletion];
     const provider = {
       id: "provider-a",
-      generate: vi.fn(() => completion.promise),
+      generate: vi.fn(() => {
+        const completion = completions.shift();
+
+        if (!completion) {
+          throw new Error("The test provider received an unexpected request.");
+        }
+
+        return completion.promise;
+      }),
+    };
+    const { generations, threads } = openGenerationEnvironment(provider);
+    const thread = threads.create();
+    const first = threads.startTurn(thread.id, "First");
+    const second = threads.startTurn(thread.id, "Second");
+    const firstGeneration = generations.generateReply({
+      turnId: first.turn.id,
+      model: { providerId: provider.id, modelId: "maker/model" },
+    });
+    const secondGeneration = generations.generateReply({
+      turnId: second.turn.id,
+      model: { providerId: provider.id, modelId: "maker/model" },
+    });
+    await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledTimes(2));
+
+    secondCompletion.resolve({ text: "Second reply" });
+    const secondResult = await secondGeneration;
+    firstCompletion.resolve({ text: "First reply" });
+    const firstResult = await firstGeneration;
+
+    expect(secondResult.activated).toBe(true);
+    expect(firstResult.activated).toBe(false);
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [first.message, second.message, secondResult.message],
+    });
+  });
+
+  it("records provider and invalid-output failures without creating messages", async () => {
+    const failure = new Error("Provider unavailable");
+    const provider = {
+      id: "provider-a",
+      generate: vi
+        .fn<GenerationProvider["generate"]>()
+        .mockRejectedValueOnce(failure)
+        .mockResolvedValueOnce({ text: " \n\t " }),
     };
     const { database, generations, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
-    threads.appendUserMessage(thread.id, "First user message");
-    const generation = generations.generateReply({
-      threadId: thread.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
-    });
+    const started = threads.startTurn(thread.id, "Hello");
 
-    const newerMessage = threads.appendUserMessage(thread.id, "Newer user message");
-    completion.resolve({
-      text: "Stale reply",
-      providerGenerationId: "superseded-provider-generation",
-      usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
-    });
-
-    await expect(generation).rejects.toThrow("was superseded by a newer message");
-    expect(database.select().from(generationTable).get()).toEqual(
-      expect.objectContaining({
-        status: "failed",
-        failureKind: "superseded",
-        providerGenerationId: "superseded-provider-generation",
-        inputTokens: 8,
-        outputTokens: 3,
-        totalTokens: 11,
+    await expect(
+      generations.generateReply({
+        turnId: started.turn.id,
+        model: { providerId: provider.id, modelId: "maker/model" },
       }),
-    );
-    expect(threads.listAllMessages(thread.id).at(-1)).toEqual(newerMessage);
+    ).rejects.toBe(failure);
+    await expect(
+      generations.generateReply({
+        turnId: started.turn.id,
+        model: { providerId: provider.id, modelId: "maker/model" },
+      }),
+    ).rejects.toThrow(TypeError);
+
+    expect(database.select().from(generationTable).all()).toEqual([
+      expect.objectContaining({ turnId: started.turn.id, failureKind: "provider" }),
+      expect.objectContaining({ turnId: started.turn.id, failureKind: "invalid-output" }),
+    ]);
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [started.message],
+    });
   });
 
-  it("rolls back the assistant message when completion persistence fails", async () => {
+  it("rolls back the assistant message and head when completion storage fails", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { database, generations, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
-    const userMessage = threads.appendUserMessage(thread.id, "Hello");
+    const started = threads.startTurn(thread.id, "Hello");
 
     database.$client.exec(`
       CREATE TRIGGER reject_generation_completion
@@ -246,7 +334,7 @@ describe("generations", () => {
 
     await expect(
       generations.generateReply({
-        threadId: thread.id,
+        turnId: started.turn.id,
         model: { providerId: provider.id, modelId: "maker/model" },
       }),
     ).rejects.toThrow();
@@ -254,11 +342,13 @@ describe("generations", () => {
     expect(database.select().from(generationTable).get()).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "storage" }),
     );
-    expect(threads.listAllMessages(thread.id)).toEqual([userMessage]);
-    expect(threads.appendUserMessage(thread.id, "After failure").sequence).toBe(2);
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [started.message],
+    });
+    expect(threads.startTurn(thread.id, "After failure").message.sequence).toBe(2);
   });
 
-  it("releases the thread when failed provider metadata cannot be stored", async () => {
+  it("releases a turn when failed provider metadata cannot be stored", async () => {
     const providerGenerationIds = ["shared-generation", "shared-generation", "retry-generation"];
     const provider = {
       id: "provider-a",
@@ -274,18 +364,18 @@ describe("generations", () => {
     };
     const { database, generations, threads } = openGenerationEnvironment(provider);
     const firstThread = threads.create();
-    threads.appendUserMessage(firstThread.id, "First thread");
+    const first = threads.startTurn(firstThread.id, "First thread");
     await generations.generateReply({
-      threadId: firstThread.id,
+      turnId: first.turn.id,
       model: { providerId: provider.id, modelId: "maker/model" },
     });
 
     const secondThread = threads.create();
-    const userMessage = threads.appendUserMessage(secondThread.id, "Second thread");
+    const second = threads.startTurn(secondThread.id, "Second thread");
 
     await expect(
       generations.generateReply({
-        threadId: secondThread.id,
+        turnId: second.turn.id,
         model: { providerId: provider.id, modelId: "maker/model" },
       }),
     ).rejects.toThrow();
@@ -294,7 +384,7 @@ describe("generations", () => {
       database
         .select()
         .from(generationTable)
-        .where(eq(generationTable.threadId, secondThread.id))
+        .where(eq(generationTable.turnId, second.turn.id))
         .get(),
     ).toEqual(
       expect.objectContaining({
@@ -303,11 +393,13 @@ describe("generations", () => {
         providerGenerationId: null,
       }),
     );
-    expect(threads.listAllMessages(secondThread.id)).toEqual([userMessage]);
+    expect(threads.listMessages({ threadId: secondThread.id })).toEqual({
+      messages: [second.message],
+    });
 
     await expect(
       generations.generateReply({
-        threadId: secondThread.id,
+        turnId: second.turn.id,
         model: { providerId: provider.id, modelId: "maker/model" },
       }),
     ).resolves.toEqual(
@@ -317,18 +409,17 @@ describe("generations", () => {
     );
   });
 
-  it("recovers pending attempts left behind by an interrupted process", () => {
+  it("recovers pending attempts left by an interrupted process", () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { database, generations, threads } = openGenerationEnvironment(provider, () => 500);
     const thread = threads.create();
-    const userMessage = threads.appendUserMessage(thread.id, "Hello");
+    const started = threads.startTurn(thread.id, "Hello");
 
     database
       .insert(generationTable)
       .values({
         id: ids.generation.create(),
-        threadId: thread.id,
-        contextSequence: userMessage.sequence,
+        turnId: started.turn.id,
         providerId: provider.id,
         modelId: "maker/model",
         status: "pending",
@@ -348,14 +439,14 @@ describe("generations", () => {
     );
   });
 
-  it("enforces generation state and single-pending-attempt constraints in storage", () => {
+  it("enforces generation state, ownership, and pending-attempt constraints", () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { database, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
-    const userMessage = threads.appendUserMessage(thread.id, "Hello");
+    const first = threads.startTurn(thread.id, "First");
+    const second = threads.startTurn(thread.id, "Second");
     const pending = {
-      threadId: thread.id,
-      contextSequence: userMessage.sequence,
+      turnId: first.turn.id,
       providerId: provider.id,
       modelId: "maker/model",
       status: "pending",
@@ -378,8 +469,12 @@ describe("generations", () => {
         .insert(generationTable)
         .values({
           id: ids.generation.create(),
-          ...pending,
+          turnId: second.turn.id,
+          providerId: provider.id,
+          modelId: "maker/model",
           status: "completed",
+          outputMessageId: first.message.id,
+          startedAt: 700,
           finishedAt: 701,
         })
         .run(),
@@ -389,23 +484,26 @@ describe("generations", () => {
         .insert(generationTable)
         .values({
           id: ids.generation.create(),
-          ...pending,
+          turnId: second.turn.id,
+          providerId: provider.id,
+          modelId: "maker/model",
           status: "failed",
           failureKind: "provider",
           inputTokens: 1,
+          startedAt: 700,
           finishedAt: 701,
         })
         .run(),
     ).toThrow();
   });
 
-  it("is removed with its owning thread", async () => {
+  it("removes turns, messages, and generations with their owning thread", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { database, generations, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
-    threads.appendUserMessage(thread.id, "Hello");
+    const started = threads.startTurn(thread.id, "Hello");
     await generations.generateReply({
-      threadId: thread.id,
+      turnId: started.turn.id,
       model: { providerId: provider.id, modelId: "maker/model" },
     });
 
@@ -413,15 +511,16 @@ describe("generations", () => {
       database.$client.prepare("DELETE FROM threads WHERE id = ?").run(thread.id),
     ).not.toThrow();
     expect(database.select().from(generationTable).all()).toEqual([]);
+    expect(database.select().from(threadMessageTable).all()).toEqual([]);
     expect(threads.get(thread.id)).toBeNull();
   });
 
-  it("rejects unknown and duplicate provider identities", async () => {
+  it("rejects unknown and duplicate provider identities before persisting an attempt", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { database, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
-    threads.appendUserMessage(thread.id, "Hello");
-    const compiler = createThreadPromptCompiler(threads);
+    const started = threads.startTurn(thread.id, "Hello");
+    const compiler = createTurnPromptCompiler(threads);
 
     expect(() => createGenerations(database, compiler, [provider, provider])).toThrow(
       `Generation provider "${provider.id}" is registered more than once.`,
@@ -430,7 +529,7 @@ describe("generations", () => {
     const generations = createGenerations(database, compiler, []);
     await expect(
       generations.generateReply({
-        threadId: thread.id,
+        turnId: started.turn.id,
         model: { providerId: "missing-provider", modelId: "maker/model" },
       }),
     ).rejects.toThrow('Unknown generation provider "missing-provider".');
@@ -438,29 +537,38 @@ describe("generations", () => {
     expect(database.select().from(generationTable).all()).toEqual([]);
   });
 
-  it("requires a user message at the end of the prompt", async () => {
+  it("rejects missing turns and malformed compiler output before generation", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { generations, threads } = openGenerationEnvironment(provider);
-    const thread = threads.create();
+    const { database, generations } = openGenerationEnvironment(provider);
+    const missingTurnId = ids.turn.create();
 
     await expect(
       generations.generateReply({
-        threadId: thread.id,
+        turnId: missingTurnId,
         model: { providerId: provider.id, modelId: "maker/model" },
       }),
-    ).rejects.toThrow(`Thread "${thread.id}" has no messages to generate from.`);
+    ).rejects.toThrow(`Turn "${missingTurnId}" does not exist.`);
 
-    threads.appendUserMessage(thread.id, "Hello");
-    await generations.generateReply({
-      threadId: thread.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
-    });
+    const mismatchedTurnId = ids.turn.create();
+    const malformed = createGenerations(
+      database,
+      {
+        compile: () => ({
+          turnId: mismatchedTurnId,
+          threadId: ids.thread.create(),
+          inputMessageId: ids.message.create(),
+          messages: [{ role: "user", content: "Hello" }],
+        }),
+      },
+      [provider],
+    );
 
     await expect(
-      generations.generateReply({
-        threadId: thread.id,
+      malformed.generateReply({
+        turnId: ids.turn.create(),
         model: { providerId: provider.id, modelId: "maker/model" },
       }),
-    ).rejects.toThrow(`Thread "${thread.id}" does not end with a user message.`);
+    ).rejects.toThrow("The generation prompt does not belong to turn");
+    expect(database.select().from(generationTable).all()).toEqual([]);
   });
 });

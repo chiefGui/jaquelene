@@ -7,7 +7,7 @@ subtype ThreadMessageContent = string(
 
 subtype ThreadMessageCursor = string(
   minLength: 1
-  maxLength: 16
+  maxLength: 64
 )
 
 subtype ThreadMessageSequence = number(

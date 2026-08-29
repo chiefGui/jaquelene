@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "@/database";
 import { ids } from "@/id";
+import { threadMessageTable, turnTable } from "./schema";
 import {
+  appendAssistantMessageInTransaction,
   createThreads,
   THREAD_MESSAGE_CONTENT_MAX_LENGTH,
   THREAD_MESSAGE_PAGE_SIZE,
@@ -49,78 +51,127 @@ describe("threads", () => {
     expect(threads.get(ids.thread.create())).toBeNull();
   });
 
-  it("appends human messages in a stable per-thread order without changing their content", () => {
+  it("starts durable turns and links each user message to the active head", () => {
     let timestamp = 200;
     const { threads } = openThreads(createDatabasePath(), () => timestamp++);
     const thread = threads.create();
     const otherThread = threads.create();
-    const first = threads.appendUserMessage(thread.id, "  First message  ");
-    const second = threads.appendUserMessage(thread.id, "Second message");
-    threads.appendUserMessage(otherThread.id, "Other thread message");
+    const first = threads.startTurn(thread.id, "  First message  ");
+    const second = threads.startTurn(thread.id, "Second message");
+    threads.startTurn(otherThread.id, "Other thread message");
 
-    expect(first).toEqual({
+    expect(first.turn).toEqual({
+      id: expect.stringMatching(/^turn_/),
+      threadId: thread.id,
+      createdAt: 202,
+    });
+    expect(first.message).toEqual({
       id: expect.stringMatching(/^message_/),
       threadId: thread.id,
+      turnId: first.turn.id,
+      parentMessageId: null,
       sequence: 1,
       author: "user",
       content: "  First message  ",
       createdAt: 202,
     });
-    expect(second.sequence).toBe(2);
+    expect(second.message).toEqual(
+      expect.objectContaining({
+        turnId: second.turn.id,
+        parentMessageId: first.message.id,
+        sequence: 2,
+      }),
+    );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
-      messages: [first, second],
+      messages: [first.message, second.message],
     });
   });
 
-  it("uses a bounded keyset cursor to page backward through messages", () => {
-    const { threads } = openThreads(createDatabasePath(), () => 300);
+  it("follows message ancestry for a turn without leaking sibling branches", () => {
+    const { database, threads } = openThreads(createDatabasePath(), () => 300);
     const thread = threads.create();
+    const first = threads.startTurn(thread.id, "First user message");
+    const firstReply = database.transaction((transaction) =>
+      appendAssistantMessageInTransaction(transaction, {
+        threadId: thread.id,
+        turnId: first.turn.id,
+        parentMessageId: first.message.id,
+        activateIfMessageId: first.message.id,
+        content: "First reply",
+        createdAt: 301,
+      }),
+    );
+    const second = threads.startTurn(thread.id, "Second user message");
+    const siblingReply = database.transaction((transaction) =>
+      appendAssistantMessageInTransaction(transaction, {
+        threadId: thread.id,
+        turnId: first.turn.id,
+        parentMessageId: first.message.id,
+        activateIfMessageId: ids.message.create(),
+        content: "Inactive sibling reply",
+        createdAt: 302,
+      }),
+    );
 
-    for (let sequence = 1; sequence <= THREAD_MESSAGE_PAGE_SIZE + 2; sequence++) {
-      threads.appendUserMessage(thread.id, `Message ${sequence}`);
-    }
+    expect(firstReply.activated).toBe(true);
+    expect(siblingReply.activated).toBe(false);
+    expect(threads.getTurnContext(second.turn.id)).toEqual({
+      turnId: second.turn.id,
+      threadId: thread.id,
+      inputMessageId: second.message.id,
+      messages: [first.message, firstReply.message, second.message],
+    });
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [first.message, firstReply.message, second.message],
+    });
+  });
+
+  it("pages backward through one branch with an opaque message cursor", () => {
+    const { threads } = openThreads(createDatabasePath(), () => 400);
+    const thread = threads.create();
+    const turns = Array.from({ length: THREAD_MESSAGE_PAGE_SIZE + 2 }, (_, index) =>
+      threads.startTurn(thread.id, `Message ${index + 1}`),
+    );
 
     const newestPage = threads.listMessages({ threadId: thread.id });
 
     expect(newestPage.messages).toHaveLength(THREAD_MESSAGE_PAGE_SIZE);
     expect(newestPage.messages[0]?.sequence).toBe(3);
     expect(newestPage.messages.at(-1)?.sequence).toBe(THREAD_MESSAGE_PAGE_SIZE + 2);
-    expect(newestPage.nextCursor).toBe("3");
+    expect(newestPage.nextCursor).toBe(turns[1]?.message.id);
 
     if (!newestPage.nextCursor) {
       throw new Error("Expected another page of thread messages.");
     }
 
-    const oldestPage = threads.listMessages({
-      threadId: thread.id,
-      before: newestPage.nextCursor,
-    });
-
-    expect(oldestPage).toEqual({
-      messages: [
-        expect.objectContaining({ sequence: 1, content: "Message 1" }),
-        expect.objectContaining({ sequence: 2, content: "Message 2" }),
-      ],
+    expect(threads.listMessages({ threadId: thread.id, before: newestPage.nextCursor })).toEqual({
+      messages: [turns[0]?.message, turns[1]?.message],
     });
   });
 
-  it("persists threads and messages when the database is reopened", () => {
+  it("persists turns, messages, ancestry, and the active head when reopened", () => {
     const path = createDatabasePath();
-    const firstConnection = openThreads(path, () => 400);
+    const firstConnection = openThreads(path, () => 500);
     const thread = firstConnection.threads.create();
-    const message = firstConnection.threads.appendUserMessage(thread.id, "Persistent message");
+    const started = firstConnection.threads.startTurn(thread.id, "Persistent message");
 
     closeDatabase(firstConnection.database);
 
     const secondConnection = openThreads(path);
     expect(secondConnection.threads.get(thread.id)).toEqual(thread);
+    expect(secondConnection.threads.getTurnContext(started.turn.id)).toEqual({
+      turnId: started.turn.id,
+      threadId: thread.id,
+      inputMessageId: started.message.id,
+      messages: [started.message],
+    });
     expect(secondConnection.threads.listMessages({ threadId: thread.id })).toEqual({
-      messages: [message],
+      messages: [started.message],
     });
   });
 
-  it("rolls back sequence allocation when storing a message fails", () => {
-    const { database, threads } = openThreads(createDatabasePath(), () => 450);
+  it("rolls back the complete turn when storing its user message fails", () => {
+    const { database, threads } = openThreads(createDatabasePath(), () => 600);
     const thread = threads.create();
 
     database.$client.exec(`
@@ -133,54 +184,125 @@ describe("threads", () => {
     `);
 
     try {
-      expect(() => threads.appendUserMessage(thread.id, "Rejected message")).toThrow();
+      expect(() => threads.startTurn(thread.id, "Rejected message")).toThrow();
     } finally {
       database.$client.exec("DROP TRIGGER reject_thread_message;");
     }
 
-    expect(threads.appendUserMessage(thread.id, "Accepted message").sequence).toBe(1);
+    expect(database.select().from(turnTable).all()).toEqual([]);
+    expect(threads.startTurn(thread.id, "Accepted message").message.sequence).toBe(1);
   });
 
-  it("requires every stored thread and message to have an identity", () => {
+  it("enforces turn ownership and message graph invariants in storage", () => {
+    const { database, threads } = openThreads(createDatabasePath(), () => 700);
+    const thread = threads.create();
+    const otherThread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
+
+    expect(() =>
+      database
+        .insert(threadMessageTable)
+        .values({
+          id: ids.message.create(),
+          threadId: thread.id,
+          turnId: started.turn.id,
+          parentMessageId: started.message.id,
+          sequence: 2,
+          author: "user",
+          content: "Duplicate user input",
+          createdAt: 701,
+        })
+        .run(),
+    ).toThrow();
+    expect(() =>
+      database
+        .insert(threadMessageTable)
+        .values({
+          id: ids.message.create(),
+          threadId: otherThread.id,
+          turnId: started.turn.id,
+          parentMessageId: null,
+          sequence: 1,
+          author: "user",
+          content: "Wrong thread",
+          createdAt: 701,
+        })
+        .run(),
+    ).toThrow();
+    expect(() =>
+      database
+        .insert(threadMessageTable)
+        .values({
+          id: ids.message.create(),
+          threadId: thread.id,
+          turnId: started.turn.id,
+          parentMessageId: null,
+          sequence: 2,
+          author: "assistant",
+          content: "Missing parent",
+          createdAt: 701,
+        })
+        .run(),
+    ).toThrow();
+    const otherMessage = threads.startTurn(otherThread.id, "Other thread").message;
+    expect(() =>
+      database.$client
+        .prepare("UPDATE threads SET active_message_id = ? WHERE id = ?")
+        .run(otherMessage.id, thread.id),
+    ).toThrow();
+  });
+
+  it("requires identities for every persisted turn and message", () => {
     const { database, threads } = openThreads(createDatabasePath());
     const thread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
 
     expect(() =>
       database.$client
-        .prepare("INSERT INTO threads (id, created_at, last_message_sequence) VALUES (?, ?, ?)")
-        .run(null, 500, 0),
+        .prepare("INSERT INTO turns (id, thread_id, created_at) VALUES (?, ?, ?)")
+        .run(null, thread.id, 800),
     ).toThrow();
     expect(() =>
       database.$client
         .prepare(
-          "INSERT INTO thread_messages (id, thread_id, sequence, author, content, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "INSERT INTO thread_messages (id, thread_id, turn_id, parent_message_id, sequence, author, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .run(null, thread.id, 1, "user", "Missing identity", 500),
+        .run(null, thread.id, started.turn.id, started.message.id, 2, "assistant", "Reply", 800),
     ).toThrow();
   });
 
-  it("rejects empty, oversized, and missing-thread messages", () => {
+  it("rejects invalid content and missing threads or turns", () => {
     const { threads } = openThreads(createDatabasePath());
     const thread = threads.create();
     const missingThreadId = ids.thread.create();
+    const missingTurnId = ids.turn.create();
 
-    expect(() => threads.appendUserMessage(thread.id, " \n\t ")).toThrow(TypeError);
+    expect(() => threads.startTurn(thread.id, " \n\t ")).toThrow(TypeError);
     expect(() =>
-      threads.appendUserMessage(thread.id, "x".repeat(THREAD_MESSAGE_CONTENT_MAX_LENGTH + 1)),
+      threads.startTurn(thread.id, "x".repeat(THREAD_MESSAGE_CONTENT_MAX_LENGTH + 1)),
     ).toThrow(RangeError);
-    expect(() => threads.appendUserMessage(missingThreadId, "Hello")).toThrow(
+    expect(() => threads.startTurn(missingThreadId, "Hello")).toThrow(
       `Thread "${missingThreadId}" does not exist.`,
+    );
+    expect(() => threads.getTurnContext(missingTurnId)).toThrow(
+      `Turn "${missingTurnId}" does not exist.`,
     );
   });
 
-  it("rejects invalid cursors and listing messages for an unknown thread", () => {
+  it("rejects malformed, missing, and cross-thread message cursors", () => {
     const { threads } = openThreads(createDatabasePath());
     const thread = threads.create();
+    const otherThread = threads.create();
+    const otherMessage = threads.startTurn(otherThread.id, "Other thread").message;
     const missingThreadId = ids.thread.create();
 
-    expect(() => threads.listMessages({ threadId: thread.id, before: "0" })).toThrow(TypeError);
-    expect(() => threads.listMessages({ threadId: thread.id, before: "01" })).toThrow(TypeError);
     expect(() => threads.listMessages({ threadId: thread.id, before: "not-a-cursor" })).toThrow(
+      TypeError,
+    );
+    expect(() =>
+      threads.listMessages({ threadId: thread.id, before: ids.message.create() }),
+    ).toThrow(TypeError);
+    expect(() => threads.listMessages({ threadId: thread.id, before: otherMessage.id })).toThrow(
       TypeError,
     );
     expect(() => threads.listMessages({ threadId: missingThreadId })).toThrow(

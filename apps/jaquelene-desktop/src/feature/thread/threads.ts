@@ -1,7 +1,13 @@
-import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/database";
-import { ids, type ThreadId } from "@/id";
-import { threadMessageTable, threadTable, type ThreadMessage } from "./schema";
+import { ids, type MessageId, type ThreadId, type TurnId } from "@/id";
+import {
+  threadMessageTable,
+  threadTable,
+  turnTable,
+  type ThreadMessage,
+  type Turn,
+} from "./schema";
 
 export const THREAD_MESSAGE_CONTENT_MAX_LENGTH = 100_000;
 export const THREAD_MESSAGE_PAGE_SIZE = 50;
@@ -11,13 +17,16 @@ type ListThreadMessagesRequest = {
   before?: string;
 };
 
-type AppendThreadMessageRequest = {
+type AppendAssistantMessageRequest = {
   threadId: ThreadId;
-  author: ThreadMessage["author"];
+  turnId: TurnId;
+  parentMessageId: MessageId;
+  activateIfMessageId: MessageId | null;
   content: string;
   createdAt: number;
-  expectedSequence?: number;
 };
+
+type MessagePathRow = ThreadMessage & { depth: number };
 
 const threadSelection = {
   id: threadTable.id,
@@ -43,34 +52,128 @@ function decodeBeforeCursor(cursor: string | undefined) {
     return undefined;
   }
 
-  if (!/^[1-9]\d*$/.test(cursor)) {
-    throw new TypeError("Thread message cursor is invalid.");
+  try {
+    return ids.message.parse(cursor);
+  } catch (cause) {
+    throw new TypeError("Thread message cursor is invalid.", { cause });
   }
-
-  const sequence = Number(cursor);
-
-  if (!Number.isSafeInteger(sequence)) {
-    throw new TypeError("Thread message cursor is invalid.");
-  }
-
-  return sequence;
 }
 
 function threadNotFound(id: ThreadId) {
   return new RangeError(`Thread "${id}" does not exist.`);
 }
 
-function threadExists(database: Database, id: ThreadId) {
-  return Boolean(
-    database.select({ id: threadTable.id }).from(threadTable).where(eq(threadTable.id, id)).get(),
-  );
+function turnNotFound(id: TurnId) {
+  return new RangeError(`Turn "${id}" does not exist.`);
 }
 
-export class ThreadSequenceConflictError extends Error {
-  constructor(threadId: ThreadId, expectedSequence: number) {
-    super(`Thread "${threadId}" no longer ends at message ${expectedSequence}.`);
-    this.name = "ThreadSequenceConflictError";
+function listMessageAncestry(
+  database: Pick<Database, "all">,
+  threadId: ThreadId,
+  anchorMessageId: MessageId,
+  maximumRows?: number,
+) {
+  const recursionLimit = maximumRows === undefined ? sql`1` : sql`path.depth < ${maximumRows - 1}`;
+  const resultLimit = maximumRows === undefined ? sql`` : sql`LIMIT ${maximumRows}`;
+
+  const rows = database.all<MessagePathRow>(sql`
+    WITH RECURSIVE message_path (
+      id,
+      thread_id,
+      turn_id,
+      parent_message_id,
+      sequence,
+      author,
+      content,
+      created_at,
+      depth
+    ) AS (
+      SELECT
+        id,
+        thread_id,
+        turn_id,
+        parent_message_id,
+        sequence,
+        author,
+        content,
+        created_at,
+        0
+      FROM thread_messages
+      WHERE id = ${anchorMessageId} AND thread_id = ${threadId}
+
+      UNION ALL
+
+      SELECT
+        parent.id,
+        parent.thread_id,
+        parent.turn_id,
+        parent.parent_message_id,
+        parent.sequence,
+        parent.author,
+        parent.content,
+        parent.created_at,
+        path.depth + 1
+      FROM thread_messages AS parent
+      INNER JOIN message_path AS path
+        ON parent.id = path.parent_message_id
+        AND parent.thread_id = path.thread_id
+      WHERE ${recursionLimit}
+    )
+    SELECT
+      id,
+      thread_id AS "threadId",
+      turn_id AS "turnId",
+      parent_message_id AS "parentMessageId",
+      sequence,
+      author,
+      content,
+      created_at AS "createdAt",
+      depth
+    FROM message_path
+    ORDER BY depth ASC
+    ${resultLimit}
+  `);
+
+  return rows.map(({ depth: _depth, ...message }) => message);
+}
+
+function allocateMessageSequence(database: Pick<Database, "update">, threadId: ThreadId) {
+  const allocation = database
+    .update(threadTable)
+    .set({ lastMessageSequence: sql`${threadTable.lastMessageSequence} + 1` })
+    .where(eq(threadTable.id, threadId))
+    .returning({
+      sequence: threadTable.lastMessageSequence,
+      activeMessageId: threadTable.activeMessageId,
+    })
+    .get();
+
+  if (!allocation) {
+    throw threadNotFound(threadId);
   }
+
+  return allocation;
+}
+
+function moveActiveHead(
+  database: Pick<Database, "update">,
+  threadId: ThreadId,
+  expectedMessageId: MessageId | null,
+  messageId: MessageId,
+) {
+  const expectedHead =
+    expectedMessageId === null
+      ? isNull(threadTable.activeMessageId)
+      : eq(threadTable.activeMessageId, expectedMessageId);
+
+  return Boolean(
+    database
+      .update(threadTable)
+      .set({ activeMessageId: messageId })
+      .where(and(eq(threadTable.id, threadId), expectedHead))
+      .returning({ id: threadTable.id })
+      .get(),
+  );
 }
 
 export function insertThread(database: Pick<Database, "insert">, createdAt: number) {
@@ -78,49 +181,58 @@ export function insertThread(database: Pick<Database, "insert">, createdAt: numb
     id: ids.thread.create(),
     createdAt,
     lastMessageSequence: 0,
+    activeMessageId: null,
   };
 
   database.insert(threadTable).values(thread).run();
   return { id: thread.id, createdAt: thread.createdAt };
 }
 
-export function appendThreadMessageInTransaction(
-  database: Pick<Database, "insert" | "update">,
-  { threadId, author, content: value, createdAt, expectedSequence }: AppendThreadMessageRequest,
+export function appendAssistantMessageInTransaction(
+  database: Pick<Database, "insert" | "select" | "update">,
+  {
+    threadId,
+    turnId,
+    parentMessageId,
+    activateIfMessageId,
+    content: value,
+    createdAt,
+  }: AppendAssistantMessageRequest,
 ) {
   const content = requireThreadMessageContent(value);
-  const predicate =
-    expectedSequence === undefined
-      ? eq(threadTable.id, threadId)
-      : and(eq(threadTable.id, threadId), eq(threadTable.lastMessageSequence, expectedSequence));
-  const allocation = database
-    .update(threadTable)
-    .set({
-      lastMessageSequence: sql`${threadTable.lastMessageSequence} + 1`,
-    })
-    .where(predicate)
-    .returning({ sequence: threadTable.lastMessageSequence })
+  const inputMessage = database
+    .select({ id: threadMessageTable.id })
+    .from(threadMessageTable)
+    .where(
+      and(
+        eq(threadMessageTable.id, parentMessageId),
+        eq(threadMessageTable.threadId, threadId),
+        eq(threadMessageTable.turnId, turnId),
+        eq(threadMessageTable.author, "user"),
+      ),
+    )
     .get();
 
-  if (!allocation) {
-    if (expectedSequence !== undefined) {
-      throw new ThreadSequenceConflictError(threadId, expectedSequence);
-    }
-
-    throw threadNotFound(threadId);
+  if (!inputMessage) {
+    throw new Error(`Turn "${turnId}" does not contain its expected user message.`);
   }
 
+  const allocation = allocateMessageSequence(database, threadId);
   const message = {
     id: ids.message.create(),
     threadId,
+    turnId,
+    parentMessageId,
     sequence: allocation.sequence,
-    author,
+    author: "assistant" as const,
     content,
     createdAt,
   };
 
   database.insert(threadMessageTable).values(message).run();
-  return message;
+  const activated = moveActiveHead(database, threadId, activateIfMessageId, message.id);
+
+  return { message, activated };
 }
 
 export function createThreads(database: Database, now: () => number = Date.now) {
@@ -136,60 +248,108 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       );
     },
 
-    appendUserMessage(threadId: ThreadId, value: string) {
-      return database.transaction((transaction) =>
-        appendThreadMessageInTransaction(transaction, {
+    startTurn(threadId: ThreadId, value: string) {
+      const content = requireThreadMessageContent(value);
+      const createdAt = now();
+
+      return database.transaction((transaction) => {
+        const allocation = allocateMessageSequence(transaction, threadId);
+        const turn: Turn = {
+          id: ids.turn.create(),
           threadId,
+          createdAt,
+        };
+        const message: ThreadMessage = {
+          id: ids.message.create(),
+          threadId,
+          turnId: turn.id,
+          parentMessageId: allocation.activeMessageId,
+          sequence: allocation.sequence,
           author: "user",
-          content: value,
-          createdAt: now(),
-        }),
-      );
+          content,
+          createdAt,
+        };
+
+        transaction.insert(turnTable).values(turn).run();
+        transaction.insert(threadMessageTable).values(message).run();
+
+        if (!moveActiveHead(transaction, threadId, allocation.activeMessageId, message.id)) {
+          throw new Error(`Thread "${threadId}" changed while its turn was being created.`);
+        }
+
+        return { turn, message };
+      });
     },
 
-    listAllMessages(threadId: ThreadId) {
-      const messages = database
-        .select()
-        .from(threadMessageTable)
-        .where(eq(threadMessageTable.threadId, threadId))
-        .orderBy(asc(threadMessageTable.sequence))
-        .all();
+    getTurnContext(turnId: TurnId) {
+      const context = database
+        .select({
+          turnId: turnTable.id,
+          threadId: turnTable.threadId,
+          inputMessageId: threadMessageTable.id,
+        })
+        .from(turnTable)
+        .leftJoin(
+          threadMessageTable,
+          and(eq(threadMessageTable.turnId, turnTable.id), eq(threadMessageTable.author, "user")),
+        )
+        .where(eq(turnTable.id, turnId))
+        .get();
 
-      if (messages.length === 0 && !threadExists(database, threadId)) {
-        throw threadNotFound(threadId);
+      if (!context) {
+        throw turnNotFound(turnId);
       }
 
-      return messages;
+      if (!context.inputMessageId) {
+        throw new Error(`Turn "${turnId}" has no user message.`);
+      }
+
+      const inputMessageId = context.inputMessageId;
+      const messages = listMessageAncestry(database, context.threadId, inputMessageId).reverse();
+
+      if (messages.at(-1)?.id !== inputMessageId) {
+        throw new Error(`Turn "${turnId}" has an invalid message ancestry.`);
+      }
+
+      return { turnId: context.turnId, threadId: context.threadId, inputMessageId, messages };
     },
 
     listMessages({ threadId, before }: ListThreadMessagesRequest) {
-      const beforeSequence = decodeBeforeCursor(before);
-      const predicate =
-        beforeSequence === undefined
-          ? eq(threadMessageTable.threadId, threadId)
-          : and(
-              eq(threadMessageTable.threadId, threadId),
-              lt(threadMessageTable.sequence, beforeSequence),
-            );
-      const newestFirst = database
-        .select()
-        .from(threadMessageTable)
-        .where(predicate)
-        .orderBy(desc(threadMessageTable.sequence))
-        .limit(THREAD_MESSAGE_PAGE_SIZE + 1)
-        .all();
+      const cursorMessageId = decodeBeforeCursor(before);
+      const thread = database
+        .select({ activeMessageId: threadTable.activeMessageId })
+        .from(threadTable)
+        .where(eq(threadTable.id, threadId))
+        .get();
 
-      if (newestFirst.length === 0 && !threadExists(database, threadId)) {
+      if (!thread) {
         throw threadNotFound(threadId);
+      }
+
+      const anchorMessageId = cursorMessageId ?? thread.activeMessageId;
+
+      if (!anchorMessageId) {
+        return { messages: [] };
+      }
+
+      const newestFirst = listMessageAncestry(
+        database,
+        threadId,
+        anchorMessageId,
+        THREAD_MESSAGE_PAGE_SIZE + 1,
+      );
+
+      if (newestFirst.length === 0) {
+        throw new TypeError("Thread message cursor is invalid.");
       }
 
       const hasMore = newestFirst.length > THREAD_MESSAGE_PAGE_SIZE;
       const messages = newestFirst.slice(0, THREAD_MESSAGE_PAGE_SIZE).reverse();
-      const oldestMessage = messages[0];
+      const nextMessage = newestFirst[THREAD_MESSAGE_PAGE_SIZE];
 
       return {
         messages,
-        ...(hasMore && oldestMessage ? { nextCursor: String(oldestMessage.sequence) } : {}),
+        ...(hasMore && nextMessage ? { nextCursor: nextMessage.id } : {}),
       };
     },
   };

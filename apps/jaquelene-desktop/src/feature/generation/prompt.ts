@@ -1,37 +1,30 @@
 import type { Threads } from "@/feature/thread/threads";
-import type { ThreadId } from "@/id";
+import type { MessageId, ThreadId, TurnId } from "@/id";
 import type { GenerationMessage } from "./provider";
 
 export type GenerationPrompt = {
+  turnId: TurnId;
   threadId: ThreadId;
-  contextSequence: number;
+  inputMessageId: MessageId;
   messages: readonly GenerationMessage[];
 };
 
 export type GenerationPromptCompiler = {
-  compile(threadId: ThreadId): GenerationPrompt | Promise<GenerationPrompt>;
+  compile(turnId: TurnId): GenerationPrompt | Promise<GenerationPrompt>;
 };
 
-export function createThreadPromptCompiler(
-  threads: Pick<Threads, "listAllMessages">,
+export function createTurnPromptCompiler(
+  threads: Pick<Threads, "getTurnContext">,
 ): GenerationPromptCompiler {
   return {
-    compile(threadId) {
-      const threadMessages = threads.listAllMessages(threadId);
-      const latestMessage = threadMessages.at(-1);
-
-      if (!latestMessage) {
-        throw new RangeError(`Thread "${threadId}" has no messages to generate from.`);
-      }
-
-      if (latestMessage.author !== "user") {
-        throw new RangeError(`Thread "${threadId}" does not end with a user message.`);
-      }
+    compile(turnId) {
+      const context = threads.getTurnContext(turnId);
 
       return {
-        threadId,
-        contextSequence: latestMessage.sequence,
-        messages: threadMessages.map(({ author: role, content }) => ({ role, content })),
+        turnId,
+        threadId: context.threadId,
+        inputMessageId: context.inputMessageId,
+        messages: context.messages.map(({ author: role, content }) => ({ role, content })),
       };
     },
   };

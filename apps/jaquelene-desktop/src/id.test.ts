@@ -6,12 +6,14 @@ import {
   type MessageId,
   type ScenarioId,
   type ThreadId,
+  type TurnId,
 } from "./id";
 
 const identities = [
   ["scenario", ids.scenario],
   ["campaign", ids.campaign],
   ["thread", ids.thread],
+  ["turn", ids.turn],
   ["message", ids.message],
   ["generation", ids.generation],
 ] as const;
@@ -29,7 +31,8 @@ describe("IDs", () => {
   it("keeps owned identity types non-interchangeable", () => {
     expectTypeOf<ScenarioId>().not.toExtend<CampaignId>();
     expectTypeOf<CampaignId>().not.toExtend<ThreadId>();
-    expectTypeOf<ThreadId>().not.toExtend<MessageId>();
+    expectTypeOf<ThreadId>().not.toExtend<TurnId>();
+    expectTypeOf<TurnId>().not.toExtend<MessageId>();
     expectTypeOf<MessageId>().not.toExtend<GenerationId>();
     expectTypeOf<GenerationId>().not.toExtend<ScenarioId>();
   });

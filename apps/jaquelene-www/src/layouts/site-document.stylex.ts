@@ -1,14 +1,16 @@
 import * as stylex from "@stylexjs/stylex";
+import { tokens } from "@jaquelene/ui/theme.stylex";
 
 const styles = stylex.create({
   document: {
-    backgroundColor: "#ffffff",
-    color: "#111111",
-    colorScheme: "light",
-    fontFamily: "ui-sans-serif, system-ui, sans-serif",
+    backgroundColor: tokens.canvas,
+    color: tokens.foreground,
+    colorScheme: "dark",
+    fontFamily: tokens.fontGeist,
   },
   body: {
     margin: 0,
+    minWidth: "20rem",
   },
 });
 

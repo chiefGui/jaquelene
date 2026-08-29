@@ -63,6 +63,9 @@
       "version": "0.1.0",
       "dependencies": {
         "@astrojs/react": "^6.0.4",
+        "@fontsource-variable/geist": "^5.3.0",
+        "@jaquelene/brand": "workspace:*",
+        "@jaquelene/ui": "workspace:*",
         "@stylexjs/stylex": "^0.19.0",
         "astro": "^7.2.9",
         "react": "^19.2.8",

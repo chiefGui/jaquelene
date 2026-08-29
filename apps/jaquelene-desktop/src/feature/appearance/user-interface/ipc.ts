@@ -7,7 +7,6 @@ import {
 } from "@jaquelene/ipc/main";
 import type { WebContents } from "electron";
 import {
-  getInterfaceScaleFactor,
   InterfaceScale,
   MotionPreference,
   UiFont,
@@ -17,6 +16,7 @@ import {
   type UserInterfacePreferenceValues,
   type UiFont as UiFontValue,
 } from "./preferences";
+import { applyInterfaceScale } from "./zoom";
 
 function toIpcScale(scale: InterfaceScaleValue) {
   switch (scale) {
@@ -105,7 +105,7 @@ export function exposeUserInterfacePreferences(
     setFont: (font) => toIpcValues(preferences.setFont(fromIpcFont(font))),
     setScale(scale) {
       const values = preferences.setScale(fromIpcScale(scale));
-      contents.setZoomFactor(getInterfaceScaleFactor(values.scale));
+      applyInterfaceScale(contents, values.scale);
       return toIpcValues(values);
     },
     setMotion: (motion) => toIpcValues(preferences.setMotion(fromIpcMotion(motion))),

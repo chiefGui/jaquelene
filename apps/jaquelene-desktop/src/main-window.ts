@@ -2,7 +2,7 @@ import type { Campaigns, Scenarios, Storage, Threads } from "@jaquelene/backend"
 import { BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import { exposeUserInterfacePreferences } from "./feature/appearance/user-interface/ipc";
-import { getInterfaceScaleFactor } from "./feature/appearance/user-interface/preferences";
+import { createInterfaceScaleWebPreferences } from "./feature/appearance/user-interface/zoom";
 import { exposeCampaignPreferences, exposeCampaigns } from "./feature/campaign/ipc";
 import type { ModelCatalog } from "./feature/model/catalog";
 import { exposeModelCatalog } from "./feature/model/catalog-ipc";
@@ -77,8 +77,7 @@ export function createMainWindow({
         preload: preloadPath,
         sandbox: true,
         webSecurity: true,
-        zoomFactor: getInterfaceScaleFactor(preferences.appearance.userInterface.get().scale),
-        zoomMode: "manual",
+        ...createInterfaceScaleWebPreferences(preferences.appearance.userInterface.get().scale),
       },
     });
 

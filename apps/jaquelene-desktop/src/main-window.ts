@@ -1,6 +1,9 @@
 import type { Campaigns, Scenarios, Storage, Threads } from "@jaquelene/backend";
+import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
+import type { ApplicationDiagnostics } from "./diagnostics/diagnostics";
+import { exposeDiagnostics } from "./diagnostics/ipc";
 import { exposeUserInterfacePreferences } from "./feature/appearance/user-interface/ipc";
 import { createInterfaceScaleWebPreferences } from "./feature/appearance/user-interface/zoom";
 import { exposeCampaignPreferences, exposeCampaigns } from "./feature/campaign/ipc";
@@ -29,6 +32,7 @@ function isSafeExternalUrl(rawUrl: string) {
 
 export function createMainWindow({
   rendererUrl,
+  diagnostics,
   localState,
   scenarios,
   campaigns,
@@ -40,6 +44,7 @@ export function createMainWindow({
   storage,
 }: {
   rendererUrl: string;
+  diagnostics: ApplicationDiagnostics;
   localState: LocalState;
   scenarios: Scenarios;
   campaigns: Campaigns;
@@ -82,6 +87,7 @@ export function createMainWindow({
     });
 
     exposeScenarios(browserWindow.webContents.mainFrame, scenarios);
+    exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
     exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);
     exposeThreads(browserWindow.webContents.mainFrame, threads);
     exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);
@@ -101,7 +107,13 @@ export function createMainWindow({
 
     browserWindow.webContents.setWindowOpenHandler(({ url }) => {
       if (isSafeExternalUrl(url)) {
-        void shell.openExternal(url);
+        void shell.openExternal(url).catch((error: unknown) => {
+          diagnostics.report({
+            severity: ErrorSeverity.Error,
+            operation: "external-link.open",
+            error,
+          });
+        });
       }
 
       return { action: "deny" };

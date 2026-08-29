@@ -2,7 +2,8 @@ import { StorageAreaId, StorageCategory } from "@jaquelene/backend";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import type { ApplicationDiagnostics } from "@/diagnostics/diagnostics";
 import { createFavoriteModels } from "@/feature/model/favorite-models";
 import { createFavoriteModelsStorage } from "@/feature/model/favorite-models-store";
 import { createOpenRouterConnection } from "@/feature/provider/openrouter/connection";
@@ -11,6 +12,18 @@ import { createPreferences } from "@/preferences/preferences";
 import { createStorageAreas } from "./areas";
 
 const directories: string[] = [];
+
+function createDiagnostics(
+  deleteAll: () => Promise<void> = async () => undefined,
+): ApplicationDiagnostics {
+  return {
+    report() {},
+    recordRendererReport() {},
+    deleteAll,
+    openDirectory: async () => undefined,
+    close: async () => undefined,
+  };
+}
 
 afterEach(() => {
   for (const directory of directories.splice(0)) {
@@ -22,7 +35,8 @@ describe("storage areas", () => {
   it("registers every persistence owner under a stable identity", () => {
     const userDataDirectory = mkdtempSync(join(tmpdir(), "jaquelene-storage-areas-"));
     const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
-    const localState = createLocalState(userDataDirectory);
+    const diagnostics = createDiagnostics();
+    const localState = createLocalState(userDataDirectory, diagnostics);
     const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
       encrypt: async (value) => Buffer.from(value),
       decrypt: async (value) => value.toString(),
@@ -32,6 +46,7 @@ describe("storage areas", () => {
     directories.push(userDataDirectory);
 
     const areas = createStorageAreas({
+      diagnostics,
       favoriteModels,
       localState,
       openRouterConnection,
@@ -47,6 +62,12 @@ describe("storage areas", () => {
         deletable: typeof deleteArea === "function",
       })),
     ).toEqual([
+      {
+        id: StorageAreaId.Diagnostics,
+        category: StorageCategory.AppData,
+        paths: [join(userDataDirectory, "diagnostics")],
+        deletable: true,
+      },
       {
         id: StorageAreaId.FavoriteModels,
         category: StorageCategory.AppData,
@@ -80,7 +101,9 @@ describe("storage areas", () => {
   it("deletes every app-data owner through one category", async () => {
     const userDataDirectory = mkdtempSync(join(tmpdir(), "jaquelene-storage-areas-"));
     const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
-    const localState = createLocalState(userDataDirectory);
+    const deleteDiagnostics = vi.fn(async () => undefined);
+    const diagnostics = createDiagnostics(deleteDiagnostics);
+    const localState = createLocalState(userDataDirectory, diagnostics);
     const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
       encrypt: async (value) => Buffer.from(value),
       decrypt: async (value) => value.toString(),
@@ -102,6 +125,7 @@ describe("storage areas", () => {
     await openRouterConnection.connect("openrouter-test-key");
 
     const areas = createStorageAreas({
+      diagnostics,
       favoriteModels,
       localState,
       openRouterConnection,
@@ -120,6 +144,7 @@ describe("storage areas", () => {
     ).toBeUndefined();
     expect(preferences.campaign.getDefaultModel()).toBeNull();
     expect(openRouterConnection.getConfiguration()).toEqual({ state: "disconnected" });
+    expect(deleteDiagnostics).toHaveBeenCalledOnce();
 
     for (const path of areas.flatMap(({ paths }) => paths)) {
       expect(existsSync(path)).toBe(false);

@@ -1,3 +1,4 @@
+import type { ErrorReporter } from "@jaquelene/diagnostics";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +7,11 @@ import { createLocalState, type MainWindowState } from "./local-state";
 
 const workArea = { x: 0, y: 0, width: 1920, height: 1080 };
 const directories: string[] = [];
+const ignoredDiagnostics: ErrorReporter = { report() {} };
+
+function createTestLocalState(directory: string, diagnostics = ignoredDiagnostics) {
+  return createLocalState(directory, diagnostics);
+}
 
 function createUserDataDirectory() {
   const directory = mkdtempSync(join(tmpdir(), "jaquelene-local-state-"));
@@ -23,7 +29,7 @@ afterEach(() => {
 
 describe("local state", () => {
   it("returns no main-window state when none has been saved", () => {
-    const localState = createLocalState(createUserDataDirectory());
+    const localState = createTestLocalState(createUserDataDirectory());
 
     expect(localState.loadMainWindowState([workArea])).toBeUndefined();
   });
@@ -35,14 +41,14 @@ describe("local state", () => {
       maximized: true,
     };
 
-    createLocalState(directory).saveMainWindowState(expected);
+    createTestLocalState(directory).saveMainWindowState(expected);
 
-    expect(createLocalState(directory).loadMainWindowState([workArea])).toEqual(expected);
+    expect(createTestLocalState(directory).loadMainWindowState([workArea])).toEqual(expected);
   });
 
   it("does not restore a main window that is outside every current display", () => {
     const directory = createUserDataDirectory();
-    const localState = createLocalState(directory);
+    const localState = createTestLocalState(directory);
     localState.saveMainWindowState({
       bounds: { x: 3000, y: 2000, width: 800, height: 600 },
       maximized: false,
@@ -53,7 +59,7 @@ describe("local state", () => {
 
   it("deletes saved state and does not recreate it when the current window closes", () => {
     const directory = createUserDataDirectory();
-    const localState = createLocalState(directory);
+    const localState = createTestLocalState(directory);
     const saved: MainWindowState = {
       bounds: { x: 101, y: 202, width: 1103, height: 704 },
       maximized: true,
@@ -86,21 +92,22 @@ describe("local state", () => {
   ])("reports and preserves %s before replacing it", (_name, invalidState, errorType) => {
     const directory = createUserDataDirectory();
     writeFileSync(join(directory, "local-state.json"), invalidState, "utf8");
-    const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const report = vi.fn();
     const replacement: MainWindowState = {
       bounds: { x: 303, y: 404, width: 1005, height: 606 },
       maximized: false,
     };
 
-    const localState = createLocalState(directory);
+    const localState = createTestLocalState(directory, { report });
     expect(localState.loadMainWindowState([workArea])).toBeUndefined();
-    expect(report).toHaveBeenCalledWith(
-      expect.stringContaining("Invalid local state was preserved"),
-      expect.any(errorType),
-    );
+    expect(report).toHaveBeenCalledWith({
+      severity: "warning",
+      operation: "local-state.recover",
+      error: expect.any(errorType),
+    });
     expect(readFileSync(join(directory, "local-state.json.invalid"), "utf8")).toBe(invalidState);
 
     localState.saveMainWindowState(replacement);
-    expect(createLocalState(directory).loadMainWindowState([workArea])).toEqual(replacement);
+    expect(createTestLocalState(directory).loadMainWindowState([workArea])).toEqual(replacement);
   });
 });

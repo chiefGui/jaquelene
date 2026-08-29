@@ -1,0 +1,14 @@
+module jaquelene
+
+subtype ErrorReportPayload = string(
+  minLength: 1
+  maxLength: 131072
+)
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Diagnostics {
+  report(payload: ErrorReportPayload)
+  openDirectory()
+}

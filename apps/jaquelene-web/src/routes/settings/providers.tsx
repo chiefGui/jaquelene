@@ -6,6 +6,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState, type SubmitEvent } from "react";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import { getBrandName } from "@/feature/brand/catalog";
 import { ProviderMark } from "@/feature/provider/mark";
 import {
@@ -78,7 +79,7 @@ function ProvidersRoute() {
           return;
       }
     } catch (cause) {
-      console.error("Could not connect to OpenRouter.", cause);
+      reportError("openrouter.connect", cause);
       setConnectionError("Couldn’t connect to OpenRouter.");
     }
   }
@@ -88,7 +89,7 @@ function ProvidersRoute() {
       await disconnectOpenRouter.mutateAsync();
       setConfirmingDisconnect(false);
     } catch (cause) {
-      console.error("Could not disconnect OpenRouter.", cause);
+      reportError("openrouter.disconnect", cause);
     }
   }
 

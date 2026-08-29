@@ -1,4 +1,5 @@
 import { StorageAreaId, StorageCategory, type StorageArea } from "@jaquelene/backend";
+import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
 import { renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Rectangle } from "electron";
@@ -80,7 +81,7 @@ function rectanglesIntersect(left: Rectangle, right: Rectangle) {
   );
 }
 
-export function createLocalState(userDataDirectory: string) {
+export function createLocalState(userDataDirectory: string, diagnostics: ErrorReporter) {
   let store: Store<LocalStateData>;
   let skipNextSave = false;
 
@@ -102,7 +103,11 @@ export function createLocalState(userDataDirectory: string) {
       );
     }
 
-    console.error(`Invalid local state was preserved at ${invalidFilePath}.`, error);
+    diagnostics.report({
+      severity: ErrorSeverity.Warning,
+      operation: "local-state.recover",
+      error,
+    });
     store = openStore(userDataDirectory);
   }
 

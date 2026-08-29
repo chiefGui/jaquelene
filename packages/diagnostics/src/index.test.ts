@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
-import { serializeError, type SerializedError } from "./index";
+import {
+  createErrorReport,
+  ErrorSeverity,
+  ErrorSource,
+  MAX_ERROR_REPORT_PAYLOAD_LENGTH,
+  parseErrorReport,
+  serializeError,
+  serializeErrorReport,
+  type SerializedError,
+} from "./index";
 
 function countErrors(error: SerializedError): number {
   return (
@@ -212,5 +221,123 @@ describe("serializeError", () => {
 
     expect(serialized.errors?.[0]?.message).toBe("Primary failure");
     expect(serialized.truncated).toBe(true);
+  });
+});
+
+describe("error reports", () => {
+  it("creates and round-trips a canonical report", () => {
+    const error = Object.assign(new Error("Disk unavailable"), { code: "E_TEST_DISK" });
+    error.stack = "test stack";
+    const report = createErrorReport(
+      {
+        source: ErrorSource.Renderer,
+        severity: ErrorSeverity.Error,
+        operation: "storage.measure",
+        error,
+      },
+      { id: "report-1", occurredAt: 1_725_000_000_000 },
+    );
+
+    expect(parseErrorReport(serializeErrorReport(report))).toEqual({
+      id: "report-1",
+      occurredAt: 1_725_000_000_000,
+      source: ErrorSource.Renderer,
+      severity: ErrorSeverity.Error,
+      operation: "storage.measure",
+      error: {
+        name: "Error",
+        message: "Disk unavailable",
+        stack: "test stack",
+        code: "E_TEST_DISK",
+      },
+    });
+  });
+
+  it("rejects malformed and extended transport payloads", () => {
+    const valid = {
+      id: "report-1",
+      occurredAt: 1_725_000_000_000,
+      source: ErrorSource.Main,
+      severity: ErrorSeverity.Warning,
+      operation: "local-state.recover",
+      error: { name: "Error", message: "Invalid local state" },
+    };
+
+    expect(() => parseErrorReport(JSON.stringify({ ...valid, metadata: {} }))).toThrow(TypeError);
+    expect(() =>
+      parseErrorReport(JSON.stringify({ ...valid, error: { ...valid.error, secret: "value" } })),
+    ).toThrow(TypeError);
+    expect(() =>
+      parseErrorReport(JSON.stringify({ ...valid, operation: "Storage Measure" })),
+    ).toThrow(TypeError);
+    expect(() => parseErrorReport("x".repeat(MAX_ERROR_REPORT_PAYLOAD_LENGTH + 1))).toThrow(
+      TypeError,
+    );
+  });
+
+  it("bounds the complete serialized error tree", () => {
+    const childFailures = Array.from({ length: 16 }, (_, index) => {
+      const error = new Error(`${index}:${"x".repeat(16_384)}`);
+      error.stack = `stack:${"y".repeat(16_384)}`;
+      return error;
+    });
+    const report = createErrorReport(
+      {
+        source: ErrorSource.Main,
+        severity: ErrorSeverity.Fatal,
+        operation: "application.start",
+        error: new AggregateError(childFailures, "Startup failed"),
+      },
+      { id: "report-1", occurredAt: 1_725_000_000_000 },
+    );
+    const payload = serializeErrorReport(report);
+
+    expect(payload.length).toBeLessThan(MAX_ERROR_REPORT_PAYLOAD_LENGTH);
+    expect(report.error.truncated).toBe(true);
+    expect(() => parseErrorReport(payload)).not.toThrow();
+  });
+
+  it("keeps property-access failures inside the complete report budget", () => {
+    const children = Array.from({ length: 16 }, () => {
+      const error = new Error("Hidden failure");
+
+      Object.defineProperty(error, "message", {
+        get() {
+          throw new Error("Unreadable message");
+        },
+      });
+      return error;
+    });
+    const error = new AggregateError(children, "x".repeat(16_384));
+    error.stack = "y".repeat(16_384);
+    const report = createErrorReport(
+      {
+        source: ErrorSource.Main,
+        severity: ErrorSeverity.Error,
+        operation: "diagnostics.serialize",
+        error,
+      },
+      { id: "report-1", occurredAt: 1_725_000_000_000 },
+    );
+
+    expect(() => parseErrorReport(serializeErrorReport(report))).not.toThrow();
+  });
+
+  it("bounds JSON escaping overhead as part of the transport contract", () => {
+    const error = new Error("\0".repeat(16_384));
+    error.stack = "\\".repeat(16_384);
+    const report = createErrorReport(
+      {
+        source: ErrorSource.Renderer,
+        severity: ErrorSeverity.Error,
+        operation: "renderer.unhandled-error",
+        error,
+      },
+      { id: "report-1", occurredAt: 1_725_000_000_000 },
+    );
+    const payload = serializeErrorReport(report);
+
+    expect(payload.length).toBeLessThan(MAX_ERROR_REPORT_PAYLOAD_LENGTH);
+    expect(() => parseErrorReport(payload)).not.toThrow();
   });
 });

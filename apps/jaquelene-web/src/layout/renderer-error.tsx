@@ -1,7 +1,9 @@
+import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { Button } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { Component, type ReactNode } from "react";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 
 type RendererErrorBoundaryProps = {
   children: ReactNode;
@@ -19,6 +21,10 @@ export class RendererErrorBoundary extends Component<
 
   static getDerivedStateFromError(): RendererErrorBoundaryState {
     return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    reportError("renderer.render", error, ErrorSeverity.Fatal);
   }
 
   render() {

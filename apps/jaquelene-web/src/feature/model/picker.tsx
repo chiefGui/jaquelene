@@ -43,6 +43,7 @@ import {
   type ReactNode,
 } from "react";
 import { BrandMark, getBrandName } from "@/feature/brand/catalog";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import { ProviderMark } from "@/feature/provider/mark";
 import { modelProvidersQuery, modelsForProviderQuery } from "./catalog-query";
 import {
@@ -332,7 +333,7 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
     try {
       await setFavoriteModel.mutateAsync({ favorite, reference });
     } catch (cause) {
-      console.error("Could not update favorite models.", cause);
+      reportError("model.favorite.update", cause);
       setActionError("Couldn't update favorite models.");
     }
   }

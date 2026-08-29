@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { installUnhandledErrorReporting } from "@/feature/diagnostics/diagnostics";
 import { RendererErrorBoundary } from "@/layout/renderer-error";
 import { routeTree } from "./routeTree.gen";
 import "@fontsource-variable/geist/wght.css";
@@ -21,6 +22,8 @@ declare module "@tanstack/react-router" {
     router: typeof router;
   }
 }
+
+installUnhandledErrorReporting();
 
 const root = document.querySelector<HTMLDivElement>("#root");
 

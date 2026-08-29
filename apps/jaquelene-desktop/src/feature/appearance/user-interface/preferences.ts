@@ -94,10 +94,6 @@ function requireMotion(motion: MotionPreference) {
   }
 }
 
-export function getInterfaceScaleFactor(scale: InterfaceScale) {
-  return scale / 100;
-}
-
 export function createUserInterfacePreferences(storage: UserInterfacePreferencesStorage) {
   function get(): UserInterfacePreferenceValues {
     return { ...(storage.read() ?? defaultValues) };

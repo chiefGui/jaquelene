@@ -10,7 +10,6 @@ import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -19,6 +18,7 @@ import {
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { Composer } from "@/primitive/composer";
 import {
   threadMessagesQuery,
   useIsTurnOperationPending,
@@ -57,9 +57,6 @@ export function ThreadView({
   const turnOperationPending = useIsTurnOperationPending(threadId);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
-  const composerId = useId();
-  const modelRequirementId = useId();
-  const sendErrorId = useId();
   const viewport = useRef<HTMLDivElement>(null);
   const retryTurnId = retryTurnMutation.variables?.turnId;
   const retryStatus: "pending" | "failed" | null = retryTurnMutation.isPending
@@ -78,9 +75,6 @@ export function ThreadView({
     [messagesQuery.data.pages, model, retryStatus, retryTurnId],
   );
   const operationPending = turnOperationPending || threadView.replyPending;
-  const composerDescription = [model ? null : modelRequirementId, sendError ? sendErrorId : null]
-    .filter((id) => id !== null)
-    .join(" ");
 
   useLayoutEffect(() => {
     if (viewport.current) {
@@ -91,21 +85,11 @@ export function ThreadView({
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (operationPending) {
+    if (operationPending || !draft.trim() || !model) {
       return;
     }
 
     const content = draft;
-
-    if (!content.trim()) {
-      setSendError("Write a message before sending it.");
-      return;
-    }
-
-    if (!model) {
-      setSendError("Choose a default model before sending.");
-      return;
-    }
 
     setSendError(null);
     retryTurnMutation.reset();
@@ -239,41 +223,30 @@ export function ThreadView({
       </div>
 
       <div {...stylex.props(styles.composerShell)}>
-        <form onSubmit={sendMessage} {...stylex.props(styles.composer)}>
-          <div {...stylex.props(styles.composerField)}>
-            <label htmlFor={composerId} {...stylex.props(styles.visuallyHidden)}>
-              Message
-            </label>
-            <textarea
-              id={composerId}
-              value={draft}
-              rows={3}
-              maxLength={threadView.messageContentMaxLength}
-              placeholder="Write a message…"
-              aria-describedby={composerDescription || undefined}
-              onChange={(event) => setDraft(event.currentTarget.value)}
-              onKeyDown={handleComposerKeyDown}
-              {...stylex.props(styles.textarea)}
-            />
-            {!model ? (
-              <p id={modelRequirementId} {...stylex.props(styles.modelRequirement)}>
+        <Composer
+          value={draft}
+          maxLength={threadView.messageContentMaxLength}
+          pending={operationPending}
+          submitDisabled={!model || operationPending || !draft.trim()}
+          guidance={
+            model ? null : (
+              <>
                 Choose a default model in{" "}
                 <Link to="/settings/general" {...stylex.props(styles.modelLink)}>
                   Settings
                 </Link>
                 .
-              </p>
-            ) : null}
-            {sendError ? (
-              <p id={sendErrorId} role="alert" {...stylex.props(styles.sendError)}>
-                {sendError}
-              </p>
-            ) : null}
-          </div>
-          <Button type="submit" style={styles.sendButton} disabled={!model || operationPending}>
-            {operationPending ? "Generating…" : "Send"}
-          </Button>
-        </form>
+              </>
+            )
+          }
+          error={sendError}
+          onValueChange={(value) => {
+            setDraft(value);
+            setSendError(null);
+          }}
+          onKeyDown={handleComposerKeyDown}
+          onSubmit={sendMessage}
+        />
       </div>
     </section>
   );
@@ -391,81 +364,16 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightXSmall,
   },
   composerShell: {
-    backgroundColor: tokens.surface,
-    borderTopColor: tokens.border,
-    borderTopStyle: "solid",
-    borderTopWidth: 1,
     flexShrink: 0,
-  },
-  composer: {
-    alignItems: "flex-end",
-    display: "flex",
-    gap: "0.75rem",
     marginInline: "auto",
     maxWidth: "42rem",
-    padding: "1rem 1.5rem",
+    paddingBlock: "0 1.5rem",
+    paddingInline: "1.5rem",
     width: "100%",
-  },
-  composerField: {
-    flex: 1,
-    minWidth: 0,
-  },
-  sendButton: {
-    minWidth: "6.75rem",
-  },
-  textarea: {
-    appearance: "none",
-    backgroundColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 3.5%, transparent)`,
-      ":focus": `color-mix(in oklab, ${tokens.foreground} 5%, transparent)`,
-    },
-    borderColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 10%, transparent)`,
-      ":focus": `color-mix(in oklab, ${tokens.accent} 45%, transparent)`,
-    },
-    borderRadius: tokens.radiusMedium,
-    borderStyle: "solid",
-    borderWidth: 1,
-    caretColor: tokens.accent,
-    color: tokens.foreground,
-    display: "block",
-    fontFamily: "inherit",
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    minHeight: "3.75rem",
-    outline: "none",
-    paddingBlock: "0.625rem",
-    paddingInline: "0.75rem",
-    resize: "vertical",
-    width: "100%",
-    "::placeholder": {
-      color: tokens.muted,
-    },
-  },
-  sendError: {
-    color: tokens.danger,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
-  },
-  modelRequirement: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
   },
   modelLink: {
     color: tokens.foreground,
     textDecorationLine: "underline",
     textUnderlineOffset: "0.15em",
-  },
-  visuallyHidden: {
-    clip: "rect(0 0 0 0)",
-    clipPath: "inset(50%)",
-    height: 1,
-    overflow: "hidden",
-    position: "absolute",
-    whiteSpace: "nowrap",
-    width: 1,
   },
 });

@@ -15,7 +15,6 @@ import { Route as SettingsRouteRouteImport } from "./routes/settings/route";
 import { Route as CampaignsCampaignIdRouteImport } from "./routes/campaigns/$campaignId";
 import { Route as ScenariosIndexRouteImport } from "./routes/scenarios/index";
 import { Route as ScenariosScenarioIdRouteImport } from "./routes/scenarios/$scenarioId";
-import { Route as SettingsAdvancedRouteImport } from "./routes/settings/advanced";
 import { Route as SettingsAppearanceRouteImport } from "./routes/settings/appearance";
 import { Route as SettingsGeneralRouteImport } from "./routes/settings/general";
 import { Route as SettingsProvidersRouteImport } from "./routes/settings/providers";
@@ -51,11 +50,6 @@ const ScenariosScenarioIdRoute = ScenariosScenarioIdRouteImport.update({
   path: "/$scenarioId",
   getParentRoute: () => ScenariosRouteRoute,
 } as any);
-const SettingsAdvancedRoute = SettingsAdvancedRouteImport.update({
-  id: "/advanced",
-  path: "/advanced",
-  getParentRoute: () => SettingsRouteRoute,
-} as any);
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: "/appearance",
   path: "/appearance",
@@ -83,7 +77,6 @@ export interface FileRoutesByFullPath {
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
-  "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
@@ -95,7 +88,6 @@ export interface FileRoutesByTo {
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
-  "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
@@ -109,7 +101,6 @@ export interface FileRoutesById {
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
-  "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
@@ -124,7 +115,6 @@ export interface FileRouteTypes {
     | "/settings"
     | "/campaigns/$campaignId"
     | "/scenarios/$scenarioId"
-    | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
     | "/settings/providers"
@@ -136,7 +126,6 @@ export interface FileRouteTypes {
     | "/settings"
     | "/campaigns/$campaignId"
     | "/scenarios/$scenarioId"
-    | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
     | "/settings/providers"
@@ -149,7 +138,6 @@ export interface FileRouteTypes {
     | "/settings"
     | "/campaigns/$campaignId"
     | "/scenarios/$scenarioId"
-    | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
     | "/settings/providers"
@@ -208,13 +196,6 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ScenariosScenarioIdRouteImport;
       parentRoute: typeof ScenariosRouteRoute;
     };
-    "/settings/advanced": {
-      id: "/settings/advanced";
-      path: "/advanced";
-      fullPath: "/settings/advanced";
-      preLoaderRoute: typeof SettingsAdvancedRouteImport;
-      parentRoute: typeof SettingsRouteRoute;
-    };
     "/settings/appearance": {
       id: "/settings/appearance";
       path: "/appearance";
@@ -261,7 +242,6 @@ const ScenariosRouteRouteWithChildren = ScenariosRouteRoute._addFileChildren(
 );
 
 interface SettingsRouteRouteChildren {
-  SettingsAdvancedRoute: typeof SettingsAdvancedRoute;
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
   SettingsGeneralRoute: typeof SettingsGeneralRoute;
   SettingsProvidersRoute: typeof SettingsProvidersRoute;
@@ -269,7 +249,6 @@ interface SettingsRouteRouteChildren {
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
-  SettingsAdvancedRoute: SettingsAdvancedRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsProvidersRoute: SettingsProvidersRoute,

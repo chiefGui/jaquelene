@@ -8,6 +8,7 @@ import {
   StorageService,
   type Storage,
   type StorageArea,
+  type StorageAreaId,
   type StorageCategory as StorageCategoryValue,
 } from "./storage";
 
@@ -45,6 +46,8 @@ async function createTestStorage(storageAreas: readonly StorageArea[]): Promise<
   return {
     measureUsage: () =>
       unwrapExit(runtime.runPromiseExit(StorageService.use((storage) => storage.measureUsage()))),
+    deleteArea: (id) =>
+      unwrapExit(runtime.runPromiseExit(StorageService.use((storage) => storage.deleteArea(id)))),
     deleteCategory: (id) =>
       unwrapExit(
         runtime.runPromiseExit(StorageService.use((storage) => storage.deleteCategory(id))),
@@ -79,9 +82,9 @@ describe("storage", () => {
     ]);
 
     await expect(storage.measureUsage()).resolves.toEqual({
-      categories: [
-        { id: StorageCategory.Content, bytes: 0 },
-        { id: StorageCategory.AppData, bytes: 0 },
+      areas: [
+        { id: "content", category: StorageCategory.Content, bytes: 0 },
+        { id: "preferences", category: StorageCategory.AppData, bytes: 0 },
       ],
     });
   });
@@ -104,7 +107,7 @@ describe("storage", () => {
     });
   });
 
-  it("aggregates owned files and directories by category", async () => {
+  it("measures every owned area without including unowned paths", async () => {
     const directory = createUserDataDirectory();
     const databasePath = join(directory, "jaquelene.sqlite");
     const localStatePath = join(directory, "local-state.json");
@@ -134,9 +137,9 @@ describe("storage", () => {
     ]);
 
     await expect(storage.measureUsage()).resolves.toEqual({
-      categories: [
-        { id: StorageCategory.Content, bytes: 2_561 },
-        { id: StorageCategory.AppData, bytes: 137 },
+      areas: [
+        { id: "content", category: StorageCategory.Content, bytes: 2_561 },
+        { id: "local-state", category: StorageCategory.AppData, bytes: 137 },
       ],
     });
   });
@@ -154,38 +157,30 @@ describe("storage", () => {
     ]);
 
     await expect(storage.measureUsage()).resolves.toEqual({
-      categories: [
-        { id: StorageCategory.Content, bytes: 0 },
-        { id: StorageCategory.AppData, bytes: 0 },
-      ],
+      areas: [{ id: "content", category: StorageCategory.Content, bytes: 0 }],
     });
 
     writeFileSync(databasePath, Buffer.alloc(256));
 
     await expect(storage.measureUsage()).resolves.toEqual({
-      categories: [
-        { id: StorageCategory.Content, bytes: 256 },
-        { id: StorageCategory.AppData, bytes: 0 },
-      ],
+      areas: [{ id: "content", category: StorageCategory.Content, bytes: 256 }],
     });
   });
 
-  it("delegates category deletion to every owner and returns fresh usage", async () => {
+  it("returns fresh usage for deleted owners without measuring unrelated areas", async () => {
     const directory = createUserDataDirectory();
-    const contentPath = join(directory, "jaquelene.sqlite");
     const favoritesPath = join(directory, "favorite-models.json");
     const preferencesPath = join(directory, "preferences.json");
     const deleteContent = vi.fn();
     const deleteFavorites = vi.fn(() => rmSync(favoritesPath));
     const deletePreferences = vi.fn(() => rmSync(preferencesPath));
-    writeFileSync(contentPath, Buffer.alloc(128));
     writeFileSync(favoritesPath, Buffer.alloc(64));
     writeFileSync(preferencesPath, Buffer.alloc(32));
     const storage = await createTestStorage([
       {
         id: "content",
         category: StorageCategory.Content,
-        paths: [contentPath],
+        paths: [`${directory}\0`],
         delete: deleteContent,
       },
       {
@@ -203,9 +198,9 @@ describe("storage", () => {
     ]);
 
     await expect(storage.deleteCategory(StorageCategory.AppData)).resolves.toEqual({
-      categories: [
-        { id: StorageCategory.Content, bytes: 128 },
-        { id: StorageCategory.AppData, bytes: 0 },
+      areas: [
+        { id: "favorite-models", category: StorageCategory.AppData, bytes: 0 },
+        { id: "preferences", category: StorageCategory.AppData, bytes: 0 },
       ],
     });
     expect(deleteContent).not.toHaveBeenCalled();
@@ -235,7 +230,7 @@ describe("storage", () => {
     ]);
 
     await expect(storage.deleteCategory(StorageCategory.AppData)).rejects.toMatchObject({
-      name: "StorageCategoryDeleteError",
+      name: "StorageDeleteError",
       message: `Could not delete storage category "${StorageCategory.AppData}".`,
       cause: failure,
     });
@@ -277,20 +272,77 @@ describe("storage", () => {
 
     const deletingContent = storage.deleteCategory(StorageCategory.Content);
     await firstStarted;
-    const deletingAppData = storage.deleteCategory(StorageCategory.AppData);
+    const deletingFavoriteModels = storage.deleteArea("favorite-models");
     await Promise.resolve();
     expect(events).toEqual(["content:start"]);
 
     releaseFirst();
-    await Promise.all([deletingContent, deletingAppData]);
+    await Promise.all([deletingContent, deletingFavoriteModels]);
     expect(events).toEqual(["content:start", "content:end", "app-data"]);
   });
 
-  it("rejects unknown category identities", async () => {
+  it("deletes one owner without disturbing its category peers", async () => {
+    const directory = createUserDataDirectory();
+    const diagnosticsPath = join(directory, "diagnostics", "reports.jsonl");
+    const preferencesPath = join(directory, "preferences.json");
+    mkdirSync(join(directory, "diagnostics"));
+    writeFileSync(diagnosticsPath, Buffer.alloc(48));
+    writeFileSync(preferencesPath, Buffer.alloc(32));
+    const deleteDiagnostics = vi.fn(() =>
+      rmSync(join(directory, "diagnostics"), { recursive: true }),
+    );
+    const deletePreferences = vi.fn();
+    const storage = await createTestStorage([
+      {
+        id: "diagnostics",
+        category: StorageCategory.AppData,
+        paths: [join(directory, "diagnostics")],
+        delete: deleteDiagnostics,
+      },
+      {
+        id: "preferences",
+        category: StorageCategory.AppData,
+        paths: [preferencesPath],
+        delete: deletePreferences,
+      },
+    ]);
+
+    await expect(storage.deleteArea("diagnostics")).resolves.toEqual({
+      areas: [{ id: "diagnostics", category: StorageCategory.AppData, bytes: 0 }],
+    });
+    expect(deleteDiagnostics).toHaveBeenCalledOnce();
+    expect(deletePreferences).not.toHaveBeenCalled();
+  });
+
+  it("preserves area deletion failures", async () => {
+    const failure = new Error("Diagnostics storage failed.");
+    const storage = await createTestStorage([
+      {
+        id: "diagnostics",
+        category: StorageCategory.AppData,
+        paths: [join(createUserDataDirectory(), "diagnostics")],
+        delete: () => {
+          throw failure;
+        },
+      },
+    ]);
+
+    await expect(storage.deleteArea("diagnostics")).rejects.toMatchObject({
+      name: "StorageDeleteError",
+      message: 'Could not delete storage area "diagnostics".',
+      cause: failure,
+    });
+  });
+
+  it("rejects unknown area and category identities", async () => {
     const storage = await createTestStorage([]);
 
+    await expect(storage.deleteArea("unknown" as StorageAreaId)).rejects.toMatchObject({
+      name: "StorageDeleteError",
+      message: 'Storage area "unknown" does not exist.',
+    });
     await expect(storage.deleteCategory("unknown" as StorageCategoryValue)).rejects.toMatchObject({
-      name: "StorageCategoryDeleteError",
+      name: "StorageDeleteError",
       message: 'Storage category "unknown" does not exist.',
     });
   });

@@ -1,26 +1,35 @@
-import {
-  StorageCategory,
-  type StorageCategoryUsage,
-  type StorageUsage,
-} from "@jaquelene/ipc/renderer";
+import { diagnosticsStorageAreaId } from "@jaquelene/diagnostics";
+import { StorageCategory, type StorageAreaUsage, type StorageUsage } from "@jaquelene/ipc/renderer";
 import { Button, Item, formatBytes } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
+import {
+  useIsMutating,
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
-import { reportError } from "@/feature/diagnostics/diagnostics";
-import { measureStorageUsage, useDeleteStorageCategory } from "@/feature/storage/query";
+import { openDiagnosticsDirectory, reportError } from "@/feature/diagnostics/diagnostics";
+import {
+  remeasureStorageUsage,
+  storageUsageQuery,
+  useDeleteStorageArea,
+  useDeleteStorageCategory,
+} from "@/feature/storage/query";
+import { ipcMutationOptions } from "@/ipc";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/storage")({
   loader: {
-    handler: measureStorageUsage,
+    handler: ({ context }) => remeasureStorageUsage(context.queryClient),
     staleReloadMode: "blocking",
   },
-  staleTime: 0,
   onError: (error) => reportError("storage.measure", error),
   errorComponent: StorageRouteError,
   component: StorageRoute,
@@ -36,13 +45,36 @@ type StorageCategoryPresentation = Readonly<{
   }>;
 }>;
 
-type StorageCategoryView = StorageCategoryUsage & StorageCategoryPresentation;
+type StorageCategoryView = Readonly<{
+  id: StorageCategory;
+  bytes: number;
+}> &
+  StorageCategoryPresentation;
 
-function presentStorageCategories({ categories }: StorageUsage): readonly StorageCategoryView[] {
-  return categories.map((category) => ({
-    ...category,
-    ...storageCategoryPresentations[category.id],
+function presentStorageCategories({ areas }: StorageUsage): readonly StorageCategoryView[] {
+  return ([StorageCategory.Content, StorageCategory.AppData] as const).map((id) => ({
+    id,
+    bytes: areas.reduce((total, area) => total + (area.category === id ? area.bytes : 0), 0),
+    ...storageCategoryPresentations[id],
   }));
+}
+
+function requireDiagnosticsArea({ areas }: StorageUsage) {
+  const area = areas.find(({ id }) => id === diagnosticsStorageAreaId);
+
+  if (!area || area.category !== StorageCategory.AppData) {
+    throw new Error("Diagnostics storage is not registered as app data.");
+  }
+
+  return area;
+}
+
+async function remeasureStorage(operation: string, queryClient: QueryClient) {
+  try {
+    await remeasureStorageUsage(queryClient);
+  } catch (cause) {
+    reportError(operation, cause);
+  }
 }
 
 function StorageHeader() {
@@ -87,6 +119,84 @@ function StorageUsageBar({
   );
 }
 
+function DiagnosticsStorage({ area }: { area: StorageAreaUsage }) {
+  const queryClient = useQueryClient();
+  const deleteStorageArea = useDeleteStorageArea();
+  const storageMutationPending = useIsMutating({ mutationKey: ["storage"] }) > 0;
+  const [confirmingDeletion, setConfirmingDeletion] = useState(false);
+  const openDiagnostics = useMutation({
+    ...ipcMutationOptions,
+    mutationKey: ["diagnostics", "open-directory"],
+    mutationFn: openDiagnosticsDirectory,
+    onError: (error) => reportError("diagnostics.open", error),
+  });
+  const pending = storageMutationPending || openDiagnostics.isPending;
+
+  function setDeletionConfirmationOpen(open: boolean) {
+    if (open) deleteStorageArea.reset();
+
+    if (!deleteStorageArea.isPending) {
+      setConfirmingDeletion(open);
+    }
+  }
+
+  async function deleteDiagnostics() {
+    try {
+      await deleteStorageArea.mutateAsync(area.id);
+      setConfirmingDeletion(false);
+    } catch (cause) {
+      reportError("storage.diagnostics.delete", cause);
+      await remeasureStorage("storage.diagnostics.remeasure", queryClient);
+    }
+  }
+
+  return (
+    <Item.Section aria-labelledby="storage-diagnostics-heading">
+      <Item.Heading id="storage-diagnostics-heading">Diagnostics</Item.Heading>
+
+      <Item.Group>
+        <Item.Root style={styles.diagnosticsItem}>
+          <Item.Content>
+            <Item.Label>App logs</Item.Label>
+            <Item.Description>Troubleshooting logs included in app data.</Item.Description>
+            {openDiagnostics.isError ? (
+              <Item.Description role="alert" style={styles.error}>
+                Couldn’t open the folder
+              </Item.Description>
+            ) : null}
+          </Item.Content>
+
+          <div {...stylex.props(styles.itemEnd)}>
+            <Item.Value>
+              <Item.ValueText>{formatBytes(area.bytes)}</Item.ValueText>
+            </Item.Value>
+
+            <Button variant="ghost" disabled={pending} onClick={() => openDiagnostics.mutate()}>
+              Open folder
+            </Button>
+
+            <ConfirmDialog
+              open={confirmingDeletion}
+              setOpen={setDeletionConfirmationOpen}
+              trigger={
+                <Button variant="ghost" tone="danger" disabled={pending}>
+                  Delete logs
+                </Button>
+              }
+              heading="Delete diagnostic logs?"
+              description="Removes saved app logs from this device. New logs may be created later."
+              confirmLabel="Delete"
+              pending={deleteStorageArea.isPending}
+              error={deleteStorageArea.isError ? "Couldn’t delete diagnostic logs." : undefined}
+              onConfirm={() => void deleteDiagnostics()}
+            />
+          </div>
+        </Item.Root>
+      </Item.Group>
+    </Item.Section>
+  );
+}
+
 function StorageRouteError() {
   const router = useRouter();
 
@@ -113,27 +223,22 @@ function StorageRouteError() {
 }
 
 function StorageRoute() {
-  const loadedUsage = Route.useLoaderData();
-  const [latestUsage, setLatestUsage] = useState<StorageUsage | null>(null);
+  const queryClient = useQueryClient();
+  const { data: usage } = useSuspenseQuery(storageUsageQuery);
   const [confirmation, setConfirmation] = useState<StorageCategory | null>(null);
   const deleteStorageCategory = useDeleteStorageCategory();
-  const usage = latestUsage ?? loadedUsage;
+  const storageMutationPending = useIsMutating({ mutationKey: ["storage"] }) > 0;
   const categories = presentStorageCategories(usage);
-  const totalBytes = categories.reduce((total, category) => total + category.bytes, 0);
+  const diagnosticsArea = requireDiagnosticsArea(usage);
+  const totalBytes = usage.areas.reduce((total, area) => total + area.bytes, 0);
 
   async function deleteCategory(category: StorageCategoryView) {
     try {
-      const nextUsage = await deleteStorageCategory.mutateAsync(category.id);
-      setLatestUsage(nextUsage);
+      await deleteStorageCategory.mutateAsync(category.id);
       setConfirmation(null);
     } catch (cause) {
-      reportError("storage.delete", cause);
-
-      try {
-        setLatestUsage(await measureStorageUsage());
-      } catch (measurementCause) {
-        reportError("storage.remeasure", measurementCause);
-      }
+      reportError("storage.category.delete", cause);
+      await remeasureStorage("storage.category.remeasure", queryClient);
     }
   }
 
@@ -185,7 +290,7 @@ function StorageRoute() {
                       <Item.Label>{category.label}</Item.Label>
                     </div>
 
-                    <div {...stylex.props(styles.categoryEnd)}>
+                    <div {...stylex.props(styles.itemEnd)}>
                       <Item.Value>
                         <Item.ValueText>{formatBytes(category.bytes)}</Item.ValueText>
                       </Item.Value>
@@ -194,11 +299,7 @@ function StorageRoute() {
                         open={open}
                         setOpen={(nextOpen) => setConfirmationOpen(category, nextOpen)}
                         trigger={
-                          <Button
-                            variant="ghost"
-                            tone="danger"
-                            disabled={deleteStorageCategory.isPending}
-                          >
+                          <Button variant="ghost" tone="danger" disabled={storageMutationPending}>
                             Delete
                           </Button>
                         }
@@ -219,6 +320,8 @@ function StorageRoute() {
               })}
             </Item.Group>
           </Item.Section>
+
+          <DiagnosticsStorage area={diagnosticsArea} />
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>
@@ -262,7 +365,7 @@ const styles = stylex.create({
     gap: "0.75rem",
     minWidth: 0,
   },
-  categoryEnd: {
+  itemEnd: {
     alignItems: "center",
     display: "flex",
     flexShrink: 0,
@@ -274,6 +377,12 @@ const styles = stylex.create({
     flexShrink: 0,
     height: "0.5rem",
     width: "0.5rem",
+  },
+  diagnosticsItem: {
+    alignItems: "flex-start",
+  },
+  error: {
+    color: tokens.danger,
   },
   content: {
     color: tokens.accent,

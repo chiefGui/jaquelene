@@ -42,7 +42,8 @@ export type {
   Storage,
   StorageArea,
   StorageAreaId,
-  StorageCategoryUsage,
+  StorageAreaUsage,
+  StorageDeletion,
   StorageUsage,
 } from "#backend/storage/storage";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";

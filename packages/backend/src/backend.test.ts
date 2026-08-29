@@ -83,6 +83,7 @@ describe("backend", () => {
 
     expect(() => first.scenarios.list()).toThrow("Backend is closed.");
     await expect(first.storage.measureUsage()).rejects.toThrow("Backend is closed.");
+    await expect(first.storage.deleteArea("content")).rejects.toThrow("Backend is closed.");
     await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(
       "Backend is closed.",
     );
@@ -135,10 +136,16 @@ describe("backend", () => {
 
     await expect(backend.storage.measureUsage()).resolves.toEqual(
       expect.objectContaining({
-        categories: expect.arrayContaining([{ id: StorageCategory.AppData, bytes: 47 }]),
+        areas: expect.arrayContaining([
+          {
+            id: "provider:provider-a",
+            category: StorageCategory.AppData,
+            bytes: 47,
+          },
+        ]),
       }),
     );
-    await backend.storage.deleteCategory(StorageCategory.AppData);
+    await backend.storage.deleteArea("provider:provider-a");
     expect(existsSync(configurationPath)).toBe(false);
     expect(backend.providers.inspectConfiguration(provider.descriptor.id)).toEqual({
       kind: "api-key",

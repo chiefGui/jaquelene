@@ -12,6 +12,7 @@ import {
   StorageService,
   type Storage,
   type StorageArea,
+  type StorageAreaId,
   type StorageCategory,
 } from "#backend/storage/storage";
 import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
@@ -279,6 +280,15 @@ export async function createBackend({
         }
 
         return unwrapExit(runtime.runPromiseExit(measureStorageUsage));
+      },
+      deleteArea(id: StorageAreaId) {
+        if (state !== "open") {
+          return Promise.reject(new Error("Backend is closed."));
+        }
+
+        return unwrapExit(
+          runtime.runPromiseExit(StorageService.use((storage) => storage.deleteArea(id))),
+        );
       },
       deleteCategory(id: StorageCategory) {
         if (state !== "open") {

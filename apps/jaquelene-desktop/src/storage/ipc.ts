@@ -2,6 +2,7 @@ import {
   StorageCategory as BackendStorageCategory,
   type Storage,
   type StorageCategory,
+  type StorageDeletion,
   type StorageUsage,
 } from "@jaquelene/backend";
 import { Storage as StorageIpc, StorageCategory as IpcStorageCategory } from "@jaquelene/ipc/main";
@@ -25,11 +26,12 @@ function fromIpcCategory(category: IpcStorageCategory): StorageCategory {
   }
 }
 
-function toIpcUsage(usage: StorageUsage) {
+function toIpcAreas(value: StorageUsage | StorageDeletion) {
   return {
-    categories: usage.categories.map((category) => ({
-      id: toIpcCategory(category.id),
-      bytes: category.bytes,
+    areas: value.areas.map((area) => ({
+      id: area.id,
+      category: toIpcCategory(area.category),
+      bytes: area.bytes,
     })),
   };
 }
@@ -37,10 +39,13 @@ function toIpcUsage(usage: StorageUsage) {
 export function exposeStorage(target: WebFrameMain, storage: Storage) {
   StorageIpc.for(target).setImplementation({
     async measureUsage() {
-      return toIpcUsage(await storage.measureUsage());
+      return toIpcAreas(await storage.measureUsage());
+    },
+    async deleteArea(id) {
+      return toIpcAreas(await storage.deleteArea(id));
     },
     async deleteCategory(id) {
-      return toIpcUsage(await storage.deleteCategory(fromIpcCategory(id)));
+      return toIpcAreas(await storage.deleteCategory(fromIpcCategory(id)));
     },
   });
 }

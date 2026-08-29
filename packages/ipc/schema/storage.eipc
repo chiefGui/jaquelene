@@ -10,13 +10,18 @@ enum StorageCategory {
   AppData = "app-data"
 }
 
-structure StorageCategoryUsage {
-  id: StorageCategory
+structure StorageAreaUsage {
+  id: string
+  category: StorageCategory
   bytes: ByteCount
 }
 
 structure StorageUsage {
-  categories: StorageCategoryUsage[]
+  areas: StorageAreaUsage[]
+}
+
+structure StorageDeletion {
+  areas: StorageAreaUsage[]
 }
 
 [RendererAPI]
@@ -24,5 +29,6 @@ structure StorageUsage {
 [ContextBridge]
 interface Storage {
   measureUsage() -> StorageUsage
-  deleteCategory(id: StorageCategory) -> StorageUsage
+  deleteArea(id: string) -> StorageDeletion
+  deleteCategory(id: StorageCategory) -> StorageDeletion
 }

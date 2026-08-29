@@ -3,7 +3,6 @@ import ConnectIcon from "@hugeicons/core-free-icons/ConnectIcon";
 import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
 import PaletteIcon from "@hugeicons/core-free-icons/PaletteIcon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
-import ToolsIcon from "@hugeicons/core-free-icons/ToolsIcon";
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { PrimarySidebar } from "@/layout/primary-sidebar";
 
@@ -43,12 +42,6 @@ function SettingsSidebar() {
             icon: HardDriveIcon,
             label: "Storage",
             to: "/settings/storage",
-          },
-          {
-            id: "advanced",
-            icon: ToolsIcon,
-            label: "Advanced",
-            to: "/settings/advanced",
           },
         ],
       }}

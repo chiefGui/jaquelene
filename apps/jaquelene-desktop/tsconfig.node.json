@@ -25,6 +25,8 @@
   },
   "include": [
     "src/**/*.ts",
+    "scripts/**/*.ts",
+    "electron-builder.config.ts",
     "vite.config.ts",
     "../jaquelene-web/vite.config.ts",
     "../jaquelene-web/stylex.config.ts"

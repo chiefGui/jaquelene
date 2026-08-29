@@ -24,8 +24,11 @@
     "format": "vp fmt",
     "lint": "vp lint",
     "typecheck": "bun run build:ipc && tsc -b --pretty && bun run check:www",
-    "package": "bun run build && bun run --cwd apps/jaquelene-desktop package",
-    "package:dir": "bun run build && bun run --cwd apps/jaquelene-desktop package:dir"
+    "package": "bun run package:windows",
+    "package:dir": "bun run package:windows:dir",
+    "package:windows": "bun run --cwd apps/jaquelene-desktop build && bun run --cwd apps/jaquelene-desktop package:windows",
+    "package:windows:dir": "bun run --cwd apps/jaquelene-desktop build && bun run --cwd apps/jaquelene-desktop package:windows:dir",
+    "verify:package:windows": "bun run --cwd apps/jaquelene-desktop verify:package:windows"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

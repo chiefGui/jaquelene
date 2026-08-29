@@ -3,26 +3,37 @@
   "version": "0.1.0",
   "private": true,
   "description": "The Jaquelene desktop application",
+  "homepage": "https://github.com/chiefGui/jaquelene",
+  "author": "Guilherme Oderdenge",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chiefGui/jaquelene.git"
+  },
   "type": "module",
   "main": "dist-electron/main/main.js",
   "scripts": {
     "dev": "bun run --filter @jaquelene/ipc build:development && vp dev",
     "build": "bun run --filter @jaquelene/ipc build && vp build",
-    "package": "electron-builder --config electron-builder.yml",
-    "package:dir": "electron-builder --dir --config electron-builder.yml"
+    "package": "bun run package:windows",
+    "package:dir": "bun run package:windows:dir",
+    "package:windows": "electron-builder --win --config electron-builder.config.ts --publish never",
+    "package:windows:dir": "electron-builder --dir --win --config electron-builder.config.ts --publish never",
+    "verify:package:windows": "bun run scripts/verify-windows-package.ts"
   },
   "dependencies": {
+    "electron-store": "^11.0.2"
+  },
+  "devDependencies": {
+    "@electron/asar": "3.4.1",
     "@jaquelene/backend": "workspace:*",
     "@jaquelene/diagnostics": "workspace:*",
     "@jaquelene/ipc": "workspace:*",
     "@openrouter/sdk": "^1.2.78",
-    "electron-store": "^11.0.2"
-  },
-  "devDependencies": {
     "@types/node": "^26.3.0",
     "electron": "^44.0.0",
     "electron-builder": "^26.15.3",
     "vite": "^8.2.2",
     "vite-plugin-electron": "^1.1.1"
-  }
+  },
+  "productName": "Jaquelene"
 }

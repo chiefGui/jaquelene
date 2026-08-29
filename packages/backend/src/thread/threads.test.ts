@@ -84,6 +84,8 @@ describe("threads", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [first.message, second.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
   });
 
@@ -123,6 +125,8 @@ describe("threads", () => {
     });
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [first.message, firstReply.message, second.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
   });
 
@@ -146,6 +150,8 @@ describe("threads", () => {
 
     expect(threads.listMessages({ threadId: thread.id, before: newestPage.nextCursor })).toEqual({
       messages: [turns[0]?.message, turns[1]?.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
   });
 
@@ -167,6 +173,8 @@ describe("threads", () => {
     });
     expect(secondConnection.threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
   });
 

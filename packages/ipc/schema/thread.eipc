@@ -15,18 +15,61 @@ subtype ThreadMessageSequence = number(
   maxValue: 9007199254740991
 )
 
+subtype ThreadMessagePageSize = number(
+  minValue: 1
+  maxValue: 9007199254740991
+)
+
+subtype ThreadMessageContentMaxLength = number(
+  minValue: 1
+  maxValue: 9007199254740991
+)
+
 enum ThreadMessageAuthor {
   User = "user"
   Assistant = "assistant"
 }
 
+enum GenerationStatus {
+  Pending = "pending"
+  Completed = "completed"
+  Failed = "failed"
+}
+
+enum GenerationFailureKind {
+  Prompt = "prompt"
+  Provider = "provider"
+  InvalidOutput = "invalid-output"
+  Interrupted = "interrupted"
+  Storage = "storage"
+}
+
+structure Turn {
+  id: string
+  threadId: string
+  createdAt: UnixTimeMilliseconds
+}
+
 structure ThreadMessage {
   id: string
   threadId: string
+  turnId: string
   sequence: ThreadMessageSequence
   author: ThreadMessageAuthor
   content: ThreadMessageContent
   createdAt: UnixTimeMilliseconds
+}
+
+structure TurnGeneration {
+  id: string
+  turnId: string
+  providerId: string
+  modelId: string
+  status: GenerationStatus
+  failureKind?: GenerationFailureKind
+  outputMessageId?: string
+  startedAt: UnixTimeMilliseconds
+  finishedAt?: UnixTimeMilliseconds
 }
 
 structure ThreadMessagePageRequest {
@@ -36,7 +79,29 @@ structure ThreadMessagePageRequest {
 
 structure ThreadMessagePage {
   messages: ThreadMessage[]
+  generations: TurnGeneration[]
+  pageSize: ThreadMessagePageSize
+  messageContentMaxLength: ThreadMessageContentMaxLength
   nextCursor?: ThreadMessageCursor
+}
+
+structure SubmitTurnRequest {
+  threadId: string
+  content: ThreadMessageContent
+  model: ModelReference
+}
+
+structure RetryTurnRequest {
+  turnId: string
+  model: ModelReference
+}
+
+structure TurnSubmission {
+  turn: Turn
+  userMessage: ThreadMessage
+  generation: TurnGeneration
+  assistantMessage?: ThreadMessage
+  assistantActivated: boolean
 }
 
 [RendererAPI]
@@ -44,5 +109,12 @@ structure ThreadMessagePage {
 [ContextBridge]
 interface Threads {
   listMessages(request: ThreadMessagePageRequest) -> ThreadMessagePage
-  appendUserMessage(threadId: string, content: ThreadMessageContent) -> ThreadMessage
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Turns {
+  submit(request: SubmitTurnRequest) -> TurnSubmission
+  retry(request: RetryTurnRequest) -> TurnSubmission
 }

@@ -138,7 +138,7 @@ function startPrimaryApplication() {
         localState,
         scenarios: backend.scenarios,
         campaigns: backend.campaigns,
-        threads: backend.threads,
+        turns: backend.turns,
         modelCatalog: backend.models,
         favoriteModels,
         preferences,

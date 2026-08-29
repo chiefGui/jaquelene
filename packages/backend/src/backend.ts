@@ -1,9 +1,9 @@
 import { Cause, Context, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { createCampaigns, type Campaigns } from "#backend/campaign/campaigns";
 import { DatabaseService } from "#backend/database/database";
-import { createGenerations, type Generations } from "#backend/generation/generations";
+import type { Generations } from "#backend/generation/generations";
 import { createTurnPromptCompiler } from "#backend/generation/prompt";
-import { superviseGenerations } from "#backend/generation/supervisor";
+import { createGenerationSubsystem } from "#backend/generation/subsystem";
 import type { ProviderAdapter } from "#backend/provider/provider";
 import { ProvidersService, type Models, type Providers } from "#backend/provider/providers";
 import { createScenarios, type Scenarios } from "#backend/scenario/scenarios";
@@ -14,7 +14,8 @@ import {
   type StorageArea,
   type StorageCategory,
 } from "#backend/storage/storage";
-import { createThreads, type Threads } from "#backend/thread/threads";
+import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
+import { createTurns, type Turns } from "#backend/turn/turns";
 
 export type BackendOptions = Readonly<{
   databasePath: string;
@@ -26,6 +27,7 @@ export type Backend = Readonly<{
   scenarios: Scenarios;
   campaigns: Campaigns;
   threads: Threads;
+  turns: Turns;
   providers: Providers;
   models: Models;
   generations: Generations;
@@ -36,7 +38,8 @@ export type Backend = Readonly<{
 type Application = Readonly<{
   scenarios: Scenarios;
   campaigns: Campaigns;
-  threads: Threads;
+  threads: ThreadEngine;
+  turns: Turns;
   providers: Providers;
   models: Models;
   generations: Generations;
@@ -59,22 +62,22 @@ function createApplicationLayer() {
           const scenarios = createScenarios(database);
           const campaigns = createCampaigns(database);
           const threads = createThreads(database);
-          const generationEngine = createGenerations(
+          const generationSubsystem = createGenerationSubsystem({
             database,
-            createTurnPromptCompiler(threads),
-            providers.generations,
-          );
-          generationEngine.recoverInterrupted();
-          const supervisedGenerations = superviseGenerations(generationEngine);
+            promptCompiler: createTurnPromptCompiler(threads),
+            providers: providers.generations,
+          });
+          const turns = createTurns(threads, generationSubsystem.replies);
 
           return ApplicationService.of({
             scenarios,
             campaigns,
             threads,
+            turns,
             providers: providers.providers,
             models: providers.models,
-            generations: supervisedGenerations.generations,
-            close: supervisedGenerations.close,
+            generations: generationSubsystem.generations,
+            close: generationSubsystem.close,
           });
         }),
         (application) => Effect.promise(() => application.close()),
@@ -198,13 +201,29 @@ export async function createBackend({
         assertOpen();
         return application.threads.startTurn(threadId, content);
       },
-      getTurnContext(turnId) {
-        assertOpen();
-        return application.threads.getTurnContext(turnId);
-      },
       listMessages(request) {
         assertOpen();
         return application.threads.listMessages(request);
+      },
+    },
+    turns: {
+      listForThread(request) {
+        assertOpen();
+        return application.turns.listForThread(request);
+      },
+      submit(request) {
+        if (state !== "open") {
+          return Promise.reject(new Error("Backend is closed."));
+        }
+
+        return application.turns.submit(request);
+      },
+      retry(request) {
+        if (state !== "open") {
+          return Promise.reject(new Error("Backend is closed."));
+        }
+
+        return application.turns.retry(request);
       },
     },
     providers: {

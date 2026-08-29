@@ -11,9 +11,13 @@ import type {
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import { threadMessageTable } from "#backend/thread/schema";
-import { createThreads } from "#backend/thread/threads";
+import {
+  createThreads,
+  THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+  THREAD_MESSAGE_PAGE_SIZE,
+} from "#backend/thread/threads";
 import { createGenerations } from "./generations";
-import { createTurnPromptCompiler } from "./prompt";
+import { createTurnPromptCompiler, type GenerationPrompt } from "./prompt";
 import { generationTable } from "./schema";
 
 const directories: string[] = [];
@@ -141,6 +145,8 @@ describe("generations", () => {
     expect(database.select().from(generationTable).get()).toEqual(result.generation);
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message, result.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
   });
 
@@ -200,6 +206,8 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message, regenerated.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
     expect(database.select().from(threadMessageTable).all()).toEqual(
       expect.arrayContaining([started.message, first.message, regenerated.message]),
@@ -237,10 +245,54 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [first.message, second.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
     expect(database.select().from(threadMessageTable).all()).toEqual(
       expect.arrayContaining([first.message, second.message, result.message]),
     );
+  });
+
+  it("snapshots the active branch before asynchronous prompt compilation", async () => {
+    const compiledPrompt = deferred<GenerationPrompt>();
+    const provider = {
+      id: "provider-a",
+      generate: vi.fn(async () => ({ text: "Late reply" })),
+    };
+    const { database, threads } = openGenerationEnvironment(provider);
+    const generations = createGenerations(
+      database,
+      { compile: () => compiledPrompt.promise },
+      generationRouter(provider),
+    );
+    const thread = threads.create();
+    const first = threads.startTurn(thread.id, "First user message");
+    const model = { providerId: provider.id, modelId: "maker/model" };
+    const pending = generations.generateReply({
+      turnId: first.turn.id,
+      model,
+    });
+    model.modelId = "mutated/model";
+    const second = threads.startTurn(thread.id, "Newer user message");
+
+    compiledPrompt.resolve({
+      turnId: first.turn.id,
+      threadId: thread.id,
+      inputMessageId: first.message.id,
+      messages: [{ role: "user", content: "First user message" }],
+    });
+    const result = await pending;
+
+    expect(result.activated).toBe(false);
+    expect(result.generation.modelId).toBe("maker/model");
+    expect(provider.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ modelId: "maker/model" }),
+    );
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [first.message, second.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+    });
   });
 
   it("allows only one pending generation for each turn", async () => {
@@ -305,6 +357,8 @@ describe("generations", () => {
     expect(firstResult.activated).toBe(false);
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [first.message, second.message, secondResult.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
   });
 
@@ -340,6 +394,8 @@ describe("generations", () => {
     ]);
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
   });
 
@@ -368,6 +424,8 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
   });
 
@@ -398,6 +456,8 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
     expect(threads.startTurn(thread.id, "After failure").message.sequence).toBe(2);
   });
@@ -449,6 +509,8 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: secondThread.id })).toEqual({
       messages: [second.message],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
 
     await expect(
@@ -609,12 +671,18 @@ describe("generations", () => {
 
     await expect(pending).rejects.toBe(interruption);
     expect(provider.generate).not.toHaveBeenCalled();
-    expect(database.select().from(generationTable).all()).toEqual([]);
+    expect(database.select().from(generationTable).get()).toEqual(
+      expect.objectContaining({
+        turnId: started.turn.id,
+        status: "failed",
+        failureKind: "interrupted",
+      }),
+    );
   });
 
-  it("rejects missing turns and malformed compiler output before generation", async () => {
+  it("rejects missing turns and records malformed compiler output before provider work", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { database, generations } = openGenerationEnvironment(provider);
+    const { database, generations, threads } = openGenerationEnvironment(provider);
     const missingTurnId = ids.turn.create();
 
     await expect(
@@ -624,6 +692,8 @@ describe("generations", () => {
       }),
     ).rejects.toThrow(`Turn "${missingTurnId}" does not exist.`);
 
+    const thread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
     const mismatchedTurnId = ids.turn.create();
     const malformed = createGenerations(
       database,
@@ -640,10 +710,17 @@ describe("generations", () => {
 
     await expect(
       malformed.generateReply({
-        turnId: ids.turn.create(),
+        turnId: started.turn.id,
         model: { providerId: provider.id, modelId: "maker/model" },
       }),
     ).rejects.toThrow("The generation prompt does not belong to turn");
-    expect(database.select().from(generationTable).all()).toEqual([]);
+    expect(provider.generate).not.toHaveBeenCalled();
+    expect(database.select().from(generationTable).all()).toEqual([
+      expect.objectContaining({
+        turnId: started.turn.id,
+        status: "failed",
+        failureKind: "prompt",
+      }),
+    ]);
   });
 });

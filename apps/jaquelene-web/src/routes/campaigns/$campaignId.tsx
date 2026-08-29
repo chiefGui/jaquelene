@@ -2,6 +2,7 @@ import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { defaultCampaignModelQuery } from "@/feature/campaign/preferences";
 import { campaignQuery } from "@/feature/campaign/query";
 import { scenariosQuery } from "@/feature/scenario/query";
 import { ScenariosSidebar } from "@/feature/scenario/sidebar";
@@ -12,20 +13,21 @@ import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/campaigns/$campaignId")({
   loader: async ({ context, params }) => {
-    const [campaign] = await Promise.all([
-      context.queryClient.query({
-        ...campaignQuery(params.campaignId),
-        staleTime: "static",
-      }),
-      context.queryClient.query({ ...scenariosQuery, staleTime: "static" }),
-    ]);
+    const campaignPromise = context.queryClient.query({
+      ...campaignQuery(params.campaignId),
+      staleTime: "static",
+    });
 
-    if (campaign) {
-      await context.queryClient.infiniteQuery({
-        ...threadMessagesQuery(campaign.threadId),
-        staleTime: "static",
-      });
-    }
+    await Promise.all([
+      campaignPromise,
+      context.queryClient.query({ ...scenariosQuery, staleTime: "static" }),
+      context.queryClient.query(defaultCampaignModelQuery),
+      campaignPromise.then((result) =>
+        result
+          ? context.queryClient.infiniteQuery(threadMessagesQuery(result.threadId))
+          : undefined,
+      ),
+    ]);
   },
   remountDeps: ({ params }) => params.campaignId,
   staticData: {
@@ -38,6 +40,7 @@ function CampaignRoute() {
   const { campaignId } = Route.useParams();
   const { data: campaign } = useSuspenseQuery(campaignQuery(campaignId));
   const { data: scenarios } = useSuspenseQuery(scenariosQuery);
+  const { data: defaultModel } = useSuspenseQuery(defaultCampaignModelQuery);
   const scenario = campaign ? scenarios.find(({ id }) => id === campaign.scenarioId) : undefined;
 
   if (campaign && !scenario) {
@@ -77,7 +80,7 @@ function CampaignRoute() {
 
       <ContentPane.Viewport style={campaign ? styles.threadViewport : undefined}>
         {campaign ? (
-          <ThreadView threadId={campaign.threadId} />
+          <ThreadView threadId={campaign.threadId} model={defaultModel} />
         ) : (
           <ContentPane.Body>
             <section aria-labelledby="missing-campaign-heading">

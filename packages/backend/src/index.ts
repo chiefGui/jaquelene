@@ -26,6 +26,7 @@ export type {
   Providers,
   ProviderSummary,
 } from "#backend/provider/providers";
+export type { Generation, GenerationFailureKind } from "#backend/generation/schema";
 export {
   ids,
   type CampaignId,
@@ -44,5 +45,12 @@ export type {
   StorageCategoryUsage,
   StorageUsage,
 } from "#backend/storage/storage";
-export type { ThreadMessage } from "#backend/thread/schema";
+export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/threads";
+export type {
+  RetryTurnRequest,
+  SubmitTurnRequest,
+  ThreadActivityPage,
+  Turns,
+  TurnSubmission,
+} from "#backend/turn/turns";

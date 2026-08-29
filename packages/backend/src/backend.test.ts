@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
@@ -11,7 +11,11 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import { StorageCategory } from "#backend/storage/storage";
-import { createThreads } from "#backend/thread/threads";
+import {
+  createThreads,
+  THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+  THREAD_MESSAGE_PAGE_SIZE,
+} from "#backend/thread/threads";
 import { createBackend, type BackendOptions } from "./backend";
 
 const directories: string[] = [];
@@ -59,10 +63,19 @@ afterEach(() => {
 describe("backend", () => {
   it("owns durable application services across close and reopen", async () => {
     const databasePath = createDatabasePath();
-    const first = await createBackend(backendOptions(databasePath));
+    const provider = providerAdapter("provider-a", {
+      async generate() {
+        return { text: "The voyage begins." };
+      },
+    });
+    const first = await createBackend(backendOptions(databasePath, [provider]));
     const scenario = first.scenarios.create("Voyage");
     const campaign = first.campaigns.start(scenario.id);
-    const started = first.threads.startTurn(campaign.threadId, "Begin");
+    const submitted = await first.turns.submit({
+      threadId: campaign.threadId,
+      content: "Begin",
+      model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+    });
 
     const firstClose = first.close();
     expect(first.close()).toBe(firstClose);
@@ -73,13 +86,23 @@ describe("backend", () => {
     await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(
       "Backend is closed.",
     );
+    await expect(
+      first.turns.submit({
+        threadId: campaign.threadId,
+        content: "Continue",
+        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      }),
+    ).rejects.toThrow("Backend is closed.");
 
     const reopened = await createBackend(backendOptions(databasePath));
 
     expect(reopened.scenarios.get(scenario.id)).toEqual(scenario);
     expect(reopened.campaigns.get(campaign.id)).toEqual(campaign);
-    expect(reopened.threads.listMessages({ threadId: campaign.threadId })).toEqual({
-      messages: [started.message],
+    expect(reopened.turns.listForThread({ threadId: campaign.threadId })).toEqual({
+      messages: [submitted.userMessage, submitted.assistantMessage],
+      generations: [submitted.generation],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
     await reopened.close();
   });
@@ -137,25 +160,29 @@ describe("backend", () => {
     });
     const backend = await createBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
-    const started = backend.threads.startTurn(thread.id, "Hello");
-    const pending = backend.generations.generateReply({
-      turnId: started.turn.id,
+    const pending = backend.turns.submit({
+      threadId: thread.id,
+      content: "Hello",
       model: { providerId: provider.descriptor.id, modelId: "maker/model" },
     });
     await providerStarted.promise;
 
     const closing = backend.close();
 
-    await expect(pending).rejects.toThrow("Backend is closing.");
+    const interrupted = await pending;
     await closing;
     expect(providerSignal?.aborted).toBe(true);
+    expect(interrupted.generation).toEqual(
+      expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
+    );
+    expect(interrupted.assistantMessage).toBeNull();
 
     const database = openDatabase(databasePath);
 
     try {
       expect(database.select().from(generationTable).get()).toEqual(
         expect.objectContaining({
-          turnId: started.turn.id,
+          turnId: interrupted.turn.id,
           status: "failed",
           failureKind: "interrupted",
         }),
@@ -163,6 +190,37 @@ describe("backend", () => {
     } finally {
       closeDatabase(database);
     }
+  });
+
+  it("keeps an immediately interrupted turn inspectable after reopening", async () => {
+    const databasePath = createDatabasePath();
+    const generate = vi.fn(async () => ({ text: "Too late" }));
+    const provider = providerAdapter("provider-a", { generate });
+    const backend = await createBackend(backendOptions(databasePath, [provider]));
+    const thread = backend.threads.create();
+    const pending = backend.turns.submit({
+      threadId: thread.id,
+      content: "Hello",
+      model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+    });
+
+    const closing = backend.close();
+    const interrupted = await pending;
+    await closing;
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(interrupted.generation).toEqual(
+      expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
+    );
+    const reopened = await createBackend(backendOptions(databasePath));
+
+    expect(reopened.turns.listForThread({ threadId: thread.id })).toEqual({
+      messages: [interrupted.userMessage],
+      generations: [interrupted.generation],
+      pageSize: THREAD_MESSAGE_PAGE_SIZE,
+      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+    });
+    await reopened.close();
   });
 
   it("recovers pending generations before exposing reopened services", async () => {

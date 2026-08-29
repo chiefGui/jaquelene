@@ -14,6 +14,7 @@ import { threadMessageTable, turnTable } from "#backend/thread/schema";
 
 export const generationStatuses = ["pending", "completed", "failed"] as const;
 export const generationFailureKinds = [
+  "prompt",
   "provider",
   "invalid-output",
   "interrupted",
@@ -72,7 +73,7 @@ export const generationTable = sqliteTable(
     ),
     check(
       "generations_failure_kind_valid",
-      sql`${generation.failureKind} IS NULL OR ${generation.failureKind} IN ('provider', 'invalid-output', 'interrupted', 'storage')`,
+      sql`${generation.failureKind} IS NULL OR ${generation.failureKind} IN ('prompt', 'provider', 'invalid-output', 'interrupted', 'storage')`,
     ),
     check(
       "generations_provider_result_valid",

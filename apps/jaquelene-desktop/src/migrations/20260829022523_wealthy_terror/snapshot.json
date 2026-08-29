@@ -1,0 +1,644 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "df59fb39-5bef-4bea-a6c8-f75f153f5fc5",
+  "prevIds": ["f0884082-31e5-4e61-b781-4b1c550709b5"],
+  "ddl": [
+    {
+      "name": "campaigns",
+      "entityType": "tables"
+    },
+    {
+      "name": "generations",
+      "entityType": "tables"
+    },
+    {
+      "name": "scenarios",
+      "entityType": "tables"
+    },
+    {
+      "name": "thread_messages",
+      "entityType": "tables"
+    },
+    {
+      "name": "threads",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "campaigns"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scenario_id",
+      "entityType": "columns",
+      "table": "campaigns"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "thread_id",
+      "entityType": "columns",
+      "table": "campaigns"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "started_at",
+      "entityType": "columns",
+      "table": "campaigns"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "thread_id",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "context_sequence",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "model_id",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "failure_kind",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_generation_id",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "resolved_model_id",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "finish_reason",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "input_tokens",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "output_tokens",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "total_tokens",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "output_message_id",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "started_at",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "finished_at",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "scenarios"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "title",
+      "entityType": "columns",
+      "table": "scenarios"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "thread_messages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "thread_id",
+      "entityType": "columns",
+      "table": "thread_messages"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "sequence",
+      "entityType": "columns",
+      "table": "thread_messages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "author",
+      "entityType": "columns",
+      "table": "thread_messages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "content",
+      "entityType": "columns",
+      "table": "thread_messages"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "thread_messages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "threads"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "threads"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "last_message_sequence",
+      "entityType": "columns",
+      "table": "threads"
+    },
+    {
+      "columns": ["scenario_id"],
+      "tableTo": "scenarios",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_campaigns_scenario_id_scenarios_id_fk",
+      "entityType": "fks",
+      "table": "campaigns"
+    },
+    {
+      "columns": ["thread_id"],
+      "tableTo": "threads",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_campaigns_thread_id_threads_id_fk",
+      "entityType": "fks",
+      "table": "campaigns"
+    },
+    {
+      "columns": ["thread_id"],
+      "tableTo": "threads",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_generations_thread_id_threads_id_fk",
+      "entityType": "fks",
+      "table": "generations"
+    },
+    {
+      "columns": ["output_message_id"],
+      "tableTo": "thread_messages",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_generations_output_message_id_thread_messages_id_fk",
+      "entityType": "fks",
+      "table": "generations"
+    },
+    {
+      "columns": ["thread_id", "context_sequence"],
+      "tableTo": "thread_messages",
+      "columnsTo": ["thread_id", "sequence"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": true,
+      "name": "generations_context_message_fk",
+      "entityType": "fks",
+      "table": "generations"
+    },
+    {
+      "columns": ["thread_id"],
+      "tableTo": "threads",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_thread_messages_thread_id_threads_id_fk",
+      "entityType": "fks",
+      "table": "thread_messages"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "campaigns_pk",
+      "entityType": "pks",
+      "table": "campaigns"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "generations_pk",
+      "entityType": "pks",
+      "table": "generations"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "thread_messages_pk",
+      "entityType": "pks",
+      "table": "thread_messages"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "threads_pk",
+      "entityType": "pks",
+      "table": "threads"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "scenarios_pk",
+      "table": "scenarios",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        {
+          "value": "scenario_id",
+          "isExpression": false
+        },
+        {
+          "value": "started_at",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "campaigns_scenario_started_at_index",
+      "entityType": "indexes",
+      "table": "campaigns"
+    },
+    {
+      "columns": [
+        {
+          "value": "thread_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "campaigns_thread_unique",
+      "entityType": "indexes",
+      "table": "campaigns"
+    },
+    {
+      "columns": [
+        {
+          "value": "thread_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "generations_thread_idx",
+      "entityType": "indexes",
+      "table": "generations"
+    },
+    {
+      "columns": [
+        {
+          "value": "thread_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": "\"generations\".\"status\" = 'pending'",
+      "origin": "manual",
+      "name": "generations_pending_thread_unique",
+      "entityType": "indexes",
+      "table": "generations"
+    },
+    {
+      "columns": [
+        {
+          "value": "output_message_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "generations_output_message_unique",
+      "entityType": "indexes",
+      "table": "generations"
+    },
+    {
+      "columns": [
+        {
+          "value": "provider_id",
+          "isExpression": false
+        },
+        {
+          "value": "provider_generation_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "generations_provider_generation_unique",
+      "entityType": "indexes",
+      "table": "generations"
+    },
+    {
+      "columns": [
+        {
+          "value": "thread_id",
+          "isExpression": false
+        },
+        {
+          "value": "sequence",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "thread_messages_thread_sequence_unique",
+      "entityType": "indexes",
+      "table": "thread_messages"
+    },
+    {
+      "value": "\"context_sequence\" > 0",
+      "name": "generations_context_sequence_positive",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "length(trim(\"provider_id\")) > 0 AND length(trim(\"model_id\")) > 0",
+      "name": "generations_model_reference_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "\"status\" IN ('pending', 'completed', 'failed')",
+      "name": "generations_status_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('provider', 'invalid-output', 'superseded', 'interrupted', 'storage')",
+      "name": "generations_failure_kind_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "(\"provider_generation_id\" IS NULL OR length(trim(\"provider_generation_id\")) > 0)\n        AND (\"resolved_model_id\" IS NULL OR length(trim(\"resolved_model_id\")) > 0)\n        AND (\"finish_reason\" IS NULL OR length(trim(\"finish_reason\")) > 0)",
+      "name": "generations_provider_result_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "(\"input_tokens\" IS NULL AND \"output_tokens\" IS NULL AND \"total_tokens\" IS NULL)\n        OR (\"input_tokens\" IS NOT NULL\n          AND \"output_tokens\" IS NOT NULL\n          AND \"total_tokens\" IS NOT NULL\n          AND \"input_tokens\" >= 0\n          AND \"output_tokens\" >= 0\n          AND \"total_tokens\" >= 0)",
+      "name": "generations_usage_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "\"started_at\" >= 0",
+      "name": "generations_started_at_nonnegative",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "\"finished_at\" IS NULL OR \"finished_at\" >= \"started_at\"",
+      "name": "generations_finished_at_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "(\"status\" = 'pending'\n          AND \"finished_at\" IS NULL\n          AND \"failure_kind\" IS NULL\n          AND \"output_message_id\" IS NULL)\n        OR (\"status\" = 'completed'\n          AND \"finished_at\" IS NOT NULL\n          AND \"failure_kind\" IS NULL\n          AND \"output_message_id\" IS NOT NULL)\n        OR (\"status\" = 'failed'\n          AND \"finished_at\" IS NOT NULL\n          AND \"failure_kind\" IS NOT NULL\n          AND \"output_message_id\" IS NULL)",
+      "name": "generations_state_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "\"sequence\" > 0",
+      "name": "thread_messages_sequence_positive",
+      "entityType": "checks",
+      "table": "thread_messages"
+    },
+    {
+      "value": "\"author\" IN ('user', 'assistant')",
+      "name": "thread_messages_author_valid",
+      "entityType": "checks",
+      "table": "thread_messages"
+    },
+    {
+      "value": "length(trim(\"content\")) > 0 AND length(\"content\") <= 100000",
+      "name": "thread_messages_content_valid",
+      "entityType": "checks",
+      "table": "thread_messages"
+    },
+    {
+      "value": "\"created_at\" >= 0",
+      "name": "thread_messages_created_at_nonnegative",
+      "entityType": "checks",
+      "table": "thread_messages"
+    },
+    {
+      "value": "\"created_at\" >= 0",
+      "name": "threads_created_at_nonnegative",
+      "entityType": "checks",
+      "table": "threads"
+    },
+    {
+      "value": "\"last_message_sequence\" >= 0",
+      "name": "threads_last_message_sequence_nonnegative",
+      "entityType": "checks",
+      "table": "threads"
+    }
+  ],
+  "renames": []
+}

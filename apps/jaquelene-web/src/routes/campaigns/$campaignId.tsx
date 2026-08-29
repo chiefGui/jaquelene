@@ -5,19 +5,29 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { campaignQuery } from "@/feature/campaign/query";
 import { scenariosQuery } from "@/feature/scenario/query";
 import { ScenariosSidebar } from "@/feature/scenario/sidebar";
+import { threadMessagesQuery } from "@/feature/thread/query";
+import { ThreadView } from "@/feature/thread/thread-view";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/campaigns/$campaignId")({
   loader: async ({ context, params }) => {
-    await Promise.all([
+    const [campaign] = await Promise.all([
       context.queryClient.query({
         ...campaignQuery(params.campaignId),
         staleTime: "static",
       }),
       context.queryClient.query({ ...scenariosQuery, staleTime: "static" }),
     ]);
+
+    if (campaign) {
+      await context.queryClient.infiniteQuery({
+        ...threadMessagesQuery(campaign.threadId),
+        staleTime: "static",
+      });
+    }
   },
+  remountDeps: ({ params }) => params.campaignId,
   staticData: {
     primarySidebar: ScenariosSidebar,
   },
@@ -65,18 +75,18 @@ function CampaignRoute() {
         </Breadcrumb.Root>
       </ContentPane.Header>
 
-      <ContentPane.Viewport>
-        <ContentPane.Body>
-          {campaign ? (
-            <h1 {...stylex.props(styles.title)}>Campaign</h1>
-          ) : (
+      <ContentPane.Viewport style={campaign ? styles.threadViewport : undefined}>
+        {campaign ? (
+          <ThreadView threadId={campaign.threadId} />
+        ) : (
+          <ContentPane.Body>
             <section aria-labelledby="missing-campaign-heading">
               <h1 id="missing-campaign-heading" {...stylex.props(styles.title)}>
                 Campaign not found
               </h1>
             </section>
-          )}
-        </ContentPane.Body>
+          </ContentPane.Body>
+        )}
       </ContentPane.Viewport>
     </>
   );
@@ -97,5 +107,9 @@ const styles = stylex.create({
     fontWeight: 600,
     letterSpacing: "-0.025em",
     lineHeight: tokens.lineHeightLarge,
+  },
+  threadViewport: {
+    display: "flex",
+    overflow: "hidden",
   },
 });

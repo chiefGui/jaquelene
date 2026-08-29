@@ -3,11 +3,22 @@ import {
   Campaigns as CampaignsIpc,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
+import { ids } from "@/id";
 import type { Campaigns } from "./campaigns";
 import type { CampaignPreferences } from "./preferences";
 
 export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
-  CampaignsIpc.for(target).setImplementation(campaigns);
+  CampaignsIpc.for(target).setImplementation({
+    start(id) {
+      return campaigns.start(ids.scenario.parse(id));
+    },
+    listForScenario(id) {
+      return campaigns.listForScenario(ids.scenario.parse(id));
+    },
+    get(id) {
+      return campaigns.get(ids.campaign.parse(id));
+    },
+  });
 }
 
 export function exposeCampaignPreferences(target: WebFrameMain, preferences: CampaignPreferences) {

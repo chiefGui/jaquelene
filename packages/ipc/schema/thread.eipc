@@ -1,0 +1,48 @@
+module jaquelene
+
+subtype ThreadMessageContent = string(
+  minLength: 1
+  maxLength: 100000
+)
+
+subtype ThreadMessageCursor = string(
+  minLength: 1
+  maxLength: 16
+)
+
+subtype ThreadMessageSequence = number(
+  minValue: 1
+  maxValue: 9007199254740991
+)
+
+enum ThreadMessageAuthor {
+  User = "user"
+  Assistant = "assistant"
+}
+
+structure ThreadMessage {
+  id: string
+  threadId: string
+  sequence: ThreadMessageSequence
+  author: ThreadMessageAuthor
+  content: ThreadMessageContent
+  createdAt: UnixTimeMilliseconds
+}
+
+structure ThreadMessagePageRequest {
+  threadId: string
+  before?: ThreadMessageCursor
+}
+
+structure ThreadMessagePage {
+  messages: ThreadMessage[]
+  nextCursor?: ThreadMessageCursor
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Threads {
+  listMessages(request: ThreadMessagePageRequest) -> ThreadMessagePage
+  appendUserMessage(threadId: string, content: ThreadMessageContent) -> ThreadMessage
+}

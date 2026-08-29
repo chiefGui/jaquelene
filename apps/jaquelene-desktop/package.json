@@ -16,7 +16,8 @@
     "@jaquelene/ipc": "workspace:*",
     "@openrouter/sdk": "^1.2.78",
     "drizzle-orm": "1.0.0-rc.4",
-    "electron-store": "^11.0.2"
+    "electron-store": "^11.0.2",
+    "typeid-js": "^1.2.0"
   },
   "devDependencies": {
     "@types/node": "^26.3.0",

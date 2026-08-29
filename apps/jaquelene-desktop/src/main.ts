@@ -6,6 +6,8 @@ import { exposeUserInterfacePreferences } from "./feature/appearance/user-interf
 import { getInterfaceScaleFactor } from "./feature/appearance/user-interface/preferences";
 import { createCampaigns, type Campaigns } from "./feature/campaign/campaigns";
 import { exposeCampaignPreferences, exposeCampaigns } from "./feature/campaign/ipc";
+import { createGenerations } from "./feature/generation/generations";
+import { createThreadPromptCompiler } from "./feature/generation/prompt";
 import { createModelCatalog, type ModelCatalog } from "./feature/model/catalog";
 import { exposeModelCatalog } from "./feature/model/catalog-ipc";
 import { createFavoriteModels, type FavoriteModels } from "./feature/model/favorite-models";
@@ -19,11 +21,14 @@ import {
   getOpenRouterConnectionStoragePaths,
   type OpenRouterConnection,
 } from "./feature/provider/openrouter/connection";
+import { createOpenRouterGenerationProvider } from "./feature/provider/openrouter/generation";
 import { exposeOpenRouterConnection } from "./feature/provider/openrouter/ipc";
 import { createOpenRouterModelProvider } from "./feature/provider/openrouter/models";
 import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verification";
 import { exposeScenarios } from "./feature/scenario/ipc";
 import { createScenarios, type Scenarios } from "./feature/scenario/scenarios";
+import { exposeThreads } from "./feature/thread/ipc";
+import { createThreads, type Threads } from "./feature/thread/threads";
 import { createLocalState, getLocalStateStoragePaths, type LocalState } from "./local-state";
 import {
   createPreferences,
@@ -32,6 +37,12 @@ import {
 } from "./preferences/preferences";
 import { exposeStorage } from "./storage/ipc";
 import { createStorage, type AppStorage } from "./storage/storage";
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
 
 registerAppScheme();
 
@@ -56,6 +67,7 @@ async function createWindow(
   localState: LocalState,
   scenarios: Scenarios,
   campaigns: Campaigns,
+  threads: Threads,
   modelCatalog: ModelCatalog,
   favoriteModels: FavoriteModels,
   preferences: Preferences,
@@ -87,6 +99,7 @@ async function createWindow(
 
   exposeScenarios(window.webContents.mainFrame, scenarios);
   exposeCampaigns(window.webContents.mainFrame, campaigns);
+  exposeThreads(window.webContents.mainFrame, threads);
   exposeCampaignPreferences(window.webContents.mainFrame, preferences.campaign);
   exposeModelCatalog(window.webContents.mainFrame, modelCatalog);
   exposeFavoriteModels(window.webContents.mainFrame, favoriteModels);
@@ -134,9 +147,27 @@ async function requireSecureStorage() {
   }
 }
 
+if (hasSingleInstanceLock) {
+  app.on("second-instance", () => {
+    const [window] = BrowserWindow.getAllWindows();
+
+    if (window) {
+      if (window.isMinimized()) {
+        window.restore();
+      }
+
+      window.focus();
+    }
+  });
+}
+
 void app
   .whenReady()
   .then(async () => {
+    if (!hasSingleInstanceLock) {
+      return;
+    }
+
     if (!developmentServerUrl) {
       const webAppDirectory = app.isPackaged
         ? join(process.resourcesPath, "web")
@@ -151,6 +182,7 @@ void app
     const database = openDatabase(databasePath);
     const scenarios = createScenarios(database);
     const campaigns = createCampaigns(database);
+    const threads = createThreads(database);
     const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
       async encrypt(apiKey) {
         await requireSecureStorage();
@@ -163,6 +195,10 @@ void app
       },
       verify: verifyOpenRouterApiKey,
     });
+    const generations = createGenerations(database, createThreadPromptCompiler(threads), [
+      createOpenRouterGenerationProvider(openRouterConnection),
+    ]);
+    generations.recoverInterrupted();
     const modelCatalog = createModelCatalog([createOpenRouterModelProvider(openRouterConnection)]);
     const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
     const preferences = createPreferences(userDataDirectory);
@@ -180,6 +216,7 @@ void app
       localState,
       scenarios,
       campaigns,
+      threads,
       modelCatalog,
       favoriteModels,
       preferences,
@@ -193,6 +230,7 @@ void app
           localState,
           scenarios,
           campaigns,
+          threads,
           modelCatalog,
           favoriteModels,
           preferences,

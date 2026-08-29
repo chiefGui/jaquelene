@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
 import type { Database } from "@/database";
+import { ids, type ScenarioId } from "@/id";
 import { scenarioTable } from "./schema";
 
 function requireScenarioTitle(value: string) {
@@ -16,7 +16,7 @@ function requireScenarioTitle(value: string) {
 export function createScenarios(database: Database) {
   return {
     create(value: string) {
-      const scenario = { id: randomUUID(), title: requireScenarioTitle(value) };
+      const scenario = { id: ids.scenario.create(), title: requireScenarioTitle(value) };
       database.insert(scenarioTable).values(scenario).run();
       return scenario;
     },
@@ -25,11 +25,11 @@ export function createScenarios(database: Database) {
       return database.select().from(scenarioTable).all();
     },
 
-    get(id: string) {
+    get(id: ScenarioId) {
       return database.select().from(scenarioTable).where(eq(scenarioTable.id, id)).get() ?? null;
     },
 
-    rename(id: string, value: string) {
+    rename(id: ScenarioId, value: string) {
       const title = requireScenarioTitle(value);
 
       return (

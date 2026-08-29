@@ -5,9 +5,18 @@ subtype ByteCount = number(
   maxValue: 9007199254740991
 )
 
+enum StorageCategory {
+  Content = "content"
+  AppData = "app-data"
+}
+
+structure StorageCategoryUsage {
+  id: StorageCategory
+  bytes: ByteCount
+}
+
 structure StorageUsage {
-  userContentBytes: ByteCount
-  applicationDataBytes: ByteCount
+  categories: StorageCategoryUsage[]
 }
 
 [RendererAPI]
@@ -15,4 +24,5 @@ structure StorageUsage {
 [ContextBridge]
 interface Storage {
   measureUsage() -> StorageUsage
+  deleteCategory(id: StorageCategory) -> StorageUsage
 }

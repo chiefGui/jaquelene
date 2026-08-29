@@ -1,7 +1,6 @@
 export { createBackend } from "#backend/backend";
 export type { Backend, BackendOptions } from "#backend/backend";
 export type { Campaigns } from "#backend/campaign/campaigns";
-export { getDatabaseStoragePaths } from "#backend/database/database";
 export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
 export {
   requireModelReference,
@@ -22,6 +21,12 @@ export {
   type TurnId,
 } from "#backend/id";
 export type { Scenarios } from "#backend/scenario/scenarios";
-export type { Storage, StorageManifest, StorageUsage } from "#backend/storage/storage";
+export { StorageAreaId, StorageCategory } from "#backend/storage/storage";
+export type {
+  Storage,
+  StorageArea,
+  StorageCategoryUsage,
+  StorageUsage,
+} from "#backend/storage/storage";
 export type { ThreadMessage } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/threads";

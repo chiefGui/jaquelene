@@ -1,5 +1,7 @@
+import { StorageAreaId, StorageCategory, type StorageArea } from "@jaquelene/backend";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
+import { deleteStoreFile } from "@/storage/delete-store-file";
 import {
   createUserInterfacePreferences,
   type UserInterfacePreferenceValues,
@@ -35,6 +37,18 @@ export function getPreferencesStoragePaths(userDataDirectory: string) {
   return [join(userDataDirectory, `${storeName}.json`)] as const;
 }
 
+export function createPreferencesStorageArea(
+  userDataDirectory: string,
+  preferences: Preferences,
+): StorageArea {
+  return {
+    id: StorageAreaId.Preferences,
+    category: StorageCategory.AppData,
+    paths: getPreferencesStoragePaths(userDataDirectory),
+    delete: preferences.deleteAll,
+  };
+}
+
 export function createPreferences(userDataDirectory: string) {
   const store = new Store<PreferencesData>({
     clearInvalidConfig: true,
@@ -44,19 +58,24 @@ export function createPreferences(userDataDirectory: string) {
     rootSchema: { additionalProperties: false },
   });
 
+  const userInterface = createUserInterfacePreferences({
+    read: () => store.get("appearance")?.userInterface,
+    write(userInterface) {
+      store.set("appearance", { ...store.get("appearance"), userInterface });
+    },
+    subscribe: (listener) => store.onDidChange("appearance.userInterface", listener),
+  });
+  const campaign = createCampaignPreferences({
+    read: () => store.get("campaign"),
+    write: (campaign) => store.set("campaign", campaign),
+  });
+
   return {
     appearance: {
-      userInterface: createUserInterfacePreferences({
-        read: () => store.get("appearance")?.userInterface,
-        write(userInterface) {
-          store.set("appearance", { ...store.get("appearance"), userInterface });
-        },
-      }),
+      userInterface,
     },
-    campaign: createCampaignPreferences({
-      read: () => store.get("campaign"),
-      write: (campaign) => store.set("campaign", campaign),
-    }),
+    campaign,
+    deleteAll: () => deleteStoreFile(store),
   };
 }
 

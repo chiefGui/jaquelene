@@ -6,6 +6,7 @@ import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import type { GenerationProvider, GenerationProviderResult } from "#backend/generation/provider";
 import { ids } from "#backend/id";
+import { StorageCategory } from "#backend/storage/storage";
 import { createThreads } from "#backend/thread/threads";
 import { createBackend, type BackendOptions } from "./backend";
 
@@ -24,7 +25,7 @@ function backendOptions(
   return {
     databasePath,
     generationProviders,
-    storageManifest: { userContent: [databasePath], applicationData: [] },
+    storageAreas: [],
   };
 }
 
@@ -56,6 +57,9 @@ describe("backend", () => {
 
     expect(() => first.scenarios.list()).toThrow("Backend is closed.");
     await expect(first.storage.measureUsage()).rejects.toThrow("Backend is closed.");
+    await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(
+      "Backend is closed.",
+    );
 
     const reopened = await createBackend(backendOptions(databasePath));
 

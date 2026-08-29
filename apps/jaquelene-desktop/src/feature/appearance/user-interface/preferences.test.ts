@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   createUserInterfacePreferences,
   InterfaceScale,
@@ -12,11 +12,17 @@ import {
 
 function createPreferences() {
   let storedValues: UserInterfacePreferenceValues | undefined;
+  const listeners = new Set<() => void>();
 
   return createUserInterfacePreferences({
     read: () => storedValues,
     write: (values) => {
       storedValues = values;
+      for (const listener of listeners) listener();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
   });
 }
@@ -45,6 +51,23 @@ describe("user interface preferences", () => {
       scale: InterfaceScale.Percent125,
       motion: MotionPreference.Reduced,
     });
+  });
+
+  it("reports current values after a change", () => {
+    const preferences = createPreferences();
+    const listener = vi.fn();
+    const unsubscribe = preferences.subscribe(listener);
+
+    preferences.setScale(InterfaceScale.Percent125);
+    expect(listener).toHaveBeenLastCalledWith({
+      font: UiFont.Inter,
+      scale: InterfaceScale.Percent125,
+      motion: MotionPreference.System,
+    });
+
+    unsubscribe();
+    preferences.setScale(InterfaceScale.Percent100);
+    expect(listener).toHaveBeenCalledOnce();
   });
 
   it("rejects an unknown font", () => {

@@ -37,4 +37,15 @@ describe("favorite model storage", () => {
     ]);
     expect(existsSync(join(directory, "preferences.json"))).toBe(false);
   });
+
+  it("deletes persisted favorite models", () => {
+    const directory = createUserDataDirectory();
+    const storage = createFavoriteModelsStorage(directory);
+    const favoriteModels = createFavoriteModels(storage);
+
+    favoriteModels.set({ providerId: "provider-a", modelId: "model-a" }, true);
+    favoriteModels.deleteAll();
+
+    expect(createFavoriteModels(createFavoriteModelsStorage(directory)).list()).toEqual([]);
+  });
 });

@@ -3,6 +3,7 @@ import { requireModelReference, type ModelReference } from "./catalog";
 export type FavoriteModelsStorage = {
   read(): ModelReference[] | undefined;
   write(models: ModelReference[]): void;
+  deleteAll(): void;
 };
 
 function sameModel(left: ModelReference, right: ModelReference) {
@@ -20,6 +21,10 @@ export function createFavoriteModels(storage: FavoriteModelsStorage) {
 
   return {
     list,
+
+    deleteAll() {
+      storage.deleteAll();
+    },
 
     set(reference: ModelReference, favorite: boolean) {
       requireModelReference(reference);

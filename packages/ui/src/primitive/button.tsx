@@ -8,9 +8,11 @@ import type { ComponentProps } from "react";
 import { tokens } from "../theme.stylex";
 
 type ButtonVariant = "ghost" | "solid";
+type ButtonTone = "danger" | "neutral";
 
 export type ButtonProps = Omit<AriakitButtonProps, "className" | "style"> & {
   style?: StyleXStyles;
+  tone?: ButtonTone;
   variant?: ButtonVariant;
 };
 
@@ -22,9 +24,18 @@ function ButtonLabel({ style, ...props }: ButtonLabelProps) {
   return <span {...props} {...stylex.props(styles.label, style)} />;
 }
 
-function ButtonRoot({ children, style, variant = "solid", ...props }: ButtonProps) {
+function ButtonRoot({
+  children,
+  style,
+  tone = "neutral",
+  variant = "solid",
+  ...props
+}: ButtonProps) {
+  const toneStyle =
+    tone === "danger" ? (variant === "solid" ? styles.solidDanger : styles.ghostDanger) : undefined;
+
   return (
-    <AriakitButton {...props} {...stylex.props(styles.root, styles[variant], style)}>
+    <AriakitButton {...props} {...stylex.props(styles.root, styles[variant], toneStyle, style)}>
       {typeof children === "string" || typeof children === "number" ? (
         <ButtonLabel>{children}</ButtonLabel>
       ) : (
@@ -54,7 +65,7 @@ const styles = stylex.create({
     },
     outlineColor: {
       default: null,
-      ":is([data-focus-visible])": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 60%, transparent)`,
     },
     outlineOffset: {
       default: null,
@@ -72,7 +83,7 @@ const styles = stylex.create({
   },
   solid: {
     backgroundColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 90%, transparent)`,
+      default: `color-mix(in oklch, ${tokens.foreground} 90%, transparent)`,
       ":not(:disabled):hover": tokens.foreground,
     },
     color: tokens.canvas,
@@ -80,7 +91,24 @@ const styles = stylex.create({
   ghost: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": `color-mix(in oklab, ${tokens.accent} 10%, transparent)`,
+      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
+    },
+  },
+  solidDanger: {
+    backgroundColor: {
+      default: `color-mix(in oklch, ${tokens.danger} 82%, ${tokens.canvas})`,
+      ":not(:disabled):hover": tokens.danger,
+    },
+    color: tokens.canvas,
+  },
+  ghostDanger: {
+    backgroundColor: {
+      default: "transparent",
+      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 10%, transparent)`,
+    },
+    color: {
+      default: tokens.muted,
+      ":not(:disabled):hover": tokens.danger,
     },
   },
   label: {

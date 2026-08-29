@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
@@ -49,6 +49,26 @@ describe("local state", () => {
     });
 
     expect(localState.loadMainWindowState([workArea])).toBeUndefined();
+  });
+
+  it("deletes saved state and does not recreate it when the current window closes", () => {
+    const directory = createUserDataDirectory();
+    const localState = createLocalState(directory);
+    const saved: MainWindowState = {
+      bounds: { x: 101, y: 202, width: 1103, height: 704 },
+      maximized: true,
+    };
+    localState.saveMainWindowState(saved);
+    writeFileSync(join(directory, "local-state.json.invalid"), "invalid", "utf8");
+
+    localState.deleteAll();
+    localState.saveMainWindowState(saved);
+
+    expect(localState.loadMainWindowState([workArea])).toBeUndefined();
+    expect(existsSync(join(directory, "local-state.json.invalid"))).toBe(false);
+
+    localState.saveMainWindowState(saved);
+    expect(localState.loadMainWindowState([workArea])).toEqual(saved);
   });
 
   it.each([

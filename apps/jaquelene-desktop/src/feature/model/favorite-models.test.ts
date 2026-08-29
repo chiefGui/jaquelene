@@ -11,6 +11,9 @@ function createStorage(initialModels?: ModelReference[]) {
       write: (models) => {
         storedModels = models;
       },
+      deleteAll: () => {
+        storedModels = undefined;
+      },
     }),
     read: () => storedModels,
   };
@@ -35,6 +38,15 @@ describe("favorite models", () => {
     favoriteModels.set(first, true);
     expect(favoriteModels.set(second, true)).toEqual([first, second]);
     expect(favoriteModels.set(first, false)).toEqual([second]);
+  });
+
+  it("deletes every favorite through its storage owner", () => {
+    const reference = { providerId: "provider-a", modelId: "model-a" };
+    const { favoriteModels, read } = createStorage([reference]);
+
+    expect(favoriteModels.deleteAll()).toBeUndefined();
+    expect(favoriteModels.list()).toEqual([]);
+    expect(read()).toBeUndefined();
   });
 
   it("does not expose mutable stored references", () => {

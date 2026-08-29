@@ -1,10 +1,19 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vite-plus/test";
-import { createBackend, type Backend, type StorageManifest } from "@jaquelene/backend";
+import { Cause, Exit, ManagedRuntime } from "effect";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  StorageAreaId,
+  StorageCategory,
+  StorageService,
+  type Storage,
+  type StorageArea,
+  type StorageAreaId as StorageAreaIdValue,
+  type StorageCategory as StorageCategoryValue,
+} from "./storage";
 
-const backends: Backend[] = [];
+const closeStorageServices: Array<() => Promise<void>> = [];
 const directories: string[] = [];
 
 function createUserDataDirectory() {
@@ -13,19 +22,40 @@ function createUserDataDirectory() {
   return directory;
 }
 
-async function createTestBackend(storageManifest: StorageManifest) {
-  const databaseDirectory = createUserDataDirectory();
-  const backend = await createBackend({
-    databasePath: join(databaseDirectory, "jaquelene.sqlite"),
-    generationProviders: [],
-    storageManifest,
-  });
-  backends.push(backend);
-  return backend;
+async function unwrapExit<A, E>(exitPromise: Promise<Exit.Exit<A, E>>) {
+  const exit = await exitPromise;
+
+  if (Exit.isSuccess(exit)) {
+    return exit.value;
+  }
+
+  throw Cause.squash(exit.cause);
+}
+
+async function createTestStorage(storageAreas: readonly StorageArea[]): Promise<Storage> {
+  const runtime = ManagedRuntime.make(StorageService.layer(storageAreas));
+
+  try {
+    await runtime.context();
+  } catch (cause) {
+    await runtime.dispose();
+    throw cause;
+  }
+
+  closeStorageServices.push(() => runtime.dispose());
+
+  return {
+    measureUsage: () =>
+      unwrapExit(runtime.runPromiseExit(StorageService.use((storage) => storage.measureUsage()))),
+    deleteCategory: (id) =>
+      unwrapExit(
+        runtime.runPromiseExit(StorageService.use((storage) => storage.deleteCategory(id))),
+      ),
+  };
 }
 
 afterEach(async () => {
-  await Promise.all(backends.splice(0).map((backend) => backend.close()));
+  await Promise.all(closeStorageServices.splice(0).map((close) => close()));
 
   for (const directory of directories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
@@ -35,32 +65,48 @@ afterEach(async () => {
 describe("storage", () => {
   it("reports no usage when owned paths do not exist", async () => {
     const directory = createUserDataDirectory();
-    const backend = await createTestBackend({
-      userContent: [join(directory, "jaquelene.sqlite"), join(directory, "attachments")],
-      applicationData: [join(directory, "preferences.json")],
-    });
+    const storage = await createTestStorage([
+      {
+        id: StorageAreaId.Content,
+        category: StorageCategory.Content,
+        paths: [join(directory, "jaquelene.sqlite"), join(directory, "attachments")],
+        delete: vi.fn(),
+      },
+      {
+        id: StorageAreaId.Preferences,
+        category: StorageCategory.AppData,
+        paths: [join(directory, "preferences.json")],
+        delete: vi.fn(),
+      },
+    ]);
 
-    await expect(backend.storage.measureUsage()).resolves.toEqual({
-      userContentBytes: 0,
-      applicationDataBytes: 0,
+    await expect(storage.measureUsage()).resolves.toEqual({
+      categories: [
+        { id: StorageCategory.Content, bytes: 0 },
+        { id: StorageCategory.AppData, bytes: 0 },
+      ],
     });
   });
 
   it("reports invalid owned paths as measurement errors", async () => {
     const directory = createUserDataDirectory();
-    const backend = await createTestBackend({
-      userContent: [`${directory}\0`],
-      applicationData: [],
-    });
+    const storage = await createTestStorage([
+      {
+        id: StorageAreaId.Content,
+        category: StorageCategory.Content,
+        paths: [`${directory}\0`],
+        delete: vi.fn(),
+      },
+    ]);
 
-    await expect(backend.storage.measureUsage()).rejects.toMatchObject({
+    await expect(storage.measureUsage()).rejects.toMatchObject({
       name: "StorageMeasurementError",
       message: "Could not measure storage usage.",
       cause: { code: "ERR_INVALID_ARG_VALUE" },
     });
   });
 
-  it("measures owned files and directories by category", async () => {
+  it("aggregates owned files and directories by category", async () => {
     const directory = createUserDataDirectory();
     const databasePath = join(directory, "jaquelene.sqlite");
     const localStatePath = join(directory, "local-state.json");
@@ -74,43 +120,264 @@ describe("storage", () => {
     writeFileSync(join(portraitsPath, "portrait.png"), Buffer.alloc(512));
     writeFileSync(join(cachePath, "ignored"), Buffer.alloc(10_000));
 
-    const backend = await createTestBackend({
-      userContent: [databasePath, attachmentsPath],
-      applicationData: [localStatePath],
-    });
+    const storage = await createTestStorage([
+      {
+        id: StorageAreaId.Content,
+        category: StorageCategory.Content,
+        paths: [databasePath, attachmentsPath],
+        delete: vi.fn(),
+      },
+      {
+        id: StorageAreaId.LocalState,
+        category: StorageCategory.AppData,
+        paths: [localStatePath],
+        delete: vi.fn(),
+      },
+    ]);
 
-    await expect(backend.storage.measureUsage()).resolves.toEqual({
-      userContentBytes: 2_561,
-      applicationDataBytes: 137,
+    await expect(storage.measureUsage()).resolves.toEqual({
+      categories: [
+        { id: StorageCategory.Content, bytes: 2_561 },
+        { id: StorageCategory.AppData, bytes: 137 },
+      ],
     });
   });
 
   it("measures current usage on every request", async () => {
     const directory = createUserDataDirectory();
     const databasePath = join(directory, "jaquelene.sqlite");
-    const backend = await createTestBackend({
-      userContent: [databasePath],
-      applicationData: [],
-    });
+    const storage = await createTestStorage([
+      {
+        id: StorageAreaId.Content,
+        category: StorageCategory.Content,
+        paths: [databasePath],
+        delete: vi.fn(),
+      },
+    ]);
 
-    await expect(backend.storage.measureUsage()).resolves.toEqual({
-      userContentBytes: 0,
-      applicationDataBytes: 0,
+    await expect(storage.measureUsage()).resolves.toEqual({
+      categories: [
+        { id: StorageCategory.Content, bytes: 0 },
+        { id: StorageCategory.AppData, bytes: 0 },
+      ],
     });
 
     writeFileSync(databasePath, Buffer.alloc(256));
 
-    await expect(backend.storage.measureUsage()).resolves.toEqual({
-      userContentBytes: 256,
-      applicationDataBytes: 0,
+    await expect(storage.measureUsage()).resolves.toEqual({
+      categories: [
+        { id: StorageCategory.Content, bytes: 256 },
+        { id: StorageCategory.AppData, bytes: 0 },
+      ],
     });
   });
 
-  it("closes idempotently and rejects new work after closing", async () => {
-    const backend = await createTestBackend({ userContent: [], applicationData: [] });
+  it("delegates category deletion to every owner and returns fresh usage", async () => {
+    const directory = createUserDataDirectory();
+    const contentPath = join(directory, "jaquelene.sqlite");
+    const favoritesPath = join(directory, "favorite-models.json");
+    const preferencesPath = join(directory, "preferences.json");
+    const deleteContent = vi.fn();
+    const deleteFavorites = vi.fn(() => rmSync(favoritesPath));
+    const deletePreferences = vi.fn(() => rmSync(preferencesPath));
+    writeFileSync(contentPath, Buffer.alloc(128));
+    writeFileSync(favoritesPath, Buffer.alloc(64));
+    writeFileSync(preferencesPath, Buffer.alloc(32));
+    const storage = await createTestStorage([
+      {
+        id: StorageAreaId.Content,
+        category: StorageCategory.Content,
+        paths: [contentPath],
+        delete: deleteContent,
+      },
+      {
+        id: StorageAreaId.FavoriteModels,
+        category: StorageCategory.AppData,
+        paths: [favoritesPath],
+        delete: deleteFavorites,
+      },
+      {
+        id: StorageAreaId.Preferences,
+        category: StorageCategory.AppData,
+        paths: [preferencesPath],
+        delete: deletePreferences,
+      },
+    ]);
 
-    await expect(backend.close()).resolves.toBeUndefined();
-    await expect(backend.close()).resolves.toBeUndefined();
-    await expect(backend.storage.measureUsage()).rejects.toThrow("Backend is closed.");
+    await expect(storage.deleteCategory(StorageCategory.AppData)).resolves.toEqual({
+      categories: [
+        { id: StorageCategory.Content, bytes: 128 },
+        { id: StorageCategory.AppData, bytes: 0 },
+      ],
+    });
+    expect(deleteContent).not.toHaveBeenCalled();
+    expect(deleteFavorites).toHaveBeenCalledOnce();
+    expect(deletePreferences).toHaveBeenCalledOnce();
+  });
+
+  it("attempts every owner while preserving deletion failures", async () => {
+    const directory = createUserDataDirectory();
+    const failure = new Error("Favorite storage failed.");
+    const deletePreferences = vi.fn();
+    const storage = await createTestStorage([
+      {
+        id: StorageAreaId.FavoriteModels,
+        category: StorageCategory.AppData,
+        paths: [join(directory, "favorite-models.json")],
+        delete: () => {
+          throw failure;
+        },
+      },
+      {
+        id: StorageAreaId.Preferences,
+        category: StorageCategory.AppData,
+        paths: [join(directory, "preferences.json")],
+        delete: deletePreferences,
+      },
+    ]);
+
+    await expect(storage.deleteCategory(StorageCategory.AppData)).rejects.toMatchObject({
+      name: "StorageCategoryDeleteError",
+      message: `Could not delete storage category "${StorageCategory.AppData}".`,
+      cause: failure,
+    });
+    expect(deletePreferences).toHaveBeenCalledOnce();
+  });
+
+  it("serializes deletion operations", async () => {
+    const directory = createUserDataDirectory();
+    let releaseFirst!: () => void;
+    let reportFirstStarted!: () => void;
+    const firstCanFinish = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const firstStarted = new Promise<void>((resolve) => {
+      reportFirstStarted = resolve;
+    });
+    const events: string[] = [];
+    const storage = await createTestStorage([
+      {
+        id: StorageAreaId.Content,
+        category: StorageCategory.Content,
+        paths: [join(directory, "jaquelene.sqlite")],
+        delete: async () => {
+          events.push("content:start");
+          reportFirstStarted();
+          await firstCanFinish;
+          events.push("content:end");
+        },
+      },
+      {
+        id: StorageAreaId.FavoriteModels,
+        category: StorageCategory.AppData,
+        paths: [join(directory, "favorite-models.json")],
+        delete: () => {
+          events.push("app-data");
+        },
+      },
+    ]);
+
+    const deletingContent = storage.deleteCategory(StorageCategory.Content);
+    await firstStarted;
+    const deletingAppData = storage.deleteCategory(StorageCategory.AppData);
+    await Promise.resolve();
+    expect(events).toEqual(["content:start"]);
+
+    releaseFirst();
+    await Promise.all([deletingContent, deletingAppData]);
+    expect(events).toEqual(["content:start", "content:end", "app-data"]);
+  });
+
+  it("rejects unknown category identities", async () => {
+    const storage = await createTestStorage([]);
+
+    await expect(storage.deleteCategory("unknown" as StorageCategoryValue)).rejects.toMatchObject({
+      name: "StorageCategoryDeleteError",
+      message: 'Storage category "unknown" does not exist.',
+    });
+  });
+
+  it("rejects unknown and conflicting owners during startup", async () => {
+    const directory = createUserDataDirectory();
+    const sharedPath = join(directory, "shared.json");
+
+    await expect(
+      createTestStorage([
+        {
+          id: "unknown" as StorageAreaIdValue,
+          category: StorageCategory.AppData,
+          paths: [join(directory, "unknown.json")],
+          delete: vi.fn(),
+        },
+      ]),
+    ).rejects.toMatchObject({
+      name: "StorageConfigurationError",
+      cause: { message: 'Storage area "unknown" has an unknown identity.' },
+    });
+
+    await expect(
+      createTestStorage([
+        {
+          id: StorageAreaId.Preferences,
+          category: StorageCategory.AppData,
+          paths: [sharedPath],
+          delete: vi.fn(),
+        },
+        {
+          id: StorageAreaId.Preferences,
+          category: StorageCategory.AppData,
+          paths: [join(directory, "other.json")],
+          delete: vi.fn(),
+        },
+      ]),
+    ).rejects.toMatchObject({
+      name: "StorageConfigurationError",
+      cause: {
+        message: `Storage area "${StorageAreaId.Preferences}" is registered more than once.`,
+      },
+    });
+
+    await expect(
+      createTestStorage([
+        {
+          id: StorageAreaId.Preferences,
+          category: StorageCategory.AppData,
+          paths: [sharedPath],
+          delete: vi.fn(),
+        },
+        {
+          id: StorageAreaId.LocalState,
+          category: StorageCategory.AppData,
+          paths: [sharedPath],
+          delete: vi.fn(),
+        },
+      ]),
+    ).rejects.toMatchObject({
+      name: "StorageConfigurationError",
+      cause: { message: `Storage path "${sharedPath}" is registered more than once.` },
+    });
+
+    const ownedDirectory = join(directory, "attachments");
+    const nestedPath = join(ownedDirectory, "portrait.png");
+
+    await expect(
+      createTestStorage([
+        {
+          id: StorageAreaId.Content,
+          category: StorageCategory.Content,
+          paths: [ownedDirectory],
+          delete: vi.fn(),
+        },
+        {
+          id: StorageAreaId.LocalState,
+          category: StorageCategory.AppData,
+          paths: [nestedPath],
+          delete: vi.fn(),
+        },
+      ]),
+    ).rejects.toMatchObject({
+      name: "StorageConfigurationError",
+      cause: { message: `Storage paths "${ownedDirectory}" and "${nestedPath}" overlap.` },
+    });
   });
 });

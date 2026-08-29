@@ -16,7 +16,7 @@ import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verificati
 import { createLocalState } from "./local-state";
 import { createMainWindow } from "./main-window";
 import { createPreferences } from "./preferences/preferences";
-import { createStorageManifest } from "./storage/manifest";
+import { createStorageAreas } from "./storage/areas";
 
 const { developmentProfile, hasSingleInstanceLock } = prepareApplicationInstance(
   app,
@@ -99,15 +99,21 @@ void app
       },
       verify: verifyOpenRouterApiKey,
     });
+    const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
+    const preferences = createPreferences(userDataDirectory);
     const backend = await createBackend({
       databasePath,
       generationProviders: [createOpenRouterGenerationProvider(openRouterConnection)],
-      storageManifest: createStorageManifest({ databasePath, userDataDirectory }),
+      storageAreas: createStorageAreas({
+        favoriteModels,
+        localState,
+        openRouterConnection,
+        preferences,
+        userDataDirectory,
+      }),
     });
     closeBackendBeforeQuit(backend);
     const modelCatalog = createModelCatalog([createOpenRouterModelProvider(openRouterConnection)]);
-    const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
-    const preferences = createPreferences(userDataDirectory);
 
     const mainWindow = createMainWindow({
       rendererUrl: developmentServerUrl ?? appUrl,

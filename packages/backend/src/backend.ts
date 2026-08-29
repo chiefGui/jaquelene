@@ -6,13 +6,19 @@ import { createTurnPromptCompiler } from "#backend/generation/prompt";
 import type { GenerationProvider } from "#backend/generation/provider";
 import { superviseGenerations } from "#backend/generation/supervisor";
 import { createScenarios, type Scenarios } from "#backend/scenario/scenarios";
-import { StorageService, type Storage, type StorageManifest } from "#backend/storage/storage";
+import { createContentStorageArea } from "#backend/storage/content";
+import {
+  StorageService,
+  type Storage,
+  type StorageArea,
+  type StorageCategory,
+} from "#backend/storage/storage";
 import { createThreads, type Threads } from "#backend/thread/threads";
 
 export type BackendOptions = Readonly<{
   databasePath: string;
   generationProviders: readonly GenerationProvider[];
-  storageManifest: StorageManifest;
+  storageAreas: readonly StorageArea[];
 }>;
 
 export type Backend = Readonly<{
@@ -69,6 +75,19 @@ function createApplicationLayer(providers: readonly GenerationProvider[]) {
   );
 }
 
+function createStorageLayer(databasePath: string, storageAreas: readonly StorageArea[]) {
+  return Layer.unwrap(
+    Effect.gen(function* () {
+      const database = yield* DatabaseService;
+
+      return StorageService.layer([
+        createContentStorageArea(database, databasePath),
+        ...storageAreas,
+      ]);
+    }),
+  );
+}
+
 function asError(cause: unknown, message: string) {
   return cause instanceof Error ? cause : new Error(message, { cause });
 }
@@ -86,13 +105,14 @@ async function unwrapExit<A, E>(exitPromise: Promise<Exit.Exit<A, E>>) {
 export async function createBackend({
   databasePath,
   generationProviders,
-  storageManifest,
+  storageAreas,
 }: BackendOptions): Promise<Backend> {
-  const applicationLayer = createApplicationLayer([...generationProviders]).pipe(
-    Layer.provide(DatabaseService.layer(databasePath)),
-  );
+  const databaseLayer = DatabaseService.layer(databasePath);
   const runtime = ManagedRuntime.make(
-    Layer.mergeAll(applicationLayer, StorageService.layer(storageManifest)),
+    Layer.mergeAll(
+      createApplicationLayer([...generationProviders]),
+      createStorageLayer(databasePath, [...storageAreas]),
+    ).pipe(Layer.provide(databaseLayer)),
   );
   let application: Application;
 
@@ -192,6 +212,15 @@ export async function createBackend({
         }
 
         return unwrapExit(runtime.runPromiseExit(measureStorageUsage));
+      },
+      deleteCategory(id: StorageCategory) {
+        if (state !== "open") {
+          return Promise.reject(new Error("Backend is closed."));
+        }
+
+        return unwrapExit(
+          runtime.runPromiseExit(StorageService.use((storage) => storage.deleteCategory(id))),
+        );
       },
     },
     close() {

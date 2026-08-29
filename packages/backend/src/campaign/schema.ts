@@ -6,7 +6,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { CampaignId, ScenarioId, ThreadId } from "@/id";
+import type { CampaignId, ScenarioId, ThreadId } from "../id";
 import { scenarioTable } from "../scenario/schema";
 import { threadTable } from "../thread/schema";
 

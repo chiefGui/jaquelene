@@ -8,7 +8,6 @@
   "scripts": {
     "dev": "bun run --cwd ../../packages/ipc build:development && vp dev",
     "build": "bun run --cwd ../../packages/ipc build && vp build",
-    "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "package": "electron-builder --config electron-builder.yml",
     "package:dir": "electron-builder --dir --config electron-builder.yml"
   },
@@ -16,13 +15,10 @@
     "@jaquelene/backend": "workspace:*",
     "@jaquelene/ipc": "workspace:*",
     "@openrouter/sdk": "^1.2.78",
-    "drizzle-orm": "1.0.0-rc.4",
-    "electron-store": "^11.0.2",
-    "typeid-js": "^1.2.0"
+    "electron-store": "^11.0.2"
   },
   "devDependencies": {
     "@types/node": "^26.3.0",
-    "drizzle-kit": "1.0.0-rc.4",
     "electron": "^44.0.0",
     "electron-builder": "^26.15.3",
     "vite": "^8.2.2",

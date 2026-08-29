@@ -1,5 +1,4 @@
-import type { StorageManifest } from "@jaquelene/backend";
-import { getDatabaseStoragePaths } from "../database";
+import { getDatabaseStoragePaths, type StorageManifest } from "@jaquelene/backend";
 import { getFavoriteModelsStoragePaths } from "../feature/model/favorite-models-store";
 import { getOpenRouterConnectionStoragePaths } from "../feature/provider/openrouter/connection";
 import { getLocalStateStoragePaths } from "../local-state";

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import type { Database } from "@/database";
-import { ids, type ScenarioId } from "@/id";
+import type { Database } from "../database/database";
+import { ids, type ScenarioId } from "../id";
 import { scenarioTable } from "./schema";
 
 function requireScenarioTitle(value: string) {

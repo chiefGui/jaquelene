@@ -2,14 +2,10 @@ import { createBackend, type Backend } from "@jaquelene/backend";
 import { app, safeStorage } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
-import { closeDatabase, openDatabase } from "./database";
 import {
   developmentProfileEnvironmentVariable,
   prepareApplicationInstance,
 } from "./development-profile";
-import { createCampaigns } from "./feature/campaign/campaigns";
-import { createGenerations } from "./feature/generation/generations";
-import { createTurnPromptCompiler } from "./feature/generation/prompt";
 import { createModelCatalog } from "./feature/model/catalog";
 import { createFavoriteModels } from "./feature/model/favorite-models";
 import { createFavoriteModelsStorage } from "./feature/model/favorite-models-store";
@@ -17,8 +13,6 @@ import { createOpenRouterConnection } from "./feature/provider/openrouter/connec
 import { createOpenRouterGenerationProvider } from "./feature/provider/openrouter/generation";
 import { createOpenRouterModelProvider } from "./feature/provider/openrouter/models";
 import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verification";
-import { createScenarios } from "./feature/scenario/scenarios";
-import { createThreads } from "./feature/thread/threads";
 import { createLocalState } from "./local-state";
 import { createMainWindow } from "./main-window";
 import { createPreferences } from "./preferences/preferences";
@@ -92,17 +86,7 @@ void app
 
     const userDataDirectory = app.getPath("userData");
     const databasePath = join(userDataDirectory, "jaquelene.sqlite");
-    const backend = await createBackend({
-      storageManifest: createStorageManifest({ databasePath, userDataDirectory }),
-    });
-    closeBackendBeforeQuit(backend);
     const localState = createLocalState(userDataDirectory);
-    const database = openDatabase(databasePath);
-    app.once("will-quit", () => closeDatabase(database));
-
-    const scenarios = createScenarios(database);
-    const campaigns = createCampaigns(database);
-    const threads = createThreads(database);
     const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
       async encrypt(apiKey) {
         await requireSecureStorage();
@@ -115,10 +99,12 @@ void app
       },
       verify: verifyOpenRouterApiKey,
     });
-    const generations = createGenerations(database, createTurnPromptCompiler(threads), [
-      createOpenRouterGenerationProvider(openRouterConnection),
-    ]);
-    generations.recoverInterrupted();
+    const backend = await createBackend({
+      databasePath,
+      generationProviders: [createOpenRouterGenerationProvider(openRouterConnection)],
+      storageManifest: createStorageManifest({ databasePath, userDataDirectory }),
+    });
+    closeBackendBeforeQuit(backend);
     const modelCatalog = createModelCatalog([createOpenRouterModelProvider(openRouterConnection)]);
     const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
     const preferences = createPreferences(userDataDirectory);
@@ -126,9 +112,9 @@ void app
     const mainWindow = createMainWindow({
       rendererUrl: developmentServerUrl ?? appUrl,
       localState,
-      scenarios,
-      campaigns,
-      threads,
+      scenarios: backend.scenarios,
+      campaigns: backend.campaigns,
+      threads: backend.threads,
       modelCatalog,
       favoriteModels,
       preferences,

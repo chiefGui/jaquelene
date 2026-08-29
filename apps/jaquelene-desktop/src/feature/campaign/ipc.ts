@@ -1,10 +1,9 @@
+import { ids, type Campaigns } from "@jaquelene/backend";
 import {
   CampaignPreferences as CampaignPreferencesIpc,
   Campaigns as CampaignsIpc,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
-import { ids } from "@/id";
-import type { Campaigns } from "./campaigns";
 import type { CampaignPreferences } from "./preferences";
 
 export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {

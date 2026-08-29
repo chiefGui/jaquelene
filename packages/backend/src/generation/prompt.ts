@@ -1,5 +1,5 @@
-import type { Threads } from "@/feature/thread/threads";
-import type { MessageId, ThreadId, TurnId } from "@/id";
+import type { MessageId, ThreadId, TurnId } from "../id";
+import type { Threads } from "../thread/threads";
 import type { GenerationMessage } from "./provider";
 
 export type GenerationPrompt = {
@@ -10,7 +10,7 @@ export type GenerationPrompt = {
 };
 
 export type GenerationPromptCompiler = {
-  compile(turnId: TurnId): GenerationPrompt | Promise<GenerationPrompt>;
+  compile(turnId: TurnId, signal?: AbortSignal): GenerationPrompt | Promise<GenerationPrompt>;
 };
 
 export function createTurnPromptCompiler(

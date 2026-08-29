@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { closeDatabase, openDatabase, type Database } from "@/database";
-import { ids } from "@/id";
+import { closeDatabase, openDatabase, type Database } from "../database/database";
+import { ids } from "../id";
 import { threadMessageTable, turnTable } from "./schema";
 import {
   appendAssistantMessageInTransaction,

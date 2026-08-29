@@ -6,10 +6,16 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "db:generate": "drizzle-kit generate --config drizzle.config.ts"
+  },
   "dependencies": {
-    "effect": "4.0.0-rc.112"
+    "drizzle-orm": "1.0.0-rc.4",
+    "effect": "4.0.0-rc.112",
+    "typeid-js": "^1.2.0"
   },
   "devDependencies": {
-    "@types/node": "^26.3.0"
+    "@types/node": "^26.3.0",
+    "drizzle-kit": "1.0.0-rc.4"
   }
 }

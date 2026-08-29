@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { closeDatabase, openDatabase, type Database } from "@/database";
-import { createScenarios } from "@/feature/scenario/scenarios";
-import { threadTable } from "@/feature/thread/schema";
-import { createThreads } from "@/feature/thread/threads";
-import { ids } from "@/id";
+import { closeDatabase, openDatabase, type Database } from "../database/database";
+import { ids } from "../id";
+import { createScenarios } from "../scenario/scenarios";
+import { threadTable } from "../thread/schema";
+import { createThreads } from "../thread/threads";
 import { createCampaigns } from "./campaigns";
 import { campaignTable } from "./schema";
 

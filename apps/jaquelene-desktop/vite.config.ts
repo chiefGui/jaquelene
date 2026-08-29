@@ -17,7 +17,9 @@ const worktreeRoot = realpathSync.native(fileURLToPath(new URL("../..", import.m
 const electronOutput = fileURLToPath(new URL("./dist-electron", import.meta.url));
 const mainOutput = join(electronOutput, "main");
 const mainEntry = fileURLToPath(new URL("./src/main.ts", import.meta.url));
-const migrationsDirectory = fileURLToPath(new URL("./src/migrations", import.meta.url));
+const migrationsDirectory = fileURLToPath(
+  new URL("../../packages/backend/src/migrations", import.meta.url),
+);
 const migrationsOutput = join(mainOutput, "migrations");
 const preloadOutput = join(electronOutput, "preload");
 const preloadEntry = fileURLToPath(new URL("./src/preload.ts", import.meta.url));

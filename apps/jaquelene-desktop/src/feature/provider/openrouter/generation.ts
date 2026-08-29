@@ -1,7 +1,7 @@
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { chatSend } from "@openrouter/sdk/funcs/chatSend.js";
 import type { ChatMessages, ChatResult } from "@openrouter/sdk/models";
-import type { GenerationMessage, GenerationProvider } from "@/feature/generation/provider";
+import type { GenerationMessage, GenerationProvider } from "@jaquelene/backend";
 import type { OpenRouterConnection } from "./connection";
 
 type SendOpenRouterChat = (

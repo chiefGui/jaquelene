@@ -14,7 +14,12 @@ function createUserDataDirectory() {
 }
 
 async function createTestBackend(storageManifest: StorageManifest) {
-  const backend = await createBackend({ storageManifest });
+  const databaseDirectory = createUserDataDirectory();
+  const backend = await createBackend({
+    databasePath: join(databaseDirectory, "jaquelene.sqlite"),
+    generationProviders: [],
+    storageManifest,
+  });
   backends.push(backend);
   return backend;
 }

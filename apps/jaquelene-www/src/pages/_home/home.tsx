@@ -21,7 +21,7 @@ export function Home() {
           jaquelene
         </h1>
         <p {...stylex.props(styles.pitch)}>
-          An app for roleplaying with AI—beautiful, simple, free, and open source.
+          An app for roleplaying with AI. Beautiful, private, simple, free & open source.
         </p>
         <div {...stylex.props(styles.release)}>
           <span {...stylex.props(styles.status)}>

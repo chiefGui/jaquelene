@@ -1,6 +1,6 @@
 import type { Campaigns, Scenarios, Storage, Threads } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
-import { BrowserWindow, screen, shell } from "electron";
+import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import type { ApplicationDiagnostics } from "./diagnostics/diagnostics";
 import { exposeDiagnostics } from "./diagnostics/ipc";
@@ -75,7 +75,7 @@ export function createMainWindow({
       // Electron's native window background parser does not support OKLCH.
       backgroundColor: "rgb(7, 8, 12)",
       show: false,
-      title: "Jaquelene",
+      title: app.name,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,

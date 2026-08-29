@@ -2,6 +2,7 @@ import { createBackend, type Backend } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { app, safeStorage, shell } from "electron";
 import { join } from "node:path";
+import { applicationId } from "./application";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
 import {
   developmentProfileEnvironmentVariable,
@@ -20,6 +21,10 @@ import { createMainWindow } from "./main-window";
 import { createPathOpener } from "./path-opener";
 import { createPreferences } from "./preferences/preferences";
 import { createStorageAreas } from "./storage/areas";
+
+if (process.platform === "win32") {
+  app.setAppUserModelId(applicationId);
+}
 
 const { developmentProfile, hasSingleInstanceLock } = prepareApplicationInstance(
   app,

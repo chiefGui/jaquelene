@@ -10,6 +10,7 @@ import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import { measureStorageUsage, useDeleteStorageCategory } from "@/feature/storage/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
@@ -20,7 +21,7 @@ export const Route = createFileRoute("/settings/storage")({
     staleReloadMode: "blocking",
   },
   staleTime: 0,
-  onError: (error) => console.error("Could not measure storage usage.", error),
+  onError: (error) => reportError("storage.measure", error),
   errorComponent: StorageRouteError,
   component: StorageRoute,
 });
@@ -126,15 +127,12 @@ function StorageRoute() {
       setLatestUsage(nextUsage);
       setConfirmation(null);
     } catch (cause) {
-      console.error(`Could not delete storage category "${category.id}".`, cause);
+      reportError("storage.delete", cause);
 
       try {
         setLatestUsage(await measureStorageUsage());
       } catch (measurementCause) {
-        console.error(
-          "Could not refresh storage usage after a deletion failure.",
-          measurementCause,
-        );
+        reportError("storage.remeasure", measurementCause);
       }
     }
   }

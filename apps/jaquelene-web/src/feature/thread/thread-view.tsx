@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
   type SubmitEvent,
 } from "react";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import { threadMessagesQuery, useAppendUserMessage } from "./query";
 
 const THREAD_MESSAGE_CONTENT_MAX_LENGTH = 100_000;
@@ -52,7 +53,7 @@ export function ThreadView({ threadId }: { threadId: string }) {
       await appendMessageMutation.mutateAsync({ threadId, content });
       setDraft((currentDraft) => (currentDraft === content ? "" : currentDraft));
     } catch (cause) {
-      console.error("Could not send the message.", cause);
+      reportError("thread.message.send", cause);
       setSendError("Could not send the message.");
     }
   }

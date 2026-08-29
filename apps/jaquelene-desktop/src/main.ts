@@ -1,11 +1,13 @@
 import { createBackend, type Backend } from "@jaquelene/backend";
-import { app, safeStorage } from "electron";
+import { ErrorSeverity } from "@jaquelene/diagnostics";
+import { app, safeStorage, shell } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme, registerAppScheme } from "./app-protocol";
 import {
   developmentProfileEnvironmentVariable,
   prepareApplicationInstance,
 } from "./development-profile";
+import { createApplicationDiagnostics, getDiagnosticsStoragePath } from "./diagnostics/diagnostics";
 import { createModelCatalog } from "./feature/model/catalog";
 import { createFavoriteModels } from "./feature/model/favorite-models";
 import { createFavoriteModelsStorage } from "./feature/model/favorite-models-store";
@@ -15,6 +17,7 @@ import { createOpenRouterModelProvider } from "./feature/provider/openrouter/mod
 import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verification";
 import { createLocalState } from "./local-state";
 import { createMainWindow } from "./main-window";
+import { createPathOpener } from "./path-opener";
 import { createPreferences } from "./preferences/preferences";
 import { createStorageAreas } from "./storage/areas";
 
@@ -31,22 +34,19 @@ if (!hasSingleInstanceLock) {
   app.quit();
 }
 
-registerAppScheme();
-
-const developmentServerUrl = app.isPackaged ? undefined : process.env.VITE_DEV_SERVER_URL;
-
-function quitAfterFatalError(error: unknown) {
-  console.error("Jaquelene encountered a fatal error.", error);
-  app.quit();
-}
-
 async function requireSecureStorage() {
   if (!(await safeStorage.isAsyncEncryptionAvailable())) {
     throw new Error("Secure credential storage is unavailable.");
   }
 }
 
-function closeBackendBeforeQuit(backend: Backend) {
+function startPrimaryApplication() {
+  const userDataDirectory = app.getPath("userData");
+  const diagnosticsDirectory = getDiagnosticsStoragePath(userDataDirectory);
+  const openPath = createPathOpener((path) => shell.openPath(path));
+  const diagnostics = createApplicationDiagnostics(diagnosticsDirectory, openPath);
+  let backend: Backend | undefined;
+  let startup = Promise.resolve();
   let canQuit = false;
   let closePromise: Promise<void> | undefined;
 
@@ -57,91 +57,120 @@ function closeBackendBeforeQuit(backend: Backend) {
 
     event.preventDefault();
 
-    closePromise ??= backend
-      .close()
-      .catch((error: unknown) => {
-        console.error("Could not close the backend cleanly.", error);
-      })
-      .finally(() => {
-        canQuit = true;
-        app.quit();
+    closePromise ??= (async () => {
+      await startup;
+
+      try {
+        await backend?.close();
+      } catch (error) {
+        diagnostics.report({
+          severity: ErrorSeverity.Error,
+          operation: "backend.close",
+          error,
+        });
+      }
+
+      await diagnostics.close();
+      canQuit = true;
+      app.quit();
+    })();
+  });
+
+  function quitAfterFatalError(operation: string, error: unknown) {
+    diagnostics.report({ severity: ErrorSeverity.Fatal, operation, error });
+    app.quit();
+  }
+
+  try {
+    app.setAppLogsPath(diagnosticsDirectory);
+    registerAppScheme();
+  } catch (error) {
+    quitAfterFatalError("application.configure", error);
+    return;
+  }
+
+  const developmentServerUrl = app.isPackaged ? undefined : process.env.VITE_DEV_SERVER_URL;
+
+  startup = app
+    .whenReady()
+    .then(async () => {
+      if (!developmentServerUrl) {
+        const webAppDirectory = app.isPackaged
+          ? join(process.resourcesPath, "web")
+          : join(app.getAppPath(), "../jaquelene-web/dist");
+
+        handleAppScheme(webAppDirectory);
+      }
+
+      const databasePath = join(userDataDirectory, "jaquelene.sqlite");
+      const localState = createLocalState(userDataDirectory, diagnostics);
+      const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
+        async encrypt(apiKey) {
+          await requireSecureStorage();
+          return safeStorage.encryptStringAsync(apiKey);
+        },
+        async decrypt(encryptedApiKey) {
+          await requireSecureStorage();
+          const { result } = await safeStorage.decryptStringAsync(encryptedApiKey);
+          return result;
+        },
+        verify: verifyOpenRouterApiKey,
       });
+      const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
+      const preferences = createPreferences(userDataDirectory);
+      backend = await createBackend({
+        databasePath,
+        generationProviders: [createOpenRouterGenerationProvider(openRouterConnection)],
+        storageAreas: createStorageAreas({
+          diagnostics,
+          favoriteModels,
+          localState,
+          openRouterConnection,
+          preferences,
+          userDataDirectory,
+        }),
+      });
+      const modelCatalog = createModelCatalog([
+        createOpenRouterModelProvider(openRouterConnection),
+      ]);
+
+      const mainWindow = createMainWindow({
+        rendererUrl: developmentServerUrl ?? appUrl,
+        diagnostics,
+        localState,
+        scenarios: backend.scenarios,
+        campaigns: backend.campaigns,
+        threads: backend.threads,
+        modelCatalog,
+        favoriteModels,
+        preferences,
+        openRouterConnection,
+        storage: backend.storage,
+      });
+
+      app.on("second-instance", () => {
+        void mainWindow
+          .show()
+          .catch((error: unknown) => quitAfterFatalError("window.restore", error));
+      });
+
+      await mainWindow.show();
+
+      app.on("activate", () => {
+        void mainWindow
+          .show()
+          .catch((error: unknown) => quitAfterFatalError("window.activate", error));
+      });
+    })
+    .catch((error: unknown) => quitAfterFatalError("application.start", error));
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
+    }
   });
 }
 
-void app
-  .whenReady()
-  .then(async () => {
-    if (!hasSingleInstanceLock) {
-      return;
-    }
-
-    if (!developmentServerUrl) {
-      const webAppDirectory = app.isPackaged
-        ? join(process.resourcesPath, "web")
-        : join(app.getAppPath(), "../jaquelene-web/dist");
-
-      handleAppScheme(webAppDirectory);
-    }
-
-    const userDataDirectory = app.getPath("userData");
-    const databasePath = join(userDataDirectory, "jaquelene.sqlite");
-    const localState = createLocalState(userDataDirectory);
-    const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
-      async encrypt(apiKey) {
-        await requireSecureStorage();
-        return safeStorage.encryptStringAsync(apiKey);
-      },
-      async decrypt(encryptedApiKey) {
-        await requireSecureStorage();
-        const { result } = await safeStorage.decryptStringAsync(encryptedApiKey);
-        return result;
-      },
-      verify: verifyOpenRouterApiKey,
-    });
-    const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
-    const preferences = createPreferences(userDataDirectory);
-    const backend = await createBackend({
-      databasePath,
-      generationProviders: [createOpenRouterGenerationProvider(openRouterConnection)],
-      storageAreas: createStorageAreas({
-        favoriteModels,
-        localState,
-        openRouterConnection,
-        preferences,
-        userDataDirectory,
-      }),
-    });
-    closeBackendBeforeQuit(backend);
-    const modelCatalog = createModelCatalog([createOpenRouterModelProvider(openRouterConnection)]);
-
-    const mainWindow = createMainWindow({
-      rendererUrl: developmentServerUrl ?? appUrl,
-      localState,
-      scenarios: backend.scenarios,
-      campaigns: backend.campaigns,
-      threads: backend.threads,
-      modelCatalog,
-      favoriteModels,
-      preferences,
-      openRouterConnection,
-      storage: backend.storage,
-    });
-
-    app.on("second-instance", () => {
-      void mainWindow.show().catch(quitAfterFatalError);
-    });
-
-    await mainWindow.show();
-
-    app.on("activate", () => {
-      void mainWindow.show().catch(quitAfterFatalError);
-    });
-  })
-  .catch(quitAfterFatalError);
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
+if (hasSingleInstanceLock) {
+  startPrimaryApplication();
+}

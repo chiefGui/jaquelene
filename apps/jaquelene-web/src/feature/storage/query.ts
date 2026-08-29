@@ -1,3 +1,4 @@
+import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { Storage, StorageCategory, type StorageUsage } from "@jaquelene/ipc/renderer";
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
@@ -5,6 +6,7 @@ import { campaignQueryKey } from "@/feature/campaign/query";
 import { defaultCampaignModelQuery } from "@/feature/campaign/preferences";
 import { resetModelProvider } from "@/feature/model/catalog-query";
 import { favoriteModelsQuery } from "@/feature/model/favorite-models";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import {
   openRouterConfigurationQuery,
   openRouterProvider,
@@ -67,7 +69,7 @@ export function useDeleteStorageCategory() {
     onMutate: (id) => cancelCategoryQueries(queryClient, id),
     onSettled(_usage, _error, id) {
       void refreshCategoryQueries(queryClient, id).catch((cause: unknown) => {
-        console.error(`Could not refresh state after deleting storage category "${id}".`, cause);
+        reportError("storage.cache.refresh", cause, ErrorSeverity.Warning);
       });
     },
   });

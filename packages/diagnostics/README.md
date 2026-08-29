@@ -1,6 +1,8 @@
 # Diagnostics
 
-Diagnostics describe unexpected failures after they reach an application boundary.
+Diagnostics describe unexpected failures after they reach an application boundary. This package
+owns their bounded, platform-independent representation; application adapters own report identity,
+persistence, transport, inspection, and recovery.
 
 - Expected negative outcomes belong in an operation's return contract when callers need distinct handling.
 - Invalid caller input rejects the violated contract with a standard error such as `TypeError` or `RangeError`.
@@ -9,4 +11,7 @@ Diagnostics describe unexpected failures after they reach an application boundar
 
 Custom exceptions are useful only when same-process code must distinguish a failure before translating or reporting it. Diagnostic code does not decide recovery, retry, persistence, or user-facing copy.
 
-Serialization preserves error text; it does not guess which substrings are secrets. Adapters must keep credentials, authorization headers, prompts, message content, and raw provider responses out of errors and report metadata.
+Reports carry a stable operation identity, severity, source process, timestamp, and bounded error
+tree. Serialization preserves error text; it does not guess which substrings are secrets. Adapters
+must keep credentials, authorization headers, prompts, message content, and raw provider responses
+out of errors.

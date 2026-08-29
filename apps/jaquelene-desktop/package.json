@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@jaquelene/backend": "workspace:*",
+    "@jaquelene/diagnostics": "workspace:*",
     "@jaquelene/ipc": "workspace:*",
     "@openrouter/sdk": "^1.2.78",
     "electron-store": "^11.0.2"

@@ -4,6 +4,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import { campaignsForScenarioQuery, useStartCampaign } from "@/feature/campaign/query";
 import { scenarioQuery, useRenameScenario } from "@/feature/scenario/query";
 import { ContentPane } from "@/layout/content-pane";
@@ -65,7 +66,7 @@ function ScenarioRoute() {
         return;
       }
     } catch (cause) {
-      console.error("Could not rename the scenario.", cause);
+      reportError("scenario.rename", cause);
       setRenameError("Could not rename the scenario.");
     }
   }
@@ -86,11 +87,11 @@ function ScenarioRoute() {
           params: { campaignId: campaign.id },
         });
       } catch (cause) {
-        console.error("The campaign was started, but it could not be opened.", cause);
+        reportError("campaign.open-started", cause);
         setCampaignError("The campaign was started, but it could not be opened.");
       }
     } catch (cause) {
-      console.error("Could not start the campaign.", cause);
+      reportError("campaign.start", cause);
       setCampaignError("Could not start the campaign.");
     }
   }

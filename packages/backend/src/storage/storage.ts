@@ -13,6 +13,7 @@ export type StorageCategory = (typeof StorageCategory)[keyof typeof StorageCateg
 
 export const StorageAreaId = {
   Content: "content",
+  Diagnostics: "diagnostics",
   FavoriteModels: "favorite-models",
   LocalState: "local-state",
   OpenRouterConnection: "openrouter-connection",

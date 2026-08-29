@@ -4,6 +4,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type SubmitEvent } from "react";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import { scenariosQuery, useCreateScenario } from "@/feature/scenario/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
@@ -45,11 +46,11 @@ function ScenariosIndexRoute() {
           params: { scenarioId: result.scenario.id },
         });
       } catch (cause) {
-        console.error("The scenario was created, but it could not be opened.", cause);
+        reportError("scenario.open-created", cause);
         setError("The scenario was created, but it could not be opened.");
       }
     } catch (cause) {
-      console.error("Could not create the scenario.", cause);
+      reportError("scenario.create", cause);
       setError("Could not create the scenario.");
     }
   }

@@ -9,12 +9,9 @@ import {
   prepareApplicationInstance,
 } from "./development-profile";
 import { createApplicationDiagnostics, getDiagnosticsStoragePath } from "./diagnostics/diagnostics";
-import { createModelCatalog } from "./feature/model/catalog";
 import { createFavoriteModels } from "./feature/model/favorite-models";
 import { createFavoriteModelsStorage } from "./feature/model/favorite-models-store";
-import { createOpenRouterConnection } from "./feature/provider/openrouter/connection";
-import { createOpenRouterGenerationProvider } from "./feature/provider/openrouter/generation";
-import { createOpenRouterModelProvider } from "./feature/provider/openrouter/models";
+import { createOpenRouterProvider } from "./feature/provider/openrouter/provider";
 import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verification";
 import { createLocalState } from "./local-state";
 import { createMainWindow } from "./main-window";
@@ -109,7 +106,7 @@ function startPrimaryApplication() {
 
       const databasePath = join(userDataDirectory, "jaquelene.sqlite");
       const localState = createLocalState(userDataDirectory, diagnostics);
-      const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
+      const openRouter = createOpenRouterProvider(userDataDirectory, {
         async encrypt(apiKey) {
           await requireSecureStorage();
           return safeStorage.encryptStringAsync(apiKey);
@@ -125,19 +122,15 @@ function startPrimaryApplication() {
       const preferences = createPreferences(userDataDirectory);
       backend = await createBackend({
         databasePath,
-        generationProviders: [createOpenRouterGenerationProvider(openRouterConnection)],
+        providers: [openRouter],
         storageAreas: createStorageAreas({
           diagnostics,
           favoriteModels,
           localState,
-          openRouterConnection,
           preferences,
           userDataDirectory,
         }),
       });
-      const modelCatalog = createModelCatalog([
-        createOpenRouterModelProvider(openRouterConnection),
-      ]);
 
       const mainWindow = createMainWindow({
         rendererUrl: developmentServerUrl ?? appUrl,
@@ -146,10 +139,10 @@ function startPrimaryApplication() {
         scenarios: backend.scenarios,
         campaigns: backend.campaigns,
         threads: backend.threads,
-        modelCatalog,
+        modelCatalog: backend.models,
         favoriteModels,
         preferences,
-        openRouterConnection,
+        providers: backend.providers,
         storage: backend.storage,
       });
 

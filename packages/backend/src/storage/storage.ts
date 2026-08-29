@@ -11,16 +11,7 @@ export const StorageCategory = {
 
 export type StorageCategory = (typeof StorageCategory)[keyof typeof StorageCategory];
 
-export const StorageAreaId = {
-  Content: "content",
-  Diagnostics: "diagnostics",
-  FavoriteModels: "favorite-models",
-  LocalState: "local-state",
-  OpenRouterConnection: "openrouter-connection",
-  Preferences: "preferences",
-} as const;
-
-export type StorageAreaId = (typeof StorageAreaId)[keyof typeof StorageAreaId];
+export type StorageAreaId = string;
 
 export type StorageArea = Readonly<{
   id: StorageAreaId;
@@ -127,14 +118,13 @@ function pathsOverlap(left: string, right: string) {
 }
 
 function registerStorageAreas(areas: readonly StorageArea[]) {
-  const areaIds = new Set<StorageAreaId>(Object.values(StorageAreaId));
   const registeredIds = new Set<StorageAreaId>();
   const registeredPaths: Array<{ path: string; comparisonKey: string }> = [];
   const categories = new Set<StorageCategory>(Object.values(StorageCategory));
 
   return areas.map((area) => {
-    if (!areaIds.has(area.id)) {
-      throw new TypeError(`Storage area "${area.id}" has an unknown identity.`);
+    if (typeof area.id !== "string" || !area.id.trim()) {
+      throw new TypeError("Storage areas require an identity.");
     }
 
     if (registeredIds.has(area.id)) {

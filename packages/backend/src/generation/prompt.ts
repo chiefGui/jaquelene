@@ -1,6 +1,6 @@
 import type { MessageId, ThreadId, TurnId } from "#backend/id";
+import type { GenerationMessage } from "#backend/provider/provider";
 import type { Threads } from "#backend/thread/threads";
-import type { GenerationMessage } from "./provider";
 
 export type GenerationPrompt = {
   turnId: TurnId;

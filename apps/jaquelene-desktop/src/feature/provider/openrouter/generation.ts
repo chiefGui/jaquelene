@@ -1,8 +1,8 @@
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { chatSend } from "@openrouter/sdk/funcs/chatSend.js";
 import type { ChatMessages, ChatResult } from "@openrouter/sdk/models";
-import type { GenerationMessage, GenerationProvider } from "@jaquelene/backend";
-import type { OpenRouterConnection } from "./connection";
+import type { GenerationMessage, ProviderGenerationAdapter } from "@jaquelene/backend";
+import type { OpenRouterConfiguration } from "./connection";
 
 type SendOpenRouterChat = (
   apiKey: string,
@@ -13,7 +13,7 @@ type SendOpenRouterChat = (
     sessionId: string;
     stream: false;
   },
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ) => Promise<ChatResult>;
 
 function toOpenRouterMessage({ role, content }: GenerationMessage): ChatMessages {
@@ -30,7 +30,7 @@ function toOpenRouterMessage({ role, content }: GenerationMessage): ChatMessages
 async function sendOpenRouterChat(
   apiKey: string,
   request: Parameters<SendOpenRouterChat>[1],
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<ChatResult> {
   const client = new OpenRouterCore({
     apiKey,
@@ -43,7 +43,7 @@ async function sendOpenRouterChat(
     {
       chatRequest: request,
     },
-    signal ? { signal } : undefined,
+    { signal },
   );
 
   if (!response.ok) {
@@ -87,14 +87,13 @@ function getResponseText(result: ChatResult) {
   throw new TypeError("OpenRouter returned no assistant text.");
 }
 
-export function createOpenRouterGenerationProvider(
-  connection: Pick<OpenRouterConnection, "withApiKey">,
+export function createOpenRouterGeneration(
+  configuration: Pick<OpenRouterConfiguration, "withApiKey">,
   send: SendOpenRouterChat = sendOpenRouterChat,
-): GenerationProvider {
+): ProviderGenerationAdapter {
   return {
-    id: "openrouter",
-    generate: (request) =>
-      connection.withApiKey(async (apiKey) => {
+    generate: (request, signal) =>
+      configuration.withApiKey(async (apiKey) => {
         const result = await send(
           apiKey,
           {
@@ -104,7 +103,7 @@ export function createOpenRouterGenerationProvider(
             sessionId: request.threadId,
             stream: false,
           },
-          request.signal,
+          signal,
         );
         const { choice, text } = getResponseText(result);
 

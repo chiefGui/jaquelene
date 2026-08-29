@@ -1,11 +1,15 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
-import type { GenerationProvider, GenerationProviderResult } from "#backend/generation/provider";
 import { ids } from "#backend/id";
+import type {
+  ProviderAdapter,
+  ProviderGenerationAdapter,
+  ProviderGenerationResult,
+} from "#backend/provider/provider";
 import { StorageCategory } from "#backend/storage/storage";
 import { createThreads } from "#backend/thread/threads";
 import { createBackend, type BackendOptions } from "./backend";
@@ -20,12 +24,21 @@ function createDatabasePath() {
 
 function backendOptions(
   databasePath: string,
-  generationProviders: readonly GenerationProvider[] = [],
+  providers: readonly ProviderAdapter[] = [],
 ): BackendOptions {
   return {
     databasePath,
-    generationProviders,
+    providers,
     storageAreas: [],
+  };
+}
+
+function providerAdapter(id: string, generation?: ProviderGenerationAdapter): ProviderAdapter {
+  return {
+    descriptor: { id, name: id, brandId: id },
+    configuration: { kind: "none" },
+    models: { list: async () => [] },
+    generation: generation ?? { generate: async () => ({ text: "Unused" }) },
   };
 }
 
@@ -71,24 +84,63 @@ describe("backend", () => {
     await reopened.close();
   });
 
+  it("includes provider-owned configuration in application storage", async () => {
+    const databasePath = createDatabasePath();
+    const configurationPath = join(databasePath, "..", "provider-a.json");
+    let configured = true;
+    writeFileSync(configurationPath, Buffer.alloc(47));
+    const provider = {
+      ...providerAdapter("provider-a"),
+      configuration: {
+        kind: "api-key" as const,
+        inspect: () =>
+          configured
+            ? ({ state: "configured" as const, keyLabel: "key...123" } as const)
+            : ({ state: "unconfigured" as const } as const),
+        async configure() {
+          configured = true;
+          return { state: "configured" as const, keyLabel: "key...123" };
+        },
+        async clear() {
+          configured = false;
+          rmSync(configurationPath, { force: true });
+        },
+        storagePaths: [configurationPath],
+      },
+    } satisfies ProviderAdapter;
+    const backend = await createBackend(backendOptions(databasePath, [provider]));
+
+    await expect(backend.storage.measureUsage()).resolves.toEqual(
+      expect.objectContaining({
+        categories: expect.arrayContaining([{ id: StorageCategory.AppData, bytes: 47 }]),
+      }),
+    );
+    await backend.storage.deleteCategory(StorageCategory.AppData);
+    expect(existsSync(configurationPath)).toBe(false);
+    expect(backend.providers.inspectConfiguration(provider.descriptor.id)).toEqual({
+      kind: "api-key",
+      state: "unconfigured",
+    });
+    await backend.close();
+  });
+
   it("interrupts and drains active generations before closing SQLite", async () => {
     const databasePath = createDatabasePath();
     const providerStarted = deferred<void>();
     let providerSignal: AbortSignal | undefined;
-    const provider: GenerationProvider = {
-      id: "provider-a",
-      generate(request) {
-        providerSignal = request.signal;
+    const provider = providerAdapter("provider-a", {
+      generate(_request, signal) {
+        providerSignal = signal;
         providerStarted.resolve();
-        return new Promise<GenerationProviderResult>(() => {});
+        return new Promise<ProviderGenerationResult>(() => {});
       },
-    };
+    });
     const backend = await createBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
     const started = backend.threads.startTurn(thread.id, "Hello");
     const pending = backend.generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      model: { providerId: provider.descriptor.id, modelId: "maker/model" },
     });
     await providerStarted.promise;
 
@@ -150,15 +202,10 @@ describe("backend", () => {
 
   it("releases SQLite when application startup fails", async () => {
     const databasePath = createDatabasePath();
-    const provider: GenerationProvider = {
-      id: "duplicate-provider",
-      async generate() {
-        return { text: "Unused" };
-      },
-    };
+    const provider = providerAdapter("duplicate-provider");
 
     await expect(createBackend(backendOptions(databasePath, [provider, provider]))).rejects.toThrow(
-      'Generation provider "duplicate-provider" is registered more than once.',
+      'Provider "duplicate-provider" is registered more than once.',
     );
     expect(() => rmSync(databasePath, { force: true })).not.toThrow();
   });

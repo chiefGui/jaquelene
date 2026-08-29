@@ -1,4 +1,4 @@
-import { StorageAreaId, StorageCategory, type StorageArea } from "@jaquelene/backend";
+import { StorageCategory, type StorageArea } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
 import { renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -58,7 +58,7 @@ export function createLocalStateStorageArea(
   localState: LocalState,
 ): StorageArea {
   return {
-    id: StorageAreaId.LocalState,
+    id: "local-state",
     category: StorageCategory.AppData,
     paths: getLocalStateStoragePaths(userDataDirectory),
     delete: localState.deleteAll,

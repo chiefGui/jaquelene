@@ -4,7 +4,7 @@ import type { ModelCatalog } from "./catalog";
 
 export function exposeModelCatalog(target: WebFrameMain, catalog: ModelCatalog) {
   ModelCatalogIpc.for(target).setImplementation({
-    listProviders: catalog.listProviders,
-    listModels: catalog.listModels,
+    listProviders: () => [...catalog.listProviders()],
+    listModels: async (providerId) => [...(await catalog.listModels(providerId))],
   });
 }

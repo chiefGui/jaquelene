@@ -6,14 +6,14 @@ import {
 } from "#backend/thread/threads";
 import { threadTable } from "#backend/thread/schema";
 import { ids, type GenerationId, type TurnId } from "#backend/id";
-import type { GenerationPrompt, GenerationPromptCompiler } from "./prompt";
 import {
   requireModelReference,
-  type GenerationProvider,
-  type GenerationProviderResult,
   type GenerationUsage,
   type ModelReference,
-} from "./provider";
+  type ProviderGenerationResult,
+} from "#backend/provider/provider";
+import type { ProviderGenerationRouter } from "#backend/provider/providers";
+import type { GenerationPrompt, GenerationPromptCompiler } from "./prompt";
 import { generationTable, type Generation, type GenerationFailureKind } from "./schema";
 
 export type GenerateReplyRequest = {
@@ -110,7 +110,7 @@ function requireTokenCount(value: number, field: string) {
   return value;
 }
 
-function normalizeProviderResult(result: GenerationProviderResult): NormalizedProviderResult {
+function normalizeProviderResult(result: ProviderGenerationResult): NormalizedProviderResult {
   const usage = result.usage
     ? {
         inputTokens: requireTokenCount(result.usage.inputTokens, "input token count"),
@@ -157,23 +157,9 @@ function requirePrompt(prompt: GenerationPrompt, turnId: TurnId) {
 export function createGenerations(
   database: Database,
   promptCompiler: GenerationPromptCompiler,
-  providers: readonly GenerationProvider[],
+  providers: ProviderGenerationRouter,
   now: () => number = Date.now,
 ) {
-  const providersById = new Map<string, GenerationProvider>();
-
-  for (const provider of providers) {
-    if (!provider.id.trim()) {
-      throw new TypeError("Generation providers require an identity.");
-    }
-
-    if (providersById.has(provider.id)) {
-      throw new Error(`Generation provider "${provider.id}" is registered more than once.`);
-    }
-
-    providersById.set(provider.id, provider);
-  }
-
   function finishedAt(generation: Pick<Generation, "startedAt">) {
     return Math.max(generation.startedAt, now());
   }
@@ -240,7 +226,7 @@ export function createGenerations(
     async generateReply({ turnId, model, signal }: GenerateReplyRequest) {
       requireModelReference(model);
 
-      const provider = providersById.get(model.providerId);
+      const provider = providers.get(model.providerId);
 
       if (!provider) {
         throw new RangeError(`Unknown generation provider "${model.providerId}".`);
@@ -285,7 +271,7 @@ export function createGenerations(
 
       database.insert(generationTable).values(generation).run();
 
-      let providerResult: GenerationProviderResult;
+      let providerResult: ProviderGenerationResult;
 
       try {
         if (signal?.aborted) {
@@ -293,13 +279,15 @@ export function createGenerations(
         }
 
         providerResult = await waitForOperation(
-          provider.generate({
-            generationId: generation.id,
-            threadId: prompt.threadId,
-            modelId: model.modelId,
-            messages: prompt.messages,
-            ...(signal ? { signal } : {}),
-          }),
+          provider.generate(
+            {
+              generationId: generation.id,
+              threadId: prompt.threadId,
+              modelId: model.modelId,
+              messages: prompt.messages,
+            },
+            signal,
+          ),
           signal,
         );
       } catch (cause) {

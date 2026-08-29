@@ -5,11 +5,15 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
+import type {
+  ProviderGenerationRequest,
+  ProviderGenerationResult,
+} from "#backend/provider/provider";
+import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import { threadMessageTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
 import { createGenerations } from "./generations";
 import { createTurnPromptCompiler } from "./prompt";
-import type { GenerationProvider, GenerationProviderResult } from "./provider";
 import { generationTable } from "./schema";
 
 const directories: string[] = [];
@@ -21,13 +25,35 @@ function createDatabasePath() {
   return join(directory, "jaquelene.sqlite");
 }
 
-function openGenerationEnvironment(provider: GenerationProvider, now: () => number = Date.now) {
+type TestGenerationProvider = {
+  id: string;
+  generate: (
+    request: ProviderGenerationRequest & { signal?: AbortSignal },
+  ) => Promise<ProviderGenerationResult>;
+};
+
+function generationRouter(provider?: TestGenerationProvider): ProviderGenerationRouter {
+  return {
+    get(providerId) {
+      if (!provider || provider.id !== providerId) {
+        return undefined;
+      }
+
+      return {
+        generate: (request, signal) =>
+          provider.generate({ ...request, ...(signal ? { signal } : {}) }),
+      };
+    },
+  };
+}
+
+function openGenerationEnvironment(provider: TestGenerationProvider, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
   const threads = createThreads(database, now);
   const generations = createGenerations(
     database,
     createTurnPromptCompiler(threads),
-    [provider],
+    generationRouter(provider),
     now,
   );
   databases.push(database);
@@ -182,7 +208,7 @@ describe("generations", () => {
   });
 
   it("preserves a late reply as an inactive branch when the thread advances", async () => {
-    const completion = deferred<GenerationProviderResult>();
+    const completion = deferred<ProviderGenerationResult>();
     const provider = { id: "provider-a", generate: vi.fn(() => completion.promise) };
     const { database, generations, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
@@ -218,7 +244,7 @@ describe("generations", () => {
   });
 
   it("allows only one pending generation for each turn", async () => {
-    const completion = deferred<GenerationProviderResult>();
+    const completion = deferred<ProviderGenerationResult>();
     const provider = { id: "provider-a", generate: vi.fn(() => completion.promise) };
     const { generations, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
@@ -241,8 +267,8 @@ describe("generations", () => {
   });
 
   it("allows independent turns to generate concurrently without racing the active head", async () => {
-    const firstCompletion = deferred<GenerationProviderResult>();
-    const secondCompletion = deferred<GenerationProviderResult>();
+    const firstCompletion = deferred<ProviderGenerationResult>();
+    const secondCompletion = deferred<ProviderGenerationResult>();
     const completions = [firstCompletion, secondCompletion];
     const provider = {
       id: "provider-a",
@@ -287,7 +313,7 @@ describe("generations", () => {
     const provider = {
       id: "provider-a",
       generate: vi
-        .fn<GenerationProvider["generate"]>()
+        .fn<TestGenerationProvider["generate"]>()
         .mockRejectedValueOnce(failure)
         .mockResolvedValueOnce({ text: " \n\t " }),
     };
@@ -320,7 +346,7 @@ describe("generations", () => {
   it("records interruption without waiting for an uncooperative provider", async () => {
     const provider = {
       id: "provider-a",
-      generate: vi.fn(() => new Promise<GenerationProviderResult>(() => {})),
+      generate: vi.fn(() => new Promise<ProviderGenerationResult>(() => {})),
     };
     const { database, generations, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
@@ -543,18 +569,14 @@ describe("generations", () => {
     expect(threads.get(thread.id)).toBeNull();
   });
 
-  it("rejects unknown and duplicate provider identities before persisting an attempt", async () => {
+  it("rejects an unknown provider identity before persisting an attempt", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { database, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
     const compiler = createTurnPromptCompiler(threads);
 
-    expect(() => createGenerations(database, compiler, [provider, provider])).toThrow(
-      `Generation provider "${provider.id}" is registered more than once.`,
-    );
-
-    const generations = createGenerations(database, compiler, []);
+    const generations = createGenerations(database, compiler, generationRouter());
     await expect(
       generations.generateReply({
         turnId: started.turn.id,
@@ -571,7 +593,7 @@ describe("generations", () => {
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
     const compile = vi.fn(() => new Promise<never>(() => {}));
-    const generations = createGenerations(database, { compile }, [provider]);
+    const generations = createGenerations(database, { compile }, generationRouter(provider));
     const controller = new AbortController();
     const interruption = new Error("Prompt compilation interrupted by test.");
     const pending = generations.generateReply({
@@ -613,7 +635,7 @@ describe("generations", () => {
           messages: [{ role: "user", content: "Hello" }],
         }),
       },
-      [provider],
+      generationRouter(provider),
     );
 
     await expect(

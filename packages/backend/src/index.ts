@@ -4,13 +4,28 @@ export type { Campaigns } from "#backend/campaign/campaigns";
 export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
 export {
   requireModelReference,
+  type ApiKeyProviderConfiguration,
   type GenerationMessage,
-  type GenerationProvider,
-  type GenerationProviderRequest,
-  type GenerationProviderResult,
   type GenerationUsage,
   type ModelReference,
-} from "#backend/generation/provider";
+  type ProviderAdapter,
+  type ProviderConfiguration,
+  type ProviderConfigurationAdapter,
+  type ProviderConfigureResult,
+  type ProviderDescriptor,
+  type ProviderGenerationAdapter,
+  type ProviderGenerationRequest,
+  type ProviderGenerationResult,
+  type ProviderId,
+  type ProviderModel,
+  type ProviderModelsAdapter,
+} from "#backend/provider/provider";
+export type {
+  Models,
+  ModelProvider,
+  Providers,
+  ProviderSummary,
+} from "#backend/provider/providers";
 export {
   ids,
   type CampaignId,
@@ -21,10 +36,11 @@ export {
   type TurnId,
 } from "#backend/id";
 export type { Scenarios } from "#backend/scenario/scenarios";
-export { StorageAreaId, StorageCategory } from "#backend/storage/storage";
+export { StorageCategory } from "#backend/storage/storage";
 export type {
   Storage,
   StorageArea,
+  StorageAreaId,
   StorageCategoryUsage,
   StorageUsage,
 } from "#backend/storage/storage";

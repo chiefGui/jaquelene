@@ -1,0 +1,175 @@
+name: "Release: Stable"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing draft release tag to retry
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: release-stable-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  orchestrate:
+    name: Prepare stable release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      ready: ${{ steps.select.outputs.ready }}
+      tag: ${{ steps.select.outputs.tag }}
+      version: ${{ steps.select.outputs.version }}
+
+    steps:
+      - name: Run Release Please
+        id: release
+        if: github.event_name == 'push'
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+
+      - name: Run checks for the Release PR
+        if: github.event_name == 'push' && steps.release.outputs.prs_created == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PULL_REQUESTS: ${{ steps.release.outputs.prs }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t branches < <(jq -r '.[].headBranchName' <<< "$RELEASE_PULL_REQUESTS")
+          if [[ "${#branches[@]}" -ne 1 || -z "${branches[0]}" ]]; then
+            echo "Expected exactly one Release PR branch." >&2
+            exit 1
+          fi
+
+          for workflow in ci.yml security.yml package-windows.yml; do
+            gh workflow run "$workflow" --ref "${branches[0]}"
+          done
+
+      - name: Select release to publish
+        id: select
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          RETRY_TAG: ${{ inputs.tag }}
+          RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            tag="$RETRY_TAG"
+            if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "Retry tags must use stable vMAJOR.MINOR.PATCH syntax." >&2
+              exit 1
+            fi
+            version="${tag#v}"
+          elif [[ "$RELEASE_CREATED" == "true" ]]; then
+            tag="$RELEASE_TAG"
+            version="$RELEASE_VERSION"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$tag" != "v$version" ]]; then
+            echo "Release tag $tag does not match version $version." >&2
+            exit 1
+          fi
+
+          is_draft="$(gh release view "$tag" --json isDraft --jq '.isDraft')"
+          if [[ "$is_draft" != "true" ]]; then
+            echo "Release $tag is not an unpublished draft." >&2
+            exit 1
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  publish-windows:
+    name: Publish Windows x64
+    needs: orchestrate
+    if: needs.orchestrate.outputs.ready == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ needs.orchestrate.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.orchestrate.outputs.version }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.0"
+
+      - name: Verify release version
+        shell: pwsh
+        run: |
+          $productVersion = (Get-Content -LiteralPath version.txt -Raw).Trim()
+          if ($productVersion -ne $env:RELEASE_VERSION) {
+            throw "Release version $env:RELEASE_VERSION does not match version.txt ($productVersion)."
+          }
+
+      - name: Install dependencies
+        run: bun ci
+
+      - name: Build Windows package
+        run: bun run package:windows
+
+      - name: Verify Windows package
+        run: bun run verify:package:windows
+
+      - name: Upload release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installerPath = "release/jaquelene-desktop/Jaquelene-$env:RELEASE_VERSION-windows-x64-setup.exe"
+          $assetPaths = @(
+            $installerPath
+            "$installerPath.blockmap"
+            "release/jaquelene-desktop/latest.yml"
+          )
+
+          foreach ($assetPath in $assetPaths) {
+            if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
+              throw "Missing release asset: $assetPath"
+            }
+          }
+
+          gh release upload $env:RELEASE_TAG @assetPaths --clobber
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Publish stable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit $env:RELEASE_TAG --draft=false --latest

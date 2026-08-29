@@ -1,5 +1,6 @@
 import type { Configuration } from "electron-builder";
 import packageManifest from "./package.json" with { type: "json" };
+import { productVersion } from "./scripts/product-version";
 import { applicationId } from "./src/application";
 
 const applicationName = packageManifest.productName;
@@ -11,6 +12,9 @@ const config = {
   artifactName: `${applicationName}-\${version}-windows-\${arch}-setup.\${ext}`,
   asar: true,
   electronLanguages: ["en-US"],
+  extraMetadata: {
+    version: productVersion,
+  },
   directories: {
     output: "../../release/jaquelene-desktop",
   },

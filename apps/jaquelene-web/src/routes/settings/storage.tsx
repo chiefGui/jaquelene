@@ -1,4 +1,6 @@
 import { diagnosticsStorageAreaId } from "@jaquelene/diagnostics";
+import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { StorageCategory, type StorageAreaUsage, type StorageUsage } from "@jaquelene/ipc/renderer";
 import { Button, Item, formatBytes } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
@@ -119,6 +121,20 @@ function StorageUsageBar({
   );
 }
 
+function StorageDeleteButton({ disabled, label }: { disabled: boolean; label: string }) {
+  return (
+    <Button
+      aria-label={label}
+      variant="ghost"
+      tone="danger"
+      style={styles.deleteButton}
+      disabled={disabled}
+    >
+      <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
+    </Button>
+  );
+}
+
 function LogsStorage({ area }: { area: StorageAreaUsage }) {
   const queryClient = useQueryClient();
   const deleteStorageArea = useDeleteStorageArea();
@@ -151,16 +167,19 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
   }
 
   return (
-    <Item.Root style={styles.logsItem}>
-      <Item.Content>
-        <Item.Label>Logs</Item.Label>
-        <Item.Description>Troubleshooting logs included in app data.</Item.Description>
-        {openDiagnostics.isError ? (
-          <Item.Description role="alert" style={styles.error}>
-            Couldn’t open the folder
-          </Item.Description>
-        ) : null}
-      </Item.Content>
+    <Item.Root>
+      <div {...stylex.props(styles.category)}>
+        <span aria-hidden="true" {...stylex.props(styles.categoryMarker, styles.appData)} />
+
+        <Item.Content>
+          <Item.Label>Logs</Item.Label>
+          {openDiagnostics.isError ? (
+            <Item.Description role="alert" style={styles.error}>
+              Couldn’t open the folder
+            </Item.Description>
+          ) : null}
+        </Item.Content>
+      </div>
 
       <div {...stylex.props(styles.itemEnd)}>
         <Item.Value>
@@ -174,11 +193,7 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
         <ConfirmDialog
           open={confirmingDeletion}
           setOpen={setDeletionConfirmationOpen}
-          trigger={
-            <Button variant="ghost" tone="danger" disabled={pending}>
-              Delete
-            </Button>
-          }
+          trigger={<StorageDeleteButton label="Delete logs" disabled={pending} />}
           heading="Delete logs?"
           description="Removes saved logs from this device. New logs may be created later."
           confirmLabel="Delete"
@@ -293,9 +308,10 @@ function StorageRoute() {
                         open={open}
                         setOpen={(nextOpen) => setConfirmationOpen(category, nextOpen)}
                         trigger={
-                          <Button variant="ghost" tone="danger" disabled={storageMutationPending}>
-                            Delete
-                          </Button>
+                          <StorageDeleteButton
+                            label={`Delete ${category.label.toLowerCase()}`}
+                            disabled={storageMutationPending}
+                          />
                         }
                         heading={category.confirmation.heading}
                         description={category.confirmation.description}
@@ -372,8 +388,9 @@ const styles = stylex.create({
     height: "0.5rem",
     width: "0.5rem",
   },
-  logsItem: {
-    alignItems: "flex-start",
+  deleteButton: {
+    paddingInline: 0,
+    width: tokens.controlHeight,
   },
   error: {
     color: tokens.danger,

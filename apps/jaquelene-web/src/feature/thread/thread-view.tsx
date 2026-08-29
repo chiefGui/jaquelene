@@ -1,42 +1,97 @@
-import { ThreadMessageAuthor } from "@jaquelene/ipc/renderer";
+import {
+  GenerationFailureKind,
+  GenerationStatus,
+  type ModelReference,
+  type TurnGeneration,
+} from "@jaquelene/ipc/renderer";
 import { Button, formatTimestamp } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { threadMessagesQuery, useAppendUserMessage } from "./query";
+import {
+  threadMessagesQuery,
+  useIsTurnOperationPending,
+  useRetryTurn,
+  useSubmitTurn,
+} from "./query";
+import { deriveThreadViewState } from "./thread-view-state";
 
-const THREAD_MESSAGE_CONTENT_MAX_LENGTH = 100_000;
+function replyStatusText(generation: TurnGeneration, retrying: boolean) {
+  if (retrying) {
+    return "Retrying…";
+  }
 
-export function ThreadView({ threadId }: { threadId: string }) {
+  switch (generation.status) {
+    case GenerationStatus.Pending:
+      return "Generating reply…";
+    case GenerationStatus.Completed:
+      return "Reply generated.";
+    case GenerationStatus.Failed:
+      return generation.failureKind === GenerationFailureKind.Interrupted
+        ? "Reply interrupted."
+        : "Couldn’t generate a reply.";
+  }
+}
+
+export function ThreadView({
+  threadId,
+  model,
+}: {
+  threadId: string;
+  model: ModelReference | null;
+}) {
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
-  const appendMessageMutation = useAppendUserMessage();
+  const submitTurnMutation = useSubmitTurn(threadId);
+  const retryTurnMutation = useRetryTurn(threadId);
+  const turnOperationPending = useIsTurnOperationPending(threadId);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const composerId = useId();
+  const modelRequirementId = useId();
   const sendErrorId = useId();
   const viewport = useRef<HTMLDivElement>(null);
-  const messages = messagesQuery.data.pages.toReversed().flatMap((page) => page.messages);
-  const latestMessageId = messages.at(-1)?.id;
+  const retryTurnId = retryTurnMutation.variables?.turnId;
+  const retryStatus: "pending" | "failed" | null = retryTurnMutation.isPending
+    ? "pending"
+    : retryTurnMutation.isError
+      ? "failed"
+      : null;
+  const threadView = useMemo(
+    () =>
+      deriveThreadViewState({
+        pages: messagesQuery.data.pages,
+        retryActivity:
+          retryTurnId && retryStatus ? { turnId: retryTurnId, status: retryStatus } : null,
+        hasModel: model !== null,
+      }),
+    [messagesQuery.data.pages, model, retryStatus, retryTurnId],
+  );
+  const operationPending = turnOperationPending || threadView.replyPending;
+  const composerDescription = [model ? null : modelRequirementId, sendError ? sendErrorId : null]
+    .filter((id) => id !== null)
+    .join(" ");
 
   useLayoutEffect(() => {
     if (viewport.current) {
       viewport.current.scrollTop = viewport.current.scrollHeight;
     }
-  }, [latestMessageId]);
+  }, [threadView.latestMessageId]);
 
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (appendMessageMutation.isPending) {
+    if (operationPending) {
       return;
     }
 
@@ -47,14 +102,41 @@ export function ThreadView({ threadId }: { threadId: string }) {
       return;
     }
 
+    if (!model) {
+      setSendError("Choose a default model before sending.");
+      return;
+    }
+
+    setSendError(null);
+    retryTurnMutation.reset();
+
+    try {
+      await submitTurnMutation.mutateAsync({
+        content,
+        model: { providerId: model.providerId, modelId: model.modelId },
+      });
+      setDraft((currentDraft) => (currentDraft === content ? "" : currentDraft));
+    } catch (cause) {
+      reportError("thread.turn.submit", cause);
+      setSendError("Could not send the message.");
+    }
+  }
+
+  async function retryReply(turnId: string) {
+    if (operationPending || !model) {
+      return;
+    }
+
+    retryTurnMutation.reset();
     setSendError(null);
 
     try {
-      await appendMessageMutation.mutateAsync({ threadId, content });
-      setDraft((currentDraft) => (currentDraft === content ? "" : currentDraft));
+      await retryTurnMutation.mutateAsync({
+        turnId,
+        model: { providerId: model.providerId, modelId: model.modelId },
+      });
     } catch (cause) {
-      reportError("thread.message.send", cause);
-      setSendError("Could not send the message.");
+      reportError("thread.turn.retry", cause);
     }
   }
 
@@ -88,15 +170,13 @@ export function ThreadView({ threadId }: { threadId: string }) {
             </p>
           ) : null}
 
-          {messages.length === 0 ? (
+          {threadView.messages.length === 0 ? (
             <div {...stylex.props(styles.empty)}>
               <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
             </div>
           ) : (
             <ol {...stylex.props(styles.messageList)}>
-              {messages.map((message) => {
-                const fromUser = message.author === ThreadMessageAuthor.User;
-
+              {threadView.messages.map(({ message, fromUser, reply }) => {
                 return (
                   <li
                     key={message.id}
@@ -120,6 +200,36 @@ export function ThreadView({ threadId }: { threadId: string }) {
                     >
                       {formatTimestamp(message.createdAt)}
                     </time>
+                    {reply ? (
+                      <div {...stylex.props(styles.replyState)}>
+                        <p
+                          role={message.id === threadView.latestMessageId ? "status" : undefined}
+                          {...stylex.props(
+                            styles.replyStatus,
+                            reply.generation.status === GenerationStatus.Failed &&
+                              styles.replyFailure,
+                          )}
+                        >
+                          {replyStatusText(reply.generation, reply.retrying)}
+                        </p>
+                        {reply.canRetry && !reply.retrying ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            style={styles.retryButton}
+                            disabled={operationPending}
+                            onClick={() => void retryReply(message.turnId)}
+                          >
+                            Retry
+                          </Button>
+                        ) : null}
+                        {reply.retryFailed ? (
+                          <p role="alert" {...stylex.props(styles.retryError)}>
+                            Couldn’t retry the reply.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}
@@ -138,21 +248,30 @@ export function ThreadView({ threadId }: { threadId: string }) {
               id={composerId}
               value={draft}
               rows={3}
-              maxLength={THREAD_MESSAGE_CONTENT_MAX_LENGTH}
+              maxLength={threadView.messageContentMaxLength}
               placeholder="Write a message…"
-              aria-describedby={sendError ? sendErrorId : undefined}
+              aria-describedby={composerDescription || undefined}
               onChange={(event) => setDraft(event.currentTarget.value)}
               onKeyDown={handleComposerKeyDown}
               {...stylex.props(styles.textarea)}
             />
+            {!model ? (
+              <p id={modelRequirementId} {...stylex.props(styles.modelRequirement)}>
+                Choose a default model in{" "}
+                <Link to="/settings/general" {...stylex.props(styles.modelLink)}>
+                  Settings
+                </Link>
+                .
+              </p>
+            ) : null}
             {sendError ? (
               <p id={sendErrorId} role="alert" {...stylex.props(styles.sendError)}>
                 {sendError}
               </p>
             ) : null}
           </div>
-          <Button type="submit" disabled={appendMessageMutation.isPending}>
-            {appendMessageMutation.isPending ? "Sending…" : "Send"}
+          <Button type="submit" style={styles.sendButton} disabled={!model || operationPending}>
+            {operationPending ? "Generating…" : "Send"}
           </Button>
         </form>
       </div>
@@ -247,6 +366,30 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.375rem",
   },
+  replyState: {
+    alignItems: "flex-end",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.25rem",
+    marginTop: "0.375rem",
+  },
+  replyStatus: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+  },
+  replyFailure: {
+    color: tokens.danger,
+  },
+  retryButton: {
+    height: "2rem",
+    paddingInline: "0.5rem",
+  },
+  retryError: {
+    color: tokens.danger,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+  },
   composerShell: {
     backgroundColor: tokens.surface,
     borderTopColor: tokens.border,
@@ -266,6 +409,9 @@ const styles = stylex.create({
   composerField: {
     flex: 1,
     minWidth: 0,
+  },
+  sendButton: {
+    minWidth: "6.75rem",
   },
   textarea: {
     appearance: "none",
@@ -301,6 +447,17 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.5rem",
+  },
+  modelRequirement: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    marginTop: "0.5rem",
+  },
+  modelLink: {
+    color: tokens.foreground,
+    textDecorationLine: "underline",
+    textUnderlineOffset: "0.15em",
   },
   visuallyHidden: {
     clip: "rect(0 0 0 0)",

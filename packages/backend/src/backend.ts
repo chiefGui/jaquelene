@@ -13,7 +13,8 @@ import {
   type StorageArea,
   type StorageCategory,
 } from "#backend/storage/storage";
-import { createThreads, type Threads } from "#backend/thread/threads";
+import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
+import { createTurns, type Turns } from "#backend/turn/turns";
 
 export type BackendOptions = Readonly<{
   databasePath: string;
@@ -25,6 +26,7 @@ export type Backend = Readonly<{
   scenarios: Scenarios;
   campaigns: Campaigns;
   threads: Threads;
+  turns: Turns;
   generations: Generations;
   storage: Storage;
   close: () => Promise<void>;
@@ -33,7 +35,8 @@ export type Backend = Readonly<{
 type Application = Readonly<{
   scenarios: Scenarios;
   campaigns: Campaigns;
-  threads: Threads;
+  threads: ThreadEngine;
+  turns: Turns;
   generations: Generations;
   close: () => Promise<void>;
 }>;
@@ -60,11 +63,17 @@ function createApplicationLayer(providers: readonly GenerationProvider[]) {
           );
           generationEngine.recoverInterrupted();
           const supervisedGenerations = superviseGenerations(generationEngine);
+          const turns = createTurns(threads, {
+            executeReply: supervisedGenerations.executeReply,
+            listLatestForTurns: generationEngine.listLatestForTurns,
+            requireRegisteredModel: generationEngine.requireRegisteredModel,
+          });
 
           return ApplicationService.of({
             scenarios,
             campaigns,
             threads,
+            turns,
             generations: supervisedGenerations.generations,
             close: supervisedGenerations.close,
           });
@@ -187,13 +196,29 @@ export async function createBackend({
         assertOpen();
         return application.threads.startTurn(threadId, content);
       },
-      getTurnContext(turnId) {
-        assertOpen();
-        return application.threads.getTurnContext(turnId);
-      },
       listMessages(request) {
         assertOpen();
         return application.threads.listMessages(request);
+      },
+    },
+    turns: {
+      listForThread(request) {
+        assertOpen();
+        return application.turns.listForThread(request);
+      },
+      submit(request) {
+        if (state !== "open") {
+          return Promise.reject(new Error("Backend is closed."));
+        }
+
+        return application.turns.submit(request);
+      },
+      retry(request) {
+        if (state !== "open") {
+          return Promise.reject(new Error("Backend is closed."));
+        }
+
+        return application.turns.retry(request);
       },
     },
     generations: {

@@ -2,7 +2,9 @@
 
 `@jaquelene/backend` is Jaquelene's application composition and lifetime boundary.
 
-It owns SQLite, migrations, IDs, scenarios, campaigns, threads, prompt compilation, generation state, active generation supervision, and storage measurement. Platform code supplies provider adapters and filesystem locations, then consumes the plain TypeScript facade returned by `createBackend`.
+It owns SQLite, migrations, IDs, scenarios, campaigns, threads, durable turn submission and retry, prompt compilation, generation state, active generation supervision, and storage measurement. Platform code supplies provider adapters and filesystem locations, then consumes the plain TypeScript facade returned by `createBackend`.
+
+Threads remain independent of campaigns. The turn service composes a thread write, prompt compilation, and generation into the durable submit/retry workflow; callers supply only a thread identity and model.
 
 Electron, IPC, windows, secure credential storage, and provider SDK details remain outside this package. Effect is an internal resource-management tool: it acquires backend resources once and releases them in dependency order, while synchronous SQLite operations stay on the direct hot path.
 

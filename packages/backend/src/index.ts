@@ -11,6 +11,7 @@ export {
   type GenerationUsage,
   type ModelReference,
 } from "#backend/generation/provider";
+export type { Generation, GenerationFailureKind } from "#backend/generation/schema";
 export {
   ids,
   type CampaignId,
@@ -28,5 +29,12 @@ export type {
   StorageCategoryUsage,
   StorageUsage,
 } from "#backend/storage/storage";
-export type { ThreadMessage } from "#backend/thread/schema";
+export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/threads";
+export type {
+  RetryTurnRequest,
+  SubmitTurnRequest,
+  ThreadActivityPage,
+  Turns,
+  TurnSubmission,
+} from "#backend/turn/turns";

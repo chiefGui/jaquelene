@@ -1,4 +1,4 @@
-import type { Campaigns, Scenarios, Storage, Threads } from "@jaquelene/backend";
+import type { Campaigns, Scenarios, Storage, Turns } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
@@ -14,7 +14,7 @@ import { exposeFavoriteModels } from "./feature/model/favorite-models-ipc";
 import type { OpenRouterConnection } from "./feature/provider/openrouter/connection";
 import { exposeOpenRouterConnection } from "./feature/provider/openrouter/ipc";
 import { exposeScenarios } from "./feature/scenario/ipc";
-import { exposeThreads } from "./feature/thread/ipc";
+import { exposeThreadMessaging } from "./feature/thread/ipc";
 import type { LocalState } from "./local-state";
 import type { Preferences } from "./preferences/preferences";
 import { exposeStorage } from "./storage/ipc";
@@ -36,7 +36,7 @@ export function createMainWindow({
   localState,
   scenarios,
   campaigns,
-  threads,
+  turns,
   modelCatalog,
   favoriteModels,
   preferences,
@@ -48,7 +48,7 @@ export function createMainWindow({
   localState: LocalState;
   scenarios: Scenarios;
   campaigns: Campaigns;
-  threads: Threads;
+  turns: Turns;
   modelCatalog: ModelCatalog;
   favoriteModels: FavoriteModels;
   preferences: Preferences;
@@ -89,7 +89,7 @@ export function createMainWindow({
     exposeScenarios(browserWindow.webContents.mainFrame, scenarios);
     exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
     exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);
-    exposeThreads(browserWindow.webContents.mainFrame, threads);
+    exposeThreadMessaging(browserWindow.webContents.mainFrame, turns, diagnostics);
     exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);
     exposeModelCatalog(browserWindow.webContents.mainFrame, modelCatalog);
     exposeFavoriteModels(browserWindow.webContents.mainFrame, favoriteModels);

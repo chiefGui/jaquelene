@@ -1,5 +1,5 @@
 import type { MessageId, ThreadId, TurnId } from "#backend/id";
-import type { Threads } from "#backend/thread/threads";
+import type { ThreadEngine } from "#backend/thread/threads";
 import type { GenerationMessage } from "./provider";
 
 export type GenerationPrompt = {
@@ -14,7 +14,7 @@ export type GenerationPromptCompiler = {
 };
 
 export function createTurnPromptCompiler(
-  threads: Pick<Threads, "getTurnContext">,
+  threads: Pick<ThreadEngine, "getTurnContext">,
 ): GenerationPromptCompiler {
   return {
     compile(turnId) {

@@ -33,6 +33,12 @@ const threadSelection = {
   createdAt: threadTable.createdAt,
 } as const;
 
+const turnSelection = {
+  id: turnTable.id,
+  threadId: turnTable.threadId,
+  createdAt: turnTable.createdAt,
+} as const;
+
 export function requireThreadMessageContent(content: string) {
   if (content.length > THREAD_MESSAGE_CONTENT_MAX_LENGTH) {
     throw new RangeError(
@@ -248,6 +254,27 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       );
     },
 
+    getTurnInput(id: TurnId) {
+      const turn =
+        database.select(turnSelection).from(turnTable).where(eq(turnTable.id, id)).get() ?? null;
+
+      if (!turn) {
+        return null;
+      }
+
+      const message = database
+        .select()
+        .from(threadMessageTable)
+        .where(and(eq(threadMessageTable.turnId, id), eq(threadMessageTable.author, "user")))
+        .get();
+
+      if (!message) {
+        throw new Error(`Turn "${id}" has no user message.`);
+      }
+
+      return { turn, message };
+    },
+
     startTurn(threadId: ThreadId, value: string) {
       const content = requireThreadMessageContent(value);
       const createdAt = now();
@@ -329,7 +356,11 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       const anchorMessageId = cursorMessageId ?? thread.activeMessageId;
 
       if (!anchorMessageId) {
-        return { messages: [] };
+        return {
+          messages: [],
+          pageSize: THREAD_MESSAGE_PAGE_SIZE,
+          messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+        };
       }
 
       const newestFirst = listMessageAncestry(
@@ -349,10 +380,13 @@ export function createThreads(database: Database, now: () => number = Date.now) 
 
       return {
         messages,
+        pageSize: THREAD_MESSAGE_PAGE_SIZE,
+        messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
         ...(hasMore && nextMessage ? { nextCursor: nextMessage.id } : {}),
       };
     },
   };
 }
 
-export type Threads = ReturnType<typeof createThreads>;
+export type ThreadEngine = ReturnType<typeof createThreads>;
+export type Threads = Pick<ThreadEngine, "create" | "get" | "startTurn" | "listMessages">;

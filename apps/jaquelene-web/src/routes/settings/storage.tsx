@@ -1,10 +1,12 @@
 import { diagnosticsStorageAreaId } from "@jaquelene/diagnostics";
+import FolderOpenIcon from "@hugeicons/core-free-icons/FolderOpenIcon";
 import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { StorageCategory, type StorageAreaUsage, type StorageUsage } from "@jaquelene/ipc/renderer";
 import { Button, Item, formatBytes } from "@jaquelene/ui";
-import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
+import { ConfirmDialog, type ConfirmDialogProps } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import {
@@ -121,17 +123,39 @@ function StorageUsageBar({
   );
 }
 
-function StorageDeleteButton({ disabled, label }: { disabled: boolean; label: string }) {
+type StorageDeleteActionProps = Omit<ConfirmDialogProps, "trigger"> & {
+  accessibleLabel: string;
+  disabled: boolean;
+};
+
+function StorageDeleteAction({
+  accessibleLabel,
+  disabled,
+  ...confirmation
+}: StorageDeleteActionProps) {
   return (
-    <Button
-      aria-label={label}
-      variant="ghost"
-      tone="danger"
-      style={styles.deleteButton}
-      disabled={disabled}
-    >
-      <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
-    </Button>
+    <Tooltip.Root>
+      <ConfirmDialog
+        {...confirmation}
+        trigger={
+          <Tooltip.Anchor
+            render={
+              <Button
+                aria-label={accessibleLabel}
+                variant="ghost"
+                tone="danger"
+                style={styles.actionButton}
+                disabled={disabled}
+              />
+            }
+          >
+            <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
+          </Tooltip.Anchor>
+        }
+      />
+
+      <Tooltip>Delete</Tooltip>
+    </Tooltip.Root>
   );
 }
 
@@ -186,14 +210,29 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
           <Item.ValueText>{formatBytes(area.bytes)}</Item.ValueText>
         </Item.Value>
 
-        <Button variant="ghost" disabled={pending} onClick={() => openDiagnostics.mutate()}>
-          Open folder
-        </Button>
+        <Tooltip.Root>
+          <Tooltip.Anchor
+            render={
+              <Button
+                aria-label="Open logs folder"
+                variant="ghost"
+                style={styles.actionButton}
+                disabled={pending}
+                onClick={() => openDiagnostics.mutate()}
+              />
+            }
+          >
+            <HugeiconsIcon icon={FolderOpenIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
+          </Tooltip.Anchor>
 
-        <ConfirmDialog
+          <Tooltip>Open folder</Tooltip>
+        </Tooltip.Root>
+
+        <StorageDeleteAction
+          accessibleLabel="Delete logs"
+          disabled={pending}
           open={confirmingDeletion}
           setOpen={setDeletionConfirmationOpen}
-          trigger={<StorageDeleteButton label="Delete logs" disabled={pending} />}
           heading="Delete logs?"
           description="Removes saved logs from this device. New logs may be created later."
           confirmLabel="Delete"
@@ -304,15 +343,11 @@ function StorageRoute() {
                         <Item.ValueText>{formatBytes(category.bytes)}</Item.ValueText>
                       </Item.Value>
 
-                      <ConfirmDialog
+                      <StorageDeleteAction
+                        accessibleLabel={`Delete ${category.label.toLowerCase()}`}
+                        disabled={storageMutationPending}
                         open={open}
                         setOpen={(nextOpen) => setConfirmationOpen(category, nextOpen)}
-                        trigger={
-                          <StorageDeleteButton
-                            label={`Delete ${category.label.toLowerCase()}`}
-                            disabled={storageMutationPending}
-                          />
-                        }
                         heading={category.confirmation.heading}
                         description={category.confirmation.description}
                         confirmLabel="Delete"
@@ -388,7 +423,7 @@ const styles = stylex.create({
     height: "0.5rem",
     width: "0.5rem",
   },
-  deleteButton: {
+  actionButton: {
     paddingInline: 0,
     width: tokens.controlHeight,
   },

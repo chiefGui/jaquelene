@@ -187,6 +187,10 @@ export async function createBackend({
         assertOpen();
         return application.campaigns.get(id);
       },
+      setModelOverride(id, model) {
+        assertOpen();
+        return application.campaigns.setModelOverride(id, model);
+      },
     },
     threads: {
       create() {

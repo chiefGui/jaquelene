@@ -8,13 +8,14 @@ import { Button, formatTimestamp } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import {
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
@@ -47,9 +48,13 @@ function replyStatusText(generation: TurnGeneration, retrying: boolean) {
 export function ThreadView({
   threadId,
   model,
+  modelPending,
+  composerControls,
 }: {
   threadId: string;
   model: ModelReference | null;
+  modelPending: boolean;
+  composerControls: ReactNode;
 }) {
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
   const submitTurnMutation = useSubmitTurn(threadId);
@@ -57,6 +62,8 @@ export function ThreadView({
   const turnOperationPending = useIsTurnOperationPending(threadId);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
+  const composerInputId = useId();
+  const sendErrorId = useId();
   const viewport = useRef<HTMLDivElement>(null);
   const retryTurnId = retryTurnMutation.variables?.turnId;
   const retryStatus: "pending" | "failed" | null = retryTurnMutation.isPending
@@ -70,9 +77,9 @@ export function ThreadView({
         pages: messagesQuery.data.pages,
         retryActivity:
           retryTurnId && retryStatus ? { turnId: retryTurnId, status: retryStatus } : null,
-        hasModel: model !== null,
+        hasModel: model !== null && !modelPending,
       }),
-    [messagesQuery.data.pages, model, retryStatus, retryTurnId],
+    [messagesQuery.data.pages, model, modelPending, retryStatus, retryTurnId],
   );
   const operationPending = turnOperationPending || threadView.replyPending;
 
@@ -85,7 +92,7 @@ export function ThreadView({
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (operationPending || !draft.trim() || !model) {
+    if (operationPending || !draft.trim() || !model || modelPending) {
       return;
     }
 
@@ -107,7 +114,7 @@ export function ThreadView({
   }
 
   async function retryReply(turnId: string) {
-    if (operationPending || !model) {
+    if (operationPending || !model || modelPending) {
       return;
     }
 
@@ -223,30 +230,34 @@ export function ThreadView({
       </div>
 
       <div {...stylex.props(styles.composerShell)}>
-        <Composer
-          value={draft}
-          maxLength={threadView.messageContentMaxLength}
-          pending={operationPending}
-          submitDisabled={!model || operationPending || !draft.trim()}
-          guidance={
-            model ? null : (
-              <>
-                Choose a default model in{" "}
-                <Link to="/settings/general" {...stylex.props(styles.modelLink)}>
-                  Settings
-                </Link>
-                .
-              </>
-            )
-          }
-          error={sendError}
-          onValueChange={(value) => {
-            setDraft(value);
-            setSendError(null);
-          }}
-          onKeyDown={handleComposerKeyDown}
-          onSubmit={sendMessage}
-        />
+        <Composer onSubmit={sendMessage}>
+          <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
+          <Composer.Input
+            id={composerInputId}
+            value={draft}
+            maxLength={threadView.messageContentMaxLength}
+            aria-describedby={sendError ? sendErrorId : undefined}
+            onChange={(event) => {
+              setDraft(event.currentTarget.value);
+              setSendError(null);
+            }}
+            onKeyDown={handleComposerKeyDown}
+          />
+          <Composer.Footer>
+            <Composer.Controls>
+              {composerControls}
+              {sendError ? (
+                <Composer.Status id={sendErrorId} role="alert" tone="danger">
+                  {sendError}
+                </Composer.Status>
+              ) : null}
+            </Composer.Controls>
+            <Composer.Submit
+              pending={operationPending}
+              disabled={!model || modelPending || operationPending || !draft.trim()}
+            />
+          </Composer.Footer>
+        </Composer>
       </div>
     </section>
   );
@@ -370,10 +381,5 @@ const styles = stylex.create({
     paddingBlock: "0 1.5rem",
     paddingInline: "1.5rem",
     width: "100%",
-  },
-  modelLink: {
-    color: tokens.foreground,
-    textDecorationLine: "underline",
-    textUnderlineOffset: "0.15em",
   },
 });

@@ -1,92 +1,104 @@
 import ArrowUp02Icon from "@hugeicons/core-free-icons/ArrowUp02Icon";
 import Loading02Icon from "@hugeicons/core-free-icons/Loading02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Button } from "@jaquelene/ui";
+import { Button, type ButtonProps } from "@jaquelene/ui";
 import { useReducedMotion } from "@jaquelene/ui/motion";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useId, type FormEventHandler, type KeyboardEventHandler, type ReactNode } from "react";
+import type { StyleXStyles } from "@stylexjs/stylex";
+import type { ComponentProps } from "react";
 
-type ComposerProps = {
-  value: string;
-  onValueChange: (value: string) => void;
-  onSubmit: FormEventHandler<HTMLFormElement>;
-  onKeyDown: KeyboardEventHandler<HTMLTextAreaElement>;
-  maxLength: number;
-  submitDisabled: boolean;
-  pending: boolean;
-  guidance?: ReactNode;
-  error?: ReactNode;
+type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
+  style?: StyleXStyles;
 };
 
-export function Composer({
-  value,
-  onValueChange,
-  onSubmit,
-  onKeyDown,
-  maxLength,
-  submitDisabled,
-  pending,
-  guidance,
-  error,
-}: ComposerProps) {
-  const reducedMotion = useReducedMotion();
-  const inputId = useId();
-  const guidanceId = useId();
-  const errorId = useId();
-  const description = [guidance ? guidanceId : null, error ? errorId : null]
-    .filter((id) => id !== null)
-    .join(" ");
+function ComposerRoot({ style, ...props }: StyleableProps<ComponentProps<"form">>) {
+  return <form {...props} {...stylex.props(styles.root, style, stylex.defaultMarker())} />;
+}
 
+function ComposerLabel({ style, ...props }: StyleableProps<ComponentProps<"label">>) {
+  return <label {...props} {...stylex.props(styles.label, style, stylex.defaultMarker())} />;
+}
+
+function ComposerInput({
+  enterKeyHint = "send",
+  placeholder = "Write a message…",
+  rows = 2,
+  style,
+  ...props
+}: StyleableProps<ComponentProps<"textarea">>) {
   return (
-    <form onSubmit={onSubmit} {...stylex.props(styles.root)}>
-      <label htmlFor={inputId} {...stylex.props(styles.visuallyHidden)}>
-        Message
-      </label>
-      <textarea
-        id={inputId}
-        value={value}
-        rows={2}
-        maxLength={maxLength}
-        placeholder="Write a message…"
-        aria-describedby={description || undefined}
-        enterKeyHint="send"
-        onChange={(event) => onValueChange(event.currentTarget.value)}
-        onKeyDown={onKeyDown}
-        {...stylex.props(styles.input)}
-      />
-      <div {...stylex.props(styles.footer)}>
-        <div {...stylex.props(styles.messages)}>
-          {guidance ? (
-            <p id={guidanceId} {...stylex.props(styles.message)}>
-              {guidance}
-            </p>
-          ) : null}
-          {error ? (
-            <p id={errorId} role="alert" {...stylex.props(styles.message, styles.dangerMessage)}>
-              {error}
-            </p>
-          ) : null}
-        </div>
-        <Button
-          type="submit"
-          disabled={submitDisabled}
-          aria-busy={pending || undefined}
-          aria-label={pending ? "Generating reply" : "Send message"}
-          style={styles.submit}
-        >
-          <HugeiconsIcon
-            icon={pending ? Loading02Icon : ArrowUp02Icon}
-            size={17}
-            strokeWidth={1.8}
-            aria-hidden="true"
-            {...stylex.props(pending && !reducedMotion && styles.spinning)}
-          />
-        </Button>
-      </div>
-    </form>
+    <textarea
+      {...props}
+      enterKeyHint={enterKeyHint}
+      placeholder={placeholder}
+      rows={rows}
+      {...stylex.props(styles.input, style, stylex.defaultMarker())}
+    />
   );
 }
+
+function ComposerFooter({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
+  return <div {...props} {...stylex.props(styles.footer, style, stylex.defaultMarker())} />;
+}
+
+function ComposerControls({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
+  return <div {...props} {...stylex.props(styles.controls, style, stylex.defaultMarker())} />;
+}
+
+function ComposerStatus({
+  style,
+  tone = "muted",
+  ...props
+}: StyleableProps<ComponentProps<"p">> & { tone?: "danger" | "muted" }) {
+  return (
+    <p
+      {...props}
+      {...stylex.props(
+        styles.status,
+        tone === "danger" && styles.dangerStatus,
+        style,
+        stylex.defaultMarker(),
+      )}
+    />
+  );
+}
+
+function ComposerSubmit({
+  "aria-label": ariaLabel,
+  pending = false,
+  style,
+  ...props
+}: Omit<ButtonProps, "children" | "type"> & { pending?: boolean }) {
+  const reducedMotion = useReducedMotion();
+
+  return (
+    <Button
+      {...props}
+      type="submit"
+      aria-busy={pending || undefined}
+      aria-label={ariaLabel ?? (pending ? "Generating reply" : "Send message")}
+      style={[styles.submit, style]}
+    >
+      <HugeiconsIcon
+        icon={pending ? Loading02Icon : ArrowUp02Icon}
+        size={17}
+        strokeWidth={1.8}
+        aria-hidden="true"
+        {...stylex.props(pending && !reducedMotion && styles.spinning)}
+      />
+    </Button>
+  );
+}
+
+export const Composer = Object.assign(ComposerRoot, {
+  Label: ComposerLabel,
+  Input: ComposerInput,
+  Footer: ComposerFooter,
+  Controls: ComposerControls,
+  Status: ComposerStatus,
+  Submit: ComposerSubmit,
+});
 
 const spin = stylex.keyframes({
   to: {
@@ -108,6 +120,15 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     padding: "0.375rem",
+  },
+  label: {
+    clip: "rect(0 0 0 0)",
+    clipPath: "inset(50%)",
+    height: 1,
+    overflow: "hidden",
+    position: "absolute",
+    whiteSpace: "nowrap",
+    width: 1,
   },
   input: {
     appearance: "none",
@@ -132,26 +153,25 @@ const styles = stylex.create({
     },
   },
   footer: {
-    alignItems: "flex-end",
+    alignItems: "center",
     display: "flex",
     gap: "0.75rem",
     minHeight: tokens.controlHeight,
     paddingLeft: "0.625rem",
   },
-  messages: {
-    alignSelf: "center",
+  controls: {
+    alignItems: "center",
     display: "flex",
     flex: 1,
-    flexDirection: "column",
-    gap: "0.125rem",
+    gap: "0.5rem",
     minWidth: 0,
   },
-  message: {
+  status: {
     color: tokens.muted,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
   },
-  dangerMessage: {
+  dangerStatus: {
     color: tokens.danger,
   },
   submit: {
@@ -164,14 +184,5 @@ const styles = stylex.create({
     animationIterationCount: "infinite",
     animationName: spin,
     animationTimingFunction: "linear",
-  },
-  visuallyHidden: {
-    clip: "rect(0 0 0 0)",
-    clipPath: "inset(50%)",
-    height: 1,
-    overflow: "hidden",
-    position: "absolute",
-    whiteSpace: "nowrap",
-    width: 1,
   },
 });

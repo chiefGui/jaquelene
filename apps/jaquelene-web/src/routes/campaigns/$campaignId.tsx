@@ -2,8 +2,10 @@ import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { CampaignModelPicker } from "@/feature/campaign/model-picker";
 import { defaultCampaignModelQuery } from "@/feature/campaign/preferences";
-import { campaignQuery } from "@/feature/campaign/query";
+import { campaignQuery, useIsCampaignModelOverridePending } from "@/feature/campaign/query";
+import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import { scenariosQuery } from "@/feature/scenario/query";
 import { ScenariosSidebar } from "@/feature/scenario/sidebar";
 import { threadMessagesQuery } from "@/feature/thread/query";
@@ -22,6 +24,7 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
       campaignPromise,
       context.queryClient.query({ ...scenariosQuery, staleTime: "static" }),
       context.queryClient.query(defaultCampaignModelQuery),
+      context.queryClient.query(modelProvidersQuery),
       campaignPromise.then((result) =>
         result
           ? context.queryClient.infiniteQuery(threadMessagesQuery(result.threadId))
@@ -41,7 +44,9 @@ function CampaignRoute() {
   const { data: campaign } = useSuspenseQuery(campaignQuery(campaignId));
   const { data: scenarios } = useSuspenseQuery(scenariosQuery);
   const { data: defaultModel } = useSuspenseQuery(defaultCampaignModelQuery);
+  const modelOverridePending = useIsCampaignModelOverridePending(campaignId);
   const scenario = campaign ? scenarios.find(({ id }) => id === campaign.scenarioId) : undefined;
+  const effectiveModel = campaign?.modelOverride ?? defaultModel;
 
   if (campaign && !scenario) {
     throw new Error(`Campaign "${campaign.id}" references an unavailable scenario.`);
@@ -80,7 +85,18 @@ function CampaignRoute() {
 
       <ContentPane.Viewport style={campaign ? styles.threadViewport : undefined}>
         {campaign ? (
-          <ThreadView threadId={campaign.threadId} model={defaultModel} />
+          <ThreadView
+            threadId={campaign.threadId}
+            model={effectiveModel}
+            modelPending={modelOverridePending}
+            composerControls={
+              <CampaignModelPicker
+                campaignId={campaign.id}
+                inherited={campaign.modelOverride === undefined}
+                model={effectiveModel}
+              />
+            }
+          />
         ) : (
           <ContentPane.Body>
             <section aria-labelledby="missing-campaign-heading">

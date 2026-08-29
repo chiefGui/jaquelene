@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
+import type { ModelSelection } from "#backend/provider/provider";
 import { createScenarios } from "#backend/scenario/scenarios";
 import { threadTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
@@ -29,6 +30,15 @@ function openCampaigns(path: string, now?: () => number) {
     campaigns: createCampaigns(database, now),
     scenarios: createScenarios(database),
     threads: createThreads(database),
+  };
+}
+
+function modelSelection(id: string): ModelSelection {
+  return {
+    providerId: "provider-a",
+    modelId: id,
+    name: `Model ${id}`,
+    brandId: "brand-a",
   };
 }
 
@@ -66,11 +76,15 @@ describe("campaigns", () => {
     const firstConnection = openCampaigns(path, () => 200);
     const scenario = firstConnection.scenarios.create("Persistent campaign scenario");
     const started = firstConnection.campaigns.start(scenario.id);
+    const configured = firstConnection.campaigns.setModelOverride(
+      started.id,
+      modelSelection("persistent"),
+    );
 
     closeDatabase(firstConnection.database);
 
     const secondConnection = openCampaigns(path);
-    expect(secondConnection.campaigns.get(started.id)).toEqual(started);
+    expect(secondConnection.campaigns.get(started.id)).toEqual(configured);
     expect(secondConnection.threads.get(started.threadId)).toEqual({
       id: started.threadId,
       createdAt: started.startedAt,
@@ -122,5 +136,56 @@ describe("campaigns", () => {
     const { campaigns } = openCampaigns(createDatabasePath());
 
     expect(campaigns.get(ids.campaign.create())).toBeNull();
+  });
+
+  it("sets and clears a campaign model override", () => {
+    const { campaigns, scenarios } = openCampaigns(createDatabasePath());
+    const campaign = campaigns.start(scenarios.create("Model override scenario").id);
+    const model = modelSelection("override");
+
+    expect(campaigns.setModelOverride(campaign.id, model)).toEqual({
+      ...campaign,
+      modelOverride: model,
+    });
+    expect(campaigns.get(campaign.id)).toEqual({ ...campaign, modelOverride: model });
+    expect(campaigns.setModelOverride(campaign.id, null)).toEqual(campaign);
+    expect(campaigns.get(campaign.id)).toEqual(campaign);
+  });
+
+  it("rejects an incomplete campaign model override", () => {
+    const { campaigns, scenarios } = openCampaigns(createDatabasePath());
+    const campaign = campaigns.start(scenarios.create("Invalid model override scenario").id);
+
+    expect(() =>
+      campaigns.setModelOverride(campaign.id, {
+        ...modelSelection("invalid"),
+        providerId: " ",
+      }),
+    ).toThrow(TypeError);
+    expect(campaigns.get(campaign.id)).toEqual(campaign);
+  });
+
+  it("does not set a model override on an unknown campaign", () => {
+    const { campaigns } = openCampaigns(createDatabasePath());
+
+    expect(campaigns.setModelOverride(ids.campaign.create(), modelSelection("unknown"))).toBeNull();
+  });
+
+  it("rejects a partially stored campaign model override", () => {
+    const path = createDatabasePath();
+    const { campaigns, database, scenarios } = openCampaigns(path);
+    const campaign = campaigns.start(scenarios.create("Partial model override scenario").id);
+    closeDatabase(database);
+    const client = new DatabaseSync(path);
+
+    try {
+      expect(() =>
+        client
+          .prepare("UPDATE campaigns SET model_provider_id = ? WHERE id = ?")
+          .run("provider-a", campaign.id),
+      ).toThrow();
+    } finally {
+      client.close();
+    }
   });
 });

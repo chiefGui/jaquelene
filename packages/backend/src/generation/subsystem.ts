@@ -19,16 +19,14 @@ type GenerationSubsystemOptions = Readonly<{
   database: Database;
   promptCompiler: GenerationPromptCompiler;
   providers: ProviderGenerationRouter;
-  now?: () => number;
 }>;
 
 export function createGenerationSubsystem({
   database,
   promptCompiler,
   providers,
-  now,
 }: GenerationSubsystemOptions): GenerationSubsystem {
-  const engine = createGenerations(database, promptCompiler, providers, now);
+  const engine = createGenerations(database, promptCompiler, providers);
   engine.recoverInterrupted();
   const supervised = superviseGenerations(engine);
 

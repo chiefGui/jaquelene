@@ -8,43 +8,45 @@ export function Home() {
       <div aria-hidden="true" {...stylex.props(styles.atmosphere)} />
 
       <section aria-labelledby="introduction" {...stylex.props(styles.introduction)}>
-        <div {...stylex.props(styles.copy)}>
-          <h1 id="introduction" {...stylex.props(styles.heading)}>
-            jaquelene
-          </h1>
-          <p {...stylex.props(styles.pitch)}>
-            An easy, beautiful, modern and opinionated LLM frontend for everyone, crafted for
-            roleplay.
-          </p>
-          <div {...stylex.props(styles.release)}>
-            <span {...stylex.props(styles.status)}>
-              <span aria-hidden="true" {...stylex.props(styles.statusDot)} />
-              Soon.
+        <div {...stylex.props(styles.symbolFrame)}>
+          <img
+            alt=""
+            draggable={false}
+            height={symbol.height}
+            src={symbol.src}
+            width={symbol.width}
+            {...stylex.props(styles.symbol)}
+          />
+        </div>
+
+        <h1 id="introduction" {...stylex.props(styles.heading)}>
+          jaquelene
+        </h1>
+        <p {...stylex.props(styles.pitch)}>
+          An easy, beautiful, modern and opinionated LLM frontend for everyone, crafted for
+          roleplay.
+        </p>
+        <div {...stylex.props(styles.release)}>
+          <span {...stylex.props(styles.status)}>
+            <span aria-hidden="true" {...stylex.props(styles.statusDot)} />
+            Soon.
+          </span>
+          <a href="https://github.com/chiefGui/jaquelene" {...stylex.props(styles.link)}>
+            GitHub
+            <span aria-hidden="true" {...stylex.props(styles.linkArrow)}>
+              ↗
             </span>
-            <a href="https://github.com/chiefGui/jaquelene" {...stylex.props(styles.link)}>
-              GitHub
-              <span aria-hidden="true" {...stylex.props(styles.linkArrow)}>
-                ↗
-              </span>
-            </a>
-          </div>
+          </a>
         </div>
       </section>
-
-      <div aria-hidden="true" {...stylex.props(styles.portrait)}>
-        <div {...stylex.props(styles.portraitLight)} />
-        <div {...stylex.props(styles.portraitFrame)}>
-          <img alt="" draggable={false} src={symbol.src} {...stylex.props(styles.symbol)} />
-        </div>
-      </div>
     </main>
   );
 }
 
-const copyReveal = stylex.keyframes({
+const reveal = stylex.keyframes({
   from: {
     opacity: 0,
-    transform: "translateY(1rem)",
+    transform: "translateY(0.75rem)",
   },
   to: {
     opacity: 1,
@@ -52,96 +54,77 @@ const copyReveal = stylex.keyframes({
   },
 });
 
-const portraitReveal = stylex.keyframes({
-  from: {
-    opacity: 0,
-    transform: "translate3d(2rem, -50%, 0)",
-  },
-  to: {
-    opacity: 1,
-    transform: "translate3d(0, -50%, 0)",
-  },
-});
-
 const styles = stylex.create({
   root: {
+    alignItems: "center",
     backgroundColor: tokens.canvas,
     boxSizing: "border-box",
     color: tokens.foreground,
-    isolation: "isolate",
+    display: "flex",
+    justifyContent: "center",
     minHeight: "100svh",
     overflow: "hidden",
-    paddingBlock: {
-      default: "clamp(2rem, 5vw, 4.5rem)",
-      "@media (max-width: 47.99rem)": "1.5rem",
-    },
-    paddingInline: {
-      default: "clamp(2rem, 6vw, 7rem)",
+    padding: {
+      default: "3rem",
       "@media (max-width: 47.99rem)": "1.5rem",
     },
     position: "relative",
   },
   atmosphere: {
     backgroundImage:
-      "radial-gradient(circle at 77% 47%, oklch(0.44 0.075 18 / 20%), transparent 28%), radial-gradient(circle at 58% 15%, oklch(0.56 0.05 292 / 10%), transparent 34%), linear-gradient(115deg, transparent 45%, oklch(1 0 0 / 2.5%) 100%)",
-    inset: 0,
+      "radial-gradient(circle at 50% 46%, oklch(0.4 0.065 18 / 14%), transparent min(30rem, 52vw))",
+    inset: "-20%",
     pointerEvents: "none",
     position: "absolute",
-    zIndex: -2,
   },
   introduction: {
     alignItems: "center",
-    display: "flex",
-    minHeight: {
-      default: "calc(100svh - clamp(4rem, 10vw, 9rem))",
-      "@media (max-width: 47.99rem)": "calc(100svh - 3rem)",
-    },
-    position: "relative",
-    zIndex: 2,
-  },
-  copy: {
-    animationDuration: "900ms",
+    animationDuration: "850ms",
     animationFillMode: "both",
     animationName: {
-      default: copyReveal,
+      default: reveal,
       "@media (prefers-reduced-motion: reduce)": "none",
     },
     animationTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
-    maxWidth: {
-      default: "min(42rem, 45vw)",
-      "@media (max-width: 47.99rem)": "31rem",
-    },
+    display: "flex",
+    flexDirection: "column",
+    maxWidth: "40rem",
+    position: "relative",
+    textAlign: "center",
+    width: "100%",
+  },
+  symbolFrame: {
+    backgroundColor: "oklch(0.965 0.004 285)",
+    boxShadow: "0 1.5rem 5rem oklch(0 0 0 / 36%)",
+    overflow: "hidden",
+    width: "clamp(4.25rem, 6vw, 5.25rem)",
+  },
+  symbol: {
+    display: "block",
+    height: "auto",
+    width: "100%",
   },
   heading: {
-    fontSize: {
-      default: "clamp(4.5rem, 9vw, 9.5rem)",
-      "@media (max-width: 47.99rem)": "clamp(4rem, 22vw, 6.5rem)",
-    },
+    fontSize: "clamp(3.5rem, 8vw, 5.75rem)",
     fontWeight: 450,
-    letterSpacing: "-0.075em",
-    lineHeight: 0.82,
-    margin: 0,
-    textWrap: "balance",
+    letterSpacing: "-0.07em",
+    lineHeight: 0.9,
+    margin: "2rem 0 0",
   },
   pitch: {
-    color: `color-mix(in oklab, ${tokens.foreground} 69%, transparent)`,
-    fontSize: {
-      default: "clamp(1rem, 1.25vw, 1.25rem)",
-      "@media (max-width: 47.99rem)": "1.0625rem",
-    },
+    color: `color-mix(in oklab, ${tokens.foreground} 68%, transparent)`,
+    fontSize: "clamp(1rem, 1.5vw, 1.125rem)",
     fontWeight: 400,
-    letterSpacing: "-0.025em",
+    letterSpacing: "-0.02em",
     lineHeight: 1.55,
-    marginBlock: {
-      default: "clamp(2rem, 4vw, 3.5rem) 0",
-      "@media (max-width: 47.99rem)": "2rem 0",
-    },
-    maxWidth: "35rem",
+    margin: "1.75rem 0 0",
+    maxWidth: "34rem",
   },
   release: {
     alignItems: "center",
     display: "flex",
     gap: "1.5rem",
+    justifyContent: "center",
     marginTop: "2rem",
   },
   status: {
@@ -182,66 +165,5 @@ const styles = stylex.create({
   linkArrow: {
     fontSize: "0.9em",
     transform: "translateY(-0.05em)",
-  },
-  portrait: {
-    animationDuration: "1100ms",
-    animationFillMode: "both",
-    animationName: {
-      default: portraitReveal,
-      "@media (prefers-reduced-motion: reduce)": "none",
-    },
-    animationTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
-    aspectRatio: "430 / 450",
-    maxWidth: "43rem",
-    position: "absolute",
-    right: {
-      default: "clamp(-4rem, -2vw, -1rem)",
-      "@media (max-width: 47.99rem)": "-25vw",
-    },
-    top: {
-      default: "50%",
-      "@media (max-width: 47.99rem)": "32%",
-    },
-    transform: "translateY(-50%)",
-    width: {
-      default: "min(46vw, 43rem)",
-      "@media (max-width: 47.99rem)": "min(91vw, 35rem)",
-    },
-    zIndex: {
-      default: 0,
-      "@media (max-width: 47.99rem)": -1,
-    },
-  },
-  portraitLight: {
-    backgroundColor: "oklch(0.86 0.022 18 / 20%)",
-    filter: "blur(4rem)",
-    inset: "4%",
-    position: "absolute",
-    transform: "translate(8%, 3%)",
-  },
-  portraitFrame: {
-    backgroundColor: "oklch(0.965 0.004 285)",
-    boxShadow: "0 3rem 8rem oklch(0 0 0 / 42%)",
-    inset: 0,
-    opacity: {
-      default: 1,
-      "@media (max-width: 47.99rem)": 0.3,
-    },
-    overflow: "hidden",
-    position: "absolute",
-    "::after": {
-      backgroundImage: "linear-gradient(145deg, transparent 58%, oklch(0.72 0.035 20 / 11%) 100%)",
-      content: '""',
-      inset: 0,
-      pointerEvents: "none",
-      position: "absolute",
-    },
-  },
-  symbol: {
-    display: "block",
-    height: "100%",
-    objectFit: "cover",
-    opacity: 0.98,
-    width: "100%",
   },
 });

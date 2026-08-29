@@ -1,3 +1,4 @@
+import type { Storage } from "@jaquelene/backend";
 import { BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import { exposeUserInterfacePreferences } from "./feature/appearance/user-interface/ipc";
@@ -17,7 +18,6 @@ import type { Threads } from "./feature/thread/threads";
 import type { LocalState } from "./local-state";
 import type { Preferences } from "./preferences/preferences";
 import { exposeStorage } from "./storage/ipc";
-import type { AppStorage } from "./storage/storage";
 
 const preloadPath = join(import.meta.dirname, "../preload/preload.cjs");
 
@@ -51,7 +51,7 @@ export function createMainWindow({
   favoriteModels: FavoriteModels;
   preferences: Preferences;
   openRouterConnection: OpenRouterConnection;
-  storage: AppStorage;
+  storage: Storage;
 }) {
   let currentWindow:
     | {

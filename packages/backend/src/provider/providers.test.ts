@@ -149,6 +149,131 @@ describe("provider subsystem", () => {
     await subsystem.close();
   });
 
+  it("orders configuration changes at the subsystem boundary", async () => {
+    let configuration: ApiKeyProviderConfiguration = { state: "unconfigured" };
+    const finishConfiguration = Promise.withResolvers<void>();
+    const events: string[] = [];
+    const adapter = apiKeyProvider({
+      configuration: {
+        kind: "api-key",
+        inspect: () => configuration,
+        async configure(_apiKey, signal) {
+          events.push("configure:start");
+          await finishConfiguration.promise;
+          signal.throwIfAborted();
+          configuration = { state: "configured" };
+          events.push("configure:end");
+          return configuration;
+        },
+        async clear() {
+          events.push("clear");
+          configuration = { state: "unconfigured" };
+        },
+        storagePaths: [],
+      },
+    });
+    const subsystem = createProviderSubsystem([adapter]);
+    const configuring = subsystem.providers.configureApiKey(adapter.descriptor.id, "secret");
+    const clearing = subsystem.providers.clearConfiguration(adapter.descriptor.id);
+
+    await vi.waitFor(() => expect(events).toEqual(["configure:start"]));
+    finishConfiguration.resolve();
+
+    await expect(configuring).resolves.toEqual({ state: "configured" });
+    await expect(clearing).resolves.toBeUndefined();
+    expect(events).toEqual(["configure:start", "configure:end", "clear"]);
+    expect(subsystem.providers.inspectConfiguration(adapter.descriptor.id)).toEqual({
+      kind: "api-key",
+      state: "unconfigured",
+    });
+    await subsystem.close();
+  });
+
+  it("interrupts active provider work before clearing its configuration", async () => {
+    let configuration: ApiKeyProviderConfiguration = { state: "configured" };
+    let activeSignal: AbortSignal | undefined;
+    const modelListingStarted = Promise.withResolvers<void>();
+    const clearStarted = Promise.withResolvers<void>();
+    const finishClear = Promise.withResolvers<void>();
+    const adapter = apiKeyProvider({
+      configuration: {
+        kind: "api-key",
+        inspect: () => configuration,
+        async configure() {
+          return { state: "configured" };
+        },
+        async clear() {
+          clearStarted.resolve();
+          await finishClear.promise;
+          configuration = { state: "unconfigured" };
+        },
+        storagePaths: [],
+      },
+      models: {
+        list(signal) {
+          activeSignal = signal;
+          modelListingStarted.resolve();
+          return new Promise(() => undefined);
+        },
+      },
+    });
+    const unrelated = configurationFreeProvider({
+      descriptor: { id: "unrelated", name: "Unrelated", brandId: "unrelated" },
+    });
+    const subsystem = createProviderSubsystem([adapter, unrelated]);
+    const listing = subsystem.models.listModels(adapter.descriptor.id);
+    await modelListingStarted.promise;
+
+    const clearing = subsystem.providers.clearConfiguration(adapter.descriptor.id);
+
+    await expect(listing).rejects.toThrow('Provider "api-key-provider" is disconnecting.');
+    await clearStarted.promise;
+    expect(activeSignal?.aborted).toBe(true);
+    await expect(subsystem.models.listModels(adapter.descriptor.id)).rejects.toThrow(
+      'Provider "api-key-provider" is disconnecting.',
+    );
+    await expect(subsystem.models.listModels(unrelated.descriptor.id)).resolves.toEqual([
+      { id: "built-in", name: "Built in", brandId: "local" },
+    ]);
+
+    finishClear.resolve();
+    await clearing;
+    expect(subsystem.providers.inspectConfiguration(adapter.descriptor.id)).toEqual({
+      kind: "api-key",
+      state: "unconfigured",
+    });
+    await subsystem.close();
+  });
+
+  it("restores provider availability when clearing its configuration fails", async () => {
+    const failure = new Error("Credential deletion failed.");
+    const adapter = apiKeyProvider({
+      configuration: {
+        kind: "api-key",
+        inspect: () => ({ state: "configured" }),
+        async configure() {
+          return { state: "configured" };
+        },
+        async clear() {
+          throw failure;
+        },
+        storagePaths: [],
+      },
+    });
+    const subsystem = createProviderSubsystem([adapter]);
+
+    await expect(subsystem.providers.clearConfiguration(adapter.descriptor.id)).rejects.toBe(
+      failure,
+    );
+    await expect(
+      subsystem.providers.configureApiKey(adapter.descriptor.id, "replacement"),
+    ).resolves.toEqual({ state: "configured" });
+    await expect(subsystem.models.listModels(adapter.descriptor.id)).resolves.toEqual([
+      { id: "maker/model", name: "Model", brandId: "maker" },
+    ]);
+    await subsystem.close();
+  });
+
   it("passes mandatory cancellation to every network capability", async () => {
     const modelSignal = vi.fn();
     const generationSignal = vi.fn();
@@ -183,7 +308,9 @@ describe("provider subsystem", () => {
         list(signal) {
           activeSignal = signal;
           started.resolve();
-          return new Promise(() => undefined);
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+          });
         },
       },
     });

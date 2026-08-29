@@ -193,33 +193,4 @@ describe("OpenRouter connection", () => {
       },
     );
   });
-
-  it("applies connection changes in invocation order", async () => {
-    let finishEncryption!: (value: Buffer) => void;
-    const encryptedApiKey = new Promise<Buffer>((resolve) => {
-      finishEncryption = resolve;
-    });
-    const encrypt = vi.fn(() => encryptedApiKey);
-    const decrypt = vi.fn(async (value: Buffer) => value.toString());
-    const verify = vi.fn(async () => ({
-      state: "configured" as const,
-      keyLabel: "sk-or-v1-ordered...345",
-    }));
-    const connection = createOpenRouterConfiguration(createUserDataDirectory(), {
-      encrypt,
-      decrypt,
-      verify,
-    });
-
-    const connecting = connection.configure("openrouter-ordered-key", operationSignal());
-    const disconnecting = connection.clear();
-    finishEncryption(Buffer.from("encrypted"));
-
-    await expect(connecting).resolves.toEqual({
-      state: "configured",
-      keyLabel: "sk-or-v1-ordered...345",
-    });
-    await expect(disconnecting).resolves.toBeUndefined();
-    expect(connection.inspect()).toEqual({ state: "unconfigured" });
-  });
 });

@@ -46,8 +46,6 @@ export function createOpenRouterConfiguration(
     rootSchema: { additionalProperties: false },
   });
 
-  let pendingMutation: Promise<unknown> = Promise.resolve();
-
   function inspect(): ApiKeyProviderConfiguration {
     if (!store.has("encryptedApiKey")) {
       return { state: "unconfigured" };
@@ -68,12 +66,6 @@ export function createOpenRouterConfiguration(
     }
 
     return decrypt(Buffer.from(encryptedApiKey, "base64"));
-  }
-
-  function mutate<Result>(operation: () => Promise<Result> | Result) {
-    const result = pendingMutation.then(operation);
-    pendingMutation = result.catch(() => undefined);
-    return result;
   }
 
   return {
@@ -98,27 +90,25 @@ export function createOpenRouterConfiguration(
         throw new TypeError("OpenRouter API key must contain text.");
       }
 
-      return mutate(async () => {
-        signal.throwIfAborted();
-        const verification = await verify(apiKey, signal);
+      signal.throwIfAborted();
+      const verification = await verify(apiKey, signal);
 
-        if (verification.state !== "configured") {
-          return verification;
-        }
-
-        signal.throwIfAborted();
-        const encryptedApiKey = await encrypt(apiKey);
-        signal.throwIfAborted();
-        store.set({
-          encryptedApiKey: encryptedApiKey.toString("base64"),
-          ...(verification.keyLabel ? { keyLabel: verification.keyLabel } : {}),
-        });
+      if (verification.state !== "configured") {
         return verification;
+      }
+
+      signal.throwIfAborted();
+      const encryptedApiKey = await encrypt(apiKey);
+      signal.throwIfAborted();
+      store.set({
+        encryptedApiKey: encryptedApiKey.toString("base64"),
+        ...(verification.keyLabel ? { keyLabel: verification.keyLabel } : {}),
       });
+      return verification;
     },
 
-    clear() {
-      return mutate(() => deleteStoreFile(store));
+    async clear() {
+      deleteStoreFile(store);
     },
   };
 }

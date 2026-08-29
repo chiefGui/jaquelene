@@ -51,6 +51,13 @@ type ActiveOperation = Readonly<{
   result: Promise<unknown>;
 }>;
 
+type RegisteredProvider = {
+  adapter: ProviderAdapter;
+  activeUses: Set<ActiveOperation>;
+  pendingClears: number;
+  configurationTail: Promise<void>;
+};
+
 type ProviderSubsystem = Readonly<{
   providers: Providers;
   models: Models;
@@ -187,17 +194,22 @@ function waitForOperation<Result>(operation: Promise<Result>, signal: AbortSigna
 }
 
 export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): ProviderSubsystem {
-  const adaptersById = new Map<ProviderId, ProviderAdapter>();
+  const providersById = new Map<ProviderId, RegisteredProvider>();
 
   for (const adapter of adapters) {
     requireAdapter(adapter);
     const { id } = adapter.descriptor;
 
-    if (adaptersById.has(id)) {
+    if (providersById.has(id)) {
       throw new Error(`Provider "${id}" is registered more than once.`);
     }
 
-    adaptersById.set(id, adapter);
+    providersById.set(id, {
+      adapter,
+      activeUses: new Set(),
+      pendingClears: 0,
+      configurationTail: Promise.resolve(),
+    });
   }
 
   let state: "open" | "closing" | "closed" = "open";
@@ -205,13 +217,13 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
   const activeOperations = new Set<ActiveOperation>();
 
   function requireProvider(providerId: ProviderId) {
-    const adapter = adaptersById.get(providerId);
+    const provider = providersById.get(providerId);
 
-    if (!adapter) {
+    if (!provider) {
       throw new RangeError(`Unknown provider "${providerId}".`);
     }
 
-    return adapter;
+    return provider;
   }
 
   function inspectConfiguration(adapter: ProviderAdapter): ProviderConfiguration {
@@ -225,9 +237,29 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
     };
   }
 
+  function trackOperation<Result>(
+    controller: AbortController,
+    signal: AbortSignal,
+    operation: Promise<Result>,
+    providerOperations?: Set<ActiveOperation>,
+  ) {
+    const result = waitForOperation(operation, signal);
+    const active = { controller, result } satisfies ActiveOperation;
+    activeOperations.add(active);
+    providerOperations?.add(active);
+    void result
+      .finally(() => {
+        activeOperations.delete(active);
+        providerOperations?.delete(active);
+      })
+      .catch(() => undefined);
+    return result;
+  }
+
   function runOperation<Result>(
     signal: AbortSignal | undefined,
     operation: (operationSignal: AbortSignal) => Promise<Result>,
+    providerOperations?: Set<ActiveOperation>,
   ) {
     if (state !== "open") {
       return Promise.reject(new Error("Providers are closed."));
@@ -237,40 +269,92 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
     const operationSignal = signal
       ? AbortSignal.any([signal, controller.signal])
       : controller.signal;
-    const result = waitForOperation(
-      Promise.resolve().then(() => operation(operationSignal)),
+    return trackOperation(
+      controller,
       operationSignal,
+      Promise.resolve().then(() => operation(operationSignal)),
+      providerOperations,
     );
-    const active = { controller, result } satisfies ActiveOperation;
-    activeOperations.add(active);
-    void result.finally(() => activeOperations.delete(active)).catch(() => undefined);
-    return result;
+  }
+
+  function runProviderUse<Result>(
+    provider: RegisteredProvider,
+    signal: AbortSignal | undefined,
+    operation: (operationSignal: AbortSignal) => Promise<Result>,
+  ) {
+    return runOperation(
+      signal,
+      async (operationSignal) => {
+        operationSignal.throwIfAborted();
+
+        if (provider.pendingClears > 0) {
+          throw new Error(`Provider "${provider.adapter.descriptor.id}" is disconnecting.`);
+        }
+
+        if (inspectConfiguration(provider.adapter).state !== "configured") {
+          throw new Error(`Provider "${provider.adapter.descriptor.id}" is not configured.`);
+        }
+
+        return operation(operationSignal);
+      },
+      provider.activeUses,
+    );
+  }
+
+  function changeConfiguration<Result>(
+    provider: RegisteredProvider,
+    signal: AbortSignal | undefined,
+    operation: (operationSignal: AbortSignal) => Promise<Result>,
+    afterCompletion?: () => void,
+  ) {
+    if (state !== "open") {
+      return Promise.reject(new Error("Providers are closed."));
+    }
+
+    const controller = new AbortController();
+    const operationSignal = signal
+      ? AbortSignal.any([signal, controller.signal])
+      : controller.signal;
+    const operationResult = provider.configurationTail.then(() => {
+      operationSignal.throwIfAborted();
+      return operation(operationSignal);
+    });
+    const finalizedResult = afterCompletion
+      ? operationResult.finally(afterCompletion)
+      : operationResult;
+    provider.configurationTail = finalizedResult.then(
+      () => undefined,
+      () => undefined,
+    );
+    return trackOperation(controller, operationSignal, finalizedResult);
   }
 
   const providers: Providers = {
     list: () =>
-      [...adaptersById.values()].map((adapter) => ({
+      [...providersById.values()].map(({ adapter }) => ({
         ...adapter.descriptor,
         configuration: inspectConfiguration(adapter),
       })),
 
-    inspectConfiguration: (providerId) => inspectConfiguration(requireProvider(providerId)),
+    inspectConfiguration: (providerId) => inspectConfiguration(requireProvider(providerId).adapter),
 
     configureApiKey(providerId, apiKey, signal) {
-      const adapter = requireProvider(providerId);
+      const provider = requireProvider(providerId);
+      const { adapter } = provider;
       const { configuration } = adapter;
 
       if (configuration.kind !== "api-key") {
         return Promise.reject(new TypeError(`Provider "${providerId}" does not use an API key.`));
       }
 
-      return runOperation(signal, async (operationSignal) =>
+      return changeConfiguration(provider, signal, async (operationSignal) =>
         requireConfigureResult(providerId, await configuration.configure(apiKey, operationSignal)),
       );
     },
 
     clearConfiguration(providerId) {
-      const adapter = requireProvider(providerId);
+      const provider = requireProvider(providerId);
+      const { adapter } = provider;
       const { configuration } = adapter;
 
       if (configuration.kind !== "api-key") {
@@ -279,29 +363,46 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
         );
       }
 
-      return runOperation(undefined, async (signal) => {
-        signal.throwIfAborted();
-        await configuration.clear();
-      });
+      if (state !== "open") {
+        return Promise.reject(new Error("Providers are closed."));
+      }
+
+      provider.pendingClears += 1;
+      const reason = new Error(`Provider "${providerId}" is disconnecting.`);
+      const activeUses = [...provider.activeUses];
+
+      for (const { controller } of activeUses) {
+        controller.abort(reason);
+      }
+
+      return changeConfiguration(
+        provider,
+        undefined,
+        async (signal) => {
+          await Promise.allSettled(activeUses.map(({ result }) => result));
+          signal.throwIfAborted();
+          await configuration.clear();
+        },
+        () => {
+          provider.pendingClears -= 1;
+        },
+      );
     },
   };
 
   const models: Models = {
     listProviders: () =>
-      [...adaptersById.values()].flatMap((adapter) =>
+      [...providersById.values()].flatMap(({ adapter }) =>
         inspectConfiguration(adapter).state === "configured"
           ? [{ id: adapter.descriptor.id, brandId: adapter.descriptor.brandId }]
           : [],
       ),
 
     listModels(providerId, signal) {
-      const adapter = requireProvider(providerId);
+      const provider = requireProvider(providerId);
+      const { adapter } = provider;
 
-      if (inspectConfiguration(adapter).state !== "configured") {
-        return Promise.reject(new Error(`Provider "${providerId}" is not configured.`));
-      }
-
-      return runOperation(signal, async (operationSignal) => {
+      return runProviderUse(provider, signal, async (operationSignal) => {
         const models = await adapter.models.list(operationSignal);
         const modelsById = new Map<string, ProviderModel>();
 
@@ -323,18 +424,12 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
   };
 
   const generationRoutes = new Map<ProviderId, ProviderGenerationRoute>(
-    [...adaptersById.values()].map((adapter) => [
-      adapter.descriptor.id,
+    [...providersById.values()].map((provider) => [
+      provider.adapter.descriptor.id,
       {
         generate(request, signal) {
-          if (inspectConfiguration(adapter).state !== "configured") {
-            return Promise.reject(
-              new Error(`Provider "${adapter.descriptor.id}" is not configured.`),
-            );
-          }
-
-          return runOperation(signal, (operationSignal) =>
-            adapter.generation.generate(request, operationSignal),
+          return runProviderUse(provider, signal, (operationSignal) =>
+            provider.adapter.generation.generate(request, operationSignal),
           );
         },
       },
@@ -344,7 +439,7 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
     get: (providerId) => generationRoutes.get(providerId),
   };
 
-  const storageAreas = [...adaptersById.values()].flatMap<StorageArea>((adapter) => {
+  const storageAreas = [...providersById.values()].flatMap<StorageArea>(({ adapter }) => {
     if (adapter.configuration.kind !== "api-key") {
       return [];
     }

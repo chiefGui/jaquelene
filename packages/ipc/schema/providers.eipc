@@ -42,4 +42,3 @@ interface Providers {
   configureApiKey(providerId: string, apiKey: string) -> ProviderConfigureResult
   clearConfiguration(providerId: string)
 }
-

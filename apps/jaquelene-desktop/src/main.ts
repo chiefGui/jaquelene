@@ -9,7 +9,7 @@ import {
 } from "./development-profile";
 import { createCampaigns } from "./feature/campaign/campaigns";
 import { createGenerations } from "./feature/generation/generations";
-import { createThreadPromptCompiler } from "./feature/generation/prompt";
+import { createTurnPromptCompiler } from "./feature/generation/prompt";
 import { createModelCatalog } from "./feature/model/catalog";
 import { createFavoriteModels } from "./feature/model/favorite-models";
 import { createFavoriteModelsStorage } from "./feature/model/favorite-models-store";
@@ -115,7 +115,7 @@ void app
       },
       verify: verifyOpenRouterApiKey,
     });
-    const generations = createGenerations(database, createThreadPromptCompiler(threads), [
+    const generations = createGenerations(database, createTurnPromptCompiler(threads), [
       createOpenRouterGenerationProvider(openRouterConnection),
     ]);
     generations.recoverInterrupted();

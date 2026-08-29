@@ -20,6 +20,7 @@ export const ids = {
   scenario: defineId("scenario"),
   campaign: defineId("campaign"),
   thread: defineId("thread"),
+  turn: defineId("turn"),
   message: defineId("message"),
   generation: defineId("generation"),
 } as const;
@@ -27,5 +28,6 @@ export const ids = {
 export type ScenarioId = ReturnType<typeof ids.scenario.create>;
 export type CampaignId = ReturnType<typeof ids.campaign.create>;
 export type ThreadId = ReturnType<typeof ids.thread.create>;
+export type TurnId = ReturnType<typeof ids.turn.create>;
 export type MessageId = ReturnType<typeof ids.message.create>;
 export type GenerationId = ReturnType<typeof ids.generation.create>;

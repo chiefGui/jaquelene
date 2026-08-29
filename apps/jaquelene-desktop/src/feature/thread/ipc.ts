@@ -17,7 +17,14 @@ function toIpcAuthor(author: ThreadMessage["author"]) {
 }
 
 function toIpcMessage(message: ThreadMessage) {
-  return { ...message, author: toIpcAuthor(message.author) };
+  return {
+    id: message.id,
+    threadId: message.threadId,
+    sequence: message.sequence,
+    author: toIpcAuthor(message.author),
+    content: message.content,
+    createdAt: message.createdAt,
+  };
 }
 
 export function exposeThreads(target: WebFrameMain, threads: Threads) {
@@ -30,7 +37,7 @@ export function exposeThreads(target: WebFrameMain, threads: Threads) {
       return { ...page, messages: page.messages.map(toIpcMessage) };
     },
     appendUserMessage(id, content) {
-      return toIpcMessage(threads.appendUserMessage(ids.thread.parse(id), content));
+      return toIpcMessage(threads.startTurn(ids.thread.parse(id), content).message);
     },
   });
 }

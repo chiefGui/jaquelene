@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "df59fb39-5bef-4bea-a6c8-f75f153f5fc5",
-  "prevIds": ["f0884082-31e5-4e61-b781-4b1c550709b5"],
+  "id": "f902bfa0-b469-4561-b29b-34a420c5cbd7",
+  "prevIds": ["c7331eb5-6c95-42b5-b27d-0eba15f4bd47"],
   "ddl": [
     {
       "name": "campaigns",
@@ -22,6 +22,10 @@
     },
     {
       "name": "threads",
+      "entityType": "tables"
+    },
+    {
+      "name": "turns",
       "entityType": "tables"
     },
     {
@@ -80,17 +84,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "thread_id",
-      "entityType": "columns",
-      "table": "generations"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "context_sequence",
+      "name": "turn_id",
       "entityType": "columns",
       "table": "generations"
     },
@@ -265,6 +259,26 @@
       "table": "thread_messages"
     },
     {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "turn_id",
+      "entityType": "columns",
+      "table": "thread_messages"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "parent_message_id",
+      "entityType": "columns",
+      "table": "thread_messages"
+    },
+    {
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -335,6 +349,46 @@
       "table": "threads"
     },
     {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "active_message_id",
+      "entityType": "columns",
+      "table": "threads"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "turns"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "thread_id",
+      "entityType": "columns",
+      "table": "turns"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "turns"
+    },
+    {
       "columns": ["scenario_id"],
       "tableTo": "scenarios",
       "columnsTo": ["id"],
@@ -357,35 +411,24 @@
       "table": "campaigns"
     },
     {
-      "columns": ["thread_id"],
-      "tableTo": "threads",
+      "columns": ["turn_id"],
+      "tableTo": "turns",
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_generations_thread_id_threads_id_fk",
+      "name": "fk_generations_turn_id_turns_id_fk",
       "entityType": "fks",
       "table": "generations"
     },
     {
-      "columns": ["output_message_id"],
+      "columns": ["turn_id", "output_message_id"],
       "tableTo": "thread_messages",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "nameExplicit": false,
-      "name": "fk_generations_output_message_id_thread_messages_id_fk",
-      "entityType": "fks",
-      "table": "generations"
-    },
-    {
-      "columns": ["thread_id", "context_sequence"],
-      "tableTo": "thread_messages",
-      "columnsTo": ["thread_id", "sequence"],
+      "columnsTo": ["turn_id", "id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": true,
-      "name": "generations_context_message_fk",
+      "name": "generations_output_message_fk",
       "entityType": "fks",
       "table": "generations"
     },
@@ -399,6 +442,61 @@
       "name": "fk_thread_messages_thread_id_threads_id_fk",
       "entityType": "fks",
       "table": "thread_messages"
+    },
+    {
+      "columns": ["thread_id", "turn_id"],
+      "tableTo": "turns",
+      "columnsTo": ["thread_id", "id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": true,
+      "name": "thread_messages_turn_fk",
+      "entityType": "fks",
+      "table": "thread_messages"
+    },
+    {
+      "columns": ["thread_id", "parent_message_id"],
+      "tableTo": "thread_messages",
+      "columnsTo": ["thread_id", "id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": true,
+      "name": "thread_messages_parent_fk",
+      "entityType": "fks",
+      "table": "thread_messages"
+    },
+    {
+      "columns": ["active_message_id"],
+      "tableTo": "thread_messages",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_threads_active_message_id_thread_messages_id_fk",
+      "entityType": "fks",
+      "table": "threads"
+    },
+    {
+      "columns": ["id", "active_message_id"],
+      "tableTo": "thread_messages",
+      "columnsTo": ["thread_id", "id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": true,
+      "name": "threads_active_message_thread_fk",
+      "entityType": "fks",
+      "table": "threads"
+    },
+    {
+      "columns": ["thread_id"],
+      "tableTo": "threads",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_turns_thread_id_threads_id_fk",
+      "entityType": "fks",
+      "table": "turns"
     },
     {
       "columns": ["id"],
@@ -427,6 +525,13 @@
       "name": "threads_pk",
       "entityType": "pks",
       "table": "threads"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "turns_pk",
+      "entityType": "pks",
+      "table": "turns"
     },
     {
       "columns": ["id"],
@@ -474,28 +579,36 @@
     {
       "columns": [
         {
-          "value": "thread_id",
+          "value": "turn_id",
+          "isExpression": false
+        },
+        {
+          "value": "started_at",
+          "isExpression": false
+        },
+        {
+          "value": "id",
           "isExpression": false
         }
       ],
       "isUnique": false,
       "where": null,
       "origin": "manual",
-      "name": "generations_thread_idx",
+      "name": "generations_turn_started_at_idx",
       "entityType": "indexes",
       "table": "generations"
     },
     {
       "columns": [
         {
-          "value": "thread_id",
+          "value": "turn_id",
           "isExpression": false
         }
       ],
       "isUnique": true,
       "where": "\"generations\".\"status\" = 'pending'",
       "origin": "manual",
-      "name": "generations_pending_thread_unique",
+      "name": "generations_pending_turn_unique",
       "entityType": "indexes",
       "table": "generations"
     },
@@ -550,10 +663,90 @@
       "table": "thread_messages"
     },
     {
-      "value": "\"context_sequence\" > 0",
-      "name": "generations_context_sequence_positive",
-      "entityType": "checks",
-      "table": "generations"
+      "columns": [
+        {
+          "value": "thread_id",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "thread_messages_thread_id_unique",
+      "entityType": "indexes",
+      "table": "thread_messages"
+    },
+    {
+      "columns": [
+        {
+          "value": "turn_id",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "thread_messages_turn_id_unique",
+      "entityType": "indexes",
+      "table": "thread_messages"
+    },
+    {
+      "columns": [
+        {
+          "value": "turn_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": "\"thread_messages\".\"author\" = 'user'",
+      "origin": "manual",
+      "name": "thread_messages_turn_user_unique",
+      "entityType": "indexes",
+      "table": "thread_messages"
+    },
+    {
+      "columns": [
+        {
+          "value": "thread_id",
+          "isExpression": false
+        },
+        {
+          "value": "parent_message_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "thread_messages_parent_idx",
+      "entityType": "indexes",
+      "table": "thread_messages"
+    },
+    {
+      "columns": [
+        {
+          "value": "thread_id",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "turns_thread_id_unique",
+      "entityType": "indexes",
+      "table": "turns"
     },
     {
       "value": "length(trim(\"provider_id\")) > 0 AND length(trim(\"model_id\")) > 0",
@@ -568,7 +761,7 @@
       "table": "generations"
     },
     {
-      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('provider', 'invalid-output', 'superseded', 'interrupted', 'storage')",
+      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('provider', 'invalid-output', 'interrupted', 'storage')",
       "name": "generations_failure_kind_valid",
       "entityType": "checks",
       "table": "generations"
@@ -616,6 +809,12 @@
       "table": "thread_messages"
     },
     {
+      "value": "\"author\" = 'user' OR \"parent_message_id\" IS NOT NULL",
+      "name": "thread_messages_parent_valid",
+      "entityType": "checks",
+      "table": "thread_messages"
+    },
+    {
       "value": "length(trim(\"content\")) > 0 AND length(\"content\") <= 100000",
       "name": "thread_messages_content_valid",
       "entityType": "checks",
@@ -638,6 +837,12 @@
       "name": "threads_last_message_sequence_nonnegative",
       "entityType": "checks",
       "table": "threads"
+    },
+    {
+      "value": "\"created_at\" >= 0",
+      "name": "turns_created_at_nonnegative",
+      "entityType": "checks",
+      "table": "turns"
     }
   ],
   "renames": []

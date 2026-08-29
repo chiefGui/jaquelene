@@ -9,14 +9,13 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { GenerationId, MessageId, ThreadId } from "@/id";
-import { threadMessageTable, threadTable } from "../thread/schema";
+import type { GenerationId, MessageId, TurnId } from "@/id";
+import { threadMessageTable, turnTable } from "../thread/schema";
 
 export const generationStatuses = ["pending", "completed", "failed"] as const;
 export const generationFailureKinds = [
   "provider",
   "invalid-output",
-  "superseded",
   "interrupted",
   "storage",
 ] as const;
@@ -25,11 +24,10 @@ export const generationTable = sqliteTable(
   "generations",
   {
     id: text().$type<GenerationId>().notNull(),
-    threadId: text("thread_id")
-      .$type<ThreadId>()
+    turnId: text("turn_id")
+      .$type<TurnId>()
       .notNull()
-      .references(() => threadTable.id, { onDelete: "cascade" }),
-    contextSequence: integer("context_sequence").notNull(),
+      .references(() => turnTable.id, { onDelete: "cascade" }),
     providerId: text("provider_id").notNull(),
     modelId: text("model_id").notNull(),
     status: text({ enum: generationStatuses }).notNull(),
@@ -40,29 +38,30 @@ export const generationTable = sqliteTable(
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
     totalTokens: integer("total_tokens"),
-    outputMessageId: text("output_message_id")
-      .$type<MessageId>()
-      .references(() => threadMessageTable.id),
+    outputMessageId: text("output_message_id").$type<MessageId>(),
     startedAt: integer("started_at").notNull(),
     finishedAt: integer("finished_at"),
   },
   (generation) => [
     primaryKey({ columns: [generation.id] }),
     foreignKey({
-      columns: [generation.threadId, generation.contextSequence],
-      foreignColumns: [threadMessageTable.threadId, threadMessageTable.sequence],
-      name: "generations_context_message_fk",
+      columns: [generation.turnId, generation.outputMessageId],
+      foreignColumns: [threadMessageTable.turnId, threadMessageTable.id],
+      name: "generations_output_message_fk",
     }),
-    index("generations_thread_idx").on(generation.threadId),
-    uniqueIndex("generations_pending_thread_unique")
-      .on(generation.threadId)
+    index("generations_turn_started_at_idx").on(
+      generation.turnId,
+      generation.startedAt,
+      generation.id,
+    ),
+    uniqueIndex("generations_pending_turn_unique")
+      .on(generation.turnId)
       .where(sql`${generation.status} = 'pending'`),
     uniqueIndex("generations_output_message_unique").on(generation.outputMessageId),
     uniqueIndex("generations_provider_generation_unique").on(
       generation.providerId,
       generation.providerGenerationId,
     ),
-    check("generations_context_sequence_positive", sql`${generation.contextSequence} > 0`),
     check(
       "generations_model_reference_valid",
       sql`length(trim(${generation.providerId})) > 0 AND length(trim(${generation.modelId})) > 0`,
@@ -73,7 +72,7 @@ export const generationTable = sqliteTable(
     ),
     check(
       "generations_failure_kind_valid",
-      sql`${generation.failureKind} IS NULL OR ${generation.failureKind} IN ('provider', 'invalid-output', 'superseded', 'interrupted', 'storage')`,
+      sql`${generation.failureKind} IS NULL OR ${generation.failureKind} IN ('provider', 'invalid-output', 'interrupted', 'storage')`,
     ),
     check(
       "generations_provider_result_valid",

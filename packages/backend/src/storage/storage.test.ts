@@ -9,6 +9,7 @@ import {
   StorageService,
   type Storage,
   type StorageArea,
+  type StorageAreaId as StorageAreaIdValue,
   type StorageCategory as StorageCategoryValue,
 } from "./storage";
 
@@ -296,9 +297,23 @@ describe("storage", () => {
     });
   });
 
-  it("rejects duplicate owner identities and paths during startup", async () => {
+  it("rejects unknown and conflicting owners during startup", async () => {
     const directory = createUserDataDirectory();
     const sharedPath = join(directory, "shared.json");
+
+    await expect(
+      createTestStorage([
+        {
+          id: "unknown" as StorageAreaIdValue,
+          category: StorageCategory.AppData,
+          paths: [join(directory, "unknown.json")],
+          delete: vi.fn(),
+        },
+      ]),
+    ).rejects.toMatchObject({
+      name: "StorageConfigurationError",
+      cause: { message: 'Storage area "unknown" has an unknown identity.' },
+    });
 
     await expect(
       createTestStorage([
@@ -340,6 +355,29 @@ describe("storage", () => {
     ).rejects.toMatchObject({
       name: "StorageConfigurationError",
       cause: { message: `Storage path "${sharedPath}" is registered more than once.` },
+    });
+
+    const ownedDirectory = join(directory, "attachments");
+    const nestedPath = join(ownedDirectory, "portrait.png");
+
+    await expect(
+      createTestStorage([
+        {
+          id: StorageAreaId.Content,
+          category: StorageCategory.Content,
+          paths: [ownedDirectory],
+          delete: vi.fn(),
+        },
+        {
+          id: StorageAreaId.LocalState,
+          category: StorageCategory.AppData,
+          paths: [nestedPath],
+          delete: vi.fn(),
+        },
+      ]),
+    ).rejects.toMatchObject({
+      name: "StorageConfigurationError",
+      cause: { message: `Storage paths "${ownedDirectory}" and "${nestedPath}" overlap.` },
     });
   });
 });

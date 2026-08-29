@@ -1,6 +1,7 @@
 import { StorageAreaId, StorageCategory, type StorageArea } from "@jaquelene/backend";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
+import { deleteStoreFile } from "@/storage/delete-store-file";
 import {
   createUserInterfacePreferences,
   type UserInterfacePreferenceValues,
@@ -74,7 +75,7 @@ export function createPreferences(userDataDirectory: string) {
       userInterface,
     },
     campaign,
-    deleteAll: () => store.clear(),
+    deleteAll: () => deleteStoreFile(store),
   };
 }
 

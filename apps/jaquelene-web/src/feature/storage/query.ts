@@ -37,7 +37,7 @@ async function cancelCategoryQueries(queryClient: QueryClient, id: StorageCatego
   }
 }
 
-function updateDeletedCategoryQueries(queryClient: QueryClient, id: StorageCategory) {
+async function refreshCategoryQueries(queryClient: QueryClient, id: StorageCategory) {
   if (id === StorageCategory.Content) {
     for (const queryKey of contentQueryKeys) {
       queryClient.removeQueries({ queryKey });
@@ -47,7 +47,7 @@ function updateDeletedCategoryQueries(queryClient: QueryClient, id: StorageCateg
   }
 
   if (id === StorageCategory.AppData) {
-    return Promise.all([
+    await Promise.all([
       ...appDataQueryKeys.map((queryKey) =>
         queryClient.invalidateQueries({ queryKey, exact: true }),
       ),
@@ -65,8 +65,10 @@ export function useDeleteStorageCategory() {
     scope: { id: "storage" },
     mutationFn: deleteStorageCategory,
     onMutate: (id) => cancelCategoryQueries(queryClient, id),
-    onSuccess(_usage, id) {
-      return updateDeletedCategoryQueries(queryClient, id);
+    onSettled(_usage, _error, id) {
+      void refreshCategoryQueries(queryClient, id).catch((cause: unknown) => {
+        console.error(`Could not refresh state after deleting storage category "${id}".`, cause);
+      });
     },
   });
 }

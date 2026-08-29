@@ -1,5 +1,5 @@
 import { lstat, opendir } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { Context, Effect, Layer, Semaphore } from "effect";
 
 const maximumByteCount = BigInt(Number.MAX_SAFE_INTEGER);
@@ -111,12 +111,31 @@ function getPathComparisonKey(path: string) {
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
+function pathContains(parent: string, candidate: string) {
+  const pathFromParent = relative(parent, candidate);
+  return (
+    pathFromParent === "" ||
+    (pathFromParent !== ".." &&
+      !pathFromParent.startsWith(`..${sep}`) &&
+      !isAbsolute(pathFromParent))
+  );
+}
+
+function pathsOverlap(left: string, right: string) {
+  return pathContains(left, right) || pathContains(right, left);
+}
+
 function registerStorageAreas(areas: readonly StorageArea[]) {
+  const areaIds = new Set<StorageAreaId>(Object.values(StorageAreaId));
   const registeredIds = new Set<StorageAreaId>();
-  const registeredPaths = new Set<string>();
+  const registeredPaths: Array<{ path: string; comparisonKey: string }> = [];
   const categories = new Set<StorageCategory>(Object.values(StorageCategory));
 
   return areas.map((area) => {
+    if (!areaIds.has(area.id)) {
+      throw new TypeError(`Storage area "${area.id}" has an unknown identity.`);
+    }
+
     if (registeredIds.has(area.id)) {
       throw new TypeError(`Storage area "${area.id}" is registered more than once.`);
     }
@@ -137,12 +156,19 @@ function registerStorageAreas(areas: readonly StorageArea[]) {
       }
 
       const pathComparisonKey = getPathComparisonKey(path);
+      const overlappingPath = registeredPaths.find(({ comparisonKey }) =>
+        pathsOverlap(comparisonKey, pathComparisonKey),
+      );
 
-      if (registeredPaths.has(pathComparisonKey)) {
+      if (overlappingPath?.comparisonKey === pathComparisonKey) {
         throw new TypeError(`Storage path "${path}" is registered more than once.`);
       }
 
-      registeredPaths.add(pathComparisonKey);
+      if (overlappingPath) {
+        throw new TypeError(`Storage paths "${overlappingPath.path}" and "${path}" overlap.`);
+      }
+
+      registeredPaths.push({ path, comparisonKey: pathComparisonKey });
       return path;
     });
 

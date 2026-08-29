@@ -1,5 +1,5 @@
 import { StorageAreaId, StorageCategory } from "@jaquelene/backend";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
@@ -120,5 +120,9 @@ describe("storage areas", () => {
     ).toBeUndefined();
     expect(preferences.campaign.getDefaultModel()).toBeNull();
     expect(openRouterConnection.getConfiguration()).toEqual({ state: "disconnected" });
+
+    for (const path of areas.flatMap(({ paths }) => paths)) {
+      expect(existsSync(path)).toBe(false);
+    }
   });
 });

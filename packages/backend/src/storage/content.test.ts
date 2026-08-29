@@ -9,7 +9,7 @@ import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
 import { createScenarios } from "#backend/scenario/scenarios";
 import { scenarioTable } from "#backend/scenario/schema";
-import { threadTable, turnTable } from "#backend/thread/schema";
+import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
 import { createContentStorageArea } from "./content";
 
@@ -47,6 +47,7 @@ describe("content storage area", () => {
 
     expect(database.select().from(generationTable).all()).toEqual([]);
     expect(database.select().from(campaignTable).all()).toEqual([]);
+    expect(database.select().from(threadMessageTable).all()).toEqual([]);
     expect(database.select().from(turnTable).all()).toEqual([]);
     expect(database.select().from(threadTable).all()).toEqual([]);
     expect(database.select().from(scenarioTable).all()).toEqual([]);
@@ -78,5 +79,27 @@ describe("content storage area", () => {
     expect(database.select().from(campaignTable).all()).toHaveLength(1);
     expect(database.select().from(threadTable).all()).toHaveLength(1);
     expect(database.select().from(generationTable).all()).toHaveLength(1);
+  });
+
+  it("rolls back every content deletion when an owner operation fails", () => {
+    const { database, path } = createTestDatabase();
+    const scenario = createScenarios(database).create("The Long Night");
+    const campaign = createCampaigns(database).start(scenario.id);
+    createThreads(database).startTurn(campaign.threadId, "Begin the story.");
+    database.$client.exec(`
+      CREATE TRIGGER reject_thread_delete
+      BEFORE DELETE ON threads
+      BEGIN
+        SELECT RAISE(ABORT, 'Rejected thread deletion');
+      END;
+    `);
+    const area = createContentStorageArea(database, path);
+
+    expect(() => area.delete()).toThrow('Failed query: delete from "threads"');
+    expect(database.select().from(scenarioTable).all()).toHaveLength(1);
+    expect(database.select().from(campaignTable).all()).toHaveLength(1);
+    expect(database.select().from(threadTable).all()).toHaveLength(1);
+    expect(database.select().from(turnTable).all()).toHaveLength(1);
+    expect(database.select().from(threadMessageTable).all()).toHaveLength(1);
   });
 });

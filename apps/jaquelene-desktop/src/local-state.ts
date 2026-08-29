@@ -3,6 +3,7 @@ import { renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Rectangle } from "electron";
 import Store, { type Schema } from "electron-store";
+import { deleteStoreFile } from "@/storage/delete-store-file";
 
 export type MainWindowState = {
   bounds: Rectangle;
@@ -107,7 +108,7 @@ export function createLocalState(userDataDirectory: string) {
 
   return {
     deleteAll() {
-      store.clear();
+      deleteStoreFile(store);
       rmSync(getLocalStateStoragePaths(userDataDirectory)[1], { force: true });
       skipNextSave = true;
     },

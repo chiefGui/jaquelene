@@ -127,6 +127,15 @@ function StorageRoute() {
       setConfirmation(null);
     } catch (cause) {
       console.error(`Could not delete storage category "${category.id}".`, cause);
+
+      try {
+        setLatestUsage(await measureStorageUsage());
+      } catch (measurementCause) {
+        console.error(
+          "Could not refresh storage usage after a deletion failure.",
+          measurementCause,
+        );
+      }
     }
   }
 
@@ -283,7 +292,7 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
     confirmation: {
       heading: "Delete content?",
       description: "This can’t be undone.",
-      error: "Couldn’t delete content.",
+      error: "Couldn’t finish deleting content.",
     },
   },
   [StorageCategory.AppData]: {
@@ -292,7 +301,7 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
     confirmation: {
       heading: "Delete app data?",
       description: "This resets the app without deleting your content.",
-      error: "Couldn’t delete app data.",
+      error: "Some app data couldn’t be deleted.",
     },
   },
 };

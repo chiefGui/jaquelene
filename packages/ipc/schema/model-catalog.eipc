@@ -10,10 +10,16 @@ structure ModelProvider {
   brandId: string
 }
 
+structure ModelTokenPricing {
+  inputUsdPerMillion: number
+  outputUsdPerMillion: number
+}
+
 structure AvailableModel {
   id: string
   name: string
   brandId: string
+  tokenPricing?: ModelTokenPricing
 }
 
 structure ModelSelection {

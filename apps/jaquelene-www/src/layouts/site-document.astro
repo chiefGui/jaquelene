@@ -1,0 +1,30 @@
+---
+import { documentClassNames } from "./site-document.stylex";
+
+interface Props {
+  description: string;
+  title: string;
+}
+
+const { description, title } = Astro.props;
+const stylexStylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : "/assets/stylex.css";
+---
+
+<!doctype html>
+<html lang="en" class={documentClassNames.document}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width" />
+    <title>{title}</title>
+    <link rel="stylesheet" href={stylexStylesheet} />
+    {
+      import.meta.env.DEV && (
+        <script type="module" src="/@id/virtual:stylex:runtime" is:inline></script>
+      )
+    }
+  </head>
+  <body class={documentClassNames.body}>
+    <slot />
+  </body>
+</html>

@@ -23,20 +23,29 @@ export function Skeleton({ style, ...props }: SkeletonProps) {
   );
 }
 
-const pulse = stylex.keyframes({
-  "0%, 100%": { opacity: 1 },
-  "50%": { opacity: 0.5 },
+const shimmer = stylex.keyframes({
+  "0%": { transform: "translateX(-100%)" },
+  "60%, 100%": { transform: "translateX(100%)" },
 });
 
 const styles = stylex.create({
   root: {
-    backgroundColor: `color-mix(in oklab, ${tokens.accent} 10%, transparent)`,
+    backgroundColor: `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
     borderRadius: tokens.radiusMedium,
+    overflow: "hidden",
+    position: "relative",
   },
   animated: {
-    animationDuration: "2s",
-    animationIterationCount: "infinite",
-    animationName: pulse,
-    animationTimingFunction: "cubic-bezier(0.4, 0, 0.6, 1)",
+    "::after": {
+      animationDuration: "2s",
+      animationIterationCount: "infinite",
+      animationName: shimmer,
+      animationTimingFunction: "linear",
+      backgroundImage: `linear-gradient(105deg, transparent 35%, color-mix(in oklch, ${tokens.foreground} 5%, transparent) 50%, transparent 65%)`,
+      content: '""',
+      inset: 0,
+      position: "absolute",
+      transform: "translateX(-100%)",
+    },
   },
 });

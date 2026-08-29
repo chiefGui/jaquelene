@@ -203,7 +203,7 @@ describe("OpenRouter connection", () => {
       state: "connected",
       keyLabel: "sk-or-v1-ordered...345",
     });
-    await expect(disconnecting).resolves.toEqual({ state: "disconnected" });
+    await expect(disconnecting).resolves.toBeUndefined();
     expect(connection.getConfiguration()).toEqual({ state: "disconnected" });
   });
 });

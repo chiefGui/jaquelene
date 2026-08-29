@@ -1,15 +1,15 @@
 import {
   OpenRouterConnection as OpenRouterConnectionIpc,
-  OpenRouterConnectionState,
+  OpenRouterConnectState,
   OpenRouterConfigurationState,
-  type OpenRouterConnectionStatus as IpcConnectionStatus,
+  type OpenRouterConnectResult as IpcConnectResult,
   type OpenRouterConfiguration as IpcConfiguration,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
 import type {
   OpenRouterConfiguration,
   OpenRouterConnection,
-  OpenRouterConnectionStatus,
+  OpenRouterConnectResult,
 } from "./connection";
 
 function toIpcConfiguration(configuration: OpenRouterConfiguration): IpcConfiguration {
@@ -24,19 +24,17 @@ function toIpcConfiguration(configuration: OpenRouterConfiguration): IpcConfigur
   }
 }
 
-function toIpcStatus(status: OpenRouterConnectionStatus): IpcConnectionStatus {
-  switch (status.state) {
-    case "disconnected":
-      return { state: OpenRouterConnectionState.Disconnected };
+function toIpcConnectResult(result: OpenRouterConnectResult): IpcConnectResult {
+  switch (result.state) {
     case "connected":
       return {
-        state: OpenRouterConnectionState.Connected,
-        keyLabel: status.keyLabel,
+        state: OpenRouterConnectState.Connected,
+        keyLabel: result.keyLabel,
       };
     case "rejected":
-      return { state: OpenRouterConnectionState.Rejected };
+      return { state: OpenRouterConnectState.Rejected };
     case "unavailable":
-      return { state: OpenRouterConnectionState.Unavailable };
+      return { state: OpenRouterConnectState.Unavailable };
   }
 }
 
@@ -46,10 +44,10 @@ export function exposeOpenRouterConnection(target: WebFrameMain, connection: Ope
       return toIpcConfiguration(connection.getConfiguration());
     },
     async connect(apiKey) {
-      return toIpcStatus(await connection.connect(apiKey));
+      return toIpcConnectResult(await connection.connect(apiKey));
     },
-    async disconnect() {
-      return toIpcStatus(await connection.disconnect());
+    disconnect() {
+      return connection.disconnect();
     },
   });
 }

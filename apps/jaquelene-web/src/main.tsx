@@ -13,7 +13,6 @@ const router = createRouter({
   routeTree,
   context: { queryClient },
   defaultPreload: "intent",
-  defaultPreloadDelay: 0,
   disableGlobalCatchBoundary: true,
 });
 

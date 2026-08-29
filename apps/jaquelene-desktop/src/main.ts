@@ -81,6 +81,7 @@ async function createWindow(
       sandbox: true,
       webSecurity: true,
       zoomFactor: getInterfaceScaleFactor(preferences.appearance.userInterface.get().scale),
+      zoomMode: "manual",
     },
   });
 

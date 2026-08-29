@@ -29,6 +29,7 @@ function HomeSidebar() {
         footerAction: {
           icon: Settings01Icon,
           label: "Settings",
+          preload: "render",
           to: "/settings/general",
         },
       }}

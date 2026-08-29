@@ -48,7 +48,7 @@ describe("preferences storage", () => {
     expect(restored.campaign.getDefaultModel()).toEqual(defaultCampaignModel);
   });
 
-  it("preserves model references saved before display snapshots", () => {
+  it("clears a default model without its display snapshot", () => {
     const directory = createUserDataDirectory();
     const defaultModel = { providerId: "provider-a", modelId: "model-a" };
     writeFileSync(
@@ -56,6 +56,6 @@ describe("preferences storage", () => {
       JSON.stringify({ campaign: { defaultModel } }),
     );
 
-    expect(createPreferences(directory).campaign.getDefaultModel()).toEqual(defaultModel);
+    expect(createPreferences(directory).campaign.getDefaultModel()).toBeNull();
   });
 });

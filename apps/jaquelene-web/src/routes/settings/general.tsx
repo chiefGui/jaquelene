@@ -8,12 +8,18 @@ import {
   defaultCampaignModelQuery,
   useSetDefaultCampaignModel,
 } from "@/feature/campaign/preferences";
+import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import { ModelPicker } from "@/feature/model/picker";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/general")({
-  loader: ({ context }) => context.queryClient.query(defaultCampaignModelQuery),
+  loader: async ({ context }) => {
+    await Promise.all([
+      context.queryClient.query(defaultCampaignModelQuery),
+      context.queryClient.query(modelProvidersQuery),
+    ]);
+  },
   component: GeneralRoute,
 });
 

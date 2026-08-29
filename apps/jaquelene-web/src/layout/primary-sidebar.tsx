@@ -1,7 +1,12 @@
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { Link, type RegisteredRouter, type ToOptions } from "@tanstack/react-router";
+import {
+  Link,
+  type LinkProps,
+  type RegisteredRouter,
+  type ToOptions,
+} from "@tanstack/react-router";
 import type { ComponentType } from "react";
 import type { FileRoutesByTo } from "@/routeTree.gen";
 
@@ -12,6 +17,7 @@ type PrimarySidebarDestination = {
 type PrimarySidebarLink = PrimarySidebarDestination & {
   icon: IconSvgElement;
   label: string;
+  preload?: Exclude<LinkProps["preload"], undefined>;
 };
 
 type PrimarySidebarItem = PrimarySidebarLink & { id: string };

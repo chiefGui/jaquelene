@@ -1,4 +1,9 @@
-import { OpenRouterConnection, OpenRouterConnectionState } from "@jaquelene/ipc/renderer";
+import {
+  OpenRouterConnection,
+  OpenRouterConnectionState,
+  OpenRouterConfigurationState,
+  type OpenRouterConfiguration,
+} from "@jaquelene/ipc/renderer";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { resetModelProvider } from "@/feature/model/catalog-query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
@@ -8,15 +13,15 @@ export const openRouterProvider = {
   id: "openrouter",
 } as const;
 
-const getOpenRouterStatus = requireIpcMethod(OpenRouterConnection?.getStatus);
+const getOpenRouterConfiguration = requireIpcMethod(OpenRouterConnection?.getConfiguration);
 const connectOpenRouter = requireIpcMethod(OpenRouterConnection?.connect);
 const disconnectOpenRouter = requireIpcMethod(OpenRouterConnection?.disconnect);
 
-export const openRouterConnectionQuery = queryOptions({
+export const openRouterConfigurationQuery = queryOptions({
   ...ipcQueryOptions,
-  staleTime: 60_000,
-  queryKey: [openRouterProvider.id, "status"],
-  queryFn: getOpenRouterStatus,
+  staleTime: "static",
+  queryKey: [openRouterProvider.id, "configuration"],
+  queryFn: getOpenRouterConfiguration,
 });
 
 export function useConnectOpenRouter() {
@@ -25,11 +30,12 @@ export function useConnectOpenRouter() {
   return useMutation({
     ...ipcMutationOptions,
     mutationFn: connectOpenRouter,
-    onMutate: () =>
-      queryClient.cancelQueries({ queryKey: openRouterConnectionQuery.queryKey, exact: true }),
     onSuccess(status) {
       if (status.state === OpenRouterConnectionState.Connected) {
-        queryClient.setQueryData(openRouterConnectionQuery.queryKey, status);
+        queryClient.setQueryData<OpenRouterConfiguration>(openRouterConfigurationQuery.queryKey, {
+          state: OpenRouterConfigurationState.Configured,
+          ...(status.keyLabel ? { keyLabel: status.keyLabel } : {}),
+        });
         return resetModelProvider(queryClient, openRouterProvider.id);
       }
     },
@@ -42,10 +48,10 @@ export function useDisconnectOpenRouter() {
   return useMutation({
     ...ipcMutationOptions,
     mutationFn: disconnectOpenRouter,
-    onMutate: () =>
-      queryClient.cancelQueries({ queryKey: openRouterConnectionQuery.queryKey, exact: true }),
-    onSuccess(status) {
-      queryClient.setQueryData(openRouterConnectionQuery.queryKey, status);
+    onSuccess() {
+      queryClient.setQueryData<OpenRouterConfiguration>(openRouterConfigurationQuery.queryKey, {
+        state: OpenRouterConfigurationState.Disconnected,
+      });
       return resetModelProvider(queryClient, openRouterProvider.id);
     },
   });

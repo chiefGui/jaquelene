@@ -34,6 +34,7 @@ function SettingsSidebar() {
             id: "providers",
             icon: ConnectIcon,
             label: "Providers",
+            preload: "render",
             to: "/settings/providers",
           },
           {

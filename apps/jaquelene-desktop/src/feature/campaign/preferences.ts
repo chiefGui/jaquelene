@@ -1,14 +1,8 @@
 import type { Schema } from "electron-store";
-import {
-  requireModelSelection,
-  type ModelReference,
-  type ModelSelection,
-} from "@/feature/model/catalog";
-
-type CampaignModelPreference = ModelReference & Partial<Pick<ModelSelection, "name" | "brandId">>;
+import { requireModelSelection, type ModelSelection } from "@/feature/model/catalog";
 
 export type CampaignPreferenceValues = {
-  defaultModel?: CampaignModelPreference;
+  defaultModel?: ModelSelection;
 };
 
 type CampaignPreferencesStorage = {
@@ -29,7 +23,7 @@ export const campaignPreferencesSchema = {
         name: { type: "string", minLength: 1 },
         brandId: { type: "string", minLength: 1 },
       },
-      required: ["providerId", "modelId"],
+      required: ["providerId", "modelId", "name", "brandId"],
     },
   },
 } satisfies Schema<{ campaign: CampaignPreferenceValues }>["campaign"];

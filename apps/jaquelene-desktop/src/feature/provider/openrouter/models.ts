@@ -139,13 +139,13 @@ function normalizeModel({ id, name, pricing }: OpenRouterCatalogModel) {
 }
 
 export function createOpenRouterModelProvider(
-  connection: Pick<OpenRouterConnection, "getStatus" | "withApiKey">,
+  connection: Pick<OpenRouterConnection, "getConfiguration" | "withApiKey">,
   loadModels: LoadOpenRouterModels = loadOpenRouterModels,
 ): ModelProvider {
   return {
     id: "openrouter",
     brandId: "openrouter",
-    isConnected: async () => (await connection.getStatus()).state === "connected",
+    isConfigured: () => connection.getConfiguration().state === "configured",
     listModels: () =>
       connection.withApiKey(async (apiKey) =>
         (await loadModels(apiKey))

@@ -1,10 +1,28 @@
 import {
   OpenRouterConnection as OpenRouterConnectionIpc,
   OpenRouterConnectionState,
+  OpenRouterConfigurationState,
   type OpenRouterConnectionStatus as IpcConnectionStatus,
+  type OpenRouterConfiguration as IpcConfiguration,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
-import type { OpenRouterConnection, OpenRouterConnectionStatus } from "./connection";
+import type {
+  OpenRouterConfiguration,
+  OpenRouterConnection,
+  OpenRouterConnectionStatus,
+} from "./connection";
+
+function toIpcConfiguration(configuration: OpenRouterConfiguration): IpcConfiguration {
+  switch (configuration.state) {
+    case "disconnected":
+      return { state: OpenRouterConfigurationState.Disconnected };
+    case "configured":
+      return {
+        state: OpenRouterConfigurationState.Configured,
+        ...(configuration.keyLabel ? { keyLabel: configuration.keyLabel } : {}),
+      };
+  }
+}
 
 function toIpcStatus(status: OpenRouterConnectionStatus): IpcConnectionStatus {
   switch (status.state) {
@@ -24,8 +42,8 @@ function toIpcStatus(status: OpenRouterConnectionStatus): IpcConnectionStatus {
 
 export function exposeOpenRouterConnection(target: WebFrameMain, connection: OpenRouterConnection) {
   OpenRouterConnectionIpc.for(target).setImplementation({
-    async getStatus() {
-      return toIpcStatus(await connection.getStatus());
+    getConfiguration() {
+      return toIpcConfiguration(connection.getConfiguration());
     },
     async connect(apiKey) {
       return toIpcStatus(await connection.connect(apiKey));

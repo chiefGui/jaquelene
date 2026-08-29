@@ -27,7 +27,7 @@ import { tokens } from "@jaquelene/ui/theme.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQueries, useQuery, useSuspenseQuery, type UseQueryResult } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
 import {
@@ -91,9 +91,7 @@ type ModelListState =
   | { status: "error"; reload: () => void }
   | { status: "ready"; options: ModelOption[] };
 
-type ModelPickerStatus = "loading" | "empty" | "ready";
-
-type ModelPickerSelection = ModelReference & Partial<Pick<ModelSelection, "brandId" | "name">>;
+type ModelPickerStatus = "empty" | "ready";
 
 type ModelPickerContextValue = {
   activeTab: ModelTab;
@@ -106,7 +104,7 @@ type ModelPickerContextValue = {
   selectTab: (tabId: string | null | undefined) => void;
   setFavorite: (reference: ModelReference, favorite: boolean) => void;
   tabs: ModelTab[];
-  value: ModelPickerSelection | null;
+  value: ModelSelection | null;
 };
 
 const ModelPickerContext = createContext<ModelPickerContextValue | null>(null);
@@ -134,25 +132,30 @@ function useModelPicker(component: string) {
 
 type ModelPickerRootProps = {
   children: ReactNode;
-  value: ModelPickerSelection | null;
+  value: ModelSelection | null;
   onValueChange: (value: ModelSelection) => void;
 };
 
 function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProps) {
-  const providersQuery = useQuery({ ...modelProvidersQuery, throwOnError: true });
-  const favoriteModels = useQuery({ ...favoriteModelsQuery, throwOnError: true });
+  const [open, setOpenState] = useState(false);
+  const { data: modelProviders } = useSuspenseQuery(modelProvidersQuery);
+  const favoriteModels = useQuery({
+    ...favoriteModelsQuery,
+    enabled: open,
+    throwOnError: true,
+  });
   const setFavoriteModel = useSetFavoriteModel();
   const pendingFavorites = usePendingFavoriteModels();
   const pickerId = useId();
   const providers = useMemo(
     () =>
-      (providersQuery.data ?? []).map((provider) => ({
+      modelProviders.map((provider) => ({
         ...provider,
         brandName: getBrandName(provider.brandId),
         tabId: `${pickerId}-provider-${encodeURIComponent(provider.id)}`,
         type: "provider" as const,
       })),
-    [pickerId, providersQuery.data],
+    [modelProviders, pickerId],
   );
   const favoriteTab = useMemo(
     () => ({ tabId: `${pickerId}-favorites`, type: "favorites" as const }),
@@ -172,16 +175,10 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
     return modelIdsByProvider;
   }, [favorites]);
   const preferredProvider = providers.find(({ id }) => id === value?.providerId) ?? providers[0];
-  const pickerStatus: ModelPickerStatus =
-    providersQuery.isPending || favoriteModels.isPending
-      ? "loading"
-      : providers.length > 0
-        ? "ready"
-        : "empty";
+  const pickerStatus: ModelPickerStatus = providers.length > 0 ? "ready" : "empty";
   const [selectedTabId, setSelectedTabId] = useState<string>();
   const activeTab =
     tabs.find(({ tabId }) => tabId === selectedTabId) ?? preferredProvider ?? favoriteTab;
-  const [open, setOpenState] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const requestedProviders = useMemo(() => {
@@ -387,55 +384,11 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
   );
 }
 
-function ModelPickerSelectedValue({
-  fallback,
-  onValueChange,
-  selection,
-}: {
-  fallback: string;
-  onValueChange: (value: ModelSelection) => void;
-  selection: ModelPickerSelection;
-}) {
-  const snapshot =
-    selection.name !== undefined && selection.brandId !== undefined
-      ? { id: selection.modelId, name: selection.name, brandId: selection.brandId }
-      : undefined;
-  const modelsQuery = useQuery({
-    ...modelsForProviderQuery(selection.providerId),
-    enabled: snapshot === undefined,
-  });
-  const currentModel = modelsQuery.data?.find(({ id }) => id === selection.modelId);
-  const model = currentModel ?? snapshot;
-  const reconciledModel = useRef<AvailableModel | undefined>(undefined);
-
-  useEffect(() => {
-    if (
-      currentModel &&
-      currentModel !== reconciledModel.current &&
-      (currentModel.name !== selection.name || currentModel.brandId !== selection.brandId)
-    ) {
-      reconciledModel.current = currentModel;
-      onValueChange({
-        providerId: selection.providerId,
-        modelId: selection.modelId,
-        name: currentModel.name,
-        brandId: currentModel.brandId,
-      });
-    }
-  }, [currentModel, onValueChange, selection]);
-
-  if (!model) {
-    return (
-      <Select.Value aria-busy={modelsQuery.isPending || undefined} style={styles.placeholderValue}>
-        {modelsQuery.isPending ? "Loading model..." : fallback}
-      </Select.Value>
-    );
-  }
-
+function ModelPickerSelectedValue({ selection }: { selection: ModelSelection }) {
   return (
     <>
-      <ModelMark brandId={model.brandId} style={styles.selectedModelMark} />
-      <Select.Value style={styles.selectedValue}>{model.name}</Select.Value>
+      <ModelMark brandId={selection.brandId} style={styles.selectedModelMark} />
+      <Select.Value style={styles.selectedValue}>{selection.name}</Select.Value>
     </>
   );
 }
@@ -448,19 +401,12 @@ function ModelPickerValue({
   style?: StyleXStyles;
 }) {
   const { placeholder = "Choose model", ...spanProps } = props;
-  const { onValueChange, tabs, value } = useModelPicker("Value");
-  const selectedProvider = tabs.some(
-    (tab) => tab.type === "provider" && tab.id === value?.providerId,
-  );
+  const { value } = useModelPicker("Value");
 
   return (
     <span {...spanProps} {...stylex.props(styles.value, style)}>
       {value ? (
-        <ModelPickerSelectedValue
-          selection={value}
-          onValueChange={onValueChange}
-          fallback={selectedProvider ? value.modelId : placeholder}
-        />
+        <ModelPickerSelectedValue selection={value} />
       ) : (
         <Select.Value style={styles.placeholderValue}>{placeholder}</Select.Value>
       )}
@@ -468,7 +414,7 @@ function ModelPickerValue({
   );
 }
 
-function ModelPickerTrigger({ children, disabled, style, ...props }: SelectProps) {
+function ModelPickerTrigger({ children, style, ...props }: SelectProps) {
   const { pickerStatus } = useModelPicker("Trigger");
 
   if (pickerStatus === "empty") {
@@ -476,12 +422,7 @@ function ModelPickerTrigger({ children, disabled, style, ...props }: SelectProps
   }
 
   return (
-    <Select
-      {...props}
-      aria-busy={pickerStatus === "loading"}
-      disabled={disabled || pickerStatus !== "ready"}
-      style={[styles.trigger, style]}
-    >
+    <Select {...props} style={[styles.trigger, style]}>
       {children ?? <ModelPickerValue />}
     </Select>
   );

@@ -81,14 +81,17 @@ const styles = stylex.create({
     width: "100%",
   },
   symbolFrame: {
-    backgroundColor: "oklch(0.965 0.004 285)",
+    aspectRatio: "1",
+    backgroundColor: "#ffffff",
+    borderRadius: "50%",
     boxShadow: "0 1.5rem 5rem oklch(0 0 0 / 36%)",
     overflow: "hidden",
     width: "clamp(4.25rem, 6vw, 5.25rem)",
   },
   symbol: {
     display: "block",
-    height: "auto",
+    height: "100%",
+    objectFit: "cover",
     width: "100%",
   },
   heading: {

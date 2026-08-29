@@ -7,7 +7,12 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "check": "astro check"
+    "check": "astro check",
+    "preview": "bun run build && wrangler dev",
+    "deploy": "bun run check && bun run build && wrangler deploy",
+    "deploy:status": "wrangler deployments status",
+    "deploy:versions": "wrangler versions list",
+    "deploy:rollback": "wrangler rollback"
   },
   "dependencies": {
     "@astrojs/react": "^6.0.4",
@@ -21,6 +26,7 @@
     "@stylexjs/unplugin": "^0.19.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "wrangler": "^4.127.1"
   }
 }

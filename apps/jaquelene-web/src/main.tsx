@@ -2,13 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { RendererErrorBoundary } from "@/layout/renderer-error";
 import { routeTree } from "./routeTree.gen";
 import "@fontsource-variable/geist/wght.css";
 import "@fontsource-variable/inter/wght.css";
 import "./styles.css";
 
 const queryClient = new QueryClient();
-const router = createRouter({ routeTree, context: { queryClient } });
+const router = createRouter({
+  routeTree,
+  context: { queryClient },
+  disableGlobalCatchBoundary: true,
+});
 
 declare module "@tanstack/react-router" {
   interface Register {
@@ -24,8 +29,10 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <RendererErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </RendererErrorBoundary>
   </StrictMode>,
 );

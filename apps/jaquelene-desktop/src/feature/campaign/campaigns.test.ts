@@ -5,7 +5,10 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "@/database";
 import { createScenarios } from "@/feature/scenario/scenarios";
+import { threadTable } from "@/feature/thread/schema";
+import { createThreads } from "@/feature/thread/threads";
 import { createCampaigns } from "./campaigns";
+import { campaignTable } from "./schema";
 
 const directories: string[] = [];
 const databases: Database[] = [];
@@ -24,6 +27,7 @@ function openCampaigns(path: string, now?: () => number) {
     database,
     campaigns: createCampaigns(database, now),
     scenarios: createScenarios(database),
+    threads: createThreads(database),
   };
 }
 
@@ -50,6 +54,7 @@ describe("campaigns", () => {
     expect(first).toEqual({
       id: expect.any(String),
       scenarioId: scenario.id,
+      threadId: expect.any(String),
       startedAt: 100,
     });
     expect(campaigns.listForScenario(scenario.id)).toEqual([second, first]);
@@ -63,13 +68,30 @@ describe("campaigns", () => {
 
     closeDatabase(firstConnection.database);
 
-    expect(openCampaigns(path).campaigns.get(started.id)).toEqual(started);
+    const secondConnection = openCampaigns(path);
+    expect(secondConnection.campaigns.get(started.id)).toEqual(started);
+    expect(secondConnection.threads.get(started.threadId)).toEqual({
+      id: started.threadId,
+      createdAt: started.startedAt,
+    });
+  });
+
+  it("creates a thread with a newly started campaign", () => {
+    const { campaigns, scenarios, threads } = openCampaigns(createDatabasePath(), () => 250);
+    const scenario = scenarios.create("Threaded campaign scenario");
+    const campaign = campaigns.start(scenario.id);
+
+    expect(threads.get(campaign.threadId)).toEqual({
+      id: campaign.threadId,
+      createdAt: campaign.startedAt,
+    });
   });
 
   it("requires every stored campaign to have an identity", () => {
     const path = createDatabasePath();
-    const { database, scenarios } = openCampaigns(path);
+    const { database, scenarios, threads } = openCampaigns(path);
     const scenario = scenarios.create("Campaign identity scenario");
+    const thread = threads.create();
     closeDatabase(database);
 
     const client = new DatabaseSync(path);
@@ -77,8 +99,10 @@ describe("campaigns", () => {
     try {
       expect(() =>
         client
-          .prepare("INSERT INTO campaigns (id, scenario_id, started_at) VALUES (?, ?, ?)")
-          .run(null, scenario.id, 300),
+          .prepare(
+            "INSERT INTO campaigns (id, scenario_id, thread_id, started_at) VALUES (?, ?, ?, ?)",
+          )
+          .run(null, scenario.id, thread.id, 300),
       ).toThrow();
     } finally {
       client.close();
@@ -86,9 +110,11 @@ describe("campaigns", () => {
   });
 
   it("rejects a campaign without an existing scenario", () => {
-    const { campaigns } = openCampaigns(createDatabasePath());
+    const { campaigns, database } = openCampaigns(createDatabasePath());
 
     expect(() => campaigns.start("missing-scenario")).toThrow();
+    expect(database.select().from(campaignTable).all()).toEqual([]);
+    expect(database.select().from(threadTable).all()).toEqual([]);
   });
 
   it("returns no campaign for an unknown identity", () => {

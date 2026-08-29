@@ -1,0 +1,6 @@
+module jaquelene
+
+subtype UnixTimeMilliseconds = number(
+  minValue: 0
+  maxValue: 9007199254740991
+)

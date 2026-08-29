@@ -1,5 +1,13 @@
-import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { scenarioTable } from "@/feature/scenario/schema";
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
+import { scenarioTable } from "../scenario/schema";
+import { threadTable } from "../thread/schema";
 
 export const campaignTable = sqliteTable(
   "campaigns",
@@ -8,6 +16,9 @@ export const campaignTable = sqliteTable(
     scenarioId: text("scenario_id")
       .notNull()
       .references(() => scenarioTable.id),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threadTable.id),
     startedAt: integer("started_at").notNull(),
   },
   (campaign) => [
@@ -17,5 +28,6 @@ export const campaignTable = sqliteTable(
       campaign.startedAt,
       campaign.id,
     ),
+    uniqueIndex("campaigns_thread_unique").on(campaign.threadId),
   ],
 );

@@ -24,6 +24,8 @@ import { createOpenRouterModelProvider } from "./feature/provider/openrouter/mod
 import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verification";
 import { exposeScenarios } from "./feature/scenario/ipc";
 import { createScenarios, type Scenarios } from "./feature/scenario/scenarios";
+import { exposeThreads } from "./feature/thread/ipc";
+import { createThreads, type Threads } from "./feature/thread/threads";
 import { createLocalState, getLocalStateStoragePaths, type LocalState } from "./local-state";
 import {
   createPreferences,
@@ -56,6 +58,7 @@ async function createWindow(
   localState: LocalState,
   scenarios: Scenarios,
   campaigns: Campaigns,
+  threads: Threads,
   modelCatalog: ModelCatalog,
   favoriteModels: FavoriteModels,
   preferences: Preferences,
@@ -86,6 +89,7 @@ async function createWindow(
 
   exposeScenarios(window.webContents.mainFrame, scenarios);
   exposeCampaigns(window.webContents.mainFrame, campaigns);
+  exposeThreads(window.webContents.mainFrame, threads);
   exposeCampaignPreferences(window.webContents.mainFrame, preferences.campaign);
   exposeModelCatalog(window.webContents.mainFrame, modelCatalog);
   exposeFavoriteModels(window.webContents.mainFrame, favoriteModels);
@@ -150,6 +154,7 @@ void app
     const database = openDatabase(databasePath);
     const scenarios = createScenarios(database);
     const campaigns = createCampaigns(database);
+    const threads = createThreads(database);
     const openRouterConnection = createOpenRouterConnection(userDataDirectory, {
       async encrypt(apiKey) {
         await requireSecureStorage();
@@ -179,6 +184,7 @@ void app
       localState,
       scenarios,
       campaigns,
+      threads,
       modelCatalog,
       favoriteModels,
       preferences,
@@ -192,6 +198,7 @@ void app
           localState,
           scenarios,
           campaigns,
+          threads,
           modelCatalog,
           favoriteModels,
           preferences,

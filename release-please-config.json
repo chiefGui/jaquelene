@@ -65,7 +65,13 @@
   ],
   "packages": {
     ".": {
-      "exclude-paths": ["apps/jaquelene-www", ".github/workflows/deploy-www.yml"]
+      "exclude-paths": [
+        "apps/jaquelene-www",
+        ".github/workflows/deploy-www.yml",
+        ".gitignore",
+        "package.json",
+        "bun.lock"
+      ]
     }
   }
 }

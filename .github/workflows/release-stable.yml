@@ -53,7 +53,7 @@ jobs:
           fi
 
           for workflow in ci.yml security.yml package-windows.yml; do
-            gh workflow run "$workflow" --ref "${branches[0]}"
+            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "${branches[0]}"
           done
 
       - name: Select release to publish

@@ -56,7 +56,7 @@ export function ConfirmDialog({
           <Dialog.Dismiss disabled={pending} render={<Button ref={cancelButton} variant="ghost" />}>
             Cancel
           </Dialog.Dismiss>
-          <Button type="button" disabled={pending} style={styles.confirm} onClick={onConfirm}>
+          <Button type="button" tone="danger" disabled={pending} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </div>
@@ -89,12 +89,5 @@ const styles = stylex.create({
     gap: "0.5rem",
     justifyContent: "flex-end",
     marginTop: "1.25rem",
-  },
-  confirm: {
-    backgroundColor: {
-      default: `color-mix(in oklab, ${tokens.danger} 82%, ${tokens.canvas})`,
-      ":not(:disabled):hover": tokens.danger,
-    },
-    color: tokens.canvas,
   },
 });

@@ -134,14 +134,14 @@ function ProvidersRoute() {
                   setOpen={setDisconnectConfirmationOpen}
                   trigger={
                     !editingConnection && configured ? (
-                      <Button variant="ghost" disabled={pending} style={styles.disconnect}>
+                      <Button variant="ghost" tone="danger" disabled={pending}>
                         Disconnect
                       </Button>
                     ) : null
                   }
                   heading="Disconnect OpenRouter?"
-                  description="Your saved API key will be removed. Reconnect to use OpenRouter models."
-                  confirmLabel={disconnectOpenRouter.isPending ? "Disconnecting…" : "Disconnect"}
+                  description="Removes your saved API key from this device."
+                  confirmLabel="Disconnect"
                   pending={disconnectOpenRouter.isPending}
                   error={
                     disconnectOpenRouter.isError ? "Couldn’t disconnect OpenRouter." : undefined
@@ -241,16 +241,6 @@ const styles = stylex.create({
     display: "flex",
     flexShrink: 0,
     gap: "0.25rem",
-  },
-  disconnect: {
-    backgroundColor: {
-      default: "transparent",
-      ":not(:disabled):hover": `color-mix(in oklab, ${tokens.danger} 10%, transparent)`,
-    },
-    color: {
-      default: tokens.muted,
-      ":not(:disabled):hover": tokens.danger,
-    },
   },
   form: {
     alignItems: "flex-start",

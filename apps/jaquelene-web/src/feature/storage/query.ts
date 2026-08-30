@@ -112,7 +112,7 @@ export function useDeleteStorageCategory() {
       applyStorageDeletion(queryClient, deletion, { kind: "category", id }),
     onSettled(_usage, _error, id) {
       void refreshCategoryQueries(queryClient, id).catch((cause: unknown) => {
-        reportError("storage.cache.refresh", cause, ErrorSeverity.Warning);
+        reportError("storage.category.refresh", cause, ErrorSeverity.Warning);
       });
     },
   });

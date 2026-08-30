@@ -99,7 +99,7 @@ function CampaignRoute() {
             composerControls={
               <CampaignModelPicker
                 campaignId={campaign.id}
-                inherited={inheritsDefaultModel}
+                defaultModel={defaultModel}
                 model={effectiveModel}
               />
             }

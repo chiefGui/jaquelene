@@ -10,19 +10,23 @@ import { useSetCampaignModelOverride } from "./query";
 
 export function CampaignModelPicker({
   campaignId,
-  inherited,
+  defaultModel,
   model,
 }: {
   campaignId: string;
-  inherited: boolean;
+  defaultModel: ModelSelection | null;
   model: ModelSelection | null;
 }) {
   const setModelOverride = useSetCampaignModelOverride(campaignId);
   const errorId = useId();
 
-  function updateModel(nextModel: ModelSelection | null) {
+  function updateModel(nextModel: ModelSelection) {
+    const matchesDefault =
+      defaultModel?.providerId === nextModel.providerId &&
+      defaultModel.modelId === nextModel.modelId;
+
     setModelOverride.reset();
-    setModelOverride.mutate(nextModel, {
+    setModelOverride.mutate(matchesDefault ? null : nextModel, {
       onError(cause) {
         reportError("campaign.model-override.update", cause);
       },
@@ -34,18 +38,14 @@ export function CampaignModelPicker({
       <ModelPicker.Root value={model} onValueChange={updateModel}>
         <ModelPicker.Trigger
           type="button"
-          aria-label={
-            model
-              ? `Campaign model: ${model.name}${inherited ? ", default" : ""}`
-              : "Choose a campaign model"
-          }
+          variant="ghost"
+          aria-label={model ? `Campaign model: ${model.name}` : "Choose a campaign model"}
           aria-busy={setModelOverride.isPending}
           aria-describedby={setModelOverride.isError ? errorId : undefined}
           disabled={setModelOverride.isPending}
           style={styles.trigger}
         >
           <ModelPicker.Value />
-          {inherited && model ? <span {...stylex.props(styles.defaultLabel)}>Default</span> : null}
         </ModelPicker.Trigger>
         <ModelPicker.Empty>
           <Button variant="ghost" render={<Link to="/settings/providers" />}>
@@ -54,18 +54,6 @@ export function CampaignModelPicker({
         </ModelPicker.Empty>
         <ModelPicker.Content />
       </ModelPicker.Root>
-
-      {!inherited ? (
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={setModelOverride.isPending}
-          onClick={() => updateModel(null)}
-          style={styles.defaultButton}
-        >
-          Use default
-        </Button>
-      ) : null}
 
       {setModelOverride.isError ? (
         <p id={errorId} role="alert" {...stylex.props(styles.error)}>
@@ -85,19 +73,8 @@ const styles = stylex.create({
   },
   trigger: {
     flexShrink: 1,
-    maxWidth: "calc(100vw - 10rem)",
-    width: "15rem",
-  },
-  defaultLabel: {
-    color: tokens.muted,
-    flexShrink: 0,
-    fontSize: tokens.fontSizeXSmall,
-    fontWeight: 400,
-    lineHeight: tokens.lineHeightXSmall,
-  },
-  defaultButton: {
-    height: tokens.controlHeight,
-    paddingInline: "0.5rem",
+    maxWidth: "15rem",
+    width: "fit-content",
   },
   error: {
     color: tokens.danger,

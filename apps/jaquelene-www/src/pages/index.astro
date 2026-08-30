@@ -6,3 +6,23 @@ import SiteDocument from "../layouts/site-document.astro";
 <SiteDocument description={landingPitch} title="Jaquelene">
   <Home />
 </SiteDocument>
+
+<script>
+  const canvas = document.querySelector<HTMLCanvasElement>("[data-ambient-ink]");
+
+  if (canvas) {
+    if (!("gpu" in navigator)) {
+      canvas.dataset.ambientInk = "unsupported";
+    } else {
+      void import("./_home/ambient-ink")
+        .then(({ mountAmbientInk }) => {
+          const unmount = mountAmbientInk(canvas);
+          import.meta.hot?.dispose(unmount);
+        })
+        .catch((error: unknown) => {
+          canvas.dataset.ambientInk = "unavailable";
+          console.warn("The ambient ink renderer could not start.", error);
+        });
+    }
+  }
+</script>

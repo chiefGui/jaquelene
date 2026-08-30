@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "check": "astro check",
+    "check": "astro check && bun run check:shader",
+    "check:shader": "vgpu check src/pages/_home/ambient-ink.wgsl --require-validation",
     "preview": "bun run build && wrangler dev",
     "deploy": "bun run check && bun run build && wrangler deploy",
     "deploy:status": "wrangler deployments status",
@@ -22,7 +23,8 @@
     "@stylexjs/stylex": "^0.19.0",
     "astro": "^7.2.9",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "vgpu": "^0.3.1"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",

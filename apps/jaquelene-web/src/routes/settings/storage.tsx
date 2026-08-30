@@ -270,7 +270,12 @@ function StorageRoute() {
       <ContentPane.Viewport>
         <ContentPane.Body>
           <Item.Section aria-labelledby="storage-usage-heading">
-            <Item.Heading id="storage-usage-heading">Usage</Item.Heading>
+            <div {...stylex.props(styles.sectionHeader)}>
+              <Item.Heading id="storage-usage-heading">Usage</Item.Heading>
+              <p {...stylex.props(styles.sectionDescription)}>
+                Everything listed here is stored on this device.
+              </p>
+            </div>
 
             <Item.Group>
               <Item.Root style={styles.summary}>
@@ -337,6 +342,19 @@ function StorageRoute() {
 }
 
 const styles = stylex.create({
+  sectionHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
+  sectionDescription: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    margin: 0,
+    paddingInline: "1rem",
+    textBox: "trim-both text",
+  },
   summary: {
     display: "block",
   },
@@ -411,7 +429,8 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
     color: styles.content,
     confirmation: {
       heading: "Clear content?",
-      description: "This can’t be undone.",
+      description:
+        "This permanently deletes your chats and other content you created in Jaquelene.",
       error: "Couldn’t finish clearing content.",
     },
   },
@@ -420,7 +439,8 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
     color: styles.appData,
     confirmation: {
       heading: "Clear app data?",
-      description: "This resets the app without deleting your content.",
+      description:
+        "This deletes your preferences, saved connections, and other app data. Your content is kept.",
       error: "Some app data couldn’t be cleared.",
     },
   },

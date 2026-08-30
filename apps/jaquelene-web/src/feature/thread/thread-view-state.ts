@@ -12,25 +12,21 @@ type RetryActivity = Readonly<{
 }> | null;
 
 type ThreadMessageView = Readonly<{
-  kind: "message";
   message: ThreadMessage;
   fromUser: boolean;
+  reply: ThreadReplyView | null;
 }>;
 
 type ThreadReplyView = Readonly<{
-  kind: "reply";
-  turnId: string;
   generation: TurnGeneration;
-  latest: boolean;
   retrying: boolean;
   retryFailed: boolean;
   canRetry: boolean;
 }>;
 
-export type ThreadTimelineItem = ThreadMessageView | ThreadReplyView;
-
 export type ThreadViewState = Readonly<{
-  items: ThreadTimelineItem[];
+  messages: ThreadMessageView[];
+  latestMessageId: string | null;
   replyPending: boolean;
   messageContentMaxLength: number;
 }>;
@@ -61,17 +57,16 @@ export function deriveThreadViewState({
     }
   }
 
-  const messages = chronologicalPages.flatMap((page) => page.messages);
-  const latestMessage = messages.at(-1);
-  const items: ThreadTimelineItem[] = [];
+  const threadMessages = chronologicalPages.flatMap((page) => page.messages);
+  const latestMessage = threadMessages.at(-1);
+  const messages: ThreadMessageView[] = [];
 
-  for (const message of messages) {
+  for (const message of threadMessages) {
     const fromUser = message.author === ThreadMessageAuthor.User;
-    const messageView: ThreadMessageView = { kind: "message", message, fromUser };
     const generation = fromUser ? generationByTurn.get(message.turnId) : undefined;
-    items.push(messageView);
 
     if (!generation || generation.status === GenerationStatus.Completed) {
+      messages.push({ message, fromUser, reply: null });
       continue;
     }
 
@@ -79,20 +74,22 @@ export function deriveThreadViewState({
     const retrying = retryActivity?.status === "pending" && retryActivity.turnId === message.turnId;
     const canRetry = generation.status === GenerationStatus.Failed && latest && hasModel;
 
-    items.push({
-      kind: "reply",
-      turnId: message.turnId,
-      generation,
-      latest,
-      retrying,
-      retryFailed:
-        canRetry && retryActivity?.status === "failed" && retryActivity.turnId === message.turnId,
-      canRetry,
+    messages.push({
+      message,
+      fromUser,
+      reply: {
+        generation,
+        retrying,
+        retryFailed:
+          canRetry && retryActivity?.status === "failed" && retryActivity.turnId === message.turnId,
+        canRetry,
+      },
     });
   }
 
   return {
-    items,
+    messages,
+    latestMessageId: latestMessage?.id ?? null,
     replyPending:
       latestMessage?.author === ThreadMessageAuthor.User &&
       generationByTurn.get(latestMessage.turnId)?.status === GenerationStatus.Pending,

@@ -2,6 +2,7 @@ import { CampaignPreferences, type ModelSelection } from "@jaquelene/ipc/rendere
 import {
   mutationOptions,
   queryOptions,
+  useIsMutating,
   useMutation,
   useQueryClient,
   type QueryClient,
@@ -71,4 +72,8 @@ export function setDefaultCampaignModelMutationOptions(queryClient: QueryClient)
 export function useSetDefaultCampaignModel() {
   const queryClient = useQueryClient();
   return useMutation(setDefaultCampaignModelMutationOptions(queryClient));
+}
+
+export function useIsDefaultCampaignModelPending() {
+  return useIsMutating({ mutationKey: setDefaultCampaignModelMutationKey }) > 0;
 }

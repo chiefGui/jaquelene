@@ -64,7 +64,7 @@ function reconcileTurn(queryClient: QueryClient, threadId: string, update: Threa
     return;
   }
 
-  const reconciliation = reconcileThreadTurn(current, update);
+  const reconciliation = reconcileThreadTurn(current, threadId, update);
 
   switch (reconciliation.outcome) {
     case "updated":

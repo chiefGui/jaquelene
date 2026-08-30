@@ -85,7 +85,7 @@ function completedTurn(acceptance: TurnSubmission, sequence: number): CompletedR
 }
 
 function requireUpdated(data: ThreadQueryData, update: ThreadTurnUpdate) {
-  const reconciliation = reconcileThreadTurn(data, update);
+  const reconciliation = reconcileThreadTurn(data, threadId, update);
 
   if (reconciliation.outcome !== "updated") {
     throw new Error(`Expected an updated cache, received ${reconciliation.outcome}.`);
@@ -206,9 +206,9 @@ describe("thread query cache", () => {
     };
     const settled = requireUpdated(empty, { type: "reply-completed", ...completed });
 
-    expect(reconcileThreadTurn(settled, { type: "submission-accepted", ...acceptance })).toEqual({
-      outcome: "current",
-    });
+    expect(
+      reconcileThreadTurn(settled, threadId, { type: "submission-accepted", ...acceptance }),
+    ).toEqual({ outcome: "current" });
     expect(settled.pages[0]?.generations).toEqual([completed.generation]);
   });
 
@@ -235,7 +235,7 @@ describe("thread query cache", () => {
     };
 
     expect(
-      reconcileThreadTurn(data, {
+      reconcileThreadTurn(data, threadId, {
         type: "reply-completed",
         ...completedTurn(first, 3),
       }),
@@ -258,8 +258,44 @@ describe("thread query cache", () => {
     };
     const generation = { ...pendingTurn(3).generation, turnId: first.userMessage.turnId };
 
-    expect(reconcileThreadTurn(data, { type: "retry-accepted", generation })).toEqual({
+    expect(reconcileThreadTurn(data, threadId, { type: "retry-accepted", generation })).toEqual({
       outcome: "reload",
     });
+  });
+
+  it("requests authoritative reconciliation for inconsistent turn updates", () => {
+    const acceptance = pendingTurn(1);
+    const completion = completedTurn(acceptance, 2);
+    const failure = failedTurn(1);
+    const data: ThreadQueryData = {
+      pages: [{ messages: [], generations: [], pageSize: 50, messageContentMaxLength: 100_000 }],
+      pageParams: [""],
+    };
+    const inconsistentUpdates: ThreadTurnUpdate[] = [
+      {
+        type: "submission-accepted",
+        ...acceptance,
+        userMessage: { ...acceptance.userMessage, threadId: "thread-other" },
+      },
+      {
+        type: "submission-accepted",
+        ...acceptance,
+        generation: { ...acceptance.generation, turnId: "turn-other" },
+      },
+      { type: "reply-failed", ...acceptance },
+      {
+        type: "reply-completed",
+        ...completion,
+        assistantMessage: {
+          ...completion.assistantMessage,
+          author: ThreadMessageAuthor.User,
+        },
+      },
+      { type: "retry-accepted", generation: failure.generation },
+    ];
+
+    for (const update of inconsistentUpdates) {
+      expect(reconcileThreadTurn(data, threadId, update)).toEqual({ outcome: "reload" });
+    }
   });
 });

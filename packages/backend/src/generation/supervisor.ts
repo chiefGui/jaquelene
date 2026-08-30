@@ -3,7 +3,6 @@ import type {
   GenerationEngine,
   Generations,
   GenerateReplyRequest,
-  ReplyGenerationExecution,
 } from "./generations";
 
 type ReplyGenerationEngine = Pick<GenerationEngine, "executeAcceptedReply" | "executeReply">;
@@ -45,12 +44,10 @@ export function superviseGenerations(engine: ReplyGenerationEngine) {
     }
 
     const executionSignal = operationSignal(signal);
-    const operation = new Promise<ReplyGenerationExecution>((resolve, reject) => {
-      // Let callers observe durable acceptance before prompt compilation or provider work starts.
-      setImmediate(() => {
-        void engine.executeAcceptedReply(accepted, executionSignal).then(resolve, reject);
-      });
-    });
+    // Let callers observe durable acceptance before prompt compilation or provider work starts.
+    const operation = new Promise<void>((resolve) => setImmediate(resolve)).then(() =>
+      engine.executeAcceptedReply(accepted, executionSignal),
+    );
     return trackOperation(operation);
   }
 
@@ -67,18 +64,20 @@ export function superviseGenerations(engine: ReplyGenerationEngine) {
     },
   };
 
+  function close() {
+    if (!closePromise) {
+      acceptingWork = false;
+      shutdownController.abort(new Error("Backend is closing."));
+      closePromise = Promise.allSettled(activeOperations).then(() => undefined);
+    }
+
+    return closePromise;
+  }
+
   return {
     executeReply,
     scheduleAcceptedReply,
     generations,
-    close() {
-      if (!closePromise) {
-        acceptingWork = false;
-        shutdownController.abort(new Error("Backend is closing."));
-        closePromise = Promise.allSettled(activeOperations).then(() => undefined);
-      }
-
-      return closePromise;
-    },
+    close,
   };
 }

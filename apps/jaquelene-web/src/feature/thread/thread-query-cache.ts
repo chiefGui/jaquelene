@@ -25,7 +25,7 @@ export type ThreadTurnUpdate =
       generation: TurnGeneration;
     }>;
 
-export type ThreadCacheReconciliation =
+type ThreadCacheReconciliation =
   | Readonly<{ outcome: "updated"; data: ThreadQueryData }>
   | Readonly<{ outcome: "current" }>
   | Readonly<{ outcome: "reload" }>;
@@ -57,13 +57,46 @@ function isReplyCompletion(
   return update.type === "reply-completed";
 }
 
+function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
+  if (update.type === "retry-accepted") {
+    return update.generation.status === GenerationStatus.Pending;
+  }
+
+  const { userMessage, generation } = update;
+
+  if (
+    userMessage.threadId !== threadId ||
+    userMessage.author !== ThreadMessageAuthor.User ||
+    generation.turnId !== userMessage.turnId
+  ) {
+    return false;
+  }
+
+  switch (update.type) {
+    case "submission-accepted":
+      return generation.status === GenerationStatus.Pending;
+    case "reply-failed":
+      return generation.status === GenerationStatus.Failed;
+    case "reply-completed":
+      return (
+        generation.status === GenerationStatus.Completed &&
+        update.assistantMessage.threadId === threadId &&
+        update.assistantMessage.turnId === userMessage.turnId &&
+        update.assistantMessage.author === ThreadMessageAuthor.Assistant &&
+        update.assistantMessage.id === generation.outputMessageId &&
+        update.assistantMessage.sequence > userMessage.sequence
+      );
+  }
+}
+
 export function reconcileThreadTurn(
   data: ThreadQueryData,
+  threadId: string,
   update: ThreadTurnUpdate,
 ): ThreadCacheReconciliation {
   const firstPage = data.pages[0];
 
-  if (!firstPage) {
+  if (!firstPage || !isConsistentTurnUpdate(threadId, update)) {
     return RELOAD;
   }
 

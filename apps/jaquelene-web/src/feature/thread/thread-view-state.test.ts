@@ -69,14 +69,15 @@ describe("thread view state", () => {
       hasModel: true,
     });
 
-    expect(state.items).toEqual([
-      expect.objectContaining({ kind: "message", fromUser: true }),
+    expect(state.messages).toEqual([
       expect.objectContaining({
-        kind: "reply",
-        latest: true,
-        generation: expect.objectContaining({ status: GenerationStatus.Pending }),
+        fromUser: true,
+        reply: expect.objectContaining({
+          generation: expect.objectContaining({ status: GenerationStatus.Pending }),
+        }),
       }),
     ]);
+    expect(state.latestMessageId).toBe("message-user");
     expect(state.replyPending).toBe(true);
   });
 
@@ -87,7 +88,8 @@ describe("thread view state", () => {
       hasModel: true,
     });
 
-    expect(state.items.map(({ kind }) => kind)).toEqual(["message", "message"]);
+    expect(state.messages).toHaveLength(2);
+    expect(state.messages.every(({ reply }) => reply === null)).toBe(true);
     expect(state.replyPending).toBe(false);
   });
 
@@ -98,10 +100,8 @@ describe("thread view state", () => {
       hasModel: true,
     });
 
-    expect(state.items[1]).toEqual(
+    expect(state.messages[0]?.reply).toEqual(
       expect.objectContaining({
-        kind: "reply",
-        latest: true,
         canRetry: true,
         retryFailed: true,
       }),

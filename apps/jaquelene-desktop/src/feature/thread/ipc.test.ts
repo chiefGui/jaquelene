@@ -180,13 +180,15 @@ describe("thread IPC", () => {
     const settlement = new Promise<TurnSettlement>((resolve) => {
       settle = resolve;
     });
+    const listForThread = vi.fn<Turns["listForThread"]>(() => ({
+      ...emptyPage(),
+      messages: [acceptance.userMessage],
+      generations: [acceptance.generation],
+    }));
+    const submit = vi.fn<Turns["submit"]>(() => ({ acceptance, settlement }));
     const backendTurns: Turns = {
-      listForThread: vi.fn(() => ({
-        ...emptyPage(),
-        messages: [acceptance.userMessage],
-        generations: [acceptance.generation],
-      })),
-      submit: vi.fn(() => ({ acceptance, settlement })),
+      listForThread,
+      submit,
       retry: vi.fn(() => ({ acceptance, settlement })),
     };
     const report = vi.fn<ErrorReporter["report"]>();
@@ -201,7 +203,7 @@ describe("thread IPC", () => {
       model,
     });
 
-    expect(backendTurns.listForThread).toHaveBeenCalledWith({
+    expect(listForThread).toHaveBeenCalledWith({
       threadId: acceptance.userMessage.threadId,
     });
     expect(page).toEqual({
@@ -229,7 +231,7 @@ describe("thread IPC", () => {
       pageSize: 50,
       messageContentMaxLength: 100_000,
     });
-    expect(backendTurns.submit).toHaveBeenCalledWith({
+    expect(submit).toHaveBeenCalledWith({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
       model,
@@ -324,10 +326,14 @@ describe("thread IPC", () => {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
     };
+    const retry = vi.fn<Turns["retry"]>(() => ({
+      acceptance,
+      settlement: Promise.resolve(failed),
+    }));
     const backendTurns: Turns = {
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(),
-      retry: vi.fn(() => ({ acceptance, settlement: Promise.resolve(failed) })),
+      retry,
     };
     const report = vi.fn<ErrorReporter["report"]>();
     const model = { providerId: "openrouter", modelId: "maker/model" };
@@ -338,7 +344,7 @@ describe("thread IPC", () => {
       model,
     });
 
-    expect(backendTurns.retry).toHaveBeenCalledWith({
+    expect(retry).toHaveBeenCalledWith({
       turnId: failed.userMessage.turnId,
       model,
     });
@@ -489,11 +495,10 @@ describe("thread IPC", () => {
   });
 
   it("rejects malformed TypeIDs at the adapter boundary", () => {
-    const backendTurns: Turns = {
-      listForThread: vi.fn(emptyPage),
-      submit: vi.fn(),
-      retry: vi.fn(),
-    };
+    const listForThread = vi.fn(emptyPage);
+    const submit = vi.fn();
+    const retry = vi.fn();
+    const backendTurns: Turns = { listForThread, submit, retry };
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     const ipc = requireImplementations();
     const model = { providerId: "openrouter", modelId: "maker/model" };
@@ -503,8 +508,8 @@ describe("thread IPC", () => {
       TypeError,
     );
     expect(() => ipc.turns.retry({ turnId: "invalid", model })).toThrow(TypeError);
-    expect(backendTurns.listForThread).not.toHaveBeenCalled();
-    expect(backendTurns.submit).not.toHaveBeenCalled();
-    expect(backendTurns.retry).not.toHaveBeenCalled();
+    expect(listForThread).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    expect(retry).not.toHaveBeenCalled();
   });
 });

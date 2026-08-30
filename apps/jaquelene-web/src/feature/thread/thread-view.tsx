@@ -8,9 +8,7 @@ import { Button, formatTimestamp } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import {
-  Fragment,
   memo,
   useCallback,
   useId,
@@ -19,9 +17,12 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { Composer } from "@/primitive/composer";
 import {
   threadMessagesQuery,
   useIsTurnOperationPending,
@@ -31,6 +32,16 @@ import {
   type SubmitTurnVariables,
 } from "./query";
 import { deriveThreadViewState, type ThreadViewState } from "./thread-view-state";
+
+type RetryStatus = "pending" | "failed" | null;
+
+function isScrolledToEnd(viewport: HTMLElement) {
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
+}
+
+function scrollToEnd(viewport: HTMLElement) {
+  viewport.scrollTop = viewport.scrollHeight;
+}
 
 function replyStatusText(generation: TurnGeneration, retrying: boolean) {
   if (retrying) {
@@ -52,6 +63,10 @@ function replyStatusText(generation: TurnGeneration, retrying: boolean) {
 type ThreadTimelineProps = Readonly<{
   view: ThreadViewState;
   pendingSubmission: SubmitTurnVariables | null;
+  viewport: RefObject<HTMLElement | null>;
+  pinnedToEnd: RefObject<boolean>;
+  modelAvailable: boolean;
+  retryStatus: RetryStatus;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   isFetchNextPageError: boolean;
@@ -63,6 +78,10 @@ type ThreadTimelineProps = Readonly<{
 const ThreadTimeline = memo(function ThreadTimeline({
   view,
   pendingSubmission,
+  viewport,
+  pinnedToEnd,
+  modelAvailable,
+  retryStatus,
   hasNextPage,
   isFetchingNextPage,
   isFetchNextPageError,
@@ -70,7 +89,6 @@ const ThreadTimeline = memo(function ThreadTimeline({
   loadOlder,
   retryReply,
 }: ThreadTimelineProps) {
-  const viewport = useRef<HTMLDivElement>(null);
   const messageList = useRef<HTMLOListElement>(null);
   const initialScrollComplete = useRef(false);
   const lastPendingSubmissionId = useRef<string | null>(null);
@@ -81,7 +99,7 @@ const ThreadTimeline = memo(function ThreadTimeline({
   } | null>(null);
   const [paginationRevision, setPaginationRevision] = useState(0);
   const optimisticSubmission = view.replyPending ? null : pendingSubmission;
-  const empty = view.items.length === 0 && !optimisticSubmission;
+  const empty = view.messages.length === 0 && !optimisticSubmission;
 
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -90,9 +108,9 @@ const ThreadTimeline = memo(function ThreadTimeline({
       return;
     }
 
-    element.scrollTop = element.scrollHeight;
+    scrollToEnd(element);
     initialScrollComplete.current = true;
-  }, []);
+  }, [viewport]);
 
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -102,9 +120,17 @@ const ThreadTimeline = memo(function ThreadTimeline({
       return;
     }
 
-    element.scrollTop = element.scrollHeight;
+    scrollToEnd(element);
     lastPendingSubmissionId.current = clientId;
-  }, [optimisticSubmission?.clientId]);
+  }, [optimisticSubmission?.clientId, viewport]);
+
+  useLayoutEffect(() => {
+    const element = viewport.current;
+
+    if (element && pinnedToEnd.current) {
+      scrollToEnd(element);
+    }
+  }, [modelAvailable, pinnedToEnd, retryStatus, view.latestMessageId, view.replyPending, viewport]);
 
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -119,7 +145,7 @@ const ThreadTimeline = memo(function ThreadTimeline({
     }
 
     paginationAnchor.current = null;
-  }, [paginationRevision]);
+  }, [paginationRevision, viewport]);
 
   async function loadOlderMessages() {
     if (loadingOlder.current) {
@@ -148,167 +174,180 @@ const ThreadTimeline = memo(function ThreadTimeline({
   }
 
   return (
-    <div ref={viewport} {...stylex.props(styles.viewport)}>
-      <div {...stylex.props(styles.messageBody)}>
-        {hasNextPage ? (
-          <div {...stylex.props(styles.loadOlder)}>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={isFetchingNextPage}
-              onClick={() => void loadOlderMessages()}
-            >
-              {isFetchingNextPage ? "Loading…" : "Load older messages"}
-            </Button>
-          </div>
-        ) : null}
+    <div {...stylex.props(styles.messageBody)}>
+      {hasNextPage ? (
+        <div {...stylex.props(styles.loadOlder)}>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={isFetchingNextPage}
+            onClick={() => void loadOlderMessages()}
+          >
+            {isFetchingNextPage ? "Loading…" : "Load older messages"}
+          </Button>
+        </div>
+      ) : null}
 
-        {isFetchNextPageError ? (
-          <p role="alert" {...stylex.props(styles.pageError)}>
-            Could not load older messages.
-          </p>
-        ) : null}
+      {isFetchNextPageError ? (
+        <p role="alert" {...stylex.props(styles.pageError)}>
+          Could not load older messages.
+        </p>
+      ) : null}
 
-        {empty ? (
-          <div {...stylex.props(styles.empty)}>
-            <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
-          </div>
-        ) : (
-          <ol ref={messageList} {...stylex.props(styles.messageList)}>
-            {view.items.map((item) => {
-              if (item.kind === "reply") {
-                const failed = item.generation.status === GenerationStatus.Failed;
-
-                return (
-                  <li key={`reply:${item.generation.id}`} {...stylex.props(styles.replyMessage)}>
-                    <div {...stylex.props(styles.replyState)}>
-                      <p
-                        role={item.latest ? "status" : undefined}
-                        {...stylex.props(styles.replyStatus, failed && styles.replyFailure)}
-                      >
-                        {replyStatusText(item.generation, item.retrying)}
-                      </p>
-                      {item.canRetry && !item.retrying ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          style={styles.retryButton}
-                          disabled={operationPending}
-                          onClick={() => void retryReply(item.turnId)}
-                        >
-                          Retry
-                        </Button>
-                      ) : null}
-                      {item.retryFailed ? (
-                        <p role="alert" {...stylex.props(styles.retryError)}>
-                          Couldn’t retry the reply.
-                        </p>
-                      ) : null}
-                    </div>
-                  </li>
-                );
-              }
-
-              const { message, fromUser } = item;
-
-              return (
-                <li
-                  key={`message:${message.id}`}
+      {empty ? (
+        <div {...stylex.props(styles.empty)}>
+          <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
+        </div>
+      ) : (
+        <ol ref={messageList} {...stylex.props(styles.messageList)}>
+          {view.messages.map(({ message, fromUser, reply }) => {
+            return (
+              <li
+                key={message.id}
+                {...stylex.props(
+                  styles.message,
+                  fromUser ? styles.userMessage : styles.assistantMessage,
+                )}
+              >
+                <article
+                  aria-label={fromUser ? "You" : "Assistant"}
                   {...stylex.props(
-                    styles.message,
-                    fromUser ? styles.userMessage : styles.assistantMessage,
+                    styles.bubble,
+                    fromUser ? styles.userBubble : styles.assistantBubble,
                   )}
                 >
-                  <article
-                    aria-label={fromUser ? "You" : "Assistant"}
-                    {...stylex.props(
-                      styles.bubble,
-                      fromUser ? styles.userBubble : styles.assistantBubble,
-                    )}
-                  >
-                    <p {...stylex.props(styles.content)}>{message.content}</p>
-                  </article>
-                  <time
-                    dateTime={new Date(message.createdAt).toISOString()}
-                    {...stylex.props(styles.timestamp)}
-                  >
-                    {formatTimestamp(message.createdAt)}
-                  </time>
-                </li>
-              );
-            })}
+                  <p {...stylex.props(styles.content)}>{message.content}</p>
+                </article>
+                <time
+                  dateTime={new Date(message.createdAt).toISOString()}
+                  {...stylex.props(styles.timestamp)}
+                >
+                  {formatTimestamp(message.createdAt)}
+                </time>
+                {reply ? (
+                  <div {...stylex.props(styles.replyState)}>
+                    <p
+                      role={message.id === view.latestMessageId ? "status" : undefined}
+                      {...stylex.props(
+                        styles.replyStatus,
+                        reply.generation.status === GenerationStatus.Failed && styles.replyFailure,
+                      )}
+                    >
+                      {replyStatusText(reply.generation, reply.retrying)}
+                    </p>
+                    {reply.canRetry && !reply.retrying ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        style={styles.retryButton}
+                        disabled={operationPending}
+                        onClick={() => void retryReply(message.turnId)}
+                      >
+                        Retry
+                      </Button>
+                    ) : null}
+                    {reply.retryFailed ? (
+                      <p role="alert" {...stylex.props(styles.retryError)}>
+                        Couldn’t retry the reply.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
 
-            {optimisticSubmission ? (
-              <Fragment key={`optimistic:${optimisticSubmission.clientId}`}>
-                <li {...stylex.props(styles.message, styles.userMessage)}>
-                  <article aria-label="You" {...stylex.props(styles.bubble, styles.userBubble)}>
-                    <p {...stylex.props(styles.content)}>{optimisticSubmission.content}</p>
-                  </article>
-                  <time
-                    dateTime={new Date(optimisticSubmission.submittedAt).toISOString()}
-                    {...stylex.props(styles.timestamp)}
-                  >
-                    {formatTimestamp(optimisticSubmission.submittedAt)}
-                  </time>
-                </li>
-                <li {...stylex.props(styles.replyMessage)}>
-                  <p role="status" {...stylex.props(styles.replyStatus)}>
-                    Sending…
-                  </p>
-                </li>
-              </Fragment>
-            ) : null}
-          </ol>
-        )}
-      </div>
+          {optimisticSubmission ? (
+            <li
+              key={optimisticSubmission.clientId}
+              {...stylex.props(styles.message, styles.userMessage)}
+            >
+              <article aria-label="You" {...stylex.props(styles.bubble, styles.userBubble)}>
+                <p {...stylex.props(styles.content)}>{optimisticSubmission.content}</p>
+              </article>
+              <time
+                dateTime={new Date(optimisticSubmission.submittedAt).toISOString()}
+                {...stylex.props(styles.timestamp)}
+              >
+                {formatTimestamp(optimisticSubmission.submittedAt)}
+              </time>
+              <div {...stylex.props(styles.replyState)}>
+                <p role="status" {...stylex.props(styles.replyStatus)}>
+                  Sending…
+                </p>
+              </div>
+            </li>
+          ) : null}
+        </ol>
+      )}
     </div>
   );
 });
 
+type ThreadComposerProps = Readonly<{
+  threadId: string;
+  model: ModelReference | null;
+  modelPending: boolean;
+  operationPending: boolean;
+  messageContentMaxLength: number;
+  composerControls: ReactNode;
+  viewport: RefObject<HTMLElement | null>;
+  pinnedToEnd: RefObject<boolean>;
+}>;
+
 const ThreadComposer = memo(function ThreadComposer({
   threadId,
   model,
-  generationPending,
+  modelPending,
+  operationPending,
   messageContentMaxLength,
-}: {
-  threadId: string;
-  model: ModelReference | null;
-  generationPending: boolean;
-  messageContentMaxLength: number;
-}) {
+  composerControls,
+  viewport,
+  pinnedToEnd,
+}: ThreadComposerProps) {
   const submitTurnMutation = useSubmitTurn(threadId);
-  const turnOperationPending = useIsTurnOperationPending(threadId);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const acceptingSubmission = useRef(false);
-  const composerId = useId();
-  const modelRequirementId = useId();
+  const draftRevision = useRef(0);
+  const composerInputId = useId();
   const sendErrorId = useId();
-  const submissionBlocked = turnOperationPending || generationPending;
-  const composerDescription = [model ? null : modelRequirementId, sendError ? sendErrorId : null]
-    .filter((id) => id !== null)
-    .join(" ");
+  const composerShell = useRef<HTMLDivElement>(null);
+  const submissionBlocked = operationPending || modelPending;
+
+  useLayoutEffect(() => {
+    const scrollViewport = viewport.current;
+    const shell = composerShell.current;
+
+    if (!scrollViewport || !shell) {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (pinnedToEnd.current) {
+        scrollToEnd(scrollViewport);
+      }
+    });
+    resizeObserver.observe(shell);
+
+    return () => resizeObserver.disconnect();
+  }, [pinnedToEnd, viewport]);
 
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (submissionBlocked || acceptingSubmission.current) {
+    if (submissionBlocked || acceptingSubmission.current || !model) {
       return;
     }
 
     const content = draft;
 
     if (!content.trim()) {
-      setSendError("Write a message before sending it.");
-      return;
-    }
-
-    if (!model) {
-      setSendError("Choose a default model before sending.");
       return;
     }
 
     setSendError(null);
+    const submittedRevision = draftRevision.current;
     setDraft("");
     acceptingSubmission.current = true;
 
@@ -320,7 +359,9 @@ const ThreadComposer = memo(function ThreadComposer({
         model: { providerId: model.providerId, modelId: model.modelId },
       });
     } catch (cause) {
-      setDraft((currentDraft) => currentDraft || content);
+      setDraft((currentDraft) =>
+        draftRevision.current === submittedRevision ? content : currentDraft,
+      );
       reportError("thread.turn.submit", cause);
       setSendError("Could not send the message.");
     } finally {
@@ -336,43 +377,33 @@ const ThreadComposer = memo(function ThreadComposer({
   }
 
   return (
-    <div {...stylex.props(styles.composerShell)}>
-      <form onSubmit={sendMessage} {...stylex.props(styles.composer)}>
-        <div {...stylex.props(styles.composerField)}>
-          <label htmlFor={composerId} {...stylex.props(styles.visuallyHidden)}>
-            Message
-          </label>
-          <textarea
-            id={composerId}
-            value={draft}
-            rows={3}
-            maxLength={messageContentMaxLength}
-            placeholder="Write a message…"
-            aria-describedby={composerDescription || undefined}
-            readOnly={submitTurnMutation.isPending}
-            onChange={(event) => setDraft(event.currentTarget.value)}
-            onKeyDown={handleComposerKeyDown}
-            {...stylex.props(styles.textarea)}
-          />
-          {!model ? (
-            <p id={modelRequirementId} {...stylex.props(styles.modelRequirement)}>
-              Choose a default model in{" "}
-              <Link to="/settings/general" {...stylex.props(styles.modelLink)}>
-                Settings
-              </Link>
-              .
-            </p>
-          ) : null}
-          {sendError ? (
-            <p id={sendErrorId} role="alert" {...stylex.props(styles.sendError)}>
-              {sendError}
-            </p>
-          ) : null}
-        </div>
-        <Button type="submit" style={styles.sendButton} disabled={!model || submissionBlocked}>
-          Send
-        </Button>
-      </form>
+    <div ref={composerShell} {...stylex.props(styles.composerShell)}>
+      <Composer onSubmit={sendMessage}>
+        <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
+        <Composer.Input
+          id={composerInputId}
+          value={draft}
+          maxLength={messageContentMaxLength}
+          aria-describedby={sendError ? sendErrorId : undefined}
+          onChange={(event) => {
+            draftRevision.current += 1;
+            setDraft(event.currentTarget.value);
+            setSendError(null);
+          }}
+          onKeyDown={handleComposerKeyDown}
+        />
+        <Composer.Footer>
+          <Composer.Controls>
+            {composerControls}
+            {sendError ? (
+              <Composer.Status id={sendErrorId} role="alert" tone="danger">
+                {sendError}
+              </Composer.Status>
+            ) : null}
+          </Composer.Controls>
+          <Composer.Submit disabled={submissionBlocked || !model || !draft.trim()} />
+        </Composer.Footer>
+      </Composer>
     </div>
   );
 });
@@ -380,9 +411,13 @@ const ThreadComposer = memo(function ThreadComposer({
 export function ThreadView({
   threadId,
   model,
+  modelPending,
+  composerControls,
 }: {
   threadId: string;
   model: ModelReference | null;
+  modelPending: boolean;
+  composerControls: ReactNode;
 }) {
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
   const retryTurnMutation = useRetryTurn(threadId);
@@ -391,8 +426,10 @@ export function ThreadView({
   const acceptingRetry = useRef(false);
   const turnOperationPending = useIsTurnOperationPending(threadId);
   const pendingSubmission = usePendingTurnSubmission(threadId);
+  const viewport = useRef<HTMLElement>(null);
+  const pinnedToEnd = useRef(true);
   const retryTurnId = retryTurnMutation.variables?.turnId;
-  const retryStatus: "pending" | "failed" | null = retryTurnMutation.isPending
+  const retryStatus: RetryStatus = retryTurnMutation.isPending
     ? "pending"
     : retryTurnMutation.isError
       ? "failed"
@@ -411,7 +448,7 @@ export function ThreadView({
 
   const retryReply = useCallback(
     async (turnId: string) => {
-      if (operationPending || !model || acceptingRetry.current) {
+      if (operationPending || !model || modelPending || acceptingRetry.current) {
         return;
       }
 
@@ -429,30 +466,45 @@ export function ThreadView({
         acceptingRetry.current = false;
       }
     },
-    [model, operationPending, resetRetry, retryTurn],
+    [model, modelPending, operationPending, resetRetry, retryTurn],
   );
 
   const loadOlder = useCallback(() => messagesQuery.fetchNextPage(), [messagesQuery.fetchNextPage]);
 
   return (
-    <section aria-label="Thread" {...stylex.props(styles.root)}>
+    <section
+      ref={viewport}
+      aria-label="Thread"
+      onScroll={(event) => {
+        pinnedToEnd.current = isScrolledToEnd(event.currentTarget);
+      }}
+      {...stylex.props(styles.root)}
+    >
       <ThreadTimeline
-        key={threadId}
+        key={`timeline:${threadId}`}
         view={threadView}
         pendingSubmission={pendingSubmission}
+        viewport={viewport}
+        pinnedToEnd={pinnedToEnd}
+        modelAvailable={model !== null}
+        retryStatus={retryStatus}
         hasNextPage={messagesQuery.hasNextPage}
         isFetchingNextPage={messagesQuery.isFetchingNextPage}
         isFetchNextPageError={messagesQuery.isFetchNextPageError}
-        operationPending={operationPending}
+        operationPending={operationPending || modelPending}
         loadOlder={loadOlder}
         retryReply={retryReply}
       />
       <ThreadComposer
-        key={threadId}
+        key={`composer:${threadId}`}
         threadId={threadId}
         model={model}
-        generationPending={threadView.replyPending}
+        modelPending={modelPending}
+        operationPending={operationPending}
         messageContentMaxLength={threadView.messageContentMaxLength}
+        composerControls={composerControls}
+        viewport={viewport}
+        pinnedToEnd={pinnedToEnd}
       />
     </section>
   );
@@ -464,16 +516,15 @@ const styles = stylex.create({
     flex: 1,
     flexDirection: "column",
     minHeight: 0,
-  },
-  viewport: {
-    flex: 1,
-    minHeight: 0,
     overflowY: "auto",
+    scrollbarGutter: "stable",
   },
   messageBody: {
+    display: "flex",
+    flex: "1 0 auto",
+    flexDirection: "column",
     marginInline: "auto",
     maxWidth: "42rem",
-    minHeight: "100%",
     padding: "1.5rem",
     width: "100%",
   },
@@ -492,9 +543,9 @@ const styles = stylex.create({
   empty: {
     alignItems: "center",
     display: "flex",
+    flex: 1,
     flexDirection: "column",
     justifyContent: "center",
-    minHeight: "100%",
     textAlign: "center",
   },
   emptyDescription: {
@@ -545,16 +596,12 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.375rem",
   },
-  replyMessage: {
-    alignItems: "flex-start",
-    display: "flex",
-    flexDirection: "column",
-  },
   replyState: {
-    alignItems: "flex-start",
+    alignItems: "flex-end",
     display: "flex",
     flexDirection: "column",
     gap: "0.25rem",
+    marginTop: "0.375rem",
   },
   replyStatus: {
     color: tokens.muted,
@@ -574,81 +621,14 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightXSmall,
   },
   composerShell: {
-    backgroundColor: tokens.surface,
-    borderTopColor: tokens.border,
-    borderTopStyle: "solid",
-    borderTopWidth: 1,
+    bottom: 0,
     flexShrink: 0,
-  },
-  composer: {
-    alignItems: "flex-end",
-    display: "flex",
-    gap: "0.75rem",
     marginInline: "auto",
     maxWidth: "42rem",
-    padding: "1rem 1.5rem",
+    paddingBlock: "0 1.5rem",
+    paddingInline: "1.5rem",
+    position: "sticky",
     width: "100%",
-  },
-  composerField: {
-    flex: 1,
-    minWidth: 0,
-  },
-  sendButton: {
-    minWidth: "6.75rem",
-  },
-  textarea: {
-    appearance: "none",
-    backgroundColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 3.5%, transparent)`,
-      ":focus": `color-mix(in oklab, ${tokens.foreground} 5%, transparent)`,
-    },
-    borderColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 10%, transparent)`,
-      ":focus": `color-mix(in oklab, ${tokens.accent} 45%, transparent)`,
-    },
-    borderRadius: tokens.radiusMedium,
-    borderStyle: "solid",
-    borderWidth: 1,
-    caretColor: tokens.accent,
-    color: tokens.foreground,
-    display: "block",
-    fontFamily: "inherit",
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    minHeight: "3.75rem",
-    outline: "none",
-    paddingBlock: "0.625rem",
-    paddingInline: "0.75rem",
-    resize: "vertical",
-    width: "100%",
-    "::placeholder": {
-      color: tokens.muted,
-    },
-  },
-  sendError: {
-    color: tokens.danger,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
-  },
-  modelRequirement: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
-  },
-  modelLink: {
-    color: tokens.foreground,
-    textDecorationLine: "underline",
-    textUnderlineOffset: "0.15em",
-  },
-  visuallyHidden: {
-    clip: "rect(0 0 0 0)",
-    clipPath: "inset(50%)",
-    height: 1,
-    overflow: "hidden",
-    position: "absolute",
-    whiteSpace: "nowrap",
-    width: 1,
+    zIndex: 1,
   },
 });

@@ -490,6 +490,10 @@ export function createGenerations(
     return executeAcceptedReply(accepted, signal);
   }
 
+  function requireRegisteredModel(model: ModelReference) {
+    requireProvider(model);
+  }
+
   return {
     recoverInterrupted() {
       const recoveryTime = now();
@@ -509,9 +513,7 @@ export function createGenerations(
     executeAcceptedReply,
     executeReply,
     listLatestForTurns,
-    requireRegisteredModel(model: ModelReference) {
-      requireProvider(model);
-    },
+    requireRegisteredModel,
     async generateReply(request: GenerateReplyRequest) {
       const execution = await executeReply(request);
 

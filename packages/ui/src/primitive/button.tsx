@@ -92,6 +92,12 @@ const styles = stylex.create({
     backgroundColor: {
       default: "transparent",
       ":not(:disabled):hover": `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
+    },
+    color: {
+      default: null,
+      ":not(:disabled):hover": tokens.foreground,
+      ":is([data-focus-visible])": tokens.foreground,
     },
   },
   solidDanger: {
@@ -105,10 +111,12 @@ const styles = stylex.create({
     backgroundColor: {
       default: "transparent",
       ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 10%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.danger} 10%, transparent)`,
     },
     color: {
       default: tokens.muted,
       ":not(:disabled):hover": tokens.danger,
+      ":is([data-focus-visible])": tokens.danger,
     },
   },
   label: {

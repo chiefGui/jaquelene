@@ -12,7 +12,6 @@
     "apps/jaquelene-desktop": {
       "name": "jaquelene-desktop",
       "dependencies": {
-        "effect": "4.0.0-rc.112",
         "electron-store": "^11.0.2",
       },
       "devDependencies": {
@@ -24,6 +23,7 @@
         "@types/node": "^26.3.0",
         "electron": "^44.0.0",
         "electron-builder": "^26.15.3",
+        "effect": "4.0.0-rc.112",
         "vite": "^8.2.2",
         "vite-plugin-electron": "^1.1.1",
       },

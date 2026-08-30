@@ -115,7 +115,7 @@ export function ThreadView({
     if (viewport.current && pinnedToEnd.current) {
       scrollToEnd(viewport.current);
     }
-  }, [threadView.latestMessageId]);
+  }, [model, retryStatus, threadView.latestMessageId, threadView.replyPending]);
 
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -175,124 +175,122 @@ export function ThreadView({
       }}
       {...stylex.props(styles.root)}
     >
-      <div {...stylex.props(styles.scrollContent)}>
-        <div {...stylex.props(styles.messageBody)}>
-          {messagesQuery.hasNextPage ? (
-            <div {...stylex.props(styles.loadOlder)}>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={messagesQuery.isFetchingNextPage}
-                onClick={() => void messagesQuery.fetchNextPage()}
-              >
-                {messagesQuery.isFetchingNextPage ? "Loading…" : "Load older messages"}
-              </Button>
-            </div>
-          ) : null}
+      <div {...stylex.props(styles.messageBody)}>
+        {messagesQuery.hasNextPage ? (
+          <div {...stylex.props(styles.loadOlder)}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={messagesQuery.isFetchingNextPage}
+              onClick={() => void messagesQuery.fetchNextPage()}
+            >
+              {messagesQuery.isFetchingNextPage ? "Loading…" : "Load older messages"}
+            </Button>
+          </div>
+        ) : null}
 
-          {messagesQuery.isFetchNextPageError ? (
-            <p role="alert" {...stylex.props(styles.pageError)}>
-              Could not load older messages.
-            </p>
-          ) : null}
+        {messagesQuery.isFetchNextPageError ? (
+          <p role="alert" {...stylex.props(styles.pageError)}>
+            Could not load older messages.
+          </p>
+        ) : null}
 
-          {threadView.messages.length === 0 ? (
-            <div {...stylex.props(styles.empty)}>
-              <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
-            </div>
-          ) : (
-            <ol {...stylex.props(styles.messageList)}>
-              {threadView.messages.map(({ message, fromUser, reply }) => {
-                return (
-                  <li
-                    key={message.id}
+        {threadView.messages.length === 0 ? (
+          <div {...stylex.props(styles.empty)}>
+            <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
+          </div>
+        ) : (
+          <ol {...stylex.props(styles.messageList)}>
+            {threadView.messages.map(({ message, fromUser, reply }) => {
+              return (
+                <li
+                  key={message.id}
+                  {...stylex.props(
+                    styles.message,
+                    fromUser ? styles.userMessage : styles.assistantMessage,
+                  )}
+                >
+                  <article
+                    aria-label={fromUser ? "You" : "Assistant"}
                     {...stylex.props(
-                      styles.message,
-                      fromUser ? styles.userMessage : styles.assistantMessage,
+                      styles.bubble,
+                      fromUser ? styles.userBubble : styles.assistantBubble,
                     )}
                   >
-                    <article
-                      aria-label={fromUser ? "You" : "Assistant"}
-                      {...stylex.props(
-                        styles.bubble,
-                        fromUser ? styles.userBubble : styles.assistantBubble,
-                      )}
-                    >
-                      <p {...stylex.props(styles.content)}>{message.content}</p>
-                    </article>
-                    <time
-                      dateTime={new Date(message.createdAt).toISOString()}
-                      {...stylex.props(styles.timestamp)}
-                    >
-                      {formatTimestamp(message.createdAt)}
-                    </time>
-                    {reply ? (
-                      <div {...stylex.props(styles.replyState)}>
-                        <p
-                          role={message.id === threadView.latestMessageId ? "status" : undefined}
-                          {...stylex.props(
-                            styles.replyStatus,
-                            reply.generation.status === GenerationStatus.Failed &&
-                              styles.replyFailure,
-                          )}
+                    <p {...stylex.props(styles.content)}>{message.content}</p>
+                  </article>
+                  <time
+                    dateTime={new Date(message.createdAt).toISOString()}
+                    {...stylex.props(styles.timestamp)}
+                  >
+                    {formatTimestamp(message.createdAt)}
+                  </time>
+                  {reply ? (
+                    <div {...stylex.props(styles.replyState)}>
+                      <p
+                        role={message.id === threadView.latestMessageId ? "status" : undefined}
+                        {...stylex.props(
+                          styles.replyStatus,
+                          reply.generation.status === GenerationStatus.Failed &&
+                            styles.replyFailure,
+                        )}
+                      >
+                        {replyStatusText(reply.generation, reply.retrying)}
+                      </p>
+                      {reply.canRetry && !reply.retrying ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          style={styles.retryButton}
+                          disabled={operationPending || modelPending}
+                          onClick={() => void retryReply(message.turnId)}
                         >
-                          {replyStatusText(reply.generation, reply.retrying)}
+                          Retry
+                        </Button>
+                      ) : null}
+                      {reply.retryFailed ? (
+                        <p role="alert" {...stylex.props(styles.retryError)}>
+                          Couldn’t retry the reply.
                         </p>
-                        {reply.canRetry && !reply.retrying ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            style={styles.retryButton}
-                            disabled={operationPending || modelPending}
-                            onClick={() => void retryReply(message.turnId)}
-                          >
-                            Retry
-                          </Button>
-                        ) : null}
-                        {reply.retryFailed ? (
-                          <p role="alert" {...stylex.props(styles.retryError)}>
-                            Couldn’t retry the reply.
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
 
-        <div ref={composerShell} {...stylex.props(styles.composerShell)}>
-          <Composer onSubmit={sendMessage}>
-            <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
-            <Composer.Input
-              id={composerInputId}
-              value={draft}
-              maxLength={threadView.messageContentMaxLength}
-              aria-describedby={sendError ? sendErrorId : undefined}
-              onChange={(event) => {
-                setDraft(event.currentTarget.value);
-                setSendError(null);
-              }}
-              onKeyDown={handleComposerKeyDown}
+      <div ref={composerShell} {...stylex.props(styles.composerShell)}>
+        <Composer onSubmit={sendMessage}>
+          <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
+          <Composer.Input
+            id={composerInputId}
+            value={draft}
+            maxLength={threadView.messageContentMaxLength}
+            aria-describedby={sendError ? sendErrorId : undefined}
+            onChange={(event) => {
+              setDraft(event.currentTarget.value);
+              setSendError(null);
+            }}
+            onKeyDown={handleComposerKeyDown}
+          />
+          <Composer.Footer>
+            <Composer.Controls>
+              {composerControls}
+              {sendError ? (
+                <Composer.Status id={sendErrorId} role="alert" tone="danger">
+                  {sendError}
+                </Composer.Status>
+              ) : null}
+            </Composer.Controls>
+            <Composer.Submit
+              pending={operationPending}
+              disabled={!model || modelPending || !draft.trim()}
             />
-            <Composer.Footer>
-              <Composer.Controls>
-                {composerControls}
-                {sendError ? (
-                  <Composer.Status id={sendErrorId} role="alert" tone="danger">
-                    {sendError}
-                  </Composer.Status>
-                ) : null}
-              </Composer.Controls>
-              <Composer.Submit
-                pending={operationPending}
-                disabled={!model || modelPending || !draft.trim()}
-              />
-            </Composer.Footer>
-          </Composer>
-        </div>
+          </Composer.Footer>
+        </Composer>
       </div>
     </section>
   );
@@ -300,19 +298,16 @@ export function ThreadView({
 
 const styles = stylex.create({
   root: {
+    display: "flex",
     flex: 1,
+    flexDirection: "column",
     minHeight: 0,
     overflowY: "auto",
-  },
-  scrollContent: {
-    display: "flex",
-    flexDirection: "column",
-    minHeight: "100%",
-    width: "100%",
+    scrollbarGutter: "stable",
   },
   messageBody: {
     display: "flex",
-    flex: 1,
+    flex: "1 0 auto",
     flexDirection: "column",
     marginInline: "auto",
     maxWidth: "42rem",

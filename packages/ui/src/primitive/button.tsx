@@ -102,8 +102,8 @@ const styles = stylex.create({
   },
   solidDanger: {
     backgroundColor: {
-      default: `color-mix(in oklab, ${tokens.danger} 32%, ${tokens.surfaceRaised})`,
-      ":not(:disabled):hover": `color-mix(in oklab, ${tokens.danger} 40%, ${tokens.surfaceRaised})`,
+      default: `color-mix(in oklab, ${tokens.danger} 40%, ${tokens.canvas})`,
+      ":not(:disabled):hover": `color-mix(in oklab, ${tokens.danger} 48%, ${tokens.canvas})`,
     },
     color: tokens.foreground,
   },

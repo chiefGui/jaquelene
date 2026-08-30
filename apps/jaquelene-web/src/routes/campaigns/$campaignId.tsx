@@ -54,6 +54,7 @@ function CampaignRoute() {
   const effectiveModel = campaign?.modelOverride ?? defaultModel;
   const effectiveModelPending =
     modelOverridePending || (inheritsDefaultModel && defaultModelPending);
+  const modelSelectionPending = modelOverridePending || defaultModelPending;
 
   if (campaign && !scenario) {
     throw new Error(`Campaign "${campaign.id}" references an unavailable scenario.`);
@@ -101,6 +102,7 @@ function CampaignRoute() {
                 campaignId={campaign.id}
                 defaultModel={defaultModel}
                 model={effectiveModel}
+                pending={modelSelectionPending}
               />
             }
           />

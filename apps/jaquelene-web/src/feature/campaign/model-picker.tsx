@@ -12,15 +12,22 @@ export function CampaignModelPicker({
   campaignId,
   defaultModel,
   model,
+  pending,
 }: {
   campaignId: string;
   defaultModel: ModelSelection | null;
   model: ModelSelection | null;
+  pending: boolean;
 }) {
   const setModelOverride = useSetCampaignModelOverride(campaignId);
   const errorId = useId();
+  const updatePending = pending || setModelOverride.isPending;
 
   function updateModel(nextModel: ModelSelection) {
+    if (updatePending) {
+      return;
+    }
+
     const matchesDefault =
       defaultModel?.providerId === nextModel.providerId &&
       defaultModel.modelId === nextModel.modelId;
@@ -40,9 +47,9 @@ export function CampaignModelPicker({
           type="button"
           variant="ghost"
           aria-label={model ? `Campaign model: ${model.name}` : "Choose a campaign model"}
-          aria-busy={setModelOverride.isPending}
+          aria-busy={updatePending || undefined}
           aria-describedby={setModelOverride.isError ? errorId : undefined}
-          disabled={setModelOverride.isPending}
+          disabled={updatePending}
           style={styles.trigger}
         >
           <ModelPicker.Value />

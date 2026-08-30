@@ -35,7 +35,7 @@ import {
   useSuspenseQuery,
   type UseQueryResult,
 } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useMatchRoute } from "@tanstack/react-router";
 import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
 import {
   createContext,
@@ -608,6 +608,8 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
 
 function ModelPickerModels() {
   const { actionError, activeTab, inputValue, modelList } = useModelPicker("Content");
+  const matchRoute = useMatchRoute();
+  const settingsActive = Boolean(matchRoute({ to: "/settings", fuzzy: true }));
 
   if (modelList.status === "loading") {
     return (
@@ -642,7 +644,11 @@ function ModelPickerModels() {
             <Button variant="ghost" onClick={modelList.reload}>
               Retry
             </Button>
-            <Link to="/settings/providers" {...stylex.props(styles.settingsLink)}>
+            <Link
+              to="/settings/providers"
+              replace={settingsActive}
+              {...stylex.props(styles.settingsLink)}
+            >
               Provider settings
             </Link>
           </div>

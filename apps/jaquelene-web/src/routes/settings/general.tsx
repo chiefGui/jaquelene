@@ -74,7 +74,9 @@ function GeneralRoute() {
                       disabled={setDefaultCampaignModel.isPending}
                     />
                     <ModelPicker.Empty>
-                      <Button render={<Link to="/settings/providers" />}>Connect a provider</Button>
+                      <Button render={<Link to="/settings/providers" replace />}>
+                        Connect a provider
+                      </Button>
                     </ModelPicker.Empty>
                     <ModelPicker.Content />
                   </ModelPicker.Root>

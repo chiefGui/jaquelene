@@ -1,4 +1,3 @@
-import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import ConnectIcon from "@hugeicons/core-free-icons/ConnectIcon";
 import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
 import PaletteIcon from "@hugeicons/core-free-icons/PaletteIcon";
@@ -14,21 +13,17 @@ function SettingsSidebar() {
         navigationLabel: "Settings",
         items: [
           {
-            id: "back",
-            icon: ArrowLeft01Icon,
-            label: "Back",
-            to: "/",
-          },
-          {
             id: "general",
             icon: Settings01Icon,
             label: "General",
+            replace: true,
             to: "/settings/general",
           },
           {
             id: "appearance",
             icon: PaletteIcon,
             label: "Appearance",
+            replace: true,
             to: "/settings/appearance",
           },
           {
@@ -36,18 +31,21 @@ function SettingsSidebar() {
             icon: ConnectIcon,
             label: "Providers",
             preload: "render",
+            replace: true,
             to: "/settings/providers",
           },
           {
             id: "storage",
             icon: HardDriveIcon,
             label: "Storage",
+            replace: true,
             to: "/settings/storage",
           },
           {
             id: "advanced",
             icon: ToolsIcon,
             label: "Advanced",
+            replace: true,
             to: "/settings/advanced",
           },
         ],

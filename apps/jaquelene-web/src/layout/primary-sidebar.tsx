@@ -1,4 +1,7 @@
+import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
+import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { IconButton } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import {
@@ -6,6 +9,8 @@ import {
   type LinkProps,
   type RegisteredRouter,
   type ToOptions,
+  useMatchRoute,
+  useRouter,
 } from "@tanstack/react-router";
 import type { ComponentType } from "react";
 import type { FileRoutesByTo } from "@/routeTree.gen";
@@ -18,6 +23,7 @@ type PrimarySidebarLink = PrimarySidebarDestination & {
   icon: IconSvgElement;
   label: string;
   preload?: Exclude<LinkProps["preload"], undefined>;
+  replace?: Exclude<LinkProps["replace"], undefined>;
 };
 
 type PrimarySidebarItem = PrimarySidebarLink & { id: string };
@@ -25,7 +31,6 @@ type PrimarySidebarItem = PrimarySidebarLink & { id: string };
 interface PrimarySidebarNavigation {
   navigationLabel: string;
   items: readonly PrimarySidebarItem[];
-  footerAction?: PrimarySidebarLink;
 }
 
 declare module "@tanstack/react-router" {
@@ -35,25 +40,27 @@ declare module "@tanstack/react-router" {
 }
 
 export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavigation }) {
-  let footer = null;
+  const matchRoute = useMatchRoute();
+  const router = useRouter();
+  const settingsActive = Boolean(matchRoute({ to: "/settings", fuzzy: true }));
+  const footerIcon = (
+    <HugeiconsIcon
+      icon={settingsActive ? ArrowLeft01Icon : Settings01Icon}
+      size={16}
+      color="currentColor"
+      strokeWidth={1.5}
+      aria-hidden="true"
+      {...stylex.props(styles.icon)}
+    />
+  );
 
-  if (navigation.footerAction) {
-    const { icon, label, ...destination } = navigation.footerAction;
+  function returnFromSettings() {
+    if (router.history.canGoBack()) {
+      router.history.back();
+      return;
+    }
 
-    footer = (
-      <footer {...stylex.props(styles.footer)}>
-        <Link {...destination} aria-label={label} {...stylex.props(styles.footerLink)}>
-          <HugeiconsIcon
-            icon={icon}
-            size={16}
-            color="currentColor"
-            strokeWidth={1.5}
-            aria-hidden="true"
-            {...stylex.props(styles.icon)}
-          />
-        </Link>
-      </footer>
-    );
+    void router.navigate({ to: "/" });
   }
 
   return (
@@ -86,7 +93,26 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
         </ul>
       </nav>
 
-      {footer}
+      <footer {...stylex.props(styles.footer)}>
+        {settingsActive ? (
+          <IconButton
+            type="button"
+            aria-label="Back"
+            onClick={returnFromSettings}
+            style={styles.footerAction}
+          >
+            {footerIcon}
+          </IconButton>
+        ) : (
+          <IconButton
+            render={<Link to="/settings/general" preload="render" />}
+            aria-label="Settings"
+            style={styles.footerAction}
+          >
+            {footerIcon}
+          </IconButton>
+        )}
+      </footer>
     </aside>
   );
 }
@@ -177,36 +203,8 @@ const styles = stylex.create({
     flexShrink: 0,
     padding: "0.5rem",
   },
-  footerLink: {
-    alignItems: "center",
-    borderRadius: tokens.radiusMedium,
-    color: {
-      default: tokens.muted,
-      ":hover": tokens.foreground,
-    },
-    display: "flex",
+  footerAction: {
     height: "2.25rem",
-    justifyContent: "center",
-    outlineColor: {
-      default: null,
-      ":focus-visible": focusColor,
-    },
-    outlineOffset: {
-      default: null,
-      ":focus-visible": 2,
-    },
-    outlineStyle: {
-      default: "none",
-      ":focus-visible": "solid",
-    },
-    outlineWidth: {
-      default: null,
-      ":focus-visible": 1,
-    },
     width: "2.25rem",
-    backgroundColor: {
-      default: "transparent",
-      ":hover": hoverBackground,
-    },
   },
 });

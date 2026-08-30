@@ -275,7 +275,7 @@ assert(
 assert(packagedManifest.main === packageManifest.main, "The packaged main entry is incorrect.");
 assert(
   JSON.stringify(Object.keys(packagedManifest.dependencies ?? {}).sort()) ===
-    JSON.stringify(["electron-store"]),
+    JSON.stringify(["effect", "electron-store"]),
   "The packaged runtime dependency set is not minimal.",
 );
 

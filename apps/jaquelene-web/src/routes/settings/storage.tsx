@@ -39,6 +39,7 @@ export const Route = createFileRoute("/settings/storage")({
 
 type StorageCategoryPresentation = Readonly<{
   label: string;
+  description: string;
   color: StyleXStyles;
   confirmation: Readonly<{
     heading: string;
@@ -97,13 +98,7 @@ function StorageHeader() {
   );
 }
 
-function StorageUsageBar({
-  categories,
-  totalBytes,
-}: {
-  categories: readonly StorageCategoryView[];
-  totalBytes: number;
-}) {
+function StorageUsageBreakdown({ categories }: { categories: readonly StorageCategoryView[] }) {
   const visibleCategories = categories.filter(({ bytes }) => bytes > 0);
 
   if (visibleCategories.length < 2) {
@@ -111,14 +106,30 @@ function StorageUsageBar({
   }
 
   return (
-    <div aria-hidden="true" {...stylex.props(styles.usageBar)}>
+    <div aria-hidden="true" {...stylex.props(styles.usageBreakdown)}>
       {visibleCategories.map((category) => (
         <span
           key={category.id}
           {...stylex.props(styles.usageSegment, category.color)}
-          style={{ inlineSize: `${(category.bytes / totalBytes) * 100}%` }}
+          style={{ flexGrow: category.bytes }}
         />
       ))}
+    </div>
+  );
+}
+
+function StorageAreaLabel({
+  color,
+  description,
+  label,
+}: Pick<StorageCategoryPresentation, "color" | "description" | "label">) {
+  return (
+    <div {...stylex.props(styles.category)}>
+      <span aria-hidden="true" {...stylex.props(styles.categoryMarker, color)} />
+      <Item.Content>
+        <Item.Label>{label}</Item.Label>
+        <Item.Description>{description}</Item.Description>
+      </Item.Content>
     </div>
   );
 }
@@ -178,11 +189,12 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
   }
 
   return (
-    <Item.Root>
-      <div {...stylex.props(styles.category)}>
-        <span aria-hidden="true" {...stylex.props(styles.categoryMarker, styles.logs)} />
-        <Item.Label>Logs</Item.Label>
-      </div>
+    <Item.Root style={styles.storageRow}>
+      <StorageAreaLabel
+        color={styles.logs}
+        label="Logs"
+        description="Diagnostic records saved while you use Jaquelene."
+      />
 
       <div {...stylex.props(styles.trailing)}>
         <Item.Value>
@@ -292,7 +304,7 @@ function StorageRoute() {
                   </Item.Value>
                 </div>
 
-                <StorageUsageBar categories={categories} totalBytes={totalBytes} />
+                <StorageUsageBreakdown categories={categories} />
               </Item.Root>
 
               {categories.map((category) => {
@@ -300,14 +312,12 @@ function StorageRoute() {
                 const pending = open && deleteStorageCategory.isPending;
 
                 return (
-                  <Item.Root key={category.id}>
-                    <div {...stylex.props(styles.category)}>
-                      <span
-                        aria-hidden="true"
-                        {...stylex.props(styles.categoryMarker, category.color)}
-                      />
-                      <Item.Label>{category.label}</Item.Label>
-                    </div>
+                  <Item.Root key={category.id} style={styles.storageRow}>
+                    <StorageAreaLabel
+                      color={category.color}
+                      description={category.description}
+                      label={category.label}
+                    />
 
                     <div {...stylex.props(styles.trailing)}>
                       <Item.Value>
@@ -375,32 +385,37 @@ const styles = stylex.create({
     fontWeight: 600,
     lineHeight: tokens.lineHeightLarge,
   },
-  usageBar: {
-    backgroundColor: `color-mix(in oklch, ${tokens.foreground} 5%, transparent)`,
+  usageBreakdown: {
     borderRadius: "9999px",
     display: "flex",
+    gap: "0.125rem",
     height: "0.5rem",
-    marginTop: "1rem",
+    marginTop: "0.5rem",
     overflow: "hidden",
     width: "100%",
   },
   usageSegment: {
     backgroundColor: "currentColor",
     display: "block",
-    flexShrink: 0,
+    flexBasis: 0,
     height: "100%",
   },
+  storageRow: {
+    alignItems: "flex-start",
+  },
   category: {
-    alignItems: "center",
+    alignItems: "flex-start",
     display: "flex",
     gap: "0.75rem",
     minWidth: 0,
   },
   trailing: {
     alignItems: "center",
+    alignSelf: "flex-start",
     display: "flex",
     flexShrink: 0,
     gap: "1.25rem",
+    marginTop: `calc((${tokens.lineHeightSmall} - ${tokens.controlHeight}) / 2)`,
   },
   actions: {
     alignItems: "center",
@@ -412,13 +427,14 @@ const styles = stylex.create({
     borderRadius: "9999px",
     flexShrink: 0,
     height: "0.5rem",
+    marginTop: `calc((${tokens.lineHeightSmall} - 0.5rem) / 2)`,
     width: "0.5rem",
   },
   content: {
     color: storagePalette.content,
   },
   cache: {
-    color: `color-mix(in oklch, ${tokens.accent} 45%, ${tokens.muted})`,
+    color: storagePalette.cache,
   },
   appData: {
     color: storagePalette.appData,
@@ -431,6 +447,7 @@ const styles = stylex.create({
 const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPresentation> = {
   [StorageCategory.Content]: {
     label: "Content",
+    description: "Chats and other content you create.",
     color: styles.content,
     confirmation: {
       heading: "Clear content?",
@@ -441,6 +458,7 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
   },
   [StorageCategory.Cache]: {
     label: "Cache",
+    description: "Remote data saved for faster access.",
     color: styles.cache,
     confirmation: {
       heading: "Delete cache?",
@@ -450,6 +468,7 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
   },
   [StorageCategory.AppData]: {
     label: "App data",
+    description: "Preferences and other data used by Jaquelene.",
     color: styles.appData,
     confirmation: {
       heading: "Clear app data?",

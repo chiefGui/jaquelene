@@ -120,6 +120,12 @@ type RefreshFlight<Value> = Readonly<{
   result: Promise<ResourceSnapshot<Value>>;
 }>;
 
+type EntryHydration = Readonly<{
+  address: CacheAddress;
+  controller: AbortController;
+  result: Promise<RuntimeEntry<any, any>>;
+}>;
+
 type PersistenceOperation = "read" | "write" | "delete" | "clear" | "inspect";
 
 export type CachedResource<Input, Value> = Readonly<{
@@ -235,7 +241,9 @@ function storedEntryIsValid<Input, Value>(
 function interruption(signal: AbortSignal) {
   return signal.reason instanceof Error
     ? signal.reason
-    : new Error("Cached resource operation was interrupted.", { cause: signal.reason });
+    : new Error("Cached resource operation was interrupted.", {
+        cause: signal.reason,
+      });
 }
 
 function waitForCaller<Value>(result: Promise<Value>, signal?: AbortSignal) {
@@ -295,9 +303,13 @@ export async function createResourceCache(
   const now = options.now ?? Date.now;
   const namespaces = new Set<string>();
   const entries = new Map<string, RuntimeEntry<any, any>>();
+  const hydrations = new Map<string, EntryHydration>();
   const flights = new Map<string, RefreshFlight<unknown>>();
+  const storeReads = new Set<Promise<void>>();
   const listeners = new Set<(event: ResourceCacheEvent) => void>();
+  let storeMutations = Promise.resolve();
   let state: "open" | "closed" = "open";
+  let closePromise: Promise<void> | undefined;
   let persistence: "durable" | "degraded" = "durable";
   const persistenceFailures = new Set<PersistenceOperation>();
   let lastFailure: ResourceCacheFailure | undefined;
@@ -352,8 +364,47 @@ export async function createResourceCache(
     return revision;
   }
 
+  function throwIfInterrupted(signal: AbortSignal) {
+    if (signal.aborted) {
+      throw interruption(signal);
+    }
+  }
+
+  function runStoreMutation<Result>(operation: () => Promise<Result>) {
+    const result = storeMutations.then(operation);
+    storeMutations = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  function runStoreRead<Result>(operation: () => Promise<Result>, signal?: AbortSignal) {
+    const result = storeMutations.then(() => {
+      if (signal) {
+        throwIfInterrupted(signal);
+      }
+
+      return operation();
+    });
+    const tracked = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    storeReads.add(tracked);
+    void tracked.finally(() => storeReads.delete(tracked));
+    return result;
+  }
+
+  function readPersisted(address: CacheAddress, signal: AbortSignal) {
+    return runStoreRead(() => store.read(address), signal);
+  }
+
   function announce<Input, Value>(entry: RuntimeEntry<Input, Value>) {
-    const event = { address: entry.address, revision: entry.revision } satisfies ResourceCacheEvent;
+    const event = {
+      address: entry.address,
+      revision: entry.revision,
+    } satisfies ResourceCacheEvent;
 
     for (const listener of listeners) {
       try {
@@ -369,7 +420,7 @@ export async function createResourceCache(
     entries.set(cacheAddressKey(entry.address), entry);
   }
 
-  function trimHotEntries(protectedKey?: string) {
+  function trimEntries(protectedKey?: string) {
     let hotEntries = 0;
     let hotBytes = 0;
 
@@ -380,36 +431,46 @@ export async function createResourceCache(
       }
     }
 
-    if (hotEntries <= options.maxHotEntries && hotBytes <= options.maxHotBytes) {
-      return;
+    if (hotEntries > options.maxHotEntries || hotBytes > options.maxHotBytes) {
+      for (const [entryKey, entry] of entries) {
+        if (entryKey === protectedKey || entry.value === undefined || flights.has(entryKey)) {
+          continue;
+        }
+
+        hotEntries -= 1;
+        hotBytes -= entry.payloadBytes;
+        entry.value = undefined;
+        entry.payloadBytes = 0;
+        delete entry.storedAt;
+        delete entry.discardAt;
+        delete entry.persistence;
+
+        if (entry.refresh.state === "idle") {
+          entries.delete(entryKey);
+        }
+
+        if (hotEntries <= options.maxHotEntries && hotBytes <= options.maxHotBytes) {
+          break;
+        }
+      }
     }
 
-    for (const [entryKey, entry] of entries) {
-      if (entryKey === protectedKey || entry.value === undefined || flights.has(entryKey)) {
+    for (const [entryKey] of entries) {
+      if (entries.size <= options.maxHotEntries) {
+        break;
+      }
+
+      if (entryKey === protectedKey || flights.has(entryKey) || hydrations.has(entryKey)) {
         continue;
       }
 
-      hotEntries -= 1;
-      hotBytes -= entry.payloadBytes;
-      entry.value = undefined;
-      entry.payloadBytes = 0;
-      delete entry.storedAt;
-      delete entry.discardAt;
-      delete entry.persistence;
-
-      if (entry.refresh.state === "idle") {
-        entries.delete(entryKey);
-      }
-
-      if (hotEntries <= options.maxHotEntries && hotBytes <= options.maxHotBytes) {
-        break;
-      }
+      entries.delete(entryKey);
     }
   }
 
   async function deletePersisted(selector: CacheSelector, deletionRevision: number) {
     try {
-      await store.delete(selector, deletionRevision);
+      await runStoreMutation(() => store.delete(selector, deletionRevision));
       persistenceRecovered("delete");
     } catch (error) {
       persistenceFailed("delete", { operation: "delete", error });
@@ -420,12 +481,18 @@ export async function createResourceCache(
     definition: ResourceDefinition<Input, Value>,
     input: Input,
     address: CacheAddress,
+    signal: AbortSignal,
   ) {
+    throwIfInterrupted(signal);
     const entryKey = cacheAddressKey(address);
     const existing = entries.get(entryKey) as RuntimeEntry<Input, Value> | undefined;
 
     if (existing?.value !== undefined) {
-      if (existing.discardAt !== undefined && existing.discardAt <= now()) {
+      if (
+        existing.storedAt === undefined ||
+        existing.discardAt === undefined ||
+        existing.discardAt <= now()
+      ) {
         const deletionRevision = nextRevision();
         existing.revision = deletionRevision;
         delete existing.value;
@@ -433,7 +500,8 @@ export async function createResourceCache(
         delete existing.storedAt;
         delete existing.discardAt;
         delete existing.persistence;
-        await deletePersisted(address, deletionRevision);
+        await waitForCaller(deletePersisted(address, deletionRevision), signal);
+        throwIfInterrupted(signal);
         announce(existing);
       } else {
         touch(existing);
@@ -444,9 +512,11 @@ export async function createResourceCache(
     let stored;
 
     try {
-      stored = await store.read(address);
+      stored = await waitForCaller(readPersisted(address, signal), signal);
+      throwIfInterrupted(signal);
       persistenceRecovered("read");
     } catch (error) {
+      throwIfInterrupted(signal);
       persistenceFailed("read", { operation: "read", address, error });
     }
 
@@ -487,7 +557,8 @@ export async function createResourceCache(
           error: new TypeError("A persisted cached resource entry is invalid."),
         });
       }
-      await deletePersisted(address, deletionRevision);
+      await waitForCaller(deletePersisted(address, deletionRevision), signal);
+      throwIfInterrupted(signal);
       return entry;
     }
 
@@ -498,12 +569,13 @@ export async function createResourceCache(
       entry.discardAt = stored.discardAt;
       entry.persistence = "durable";
       touch(entry);
-      trimHotEntries(entryKey);
+      trimEntries(entryKey);
     } catch (error) {
       const deletionRevision = nextRevision();
       entry.revision = deletionRevision;
       report({ operation: "decode", address, error });
-      await deletePersisted(address, deletionRevision);
+      await waitForCaller(deletePersisted(address, deletionRevision), signal);
+      throwIfInterrupted(signal);
     }
 
     return entry;
@@ -573,11 +645,12 @@ export async function createResourceCache(
         }
 
         const storedAt = now();
+        const discardAt = storedAt + entry.definition.policy.retainFor;
         const successRevision = nextRevision();
         entry.value = value;
         entry.payloadBytes = payload.byteLength;
         entry.storedAt = storedAt;
-        entry.discardAt = storedAt + entry.definition.policy.retainFor;
+        entry.discardAt = discardAt;
         entry.persistence = "durable";
         entry.refresh = { state: "idle" };
         delete entry.failure;
@@ -585,23 +658,37 @@ export async function createResourceCache(
         touch(entry);
 
         try {
-          await store.write({
-            ...entry.address,
-            codecVersion: entry.definition.codec.version,
-            payload,
-            payloadBytes: payload.byteLength,
-            storedAt,
-            discardAt: entry.discardAt,
-            revision: successRevision,
-          });
+          await runStoreMutation(() =>
+            store.write({
+              ...entry.address,
+              codecVersion: entry.definition.codec.version,
+              payload,
+              payloadBytes: payload.byteLength,
+              storedAt,
+              discardAt,
+              revision: successRevision,
+            }),
+          );
           persistenceRecovered("write");
         } catch (error) {
           entry.persistence = "memory-only";
-          persistenceFailed("write", { operation: "write", address: entry.address, error });
+          persistenceFailed("write", {
+            operation: "write",
+            address: entry.address,
+            error,
+          });
+        }
+
+        if (
+          state !== "open" ||
+          capturedGlobalGeneration !== globalGeneration ||
+          capturedEntryGeneration !== entry.generation
+        ) {
+          throw interruption(controller.signal);
         }
 
         announce(entry);
-        trimHotEntries(entryKey);
+        trimEntries(entryKey);
         return snapshot(entry, now());
       })
       .catch((error: unknown) => {
@@ -639,6 +726,8 @@ export async function createResourceCache(
         if (flights.get(entryKey)?.controller === controller) {
           flights.delete(entryKey);
         }
+
+        trimEntries(entryKey);
       });
 
     flights.set(entryKey, { address: entry.address, controller, result });
@@ -649,6 +738,15 @@ export async function createResourceCache(
     assertOpen();
     requireSelector(selector);
     const invalidationRevision = nextRevision();
+
+    for (const [entryKey, hydration] of hydrations) {
+      if (!cacheAddressMatches(hydration.address, selector)) {
+        continue;
+      }
+
+      hydration.controller.abort(new Error("Cached resource was invalidated."));
+      hydrations.delete(entryKey);
+    }
 
     for (const [entryKey, entry] of entries) {
       if (!cacheAddressMatches(entry.address, selector)) {
@@ -680,7 +778,36 @@ export async function createResourceCache(
       async function getEntry(input: Input) {
         assertOpen();
         const address = requireAddress(definition.address(input), definition.namespace);
-        return loadStored(definition, input, address);
+        const entryKey = cacheAddressKey(address);
+        const hydration = hydrations.get(entryKey);
+
+        if (hydration) {
+          return hydration.result as Promise<RuntimeEntry<Input, Value>>;
+        }
+
+        const existing = entries.get(entryKey) as RuntimeEntry<Input, Value> | undefined;
+
+        if (
+          existing &&
+          (existing.value === undefined ||
+            (existing.storedAt !== undefined &&
+              existing.discardAt !== undefined &&
+              existing.discardAt > now()))
+        ) {
+          touch(existing);
+          return existing;
+        }
+
+        const controller = new AbortController();
+        const result = loadStored(definition, input, address, controller.signal).finally(() => {
+          if (hydrations.get(entryKey)?.controller === controller) {
+            hydrations.delete(entryKey);
+          }
+
+          trimEntries(entryKey);
+        });
+        hydrations.set(entryKey, { address, controller, result });
+        return result;
       }
 
       const resource: CachedResource<Input, Value> = {
@@ -749,15 +876,20 @@ export async function createResourceCache(
       const clearRevision = nextRevision();
       const clearedEntries = [...entries.values()];
 
+      for (const hydration of hydrations.values()) {
+        hydration.controller.abort(new Error("Resource cache was cleared."));
+      }
+
       for (const flight of flights.values()) {
         flight.controller.abort(new Error("Resource cache was cleared."));
       }
 
+      hydrations.clear();
       flights.clear();
       entries.clear();
 
       try {
-        await store.clear(clearRevision);
+        await runStoreMutation(() => store.clear(clearRevision));
         persistenceRecovered("clear");
       } catch (error) {
         persistenceFailed("clear", { operation: "clear", error });
@@ -788,7 +920,7 @@ export async function createResourceCache(
 
       if (state === "open") {
         try {
-          storeInspection = await store.inspect(selector);
+          storeInspection = await runStoreRead(() => store.inspect(selector));
           persistenceRecovered("inspect");
         } catch (error) {
           persistenceFailed("inspect", { operation: "inspect", error });
@@ -816,28 +948,40 @@ export async function createResourceCache(
       } satisfies ResourceCacheInspection;
     },
 
-    async close() {
-      if (state === "closed") {
-        return;
+    close() {
+      if (closePromise) {
+        return closePromise;
       }
 
       state = "closed";
       globalGeneration += 1;
+      closePromise = Promise.resolve().then(async () => {
+        for (const hydration of hydrations.values()) {
+          hydration.controller.abort(new Error("Resource cache is closing."));
+        }
 
-      for (const flight of flights.values()) {
-        flight.controller.abort(new Error("Resource cache is closing."));
-      }
+        for (const flight of flights.values()) {
+          flight.controller.abort(new Error("Resource cache is closing."));
+        }
 
-      await Promise.allSettled([...flights.values()].map(({ result }) => result));
-      flights.clear();
-      entries.clear();
-      listeners.clear();
-      try {
-        await store.close();
-      } catch (error) {
-        report({ operation: "close", error });
-        throw error;
-      }
+        await Promise.allSettled([
+          ...Array.from(hydrations.values(), ({ result }) => result),
+          ...Array.from(flights.values(), ({ result }) => result),
+        ]);
+        await Promise.allSettled(storeReads);
+        await storeMutations;
+        hydrations.clear();
+        flights.clear();
+        entries.clear();
+        listeners.clear();
+        try {
+          await store.close();
+        } catch (error) {
+          report({ operation: "close", error });
+          throw error;
+        }
+      });
+      return closePromise;
     },
   };
 }

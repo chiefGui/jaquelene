@@ -43,6 +43,20 @@ function requireLimit(value: number, description: string) {
   }
 }
 
+function reportFailure(options: SqliteCacheStoreOptions, failure: ResourceCacheFailure) {
+  try {
+    options.reportFailure(failure);
+  } catch (reporterError) {
+    console.error(
+      "Could not report a resource cache storage failure.",
+      new AggregateError(
+        [failure.error, reporterError],
+        "A resource cache storage failure and its reporter both failed.",
+      ),
+    );
+  }
+}
+
 function initialize(database: DatabaseSync) {
   database.exec("PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;");
   const version = database.prepare("PRAGMA user_version").get() as { user_version: number };
@@ -176,12 +190,12 @@ export async function openSqliteCacheStore(
   try {
     database = open(path);
   } catch (error) {
-    options.reportFailure({ operation: "open", error });
+    reportFailure(options, { operation: "open", error });
 
     try {
       await removeCacheDatabase(path);
       database = open(path);
-      options.reportFailure({
+      reportFailure(options, {
         operation: "recover",
         error: new Error("The replaceable cache database was corrupt and has been recreated.", {
           cause: error,
@@ -242,6 +256,11 @@ export async function openSqliteCacheStore(
 
     async write(entry) {
       assertOpen();
+
+      if (entry.payloadBytes > options.maxBytes) {
+        throw new RangeError("A cache entry cannot exceed the persistent cache byte limit.");
+      }
+
       transaction(database, () => {
         database.prepare("DELETE FROM cache_entries WHERE discard_at <= ?").run(Date.now());
         database

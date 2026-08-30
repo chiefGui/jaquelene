@@ -85,12 +85,13 @@ async function testCache(
   store: CacheStore,
   options: Readonly<{
     now?: () => number;
+    maxHotEntries?: number;
     reportFailure?: (failure: ResourceCacheFailure) => void;
   }> = {},
 ) {
   const reportFailure = options.reportFailure ?? vi.fn<(failure: ResourceCacheFailure) => void>();
   const cache = await createResourceCache(store, {
-    maxHotEntries: 8,
+    maxHotEntries: options.maxHotEntries ?? 8,
     maxHotBytes: 8_192,
     ...(options.now ? { now: options.now } : {}),
     reportFailure,
@@ -99,6 +100,36 @@ async function testCache(
 }
 
 describe("resource cache", () => {
+  it("hydrates one shared hot entry for concurrent cold callers", async () => {
+    const memory = createMemoryStore();
+    const resourceDefinition = definition(vi.fn());
+    const input = { key: "shared" };
+    const address = resourceDefinition.address(input);
+    const payload = resourceDefinition.codec.encode({ value: "persisted" }, input);
+    memory.entries.set(cacheAddressKey(address), {
+      ...address,
+      codecVersion: resourceDefinition.codec.version,
+      payload,
+      payloadBytes: payload.byteLength,
+      storedAt: 0,
+      discardAt: 1_000,
+      revision: 1,
+    });
+    const read = vi.fn(memory.store.read);
+    const { cache } = await testCache({ ...memory.store, read }, { now: () => 0 });
+    const resource = cache.define(resourceDefinition);
+
+    const [first, second] = await Promise.all([resource.resolve(input), resource.resolve(input)]);
+
+    expect(read).toHaveBeenCalledOnce();
+    expect(resourceDefinition.load).not.toHaveBeenCalled();
+    expect(second).toEqual(first);
+    await expect(cache.inspect()).resolves.toMatchObject({ hotEntries: 1 });
+    await expect(resource.peek(input)).resolves.toEqual(first);
+    expect(read).toHaveBeenCalledOnce();
+    await cache.close();
+  });
+
   it("deduplicates a cold refresh for every waiter", async () => {
     const pending = deferred<TestValue>();
     const load = vi.fn(() => pending.promise);
@@ -119,6 +150,23 @@ describe("resource cache", () => {
       persistence: "durable",
     });
     expect(secondSnapshot).toEqual(firstSnapshot);
+    await cache.close();
+  });
+
+  it("bounds retry metadata for absent resources", async () => {
+    const load = vi.fn().mockRejectedValue(new Error("Source unavailable."));
+    const { store } = createMemoryStore();
+    const { cache } = await testCache(store, { maxHotEntries: 2 });
+    const resource = cache.define(definition(load));
+
+    for (const key of ["a", "b", "c"]) {
+      await expect(resource.resolve({ key })).rejects.toBeInstanceOf(Error);
+    }
+
+    await expect(resource.resolve({ key: "c" })).rejects.toBeInstanceOf(Error);
+    expect(load).toHaveBeenCalledTimes(3);
+    await expect(resource.resolve({ key: "a" })).rejects.toBeInstanceOf(Error);
+    expect(load).toHaveBeenCalledTimes(4);
     await cache.close();
   });
 
@@ -211,6 +259,80 @@ describe("resource cache", () => {
     await cache.close();
   });
 
+  it("prevents an invalidated hydration from restoring persisted data", async () => {
+    const readStarted = deferred<void>();
+    const releaseRead = deferred<void>();
+    const memory = createMemoryStore();
+    const resourceDefinition = definition(vi.fn());
+    const input = { key: "catalog" };
+    const address = resourceDefinition.address(input);
+    const payload = resourceDefinition.codec.encode({ value: "obsolete" }, input);
+    memory.entries.set(cacheAddressKey(address), {
+      ...address,
+      codecVersion: resourceDefinition.codec.version,
+      payload,
+      payloadBytes: payload.byteLength,
+      storedAt: 0,
+      discardAt: 1_000,
+      revision: 1,
+    });
+    const store: CacheStore = {
+      ...memory.store,
+      async read(readAddress) {
+        const stored = await memory.store.read(readAddress);
+        readStarted.resolve();
+        await releaseRead.promise;
+        return stored;
+      },
+    };
+    const { cache } = await testCache(store, { now: () => 0 });
+    const resource = cache.define(resourceDefinition);
+    const obsolete = resource.peek(input);
+    const obsoleteResult = expect(obsolete).rejects.toThrow("invalidated");
+    await readStarted.promise;
+
+    await resource.invalidate({ scope: "test" });
+    await obsoleteResult;
+    releaseRead.resolve();
+    await expect(resource.peek(input)).resolves.toMatchObject({
+      availability: { state: "absent" },
+    });
+
+    expect(resourceDefinition.load).not.toHaveBeenCalled();
+    expect(memory.entries.size).toBe(0);
+    await cache.close();
+  });
+
+  it("deletes a late persisted refresh before invalidation completes", async () => {
+    const writeStarted = deferred<void>();
+    const releaseWrite = deferred<void>();
+    const memory = createMemoryStore();
+    const store: CacheStore = {
+      ...memory.store,
+      async write(entry) {
+        writeStarted.resolve();
+        await releaseWrite.promise;
+        await memory.store.write(entry);
+      },
+    };
+    const { cache } = await testCache(store);
+    const resource = cache.define(definition(async () => ({ value: "obsolete" })));
+    const obsolete = resource.resolve({ key: "catalog" });
+    const obsoleteResult = expect(obsolete).rejects.toThrow("invalidated");
+    await writeStarted.promise;
+
+    const invalidation = resource.invalidate({ scope: "test" });
+    releaseWrite.resolve();
+    await invalidation;
+    await obsoleteResult;
+
+    expect(memory.entries.size).toBe(0);
+    await expect(resource.peek({ key: "catalog" })).resolves.toMatchObject({
+      availability: { state: "absent" },
+    });
+    await cache.close();
+  });
+
   it("times out without waiting for a loader that ignores abort", async () => {
     const never = deferred<TestValue>();
     let loaderSignal: AbortSignal | undefined;
@@ -254,6 +376,59 @@ describe("resource cache", () => {
     expect(loaderSignal?.aborted).toBe(true);
   });
 
+  it("drains an active persistence read before closing its store", async () => {
+    const readStarted = deferred<void>();
+    const releaseRead = deferred<void>();
+    const memory = createMemoryStore();
+    const close = vi.fn(memory.store.close);
+    const store: CacheStore = {
+      ...memory.store,
+      async read(address) {
+        readStarted.resolve();
+        await releaseRead.promise;
+        return memory.store.read(address);
+      },
+      close,
+    };
+    const { cache } = await testCache(store);
+    const resource = cache.define(definition(vi.fn()));
+    const pending = resource.peek({ key: "catalog" });
+    const pendingResult = expect(pending).rejects.toThrow("closing");
+    await readStarted.promise;
+
+    const closing = cache.close();
+    await pendingResult;
+    expect(close).not.toHaveBeenCalled();
+    releaseRead.resolve();
+    await expect(closing).resolves.toBeUndefined();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("shares shutdown completion across concurrent close callers", async () => {
+    const closeStarted = deferred<void>();
+    const releaseClose = deferred<void>();
+    const memory = createMemoryStore();
+    const close = vi.fn(async () => {
+      closeStarted.resolve();
+      await releaseClose.promise;
+    });
+    const { cache } = await testCache({ ...memory.store, close });
+
+    const first = cache.close();
+    const second = cache.close();
+    let secondSettled = false;
+    void second.then(() => {
+      secondSettled = true;
+    });
+    await closeStarted.promise;
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(secondSettled).toBe(false);
+    releaseClose.resolve();
+    await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
+    expect(secondSettled).toBe(true);
+  });
+
   it("keeps successful source data in bounded memory when persistence fails visibly", async () => {
     const writeFailure = new Error("Disk is read-only.");
     const memory = createMemoryStore();
@@ -286,7 +461,9 @@ describe("resource cache", () => {
     await expect(resource.refresh({ key: "catalog" }, { force: true })).resolves.toMatchObject({
       availability: { state: "available", persistence: "durable" },
     });
-    await expect(cache.inspect()).resolves.toMatchObject({ persistence: "durable" });
+    await expect(cache.inspect()).resolves.toMatchObject({
+      persistence: "durable",
+    });
     await cache.close();
   });
 });

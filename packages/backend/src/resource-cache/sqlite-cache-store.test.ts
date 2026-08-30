@@ -29,6 +29,8 @@ function entry(key: string, storedAt: number, payloadBytes = 8): StoredCacheEntr
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
+
   for (const directory of directories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -67,6 +69,22 @@ describe("SQLite cache store", () => {
     expect(reportFailure).not.toHaveBeenCalled();
   });
 
+  it("rejects an entry larger than the persistent byte budget", async () => {
+    const store = await openSqliteCacheStore(cachePath(), {
+      maxEntries: 2,
+      maxBytes: 8,
+      reportFailure: vi.fn(),
+    });
+
+    await expect(store.write(entry("large", 1, 9))).rejects.toThrow(RangeError);
+    await expect(store.inspect()).resolves.toEqual({
+      entries: 0,
+      logicalBytes: 0,
+      revision: 0,
+    });
+    await store.close();
+  });
+
   it("recreates only the replaceable cache when its database is corrupt", async () => {
     const path = cachePath();
     const reportFailure = vi.fn();
@@ -90,6 +108,35 @@ describe("SQLite cache store", () => {
     expect(reportFailure).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ operation: "recover" }),
+    );
+    await store.close();
+  });
+
+  it("recovers a corrupt cache even when failure reporting throws", async () => {
+    const path = cachePath();
+    const reporterFailure = new Error("Reporter unavailable.");
+    const reportFailure = vi.fn(() => {
+      throw reporterFailure;
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    writeFileSync(path, "not a sqlite database");
+
+    const store = await openSqliteCacheStore(path, {
+      maxEntries: 2,
+      maxBytes: 64,
+      reportFailure,
+    });
+
+    await expect(store.inspect()).resolves.toEqual({
+      entries: 0,
+      logicalBytes: 0,
+      revision: 0,
+    });
+    expect(reportFailure).toHaveBeenCalledTimes(2);
+    expect(consoleError).toHaveBeenCalledTimes(2);
+    expect(consoleError).toHaveBeenCalledWith(
+      "Could not report a resource cache storage failure.",
+      expect.objectContaining({ errors: expect.arrayContaining([reporterFailure]) }),
     );
     await store.close();
   });

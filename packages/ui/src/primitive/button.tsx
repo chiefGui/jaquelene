@@ -95,7 +95,7 @@ const styles = stylex.create({
       ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
     },
     color: {
-      default: null,
+      default: tokens.muted,
       ":not(:disabled):hover": tokens.foreground,
       ":is([data-focus-visible])": tokens.foreground,
     },

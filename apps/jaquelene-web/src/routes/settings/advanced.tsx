@@ -123,7 +123,6 @@ const styles = stylex.create({
     color: tokens.danger,
   },
   openFolder: {
-    color: tokens.muted,
     gap: "0.5rem",
     marginTop: "0.75rem",
   },

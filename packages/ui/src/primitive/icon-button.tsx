@@ -16,7 +16,6 @@ export function IconButton({ style, ...props }: IconButtonProps) {
 
 const styles = stylex.create({
   root: {
-    color: tokens.muted,
     paddingInline: 0,
     width: tokens.controlHeight,
   },

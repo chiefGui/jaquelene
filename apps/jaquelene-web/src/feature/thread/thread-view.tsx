@@ -28,6 +28,14 @@ import {
 } from "./query";
 import { deriveThreadViewState } from "./thread-view-state";
 
+function isScrolledToEnd(viewport: HTMLElement) {
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
+}
+
+function scrollToEnd(viewport: HTMLElement) {
+  viewport.scrollTop = viewport.scrollHeight;
+}
+
 function replyStatusText(generation: TurnGeneration, retrying: boolean) {
   if (retrying) {
     return "Retrying…";
@@ -64,7 +72,9 @@ export function ThreadView({
   const [sendError, setSendError] = useState<string | null>(null);
   const composerInputId = useId();
   const sendErrorId = useId();
-  const viewport = useRef<HTMLDivElement>(null);
+  const viewport = useRef<HTMLElement>(null);
+  const composerShell = useRef<HTMLDivElement>(null);
+  const pinnedToEnd = useRef(true);
   const retryTurnId = retryTurnMutation.variables?.turnId;
   const retryStatus: "pending" | "failed" | null = retryTurnMutation.isPending
     ? "pending"
@@ -84,8 +94,26 @@ export function ThreadView({
   const operationPending = turnOperationPending || threadView.replyPending;
 
   useLayoutEffect(() => {
-    if (viewport.current) {
-      viewport.current.scrollTop = viewport.current.scrollHeight;
+    const scrollViewport = viewport.current;
+    const composer = composerShell.current;
+
+    if (!scrollViewport || !composer) {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (pinnedToEnd.current) {
+        scrollToEnd(scrollViewport);
+      }
+    });
+    resizeObserver.observe(composer);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    if (viewport.current && pinnedToEnd.current) {
+      scrollToEnd(viewport.current);
     }
   }, [threadView.latestMessageId]);
 
@@ -139,8 +167,15 @@ export function ThreadView({
   }
 
   return (
-    <section aria-label="Thread" {...stylex.props(styles.root)}>
-      <div ref={viewport} {...stylex.props(styles.viewport)}>
+    <section
+      ref={viewport}
+      aria-label="Thread"
+      onScroll={(event) => {
+        pinnedToEnd.current = isScrolledToEnd(event.currentTarget);
+      }}
+      {...stylex.props(styles.root)}
+    >
+      <div {...stylex.props(styles.scrollContent)}>
         <div {...stylex.props(styles.messageBody)}>
           {messagesQuery.hasNextPage ? (
             <div {...stylex.props(styles.loadOlder)}>
@@ -227,37 +262,37 @@ export function ThreadView({
             </ol>
           )}
         </div>
-      </div>
 
-      <div {...stylex.props(styles.composerShell)}>
-        <Composer onSubmit={sendMessage}>
-          <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
-          <Composer.Input
-            id={composerInputId}
-            value={draft}
-            maxLength={threadView.messageContentMaxLength}
-            aria-describedby={sendError ? sendErrorId : undefined}
-            onChange={(event) => {
-              setDraft(event.currentTarget.value);
-              setSendError(null);
-            }}
-            onKeyDown={handleComposerKeyDown}
-          />
-          <Composer.Footer>
-            <Composer.Controls>
-              {composerControls}
-              {sendError ? (
-                <Composer.Status id={sendErrorId} role="alert" tone="danger">
-                  {sendError}
-                </Composer.Status>
-              ) : null}
-            </Composer.Controls>
-            <Composer.Submit
-              pending={operationPending}
-              disabled={!model || modelPending || !draft.trim()}
+        <div ref={composerShell} {...stylex.props(styles.composerShell)}>
+          <Composer onSubmit={sendMessage}>
+            <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
+            <Composer.Input
+              id={composerInputId}
+              value={draft}
+              maxLength={threadView.messageContentMaxLength}
+              aria-describedby={sendError ? sendErrorId : undefined}
+              onChange={(event) => {
+                setDraft(event.currentTarget.value);
+                setSendError(null);
+              }}
+              onKeyDown={handleComposerKeyDown}
             />
-          </Composer.Footer>
-        </Composer>
+            <Composer.Footer>
+              <Composer.Controls>
+                {composerControls}
+                {sendError ? (
+                  <Composer.Status id={sendErrorId} role="alert" tone="danger">
+                    {sendError}
+                  </Composer.Status>
+                ) : null}
+              </Composer.Controls>
+              <Composer.Submit
+                pending={operationPending}
+                disabled={!model || modelPending || !draft.trim()}
+              />
+            </Composer.Footer>
+          </Composer>
+        </div>
       </div>
     </section>
   );
@@ -265,20 +300,22 @@ export function ThreadView({
 
 const styles = stylex.create({
   root: {
-    display: "flex",
-    flex: 1,
-    flexDirection: "column",
-    minHeight: 0,
-  },
-  viewport: {
     flex: 1,
     minHeight: 0,
     overflowY: "auto",
   },
+  scrollContent: {
+    display: "flex",
+    flexDirection: "column",
+    minHeight: "100%",
+    width: "100%",
+  },
   messageBody: {
+    display: "flex",
+    flex: 1,
+    flexDirection: "column",
     marginInline: "auto",
     maxWidth: "42rem",
-    minHeight: "100%",
     padding: "1.5rem",
     width: "100%",
   },
@@ -297,9 +334,9 @@ const styles = stylex.create({
   empty: {
     alignItems: "center",
     display: "flex",
+    flex: 1,
     flexDirection: "column",
     justifyContent: "center",
-    minHeight: "100%",
     textAlign: "center",
   },
   emptyDescription: {
@@ -375,11 +412,14 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightXSmall,
   },
   composerShell: {
+    bottom: 0,
     flexShrink: 0,
     marginInline: "auto",
     maxWidth: "42rem",
     paddingBlock: "0 1.5rem",
     paddingInline: "1.5rem",
+    position: "sticky",
     width: "100%",
+    zIndex: 1,
   },
 });

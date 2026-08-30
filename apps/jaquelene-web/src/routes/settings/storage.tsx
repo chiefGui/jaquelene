@@ -16,7 +16,6 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useId, useState } from "react";
-import { storagePalette } from "../../feature/storage/palette.stylex";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import {
   remeasureStorageUsage,
@@ -431,16 +430,16 @@ const styles = stylex.create({
     width: "0.5rem",
   },
   content: {
-    color: storagePalette.content,
+    color: tokens.storageContent,
   },
   cache: {
-    color: storagePalette.cache,
+    color: tokens.storageCache,
   },
   appData: {
-    color: storagePalette.appData,
+    color: tokens.storageAppData,
   },
   logs: {
-    color: storagePalette.logs,
+    color: tokens.storageLogs,
   },
 });
 

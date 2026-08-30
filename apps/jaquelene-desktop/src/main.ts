@@ -16,7 +16,7 @@ import { verifyOpenRouterApiKey } from "./feature/provider/openrouter/verificati
 import { createLocalState } from "./local-state";
 import { createMainWindow } from "./main-window";
 import { createPathOpener } from "./path-opener";
-import { createPreferences } from "./preferences/preferences";
+import { createPreferences, type Preferences } from "./preferences/preferences";
 import { createStorageAreas } from "./storage/areas";
 
 if (process.platform === "win32") {
@@ -46,7 +46,24 @@ function startPrimaryApplication() {
   const userDataDirectory = app.getPath("userData");
   const diagnosticsDirectory = getDiagnosticsStoragePath(userDataDirectory);
   const openPath = createPathOpener((path) => shell.openPath(path));
-  const diagnostics = createApplicationDiagnostics(diagnosticsDirectory, openPath);
+  let preferences: Preferences;
+
+  try {
+    preferences = createPreferences(userDataDirectory);
+  } catch (error) {
+    try {
+      console.error("Could not open application preferences.", error);
+    } finally {
+      app.quit();
+    }
+    return;
+  }
+
+  const diagnostics = createApplicationDiagnostics({
+    directoryPath: diagnosticsDirectory,
+    openPath,
+    shouldWriteToDisk: () => preferences.diagnostics.get().writeToDisk,
+  });
   let backend: Backend | undefined;
   let startup = Promise.resolve();
   let canQuit = false;
@@ -119,7 +136,6 @@ function startPrimaryApplication() {
         verify: verifyOpenRouterApiKey,
       });
       const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
-      const preferences = createPreferences(userDataDirectory);
       backend = await createBackend({
         databasePath,
         providers: [openRouter],

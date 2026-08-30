@@ -5,10 +5,22 @@ subtype ErrorReportPayload = string(
   maxLength: 131072
 )
 
+structure DiagnosticsPreferenceValues {
+  writeToDisk: boolean
+}
+
 [RendererAPI]
 [Validator=TrustedRenderer]
 [ContextBridge]
 interface Diagnostics {
   report(payload: ErrorReportPayload)
   openDirectory()
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface DiagnosticsPreferences {
+  get() -> DiagnosticsPreferenceValues
+  setWriteToDisk(writeToDisk: boolean) -> DiagnosticsPreferenceValues
 }

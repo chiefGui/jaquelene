@@ -3,6 +3,11 @@ import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import { deleteStoreFile } from "@/storage/delete-store-file";
 import {
+  createDiagnosticsPreferences,
+  diagnosticsPreferencesSchema,
+  type DiagnosticsPreferenceValues,
+} from "@/diagnostics/preferences";
+import {
   createUserInterfacePreferences,
   type UserInterfacePreferenceValues,
   userInterfacePreferencesSchema,
@@ -18,6 +23,7 @@ type PreferencesData = {
     userInterface?: UserInterfacePreferenceValues;
   };
   campaign?: CampaignPreferenceValues;
+  diagnostics?: DiagnosticsPreferenceValues;
 };
 
 const storeName = "preferences";
@@ -31,6 +37,7 @@ const schema = {
     },
   },
   campaign: campaignPreferencesSchema,
+  diagnostics: diagnosticsPreferencesSchema,
 } satisfies Schema<PreferencesData>;
 
 export function getPreferencesStoragePaths(userDataDirectory: string) {
@@ -69,12 +76,17 @@ export function createPreferences(userDataDirectory: string) {
     read: () => store.get("campaign"),
     write: (campaign) => store.set("campaign", campaign),
   });
+  const diagnostics = createDiagnosticsPreferences({
+    read: () => store.get("diagnostics"),
+    write: (values) => store.set("diagnostics", values),
+  });
 
   return {
     appearance: {
       userInterface,
     },
     campaign,
+    diagnostics,
     deleteAll: () => deleteStoreFile(store),
   };
 }

@@ -3,7 +3,7 @@ import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import type { ApplicationDiagnostics } from "./diagnostics/diagnostics";
-import { exposeDiagnostics } from "./diagnostics/ipc";
+import { exposeDiagnostics, exposeDiagnosticsPreferences } from "./diagnostics/ipc";
 import { exposeUserInterfacePreferences } from "./feature/appearance/user-interface/ipc";
 import { createInterfaceScaleWebPreferences } from "./feature/appearance/user-interface/zoom";
 import { exposeCampaignPreferences, exposeCampaigns } from "./feature/campaign/ipc";
@@ -87,6 +87,7 @@ export function createMainWindow({
 
     exposeScenarios(browserWindow.webContents.mainFrame, scenarios);
     exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
+    exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
     exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);
     exposeThreadMessaging(browserWindow.webContents.mainFrame, turns, diagnostics);
     exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);

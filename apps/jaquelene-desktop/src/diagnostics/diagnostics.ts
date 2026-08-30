@@ -45,10 +45,15 @@ export function getDiagnosticsStoragePath(userDataDirectory: string) {
   return join(userDataDirectory, "diagnostics");
 }
 
-export function createApplicationDiagnostics(
-  directoryPath: string,
-  openPath: PathOpener,
-): ApplicationDiagnostics {
+export function createApplicationDiagnostics({
+  directoryPath,
+  openPath,
+  shouldWriteToDisk,
+}: Readonly<{
+  directoryPath: string;
+  openPath: PathOpener;
+  shouldWriteToDisk: () => boolean;
+}>): ApplicationDiagnostics {
   const currentFilePath = join(directoryPath, currentFileName);
   const previousFilePath = join(directoryPath, previousFileName);
   let acceptingReports = true;
@@ -90,6 +95,15 @@ export function createApplicationDiagnostics(
   function persist(report: ErrorReport) {
     if (!acceptingReports) {
       notifyFallback(report, new Error("Diagnostics are closed."));
+      return;
+    }
+
+    try {
+      if (!shouldWriteToDisk()) {
+        return;
+      }
+    } catch (failure) {
+      notifyFallback(report, failure);
       return;
     }
 

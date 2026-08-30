@@ -13,6 +13,14 @@ function createDirectory() {
   return join(directory, "diagnostics");
 }
 
+function openDiagnostics(
+  directoryPath: string,
+  openPath: (path: string) => Promise<void> = vi.fn(async () => undefined),
+  shouldWriteToDisk: () => boolean = () => true,
+) {
+  return createApplicationDiagnostics({ directoryPath, openPath, shouldWriteToDisk });
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 
@@ -24,7 +32,7 @@ afterEach(() => {
 describe("application diagnostics", () => {
   it("persists main and renderer reports in order", async () => {
     const directory = createDirectory();
-    const diagnostics = createApplicationDiagnostics(
+    const diagnostics = openDiagnostics(
       directory,
       vi.fn(async () => undefined),
     );
@@ -69,7 +77,7 @@ describe("application diagnostics", () => {
   });
 
   it("rejects a main-process report at the renderer boundary", async () => {
-    const diagnostics = createApplicationDiagnostics(
+    const diagnostics = openDiagnostics(
       createDirectory(),
       vi.fn(async () => undefined),
     );
@@ -89,7 +97,7 @@ describe("application diagnostics", () => {
 
   it("keeps only the current and previous bounded files", async () => {
     const directory = createDirectory();
-    const diagnostics = createApplicationDiagnostics(
+    const diagnostics = openDiagnostics(
       directory,
       vi.fn(async () => undefined),
     );
@@ -119,7 +127,7 @@ describe("application diagnostics", () => {
 
   it("serializes deletion with pending reports", async () => {
     const directory = createDirectory();
-    const diagnostics = createApplicationDiagnostics(
+    const diagnostics = openDiagnostics(
       directory,
       vi.fn(async () => undefined),
     );
@@ -137,7 +145,7 @@ describe("application diagnostics", () => {
 
   it("accepts new reports after deletion", async () => {
     const directory = createDirectory();
-    const diagnostics = createApplicationDiagnostics(
+    const diagnostics = openDiagnostics(
       directory,
       vi.fn(async () => undefined),
     );
@@ -167,10 +175,100 @@ describe("application diagnostics", () => {
     ]);
   });
 
+  it("applies the current disk-writing preference when each report is accepted", async () => {
+    const directory = createDirectory();
+    let writeToDisk = true;
+    const diagnostics = openDiagnostics(
+      directory,
+      vi.fn(async () => undefined),
+      () => writeToDisk,
+    );
+
+    diagnostics.report({
+      severity: ErrorSeverity.Warning,
+      operation: "diagnostics.before-disable",
+      error: new Error("Persisted before disabling"),
+    });
+    writeToDisk = false;
+    diagnostics.report({
+      severity: ErrorSeverity.Error,
+      operation: "diagnostics.while-disabled",
+      error: new Error("Not persisted"),
+    });
+    diagnostics.recordRendererReport({
+      id: "renderer-while-disabled",
+      occurredAt: 1_725_000_000_002,
+      source: ErrorSource.Renderer,
+      severity: ErrorSeverity.Error,
+      operation: "diagnostics.renderer-while-disabled",
+      error: { name: "Error", message: "Not persisted" },
+    });
+    writeToDisk = true;
+    diagnostics.report({
+      severity: ErrorSeverity.Error,
+      operation: "diagnostics.after-enable",
+      error: new Error("Persisted after enabling"),
+    });
+    await diagnostics.close();
+
+    const reports = readFileSync(join(directory, "reports.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map(parseErrorReport);
+    expect(reports.map(({ operation }) => operation)).toEqual([
+      "diagnostics.before-disable",
+      "diagnostics.after-enable",
+    ]);
+  });
+
+  it("does not create diagnostics storage while disk writing is disabled", async () => {
+    const directory = createDirectory();
+    const diagnostics = openDiagnostics(
+      directory,
+      vi.fn(async () => undefined),
+      () => false,
+    );
+
+    diagnostics.report({
+      severity: ErrorSeverity.Error,
+      operation: "diagnostics.disabled",
+      error: new Error("Not persisted"),
+    });
+    await diagnostics.close();
+
+    expect(existsSync(directory)).toBe(false);
+  });
+
+  it("falls back to the console when the persistence preference cannot be read", async () => {
+    const fallback = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failure = new Error("Could not inspect diagnostics preferences.");
+    const diagnostics = openDiagnostics(
+      createDirectory(),
+      vi.fn(async () => undefined),
+      () => {
+        throw failure;
+      },
+    );
+
+    diagnostics.report({
+      severity: ErrorSeverity.Error,
+      operation: "diagnostics.preference",
+      error: new Error("Report"),
+    });
+    await diagnostics.close();
+
+    expect(fallback).toHaveBeenCalledOnce();
+    expect(fallback).toHaveBeenCalledWith(
+      "Could not persist a diagnostic report.",
+      failure,
+      expect.objectContaining({ operation: "diagnostics.preference" }),
+    );
+  });
+
   it("creates and opens its inspection directory", async () => {
     const directory = createDirectory();
     const openPath = vi.fn(async () => undefined);
-    const diagnostics = createApplicationDiagnostics(directory, openPath);
+    const diagnostics = openDiagnostics(directory, openPath, () => false);
 
     await diagnostics.openDirectory();
     await diagnostics.close();
@@ -181,7 +279,7 @@ describe("application diagnostics", () => {
 
   it("propagates a failure to open its inspection directory", async () => {
     const failure = new Error("Could not open path.");
-    const diagnostics = createApplicationDiagnostics(createDirectory(), async () => {
+    const diagnostics = openDiagnostics(createDirectory(), async () => {
       throw failure;
     });
 
@@ -191,7 +289,7 @@ describe("application diagnostics", () => {
 
   it("coalesces repeated persistence failures", async () => {
     const fallback = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const diagnostics = createApplicationDiagnostics(
+    const diagnostics = openDiagnostics(
       `${createDirectory()}\0`,
       vi.fn(async () => undefined),
     );
@@ -215,7 +313,7 @@ describe("application diagnostics", () => {
 
   it("reports queue saturation once per saturated period", async () => {
     const fallback = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const diagnostics = createApplicationDiagnostics(
+    const diagnostics = openDiagnostics(
       createDirectory(),
       vi.fn(async () => undefined),
     );
@@ -244,7 +342,7 @@ describe("application diagnostics", () => {
     const inspectionStarted = new Promise<void>((resolve) => {
       reportInspectionStarted = resolve;
     });
-    const diagnostics = createApplicationDiagnostics(createDirectory(), async () => {
+    const diagnostics = openDiagnostics(createDirectory(), async () => {
       reportInspectionStarted();
       await inspectionCanFinish;
     });

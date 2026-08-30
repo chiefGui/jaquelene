@@ -1,9 +1,8 @@
 import { diagnosticsStorageAreaId } from "@jaquelene/diagnostics";
-import FolderOpenIcon from "@hugeicons/core-free-icons/FolderOpenIcon";
 import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { StorageCategory, type StorageAreaUsage, type StorageUsage } from "@jaquelene/ipc/renderer";
-import { Button, Item, formatBytes } from "@jaquelene/ui";
+import { Button, IconButton, Item, formatBytes } from "@jaquelene/ui";
 import { ConfirmDialog, type ConfirmDialogProps } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
@@ -11,21 +10,19 @@ import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import {
   useIsMutating,
-  useMutation,
   useQueryClient,
   useSuspenseQuery,
   type QueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
-import { openDiagnosticsDirectory, reportError } from "@/feature/diagnostics/diagnostics";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import {
   remeasureStorageUsage,
   storageUsageQuery,
   useDeleteStorageArea,
   useDeleteStorageCategory,
 } from "@/feature/storage/query";
-import { ipcMutationOptions } from "@/ipc";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
@@ -140,17 +137,11 @@ function StorageDeleteAction({
         trigger={
           <Tooltip.Anchor
             render={
-              <Button
-                aria-label={accessibleLabel}
-                variant="ghost"
-                tone="danger"
-                style={styles.actionButton}
-                disabled={disabled}
-              />
+              <IconButton aria-label={accessibleLabel} tone="danger" disabled={disabled}>
+                <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
+              </IconButton>
             }
-          >
-            <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
-          </Tooltip.Anchor>
+          />
         }
       />
 
@@ -164,13 +155,6 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
   const deleteStorageArea = useDeleteStorageArea();
   const storageMutationPending = useIsMutating({ mutationKey: ["storage"] }) > 0;
   const [confirmingDeletion, setConfirmingDeletion] = useState(false);
-  const openDiagnostics = useMutation({
-    ...ipcMutationOptions,
-    mutationKey: ["diagnostics", "open-directory"],
-    mutationFn: openDiagnosticsDirectory,
-    onError: (error) => reportError("diagnostics.open", error),
-  });
-  const pending = storageMutationPending || openDiagnostics.isPending;
 
   function setDeletionConfirmationOpen(open: boolean) {
     if (open) deleteStorageArea.reset();
@@ -194,52 +178,28 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
     <Item.Root>
       <div {...stylex.props(styles.category)}>
         <span aria-hidden="true" {...stylex.props(styles.categoryMarker, styles.appData)} />
-
-        <Item.Content>
-          <Item.Label>Logs</Item.Label>
-          {openDiagnostics.isError ? (
-            <Item.Description role="alert" style={styles.error}>
-              Couldn’t open the folder
-            </Item.Description>
-          ) : null}
-        </Item.Content>
+        <Item.Label>Logs</Item.Label>
       </div>
 
-      <div {...stylex.props(styles.itemEnd)}>
+      <div {...stylex.props(styles.trailing)}>
         <Item.Value>
           <Item.ValueText>{formatBytes(area.bytes)}</Item.ValueText>
         </Item.Value>
 
-        <Tooltip.Root>
-          <Tooltip.Anchor
-            render={
-              <Button
-                aria-label="Open logs folder"
-                variant="ghost"
-                style={styles.actionButton}
-                disabled={pending}
-                onClick={() => openDiagnostics.mutate()}
-              />
-            }
-          >
-            <HugeiconsIcon icon={FolderOpenIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
-          </Tooltip.Anchor>
-
-          <Tooltip>Open folder</Tooltip>
-        </Tooltip.Root>
-
-        <StorageDeleteAction
-          accessibleLabel="Delete logs"
-          disabled={pending}
-          open={confirmingDeletion}
-          setOpen={setDeletionConfirmationOpen}
-          heading="Delete logs?"
-          description="Removes saved logs from this device. New logs may be created later."
-          confirmLabel="Delete"
-          pending={deleteStorageArea.isPending}
-          error={deleteStorageArea.isError ? "Couldn’t delete logs." : undefined}
-          onConfirm={() => void deleteDiagnostics()}
-        />
+        <div {...stylex.props(styles.actions)}>
+          <StorageDeleteAction
+            accessibleLabel="Delete logs"
+            disabled={storageMutationPending}
+            open={confirmingDeletion}
+            setOpen={setDeletionConfirmationOpen}
+            heading="Delete logs?"
+            description="Removes saved logs from this device. New logs may be created later."
+            confirmLabel="Delete"
+            pending={deleteStorageArea.isPending}
+            error={deleteStorageArea.isError ? "Couldn’t delete logs." : undefined}
+            onConfirm={() => void deleteDiagnostics()}
+          />
+        </div>
       </div>
     </Item.Root>
   );
@@ -338,27 +298,29 @@ function StorageRoute() {
                       <Item.Label>{category.label}</Item.Label>
                     </div>
 
-                    <div {...stylex.props(styles.itemEnd)}>
+                    <div {...stylex.props(styles.trailing)}>
                       <Item.Value>
                         <Item.ValueText>{formatBytes(category.bytes)}</Item.ValueText>
                       </Item.Value>
 
-                      <StorageDeleteAction
-                        accessibleLabel={`Delete ${category.label.toLowerCase()}`}
-                        disabled={storageMutationPending}
-                        open={open}
-                        setOpen={(nextOpen) => setConfirmationOpen(category, nextOpen)}
-                        heading={category.confirmation.heading}
-                        description={category.confirmation.description}
-                        confirmLabel="Delete"
-                        pending={pending}
-                        error={
-                          open && deleteStorageCategory.isError
-                            ? category.confirmation.error
-                            : undefined
-                        }
-                        onConfirm={() => void deleteCategory(category)}
-                      />
+                      <div {...stylex.props(styles.actions)}>
+                        <StorageDeleteAction
+                          accessibleLabel={`Delete ${category.label.toLowerCase()}`}
+                          disabled={storageMutationPending}
+                          open={open}
+                          setOpen={(nextOpen) => setConfirmationOpen(category, nextOpen)}
+                          heading={category.confirmation.heading}
+                          description={category.confirmation.description}
+                          confirmLabel="Delete"
+                          pending={pending}
+                          error={
+                            open && deleteStorageCategory.isError
+                              ? category.confirmation.error
+                              : undefined
+                          }
+                          onConfirm={() => void deleteCategory(category)}
+                        />
+                      </div>
                     </div>
                   </Item.Root>
                 );
@@ -410,11 +372,16 @@ const styles = stylex.create({
     gap: "0.75rem",
     minWidth: 0,
   },
-  itemEnd: {
+  trailing: {
     alignItems: "center",
     display: "flex",
     flexShrink: 0,
-    gap: "0.75rem",
+    gap: "1.25rem",
+  },
+  actions: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.25rem",
   },
   categoryMarker: {
     backgroundColor: "currentColor",
@@ -422,10 +389,6 @@ const styles = stylex.create({
     flexShrink: 0,
     height: "0.5rem",
     width: "0.5rem",
-  },
-  actionButton: {
-    paddingInline: 0,
-    width: tokens.controlHeight,
   },
   error: {
     color: tokens.danger,

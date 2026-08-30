@@ -13,6 +13,7 @@ import { defaultCampaignModelQuery } from "@/feature/campaign/preferences";
 import { resetModelCatalog } from "@/feature/model/catalog-query";
 import { favoriteModelsQuery } from "@/feature/model/favorite-models";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { diagnosticsPreferencesQuery } from "@/feature/diagnostics/preferences";
 import { providersQuery } from "@/feature/provider/query";
 import { scenarioQueryKey } from "@/feature/scenario/query";
 import { threadQueryKey } from "@/feature/thread/query";
@@ -75,6 +76,7 @@ const appDataQueryKeys = [
   favoriteModelsQuery.queryKey,
   userInterfacePreferencesQuery.queryKey,
   defaultCampaignModelQuery.queryKey,
+  diagnosticsPreferencesQuery.queryKey,
   providersQuery.queryKey,
 ] as const;
 

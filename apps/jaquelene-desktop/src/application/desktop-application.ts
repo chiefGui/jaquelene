@@ -10,9 +10,9 @@ import { createFavoriteModelsStorage } from "../feature/model/favorite-models-st
 import { createOpenRouterProviderFactory } from "../feature/provider/openrouter/provider";
 import { verifyOpenRouterApiKey } from "../feature/provider/openrouter/verification";
 import { createLocalState } from "../local-state";
-import { createMainWindowManager, type MainWindowInspection } from "../main-window";
 import type { Preferences } from "../preferences/preferences";
 import { createStorageAreas } from "../storage/areas";
+import { createMainWindowManager, type MainWindowInspection } from "./main-window";
 
 export type DesktopApplicationInspection = Readonly<{
   state: "starting" | "running" | "stopping" | "stopped";

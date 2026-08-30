@@ -1,10 +1,4 @@
-import {
-  Threads,
-  Turns,
-  type ModelReference,
-  type TurnAcceptance,
-  type TurnSettlement,
-} from "@jaquelene/ipc/renderer";
+import { Threads, Turns, type ModelReference } from "@jaquelene/ipc/renderer";
 import {
   type QueryClient,
   infiniteQueryOptions,
@@ -15,15 +9,20 @@ import {
 } from "@tanstack/react-query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
-import { mergeThreadTurnState, type ThreadQueryData } from "./thread-query-cache";
+import {
+  reconcileThreadTurn,
+  type ThreadQueryData,
+  type ThreadTurnUpdate,
+} from "./thread-query-cache";
 
 const listThreadMessages = requireIpcMethod(Threads?.listMessages);
 const submitTurn = requireIpcMethod(Turns?.submit);
 const retryTurn = requireIpcMethod(Turns?.retry);
-const onTurnSettled = requireIpcMethod(Turns?.onSettled);
+const onReplyFailed = requireIpcMethod(Turns?.onReplyFailed);
+const onReplyCompleted = requireIpcMethod(Turns?.onReplyCompleted);
+const onReplySuperseded = requireIpcMethod(Turns?.onReplySuperseded);
 export const threadQueryKey = ["threads"] as const;
 
-type TurnOperation = "submit" | "retry" | "settle";
 export type SubmitTurnVariables = {
   clientId: string;
   content: string;
@@ -57,12 +56,7 @@ function copyModelReference({ providerId, modelId }: ModelReference): ModelRefer
   return { providerId, modelId };
 }
 
-function reconcileSubmission(
-  queryClient: QueryClient,
-  threadId: string,
-  operation: TurnOperation,
-  state: TurnAcceptance | TurnSettlement,
-) {
+function reconcileTurn(queryClient: QueryClient, threadId: string, update: ThreadTurnUpdate) {
   const query = threadMessagesQuery(threadId);
   const current = queryClient.getQueryData<ThreadQueryData>(query.queryKey);
 
@@ -70,21 +64,24 @@ function reconcileSubmission(
     return;
   }
 
-  const updated = mergeThreadTurnState(current, threadId, operation, state);
+  const reconciliation = reconcileThreadTurn(current, update);
 
-  if (updated) {
-    queryClient.setQueryData(query.queryKey, updated);
-    return;
+  switch (reconciliation.outcome) {
+    case "updated":
+      queryClient.setQueryData(query.queryKey, reconciliation.data);
+      return;
+    case "current":
+      return;
+    case "reload":
+      reportError(
+        "thread.turn.reconcile",
+        new Error(`Could not apply ${update.type} to thread "${threadId}".`),
+      );
+      return queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
   }
-
-  reportError(
-    "thread.turn.reconcile",
-    new Error(`Could not reconcile ${operation} state for thread "${threadId}".`),
-  );
-  return queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
 }
 
-function reconcileUnexpectedFailure(queryClient: QueryClient, threadId: string) {
+function reloadThread(queryClient: QueryClient, threadId: string) {
   const queryKey = threadMessagesQuery(threadId).queryKey;
   return queryClient.invalidateQueries({ queryKey, exact: true });
 }
@@ -107,15 +104,37 @@ export function usePendingTurnSubmission(threadId: string) {
 }
 
 export function installThreadSettlementReconciliation(queryClient: QueryClient) {
-  return onTurnSettled((settlement) => {
+  function applyEvent(threadId: string, update: ThreadTurnUpdate) {
     try {
-      void Promise.resolve(
-        reconcileSubmission(queryClient, settlement.turn.threadId, "settle", settlement),
-      ).catch((cause: unknown) => reportError("thread.turn.settlement", cause));
+      void Promise.resolve(reconcileTurn(queryClient, threadId, update)).catch((cause: unknown) =>
+        reportError("thread.turn.settlement", cause),
+      );
+    } catch (cause) {
+      reportError("thread.turn.settlement", cause);
+    }
+  }
+
+  const stopFailureListener = onReplyFailed((failure) => {
+    applyEvent(failure.userMessage.threadId, { type: "reply-failed", ...failure });
+  });
+  const stopCompletionListener = onReplyCompleted((completion) => {
+    applyEvent(completion.userMessage.threadId, { type: "reply-completed", ...completion });
+  });
+  const stopSupersededListener = onReplySuperseded(({ threadId }) => {
+    try {
+      void reloadThread(queryClient, threadId).catch((cause: unknown) =>
+        reportError("thread.turn.settlement", cause),
+      );
     } catch (cause) {
       reportError("thread.turn.settlement", cause);
     }
   });
+
+  return () => {
+    stopFailureListener();
+    stopCompletionListener();
+    stopSupersededListener();
+  };
 }
 
 export function useSubmitTurn(threadId: string) {
@@ -128,10 +147,13 @@ export function useSubmitTurn(threadId: string) {
     mutationFn: ({ content, model }: SubmitTurnVariables) =>
       submitTurn({ threadId, content, model: copyModelReference(model) }),
     onSuccess(submission) {
-      return reconcileSubmission(queryClient, threadId, "submit", submission);
+      return reconcileTurn(queryClient, threadId, {
+        type: "submission-accepted",
+        ...submission,
+      });
     },
     onError() {
-      return reconcileUnexpectedFailure(queryClient, threadId);
+      return reloadThread(queryClient, threadId);
     },
   });
 }
@@ -145,11 +167,11 @@ export function useRetryTurn(threadId: string) {
     scope: turnMutationScope(threadId),
     mutationFn: ({ turnId, model }: { turnId: string; model: ModelReference }) =>
       retryTurn({ turnId, model: copyModelReference(model) }),
-    onSuccess(submission) {
-      return reconcileSubmission(queryClient, threadId, "retry", submission);
+    onSuccess(generation) {
+      return reconcileTurn(queryClient, threadId, { type: "retry-accepted", generation });
     },
     onError() {
-      return reconcileUnexpectedFailure(queryClient, threadId);
+      return reloadThread(queryClient, threadId);
     },
   });
 }

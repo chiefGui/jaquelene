@@ -7,7 +7,7 @@ import type {
 import type { Generation } from "#backend/generation/schema";
 import type { ThreadId, TurnId } from "#backend/id";
 import type { ModelReference } from "#backend/provider/provider";
-import type { ThreadMessage, Turn } from "#backend/thread/schema";
+import type { ThreadMessage } from "#backend/thread/schema";
 import type { ThreadEngine } from "#backend/thread/threads";
 
 type TurnGenerationEngine = Pick<
@@ -41,16 +41,20 @@ export type RetryTurnRequest = {
 };
 
 export type TurnAcceptance = {
-  turn: Turn;
   userMessage: ThreadMessage;
   generation: Generation;
 };
 
-export type TurnSettlement = TurnAcceptance & {
-  assistantMessage: ThreadMessage | null;
-  assistantActivated: boolean;
-  failure: Readonly<{ cause: unknown }> | null;
-};
+export type TurnSettlement =
+  | (TurnAcceptance & {
+      outcome: "failed";
+      failure: Readonly<{ cause: unknown }>;
+    })
+  | (TurnAcceptance & {
+      outcome: "completed";
+      assistantMessage: ThreadMessage;
+      assistantActivated: boolean;
+    });
 
 export type TurnOperation = {
   acceptance: TurnAcceptance;
@@ -76,19 +80,18 @@ function settleTurn(
   if (execution.outcome === "failed") {
     return {
       ...acceptance,
+      outcome: "failed",
       generation: execution.generation,
-      assistantMessage: null,
-      assistantActivated: false,
       failure: { cause: execution.cause },
     };
   }
 
   return {
     ...acceptance,
+    outcome: "completed",
     generation: execution.generation,
     assistantMessage: execution.message,
     assistantActivated: execution.activated,
-    failure: null,
   };
 }
 
@@ -156,7 +159,6 @@ export function createTurns(
             model,
           );
           const acceptance = {
-            turn,
             userMessage: message,
             generation: acceptedGeneration.generation,
           } satisfies TurnAcceptance;
@@ -192,7 +194,6 @@ export function createTurns(
           generations.acceptReplyInTransaction(transaction, turnId, model),
         );
         const acceptance = {
-          turn: input.turn,
           userMessage: input.message,
           generation: acceptedGeneration.generation,
         } satisfies TurnAcceptance;

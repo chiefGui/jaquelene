@@ -81,21 +81,10 @@ function toIpcGeneration(generation: Generation) {
   };
 }
 
-function toIpcAcceptance(acceptance: TurnAcceptance) {
+function toIpcSubmission(acceptance: TurnAcceptance) {
   return {
-    turn: { ...acceptance.turn },
     userMessage: toIpcMessage(acceptance.userMessage),
     generation: toIpcGeneration(acceptance.generation),
-  };
-}
-
-function toIpcSettlement(settlement: TurnSettlement) {
-  return {
-    ...toIpcAcceptance(settlement),
-    ...(settlement.assistantMessage
-      ? { assistantMessage: toIpcMessage(settlement.assistantMessage) }
-      : {}),
-    assistantActivated: settlement.assistantActivated,
   };
 }
 
@@ -122,7 +111,7 @@ function reportUnexpectedFailure(
   operation: "thread.turn.submit" | "thread.turn.retry",
   settlement: TurnSettlement,
 ) {
-  if (!settlement.failure) {
+  if (settlement.outcome !== "failed") {
     return;
   }
 
@@ -144,12 +133,10 @@ function reportUnexpectedFailure(
 export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) {
   const destinations = new Map<WebFrameMain, ITurnsDispatcher>();
 
-  function publishSettlement(
+  function publishTurnChange(
     operation: "thread.turn.submit" | "thread.turn.retry",
-    settlement: TurnSettlement,
+    dispatch: (dispatcher: ITurnsDispatcher) => void,
   ) {
-    const payload = toIpcSettlement(settlement);
-
     for (const [target, dispatcher] of destinations) {
       if (target.isDestroyed() || target.detached) {
         destinations.delete(target);
@@ -157,7 +144,7 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
       }
 
       try {
-        dispatcher.dispatchSettled(payload);
+        dispatch(dispatcher);
       } catch (cause) {
         if (target.isDestroyed() || target.detached) {
           destinations.delete(target);
@@ -167,10 +154,39 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
         diagnostics.report({
           severity: ErrorSeverity.Error,
           operation: `${operation}.dispatch`,
-          error: new Error("Could not publish settled turn state.", { cause }),
+          error: new Error("Could not publish turn state.", { cause }),
         });
       }
     }
+  }
+
+  function publishSettlement(
+    operation: "thread.turn.submit" | "thread.turn.retry",
+    settlement: TurnSettlement,
+  ) {
+    reportUnexpectedFailure(diagnostics, operation, settlement);
+
+    if (settlement.outcome === "failed") {
+      const failure = {
+        userMessage: toIpcMessage(settlement.userMessage),
+        generation: toIpcGeneration(settlement.generation),
+      };
+      publishTurnChange(operation, (dispatcher) => dispatcher.dispatchReplyFailed(failure));
+      return;
+    }
+
+    if (!settlement.assistantActivated) {
+      const superseded = { threadId: settlement.userMessage.threadId };
+      publishTurnChange(operation, (dispatcher) => dispatcher.dispatchReplySuperseded(superseded));
+      return;
+    }
+
+    const completion = {
+      userMessage: toIpcMessage(settlement.userMessage),
+      assistantMessage: toIpcMessage(settlement.assistantMessage),
+      generation: toIpcGeneration(settlement.generation),
+    };
+    publishTurnChange(operation, (dispatcher) => dispatcher.dispatchReplyCompleted(completion));
   }
 
   function observeSettlement(
@@ -179,7 +195,6 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
   ) {
     void settlement.then(
       (result) => {
-        reportUnexpectedFailure(diagnostics, operation, result);
         publishSettlement(operation, result);
       },
       (cause: unknown) => {
@@ -217,7 +232,7 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
             model: { ...request.model },
           });
           observeSettlement("thread.turn.submit", operation.settlement);
-          return toIpcAcceptance(operation.acceptance);
+          return toIpcSubmission(operation.acceptance);
         },
         retry(request) {
           const operation = turns.retry({
@@ -225,7 +240,7 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
             model: { ...request.model },
           });
           observeSettlement("thread.turn.retry", operation.settlement);
-          return toIpcAcceptance(operation.acceptance);
+          return toIpcGeneration(operation.acceptance.generation);
         },
       });
       destinations.set(target, dispatcher);

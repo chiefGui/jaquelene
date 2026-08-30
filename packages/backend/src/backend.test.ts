@@ -78,6 +78,10 @@ describe("backend", () => {
     });
     const submitted = await submittedOperation.settlement;
 
+    if (submitted.outcome !== "completed") {
+      throw new Error("Expected the submitted reply to complete.");
+    }
+
     const firstClose = first.close();
     expect(first.close()).toBe(firstClose);
     await firstClose;
@@ -172,18 +176,22 @@ describe("backend", () => {
 
     const interrupted = await pending.settlement;
     await closing;
+
+    if (interrupted.outcome !== "failed") {
+      throw new Error("Expected the active reply to be interrupted.");
+    }
+
     expect(providerSignal?.aborted).toBe(true);
     expect(interrupted.generation).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
     );
-    expect(interrupted.assistantMessage).toBeNull();
 
     const database = openDatabase(databasePath);
 
     try {
       expect(database.select().from(generationTable).get()).toEqual(
         expect.objectContaining({
-          turnId: interrupted.turn.id,
+          turnId: interrupted.userMessage.turnId,
           status: "failed",
           failureKind: "interrupted",
         }),

@@ -99,7 +99,6 @@ describe("turns", () => {
 
     expect(generate).not.toHaveBeenCalled();
     expect(operation.acceptance).toEqual({
-      turn: expect.objectContaining({ id: expect.stringMatching(/^turn_/), threadId: thread.id }),
       userMessage: expect.objectContaining({
         id: expect.stringMatching(/^message_/),
         threadId: thread.id,
@@ -124,8 +123,13 @@ describe("turns", () => {
     providerReply.resolve({ text: "Welcome aboard." });
     const settlement = await operation.settlement;
 
+    if (settlement.outcome !== "completed") {
+      throw new Error("Expected reply generation to complete.");
+    }
+
     expect(settlement).toEqual({
       ...operation.acceptance,
+      outcome: "completed",
       generation: expect.objectContaining({ status: "completed" }),
       assistantMessage: expect.objectContaining({
         threadId: thread.id,
@@ -133,7 +137,6 @@ describe("turns", () => {
         content: "Welcome aboard.",
       }),
       assistantActivated: true,
-      failure: null,
     });
     expect(turns.listForThread({ threadId: thread.id })).toEqual({
       messages: [operation.acceptance.userMessage, settlement.assistantMessage],
@@ -168,15 +171,17 @@ describe("turns", () => {
     const failedOperation = turns.submit({ threadId: thread.id, content: "Hello", model });
     const failed = await failedOperation.settlement;
 
+    if (failed.outcome !== "failed") {
+      throw new Error("Expected reply generation to fail.");
+    }
+
     expect(failed.generation).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "provider" }),
     );
-    expect(failed.assistantMessage).toBeNull();
     expect(failed.failure).toEqual({ cause: providerFailure });
 
-    const retriedOperation = turns.retry({ turnId: failed.turn.id, model });
+    const retriedOperation = turns.retry({ turnId: failed.userMessage.turnId, model });
 
-    expect(retriedOperation.acceptance.turn).toEqual(failed.turn);
     expect(retriedOperation.acceptance.userMessage).toEqual(failed.userMessage);
     expect(retriedOperation.acceptance.generation).toEqual(
       expect.objectContaining({ status: "pending" }),
@@ -185,8 +190,11 @@ describe("turns", () => {
 
     const retried = await retriedOperation.settlement;
 
+    if (retried.outcome !== "completed") {
+      throw new Error("Expected retried reply generation to complete.");
+    }
+
     expect(retried.generation).toEqual(expect.objectContaining({ status: "completed" }));
-    expect(retried.failure).toBeNull();
     expect(retried.assistantMessage).toEqual(
       expect.objectContaining({ author: "assistant", content: "Recovered reply" }),
     );
@@ -213,14 +221,14 @@ describe("turns", () => {
       model,
     });
     await expect(independent.settlement).resolves.toEqual(
-      expect.objectContaining({ assistantActivated: true }),
+      expect.objectContaining({ outcome: "completed", assistantActivated: true }),
     );
 
     firstReply.resolve({ text: "First reply" });
     await first.settlement;
     const second = turns.submit({ threadId: thread.id, content: "Second", model });
     await expect(second.settlement).resolves.toEqual(
-      expect.objectContaining({ assistantActivated: true }),
+      expect.objectContaining({ outcome: "completed", assistantActivated: true }),
     );
     expect(turns.listForThread({ threadId: thread.id }).messages).toHaveLength(4);
   });

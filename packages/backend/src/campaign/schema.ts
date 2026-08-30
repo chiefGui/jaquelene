@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   index,
   integer,
   primaryKey,
@@ -32,5 +34,29 @@ export const campaignTable = sqliteTable(
       campaign.id,
     ),
     uniqueIndex("campaigns_thread_unique").on(campaign.threadId),
+  ],
+);
+
+export const campaignModelOverrideTable = sqliteTable(
+  "campaign_model_overrides",
+  {
+    campaignId: text("campaign_id")
+      .$type<CampaignId>()
+      .notNull()
+      .references(() => campaignTable.id, { onDelete: "cascade" }),
+    providerId: text("provider_id").notNull(),
+    modelId: text("model_id").notNull(),
+    name: text().notNull(),
+    brandId: text("brand_id").notNull(),
+  },
+  (modelOverride) => [
+    primaryKey({ columns: [modelOverride.campaignId] }),
+    check(
+      "campaign_model_overrides_values_valid",
+      sql`length(trim(${modelOverride.providerId})) > 0
+        AND length(trim(${modelOverride.modelId})) > 0
+        AND length(trim(${modelOverride.name})) > 0
+        AND length(trim(${modelOverride.brandId})) > 0`,
+    ),
   ],
 );

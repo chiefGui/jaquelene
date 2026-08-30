@@ -5,6 +5,7 @@ structure Campaign {
   scenarioId: string
   threadId: string
   startedAt: UnixTimeMilliseconds
+  modelOverride?: ModelSelection
 }
 
 [RendererAPI]
@@ -14,6 +15,7 @@ interface Campaigns {
   start(scenarioId: string) -> Campaign
   listForScenario(scenarioId: string) -> Campaign[]
   get(id: string) -> Campaign?
+  setModelOverride(id: string, model: ModelSelection?) -> Campaign?
 }
 
 [RendererAPI]

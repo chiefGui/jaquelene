@@ -24,7 +24,11 @@ type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
 };
 
-export type SelectProps = StyleableProps<ComboboxSelectProps>;
+type SelectVariant = "filled" | "ghost";
+
+export type SelectProps = StyleableProps<ComboboxSelectProps> & {
+  variant?: SelectVariant;
+};
 
 function SelectRoot({ children, ...props }: ComboboxProviderProps<string>) {
   return (
@@ -34,9 +38,12 @@ function SelectRoot({ children, ...props }: ComboboxProviderProps<string>) {
   );
 }
 
-function SelectTrigger({ children, style, ...props }: SelectProps) {
+function SelectTrigger({ children, style, variant = "filled", ...props }: SelectProps) {
   return (
-    <ComboboxSelect {...props} {...stylex.props(styles.trigger, style, stylex.defaultMarker())}>
+    <ComboboxSelect
+      {...props}
+      {...stylex.props(styles.trigger, styles[variant], style, stylex.defaultMarker())}
+    >
       {children ?? <SelectValue />}
       <HugeiconsIcon
         icon={ChevronDownIcon}
@@ -120,10 +127,6 @@ const focusRing = `inset 0 0 0 1px color-mix(in oklab, ${tokens.accent} 45%, tra
 const styles = stylex.create({
   trigger: {
     alignItems: "center",
-    backgroundColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 3.5%, transparent)`,
-      ":not(:disabled):hover": activeBackground,
-    },
     borderRadius: tokens.radiusMedium,
     boxShadow: {
       default: null,
@@ -145,6 +148,19 @@ const styles = stylex.create({
     },
     outline: "none",
     paddingInline: "0.625rem",
+  },
+  filled: {
+    backgroundColor: {
+      default: `color-mix(in oklab, ${tokens.foreground} 3.5%, transparent)`,
+      ":not(:disabled):hover": activeBackground,
+    },
+  },
+  ghost: {
+    backgroundColor: {
+      default: "transparent",
+      ":not(:disabled):hover": activeBackground,
+      ':is([aria-expanded="true"])': activeBackground,
+    },
   },
   chevron: {
     color: {

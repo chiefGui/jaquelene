@@ -1,6 +1,11 @@
-import type { GenerationEngine, Generations, GenerateReplyRequest } from "./generations";
+import type {
+  AcceptedReplyGeneration,
+  GenerationEngine,
+  Generations,
+  GenerateReplyRequest,
+} from "./generations";
 
-type ReplyGenerationEngine = Pick<GenerationEngine, "executeReply">;
+type ReplyGenerationEngine = Pick<GenerationEngine, "executeAcceptedReply" | "executeReply">;
 
 export function superviseGenerations(engine: ReplyGenerationEngine) {
   const shutdownController = new AbortController();
@@ -8,21 +13,42 @@ export function superviseGenerations(engine: ReplyGenerationEngine) {
   let acceptingWork = true;
   let closePromise: Promise<void> | undefined;
 
-  function executeReply(request: GenerateReplyRequest) {
-    if (!acceptingWork) {
-      return Promise.reject(new Error("Backend is closed."));
-    }
-
-    const signal = request.signal
-      ? AbortSignal.any([request.signal, shutdownController.signal])
+  function operationSignal(signal?: AbortSignal) {
+    return signal
+      ? AbortSignal.any([signal, shutdownController.signal])
       : shutdownController.signal;
-    const operation = engine.executeReply({ ...request, signal });
+  }
+
+  function trackOperation<Result>(operation: Promise<Result>) {
     activeOperations.add(operation);
     void operation.then(
       () => activeOperations.delete(operation),
       () => activeOperations.delete(operation),
     );
     return operation;
+  }
+
+  function executeReply(request: GenerateReplyRequest) {
+    if (!acceptingWork) {
+      return Promise.reject(new Error("Backend is closed."));
+    }
+
+    const signal = operationSignal(request.signal);
+    const operation = engine.executeReply({ ...request, signal });
+    return trackOperation(operation);
+  }
+
+  function scheduleAcceptedReply(accepted: AcceptedReplyGeneration, signal?: AbortSignal) {
+    if (!acceptingWork) {
+      return Promise.reject(new Error("Backend is closed."));
+    }
+
+    const executionSignal = operationSignal(signal);
+    // Let callers observe durable acceptance before prompt compilation or provider work starts.
+    const operation = new Promise<void>((resolve) => setImmediate(resolve)).then(() =>
+      engine.executeAcceptedReply(accepted, executionSignal),
+    );
+    return trackOperation(operation);
   }
 
   const generations: Generations = {
@@ -38,17 +64,20 @@ export function superviseGenerations(engine: ReplyGenerationEngine) {
     },
   };
 
+  function close() {
+    if (!closePromise) {
+      acceptingWork = false;
+      shutdownController.abort(new Error("Backend is closing."));
+      closePromise = Promise.allSettled(activeOperations).then(() => undefined);
+    }
+
+    return closePromise;
+  }
+
   return {
     executeReply,
+    scheduleAcceptedReply,
     generations,
-    close() {
-      if (!closePromise) {
-        acceptingWork = false;
-        shutdownController.abort(new Error("Backend is closing."));
-        closePromise = Promise.allSettled(activeOperations).then(() => undefined);
-      }
-
-      return closePromise;
-    },
+    close,
   };
 }

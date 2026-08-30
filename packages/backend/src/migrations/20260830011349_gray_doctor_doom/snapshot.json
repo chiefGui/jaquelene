@@ -1,9 +1,13 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "fd2f4ae4-74c3-48aa-a5e8-2dc1f10d5b17",
+  "id": "80f9d649-b44c-49fc-9ec9-784bd2680111",
   "prevIds": ["f902bfa0-b469-4561-b29b-34a420c5cbd7"],
   "ddl": [
+    {
+      "name": "campaign_model_overrides",
+      "entityType": "tables"
+    },
     {
       "name": "campaigns",
       "entityType": "tables"
@@ -34,6 +38,56 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
+      "name": "campaign_id",
+      "entityType": "columns",
+      "table": "campaign_model_overrides"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "provider_id",
+      "entityType": "columns",
+      "table": "campaign_model_overrides"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "model_id",
+      "entityType": "columns",
+      "table": "campaign_model_overrides"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "campaign_model_overrides"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "brand_id",
+      "entityType": "columns",
+      "table": "campaign_model_overrides"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
       "name": "id",
       "entityType": "columns",
       "table": "campaigns"
@@ -55,46 +109,6 @@
       "default": null,
       "generated": null,
       "name": "thread_id",
-      "entityType": "columns",
-      "table": "campaigns"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "model_provider_id",
-      "entityType": "columns",
-      "table": "campaigns"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "model_id",
-      "entityType": "columns",
-      "table": "campaigns"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "model_name",
-      "entityType": "columns",
-      "table": "campaigns"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "model_brand_id",
       "entityType": "columns",
       "table": "campaigns"
     },
@@ -429,6 +443,17 @@
       "table": "turns"
     },
     {
+      "columns": ["campaign_id"],
+      "tableTo": "campaigns",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_campaign_model_overrides_campaign_id_campaigns_id_fk",
+      "entityType": "fks",
+      "table": "campaign_model_overrides"
+    },
+    {
       "columns": ["scenario_id"],
       "tableTo": "scenarios",
       "columnsTo": ["id"],
@@ -537,6 +562,13 @@
       "name": "fk_turns_thread_id_threads_id_fk",
       "entityType": "fks",
       "table": "turns"
+    },
+    {
+      "columns": ["campaign_id"],
+      "nameExplicit": false,
+      "name": "campaign_model_overrides_pk",
+      "entityType": "pks",
+      "table": "campaign_model_overrides"
     },
     {
       "columns": ["id"],
@@ -789,10 +821,10 @@
       "table": "turns"
     },
     {
-      "value": "(\"model_provider_id\" IS NULL\n          AND \"model_id\" IS NULL\n          AND \"model_name\" IS NULL\n          AND \"model_brand_id\" IS NULL)\n        OR (\"model_provider_id\" IS NOT NULL\n          AND \"model_id\" IS NOT NULL\n          AND \"model_name\" IS NOT NULL\n          AND \"model_brand_id\" IS NOT NULL\n          AND length(trim(\"model_provider_id\")) > 0\n          AND length(trim(\"model_id\")) > 0\n          AND length(trim(\"model_name\")) > 0\n          AND length(trim(\"model_brand_id\")) > 0)",
-      "name": "campaigns_model_override_valid",
+      "value": "length(trim(\"provider_id\")) > 0\n        AND length(trim(\"model_id\")) > 0\n        AND length(trim(\"name\")) > 0\n        AND length(trim(\"brand_id\")) > 0",
+      "name": "campaign_model_overrides_values_valid",
       "entityType": "checks",
-      "table": "campaigns"
+      "table": "campaign_model_overrides"
     },
     {
       "value": "length(trim(\"provider_id\")) > 0 AND length(trim(\"model_id\")) > 0",

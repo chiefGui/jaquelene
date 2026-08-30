@@ -1,9 +1,9 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, getTableColumns } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { ids, type CampaignId, type ScenarioId, type ThreadId } from "#backend/id";
 import { requireModelSelection, type ModelSelection } from "#backend/provider/provider";
 import { insertThread } from "#backend/thread/threads";
-import { campaignTable } from "./schema";
+import { campaignModelOverrideTable, campaignTable } from "./schema";
 
 export type Campaign = Readonly<{
   id: CampaignId;
@@ -13,32 +13,22 @@ export type Campaign = Readonly<{
   modelOverride?: ModelSelection;
 }>;
 
-type StoredCampaign = typeof campaignTable.$inferSelect;
+type StoredCampaign = typeof campaignTable.$inferSelect & {
+  modelOverride: ModelSelection | null;
+};
 
-function toCampaign({
-  modelProviderId,
-  modelId,
-  modelName,
-  modelBrandId,
-  ...campaign
-}: StoredCampaign): Campaign {
-  if (modelProviderId === null && modelId === null && modelName === null && modelBrandId === null) {
-    return campaign;
-  }
+const campaignSelection = {
+  ...getTableColumns(campaignTable),
+  modelOverride: {
+    providerId: campaignModelOverrideTable.providerId,
+    modelId: campaignModelOverrideTable.modelId,
+    name: campaignModelOverrideTable.name,
+    brandId: campaignModelOverrideTable.brandId,
+  },
+};
 
-  if (modelProviderId === null || modelId === null || modelName === null || modelBrandId === null) {
-    throw new Error(`Campaign "${campaign.id}" has an incomplete model override.`);
-  }
-
-  return {
-    ...campaign,
-    modelOverride: {
-      providerId: modelProviderId,
-      modelId,
-      name: modelName,
-      brandId: modelBrandId,
-    },
-  };
+function toCampaign({ modelOverride, ...campaign }: StoredCampaign): Campaign {
+  return modelOverride ? { ...campaign, modelOverride } : campaign;
 }
 
 export function createCampaigns(database: Database, now: () => number = Date.now) {
@@ -62,8 +52,12 @@ export function createCampaigns(database: Database, now: () => number = Date.now
 
     listForScenario(scenarioId: ScenarioId) {
       return database
-        .select()
+        .select(campaignSelection)
         .from(campaignTable)
+        .leftJoin(
+          campaignModelOverrideTable,
+          eq(campaignModelOverrideTable.campaignId, campaignTable.id),
+        )
         .where(eq(campaignTable.scenarioId, scenarioId))
         .orderBy(desc(campaignTable.startedAt), desc(campaignTable.id))
         .all()
@@ -71,7 +65,15 @@ export function createCampaigns(database: Database, now: () => number = Date.now
     },
 
     get(id: CampaignId) {
-      const campaign = database.select().from(campaignTable).where(eq(campaignTable.id, id)).get();
+      const campaign = database
+        .select(campaignSelection)
+        .from(campaignTable)
+        .leftJoin(
+          campaignModelOverrideTable,
+          eq(campaignModelOverrideTable.campaignId, campaignTable.id),
+        )
+        .where(eq(campaignTable.id, id))
+        .get();
       return campaign ? toCampaign(campaign) : null;
     },
 
@@ -80,19 +82,36 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         requireModelSelection(model);
       }
 
-      const campaign = database
-        .update(campaignTable)
-        .set({
-          modelProviderId: model?.providerId ?? null,
-          modelId: model?.modelId ?? null,
-          modelName: model?.name ?? null,
-          modelBrandId: model?.brandId ?? null,
-        })
-        .where(eq(campaignTable.id, id))
-        .returning()
-        .get();
+      return database.transaction((transaction) => {
+        const campaign = transaction
+          .select()
+          .from(campaignTable)
+          .where(eq(campaignTable.id, id))
+          .get();
 
-      return campaign ? toCampaign(campaign) : null;
+        if (!campaign) {
+          return null;
+        }
+
+        if (model) {
+          transaction
+            .insert(campaignModelOverrideTable)
+            .values({ campaignId: id, ...model })
+            .onConflictDoUpdate({
+              target: campaignModelOverrideTable.campaignId,
+              set: model,
+            })
+            .run();
+
+          return { ...campaign, modelOverride: { ...model } };
+        }
+
+        transaction
+          .delete(campaignModelOverrideTable)
+          .where(eq(campaignModelOverrideTable.campaignId, id))
+          .run();
+        return campaign;
+      });
     },
   };
 }

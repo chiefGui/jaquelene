@@ -24,10 +24,6 @@ export const campaignTable = sqliteTable(
       .$type<ThreadId>()
       .notNull()
       .references(() => threadTable.id),
-    modelProviderId: text("model_provider_id"),
-    modelId: text("model_id"),
-    modelName: text("model_name"),
-    modelBrandId: text("model_brand_id"),
     startedAt: integer("started_at").notNull(),
   },
   (campaign) => [
@@ -38,20 +34,29 @@ export const campaignTable = sqliteTable(
       campaign.id,
     ),
     uniqueIndex("campaigns_thread_unique").on(campaign.threadId),
+  ],
+);
+
+export const campaignModelOverrideTable = sqliteTable(
+  "campaign_model_overrides",
+  {
+    campaignId: text("campaign_id")
+      .$type<CampaignId>()
+      .notNull()
+      .references(() => campaignTable.id, { onDelete: "cascade" }),
+    providerId: text("provider_id").notNull(),
+    modelId: text("model_id").notNull(),
+    name: text().notNull(),
+    brandId: text("brand_id").notNull(),
+  },
+  (modelOverride) => [
+    primaryKey({ columns: [modelOverride.campaignId] }),
     check(
-      "campaigns_model_override_valid",
-      sql`(${campaign.modelProviderId} IS NULL
-          AND ${campaign.modelId} IS NULL
-          AND ${campaign.modelName} IS NULL
-          AND ${campaign.modelBrandId} IS NULL)
-        OR (${campaign.modelProviderId} IS NOT NULL
-          AND ${campaign.modelId} IS NOT NULL
-          AND ${campaign.modelName} IS NOT NULL
-          AND ${campaign.modelBrandId} IS NOT NULL
-          AND length(trim(${campaign.modelProviderId})) > 0
-          AND length(trim(${campaign.modelId})) > 0
-          AND length(trim(${campaign.modelName})) > 0
-          AND length(trim(${campaign.modelBrandId})) > 0)`,
+      "campaign_model_overrides_values_valid",
+      sql`length(trim(${modelOverride.providerId})) > 0
+        AND length(trim(${modelOverride.modelId})) > 0
+        AND length(trim(${modelOverride.name})) > 0
+        AND length(trim(${modelOverride.brandId})) > 0`,
     ),
   ],
 );

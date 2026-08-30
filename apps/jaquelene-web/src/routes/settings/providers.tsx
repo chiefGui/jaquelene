@@ -4,9 +4,10 @@ import {
   ProviderConfigureState,
   type Provider,
 } from "@jaquelene/ipc/renderer";
-import { Button, Input, Item } from "@jaquelene/ui";
+import { Button, Input, Item, Ping } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
+import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -106,7 +107,15 @@ function ProviderSettings({ provider }: { provider: Provider }) {
             <ProviderMark brandId={provider.brandId} style={styles.providerMark} />
           </span>
           <Item.Content>
-            <Item.Label>{provider.name}</Item.Label>
+            <div {...stylex.props(styles.providerLabel)}>
+              <Item.Label>{provider.name}</Item.Label>
+              {configured ? (
+                <>
+                  <Ping style={styles.connected} />
+                  <VisuallyHidden>Connected</VisuallyHidden>
+                </>
+              ) : null}
+            </div>
             {keyLabel ? <Item.Description style={styles.mono}>{keyLabel}</Item.Description> : null}
           </Item.Content>
         </div>
@@ -241,6 +250,14 @@ const styles = stylex.create({
   providerMark: {
     height: "0.875rem",
     width: "0.875rem",
+  },
+  providerLabel: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.5rem",
+  },
+  connected: {
+    color: tokens.success,
   },
   mono: {
     fontFamily: tokens.fontMono,

@@ -10,9 +10,13 @@ import { deleteStoreFile } from "@/storage/delete-store-file";
 import { openRouterProviderId } from "./identity";
 
 type StoredOpenRouterCredential = {
-  encryptedApiKey?: string;
+  encryptedApiKey: string;
   keyLabel?: string;
-  revision?: string;
+  revision: string;
+};
+
+type StoredOpenRouterConnection = {
+  credential?: StoredOpenRouterCredential;
 };
 
 export type OpenRouterConfigurationDependencies = {
@@ -28,10 +32,17 @@ export type OpenRouterConfiguration = Extract<ProviderConfigurationAdapter, { ki
 const storeName = openRouterProviderId;
 
 const schema = {
-  encryptedApiKey: { type: "string", minLength: 1 },
-  keyLabel: { type: "string", minLength: 1 },
-  revision: { type: "string", minLength: 1 },
-} satisfies Schema<StoredOpenRouterCredential>;
+  credential: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      encryptedApiKey: { type: "string", minLength: 1 },
+      keyLabel: { type: "string", minLength: 1 },
+      revision: { type: "string", minLength: 1 },
+    },
+    required: ["encryptedApiKey", "revision"],
+  },
+} satisfies Schema<StoredOpenRouterConnection>;
 
 export function getOpenRouterConnectionStoragePaths(userDataDirectory: string) {
   return [join(userDataDirectory, `${storeName}.json`)] as const;
@@ -41,7 +52,7 @@ export function createOpenRouterConfiguration(
   userDataDirectory: string,
   { encrypt, decrypt, verify }: OpenRouterConfigurationDependencies,
 ): OpenRouterConfiguration {
-  const store = new Store<StoredOpenRouterCredential>({
+  const store = new Store<StoredOpenRouterConnection>({
     clearInvalidConfig: true,
     cwd: userDataDirectory,
     name: storeName,
@@ -49,33 +60,28 @@ export function createOpenRouterConfiguration(
     rootSchema: { additionalProperties: false },
   });
 
-  if (store.has("encryptedApiKey") && !store.has("revision")) {
-    deleteStoreFile(store);
-  }
-
   function inspect(): ApiKeyProviderConfigurationSnapshot {
-    const revision = store.get("revision");
+    const credential = store.get("credential");
 
-    if (!store.has("encryptedApiKey") || !revision) {
+    if (!credential) {
       return { state: "unconfigured" };
     }
 
-    const keyLabel = store.get("keyLabel");
     return {
       state: "configured",
-      revision,
-      ...(keyLabel ? { keyLabel } : {}),
+      revision: credential.revision,
+      ...(credential.keyLabel ? { keyLabel: credential.keyLabel } : {}),
     };
   }
 
   async function readApiKey() {
-    const encryptedApiKey = store.get("encryptedApiKey");
+    const credential = store.get("credential");
 
-    if (encryptedApiKey === undefined) {
+    if (!credential) {
       return undefined;
     }
 
-    return decrypt(Buffer.from(encryptedApiKey, "base64"));
+    return decrypt(Buffer.from(credential.encryptedApiKey, "base64"));
   }
 
   return {
@@ -110,7 +116,7 @@ export function createOpenRouterConfiguration(
       signal.throwIfAborted();
       const encryptedApiKey = await encrypt(apiKey);
       signal.throwIfAborted();
-      store.set({
+      store.set("credential", {
         encryptedApiKey: encryptedApiKey.toString("base64"),
         revision: randomUUID(),
         ...(verification.keyLabel ? { keyLabel: verification.keyLabel } : {}),

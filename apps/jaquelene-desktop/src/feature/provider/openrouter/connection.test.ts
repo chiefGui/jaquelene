@@ -103,10 +103,15 @@ describe("OpenRouter connection", () => {
     expect(encrypt).not.toHaveBeenCalled();
   });
 
-  it("ignores an invalid credential store", async () => {
+  it("ignores an incomplete credential document", async () => {
     const directory = createUserDataDirectory();
     const [filePath] = getOpenRouterConnectionStoragePaths(directory);
-    writeFileSync(filePath, JSON.stringify({ unexpected: "value" }));
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        credential: { encryptedApiKey: Buffer.from("incomplete").toString("base64") },
+      }),
+    );
     const encrypt = vi.fn(async (value: string) => Buffer.from(value));
     const decrypt = vi.fn(async (value: Buffer) => value.toString());
     const verify = vi.fn(async () => ({
@@ -119,23 +124,6 @@ describe("OpenRouter connection", () => {
     expect(connection.inspect()).toEqual({ state: "unconfigured" });
     expect(decrypt).not.toHaveBeenCalled();
     expect(verify).not.toHaveBeenCalled();
-  });
-
-  it("resets a legacy credential that has no cache-isolation revision", () => {
-    const directory = createUserDataDirectory();
-    const [filePath] = getOpenRouterConnectionStoragePaths(directory);
-    writeFileSync(
-      filePath,
-      JSON.stringify({ encryptedApiKey: Buffer.from("legacy").toString("base64") }),
-    );
-    const connection = createOpenRouterConfiguration(directory, {
-      encrypt: async (value) => Buffer.from(value),
-      decrypt: async (value) => value.toString(),
-      verify: async () => ({ state: "configured" }),
-    });
-
-    expect(connection.inspect()).toEqual({ state: "unconfigured" });
-    expect(() => readFileSync(filePath, "utf8")).toThrow();
   });
 
   it.each(["rejected", "unavailable"] as const)(

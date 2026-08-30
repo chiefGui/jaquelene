@@ -62,6 +62,12 @@ describe("primary sidebar", () => {
         navigationLabel: "Settings",
         items: [
           {
+            action: "history-back",
+            id: "back",
+            icon: Home01Icon,
+            label: "Back",
+          },
+          {
             id: "general",
             icon: Home01Icon,
             label: "General",
@@ -72,8 +78,12 @@ describe("primary sidebar", () => {
       },
       "/settings/general",
     );
+    const backPosition = markup.indexOf(">Back</span>");
+    const generalPosition = markup.indexOf(">General</span>");
     const footerMarkup = markup.slice(markup.indexOf("<footer"));
 
+    expect(backPosition).toBeGreaterThan(-1);
+    expect(backPosition).toBeLessThan(generalPosition);
     expect(footerMarkup).toContain("<button");
     expect(footerMarkup).toContain('type="button"');
     expect(footerMarkup).toContain('aria-label="Back"');

@@ -26,7 +26,14 @@ type PrimarySidebarLink = PrimarySidebarDestination & {
   replace?: Exclude<LinkProps["replace"], undefined>;
 };
 
-type PrimarySidebarItem = PrimarySidebarLink & { id: string };
+type PrimarySidebarItem =
+  | (PrimarySidebarLink & { id: string })
+  | {
+      action: "history-back";
+      icon: IconSvgElement;
+      id: string;
+      label: string;
+    };
 
 interface PrimarySidebarNavigation {
   navigationLabel: string;
@@ -71,25 +78,35 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
 
       <nav aria-label={navigation.navigationLabel} {...stylex.props(styles.navigation)}>
         <ul {...stylex.props(styles.list)}>
-          {navigation.items.map(({ id, icon, label, ...destination }) => (
-            <li key={id}>
-              <Link
-                {...destination}
-                activeOptions={{ exact: true }}
-                {...stylex.props(styles.navigationLink)}
-              >
-                <HugeiconsIcon
-                  icon={icon}
-                  size={16}
-                  color="currentColor"
-                  strokeWidth={1.5}
-                  aria-hidden="true"
-                  {...stylex.props(styles.icon)}
-                />
-                <span {...stylex.props(styles.label)}>{label}</span>
-              </Link>
-            </li>
-          ))}
+          {navigation.items.map((item) => {
+            if ("action" in item) {
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={returnFromSettings}
+                    {...stylex.props(styles.navigationItem)}
+                  >
+                    <PrimarySidebarItemContent icon={item.icon} label={item.label} />
+                  </button>
+                </li>
+              );
+            }
+
+            const { id, icon, label, ...destination } = item;
+
+            return (
+              <li key={id}>
+                <Link
+                  {...destination}
+                  activeOptions={{ exact: true }}
+                  {...stylex.props(styles.navigationItem)}
+                >
+                  <PrimarySidebarItemContent icon={icon} label={label} />
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </nav>
 
@@ -114,6 +131,22 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
         )}
       </footer>
     </aside>
+  );
+}
+
+function PrimarySidebarItemContent({ icon, label }: { icon: IconSvgElement; label: string }) {
+  return (
+    <>
+      <HugeiconsIcon
+        icon={icon}
+        size={16}
+        color="currentColor"
+        strokeWidth={1.5}
+        aria-hidden="true"
+        {...stylex.props(styles.icon)}
+      />
+      <span {...stylex.props(styles.label)}>{label}</span>
+    </>
   );
 }
 
@@ -152,7 +185,7 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: "0.125rem",
   },
-  navigationLink: {
+  navigationItem: {
     alignItems: "center",
     backgroundColor: {
       default: "transparent",
@@ -189,6 +222,8 @@ const styles = stylex.create({
       ":focus-visible": 1,
     },
     paddingInline: "0.5rem",
+    textAlign: "start",
+    width: "100%",
   },
   icon: {
     flexShrink: 0,

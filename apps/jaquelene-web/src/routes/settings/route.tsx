@@ -1,3 +1,4 @@
+import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import ConnectIcon from "@hugeicons/core-free-icons/ConnectIcon";
 import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
 import PaletteIcon from "@hugeicons/core-free-icons/PaletteIcon";
@@ -12,6 +13,12 @@ function SettingsSidebar() {
       navigation={{
         navigationLabel: "Settings",
         items: [
+          {
+            action: "history-back",
+            id: "back",
+            icon: ArrowLeft01Icon,
+            label: "Back",
+          },
           {
             id: "general",
             icon: Settings01Icon,

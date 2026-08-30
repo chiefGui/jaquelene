@@ -121,16 +121,16 @@ function StorageUsageBar({
   );
 }
 
-type StorageDeleteActionProps = Omit<ConfirmDialogProps, "trigger"> & {
+type StorageClearActionProps = Omit<ConfirmDialogProps, "trigger"> & {
   accessibleLabel: string;
   disabled: boolean;
 };
 
-function StorageDeleteAction({
+function StorageClearAction({
   accessibleLabel,
   disabled,
   ...confirmation
-}: StorageDeleteActionProps) {
+}: StorageClearActionProps) {
   return (
     <Tooltip.Root>
       <ConfirmDialog
@@ -146,7 +146,7 @@ function StorageDeleteAction({
         }
       />
 
-      <Tooltip>Delete</Tooltip>
+      <Tooltip>Clear</Tooltip>
     </Tooltip.Root>
   );
 }
@@ -155,20 +155,20 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
   const queryClient = useQueryClient();
   const deleteStorageArea = useDeleteStorageArea();
   const storageMutationPending = useIsMutating({ mutationKey: ["storage"] }) > 0;
-  const [confirmingDeletion, setConfirmingDeletion] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
-  function setDeletionConfirmationOpen(open: boolean) {
+  function setClearConfirmationOpen(open: boolean) {
     if (open) deleteStorageArea.reset();
 
     if (!deleteStorageArea.isPending) {
-      setConfirmingDeletion(open);
+      setConfirmingClear(open);
     }
   }
 
-  async function deleteDiagnostics() {
+  async function clearLogs() {
     try {
       await deleteStorageArea.mutateAsync(area.id);
-      setConfirmingDeletion(false);
+      setConfirmingClear(false);
     } catch (cause) {
       reportError("storage.diagnostics.delete", cause);
       await remeasureStorage("storage.diagnostics.remeasure", queryClient);
@@ -188,17 +188,17 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
         </Item.Value>
 
         <div {...stylex.props(styles.actions)}>
-          <StorageDeleteAction
-            accessibleLabel="Delete logs"
+          <StorageClearAction
+            accessibleLabel="Clear logs"
             disabled={storageMutationPending}
-            open={confirmingDeletion}
-            setOpen={setDeletionConfirmationOpen}
-            heading="Delete logs?"
+            open={confirmingClear}
+            setOpen={setClearConfirmationOpen}
+            heading="Clear logs?"
             description="Removes saved logs from this device. New logs may be created later."
-            confirmLabel="Delete"
+            confirmLabel="Clear"
             pending={deleteStorageArea.isPending}
-            error={deleteStorageArea.isError ? "Couldn’t delete logs." : undefined}
-            onConfirm={() => void deleteDiagnostics()}
+            error={deleteStorageArea.isError ? "Couldn’t clear logs." : undefined}
+            onConfirm={() => void clearLogs()}
           />
         </div>
       </div>
@@ -241,7 +241,7 @@ function StorageRoute() {
   const diagnosticsArea = requireDiagnosticsArea(usage);
   const totalBytes = usage.areas.reduce((total, area) => total + area.bytes, 0);
 
-  async function deleteCategory(category: StorageCategoryView) {
+  async function clearCategory(category: StorageCategoryView) {
     try {
       await deleteStorageCategory.mutateAsync(category.id);
       setConfirmation(null);
@@ -305,21 +305,21 @@ function StorageRoute() {
                       </Item.Value>
 
                       <div {...stylex.props(styles.actions)}>
-                        <StorageDeleteAction
-                          accessibleLabel={`Delete ${category.label.toLowerCase()}`}
+                        <StorageClearAction
+                          accessibleLabel={`Clear ${category.label.toLowerCase()}`}
                           disabled={storageMutationPending}
                           open={open}
                           setOpen={(nextOpen) => setConfirmationOpen(category, nextOpen)}
                           heading={category.confirmation.heading}
                           description={category.confirmation.description}
-                          confirmLabel="Delete"
+                          confirmLabel="Clear"
                           pending={pending}
                           error={
                             open && deleteStorageCategory.isError
                               ? category.confirmation.error
                               : undefined
                           }
-                          onConfirm={() => void deleteCategory(category)}
+                          onConfirm={() => void clearCategory(category)}
                         />
                       </div>
                     </div>
@@ -410,18 +410,18 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
     label: "Content",
     color: styles.content,
     confirmation: {
-      heading: "Delete content?",
+      heading: "Clear content?",
       description: "This can’t be undone.",
-      error: "Couldn’t finish deleting content.",
+      error: "Couldn’t finish clearing content.",
     },
   },
   [StorageCategory.AppData]: {
     label: "App data",
     color: styles.appData,
     confirmation: {
-      heading: "Delete app data?",
+      heading: "Clear app data?",
       description: "This resets the app without deleting your content.",
-      error: "Some app data couldn’t be deleted.",
+      error: "Some app data couldn’t be cleared.",
     },
   },
 };

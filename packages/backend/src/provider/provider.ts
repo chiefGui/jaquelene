@@ -29,6 +29,16 @@ export type ProviderModel = Readonly<{
   }>;
 }>;
 
+export type ModelSelection = ModelReference & Pick<ProviderModel, "brandId" | "name">;
+
+export function requireModelSelection(selection: ModelSelection) {
+  requireModelReference(selection);
+
+  if (!selection.name.trim() || !selection.brandId.trim()) {
+    throw new TypeError("A model selection requires display metadata.");
+  }
+}
+
 export type GenerationMessage = Readonly<{
   role: "system" | "user" | "assistant";
   content: string;

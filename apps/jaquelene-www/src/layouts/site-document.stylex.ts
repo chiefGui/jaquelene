@@ -10,7 +10,6 @@ const styles = stylex.create({
   },
   body: {
     margin: 0,
-    minWidth: "20rem",
   },
 });
 

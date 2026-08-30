@@ -5,7 +5,7 @@ export const prerender = true;
 const rootEnd = symbolSource.indexOf(">");
 const rootClose = symbolSource.lastIndexOf("</svg>");
 
-if (rootEnd === -1 || rootClose === -1) {
+if (rootEnd === -1 || rootClose <= rootEnd) {
   throw new Error("The canonical brand symbol is not a complete SVG document.");
 }
 

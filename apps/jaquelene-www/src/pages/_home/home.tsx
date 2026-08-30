@@ -1,38 +1,35 @@
 import * as stylex from "@stylexjs/stylex";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 
+export const landingPitch =
+  "An app for roleplaying with AI. Beautiful, private, simple, free & open source.";
+
 export function Home() {
   return (
     <main {...stylex.props(styles.root)}>
-      <section aria-labelledby="introduction" {...stylex.props(styles.introduction)}>
-        <img
-          alt=""
-          draggable={false}
-          height={84}
-          src="/symbol-circle.svg"
-          width={84}
-          {...stylex.props(styles.symbol)}
-        />
+      <img
+        alt=""
+        draggable={false}
+        height={84}
+        src="/symbol-circle.svg"
+        width={84}
+        {...stylex.props(styles.symbol)}
+      />
 
-        <h1 id="introduction" {...stylex.props(styles.heading)}>
-          jaquelene
-        </h1>
-        <p {...stylex.props(styles.pitch)}>
-          An app for roleplaying with AI. Beautiful, private, simple, free & open source.
-        </p>
-        <div {...stylex.props(styles.release)}>
-          <span {...stylex.props(styles.status)}>
-            <span aria-hidden="true" {...stylex.props(styles.statusDot)} />
-            Soon.
+      <h1 {...stylex.props(styles.heading)}>jaquelene</h1>
+      <p {...stylex.props(styles.pitch)}>{landingPitch}</p>
+      <div {...stylex.props(styles.release)}>
+        <span {...stylex.props(styles.status)}>
+          <span aria-hidden="true" {...stylex.props(styles.statusDot)} />
+          Soon.
+        </span>
+        <a href="https://github.com/chiefGui/jaquelene" {...stylex.props(styles.link)}>
+          GitHub
+          <span aria-hidden="true" {...stylex.props(styles.linkArrow)}>
+            ↗
           </span>
-          <a href="https://github.com/chiefGui/jaquelene" {...stylex.props(styles.link)}>
-            GitHub
-            <span aria-hidden="true" {...stylex.props(styles.linkArrow)}>
-              ↗
-            </span>
-          </a>
-        </div>
-      </section>
+        </a>
+      </div>
     </main>
   );
 }
@@ -44,22 +41,15 @@ const styles = stylex.create({
     boxSizing: "border-box",
     color: tokens.foreground,
     display: "flex",
+    flexDirection: "column",
+    gap: "clamp(1.5rem, 3vw, 2rem)",
     justifyContent: "center",
     minHeight: "100svh",
     padding: "clamp(1.5rem, 5vw, 3rem)",
-  },
-  introduction: {
-    alignItems: "center",
-    display: "flex",
-    flexDirection: "column",
-    gap: "clamp(1.5rem, 3vw, 2rem)",
-    maxWidth: "48rem",
     textAlign: "center",
-    width: "100%",
   },
   symbol: {
     display: "block",
-    filter: "drop-shadow(0 1.5rem 5rem oklch(0 0 0 / 36%))",
     height: "auto",
     width: "clamp(4.25rem, 6vw, 5.25rem)",
   },
@@ -116,6 +106,7 @@ const styles = stylex.create({
     fontWeight: 500,
     gap: "0.375rem",
     letterSpacing: "0.01em",
+    minHeight: "1.5rem",
     outline: {
       default: "none",
       ":focus-visible": `0.125rem solid ${tokens.accent}`,

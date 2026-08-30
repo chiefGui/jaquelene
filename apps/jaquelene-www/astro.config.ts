@@ -8,6 +8,7 @@ const workspaceRoot = fileURLToPath(new URL("../..", import.meta.url));
 export default defineConfig({
   integrations: [react()],
   output: "static",
+  site: "https://jaquelene.com",
   vite: {
     plugins: [
       stylex.vite({

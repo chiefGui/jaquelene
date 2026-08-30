@@ -1,12 +1,8 @@
 ---
-import { Home } from "./_home/home";
+import { Home, landingPitch } from "./_home/home";
 import SiteDocument from "../layouts/site-document.astro";
-import "@fontsource-variable/geist/wght.css";
-
-const description =
-  "An app for roleplaying with AI. Beautiful, private, simple, free & open source.";
 ---
 
-<SiteDocument description={description} title="Jaquelene — Crafted for roleplay">
+<SiteDocument description={landingPitch} title="Jaquelene — Crafted for roleplay">
   <Home />
 </SiteDocument>

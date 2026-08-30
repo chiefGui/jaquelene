@@ -8,7 +8,6 @@ import { Button, formatTimestamp } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import {
   useId,
   useLayoutEffect,
@@ -16,9 +15,11 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { Composer } from "@/primitive/composer";
 import {
   threadMessagesQuery,
   useIsTurnOperationPending,
@@ -26,6 +27,14 @@ import {
   useSubmitTurn,
 } from "./query";
 import { deriveThreadViewState } from "./thread-view-state";
+
+function isScrolledToEnd(viewport: HTMLElement) {
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
+}
+
+function scrollToEnd(viewport: HTMLElement) {
+  viewport.scrollTop = viewport.scrollHeight;
+}
 
 function replyStatusText(generation: TurnGeneration, retrying: boolean) {
   if (retrying) {
@@ -47,9 +56,13 @@ function replyStatusText(generation: TurnGeneration, retrying: boolean) {
 export function ThreadView({
   threadId,
   model,
+  modelPending,
+  composerControls,
 }: {
   threadId: string;
   model: ModelReference | null;
+  modelPending: boolean;
+  composerControls: ReactNode;
 }) {
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
   const submitTurnMutation = useSubmitTurn(threadId);
@@ -57,10 +70,11 @@ export function ThreadView({
   const turnOperationPending = useIsTurnOperationPending(threadId);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
-  const composerId = useId();
-  const modelRequirementId = useId();
+  const composerInputId = useId();
   const sendErrorId = useId();
-  const viewport = useRef<HTMLDivElement>(null);
+  const viewport = useRef<HTMLElement>(null);
+  const composerShell = useRef<HTMLDivElement>(null);
+  const pinnedToEnd = useRef(true);
   const retryTurnId = retryTurnMutation.variables?.turnId;
   const retryStatus: "pending" | "failed" | null = retryTurnMutation.isPending
     ? "pending"
@@ -78,34 +92,39 @@ export function ThreadView({
     [messagesQuery.data.pages, model, retryStatus, retryTurnId],
   );
   const operationPending = turnOperationPending || threadView.replyPending;
-  const composerDescription = [model ? null : modelRequirementId, sendError ? sendErrorId : null]
-    .filter((id) => id !== null)
-    .join(" ");
 
   useLayoutEffect(() => {
-    if (viewport.current) {
-      viewport.current.scrollTop = viewport.current.scrollHeight;
+    const scrollViewport = viewport.current;
+    const composer = composerShell.current;
+
+    if (!scrollViewport || !composer) {
+      return;
     }
-  }, [threadView.latestMessageId]);
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (pinnedToEnd.current) {
+        scrollToEnd(scrollViewport);
+      }
+    });
+    resizeObserver.observe(composer);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    if (viewport.current && pinnedToEnd.current) {
+      scrollToEnd(viewport.current);
+    }
+  }, [model, retryStatus, threadView.latestMessageId, threadView.replyPending]);
 
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (operationPending) {
+    if (operationPending || !draft.trim() || !model || modelPending) {
       return;
     }
 
     const content = draft;
-
-    if (!content.trim()) {
-      setSendError("Write a message before sending it.");
-      return;
-    }
-
-    if (!model) {
-      setSendError("Choose a default model before sending.");
-      return;
-    }
 
     setSendError(null);
     retryTurnMutation.reset();
@@ -123,7 +142,7 @@ export function ThreadView({
   }
 
   async function retryReply(turnId: string) {
-    if (operationPending || !model) {
+    if (operationPending || !model || modelPending) {
       return;
     }
 
@@ -148,132 +167,130 @@ export function ThreadView({
   }
 
   return (
-    <section aria-label="Thread" {...stylex.props(styles.root)}>
-      <div ref={viewport} {...stylex.props(styles.viewport)}>
-        <div {...stylex.props(styles.messageBody)}>
-          {messagesQuery.hasNextPage ? (
-            <div {...stylex.props(styles.loadOlder)}>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={messagesQuery.isFetchingNextPage}
-                onClick={() => void messagesQuery.fetchNextPage()}
-              >
-                {messagesQuery.isFetchingNextPage ? "Loading…" : "Load older messages"}
-              </Button>
-            </div>
-          ) : null}
+    <section
+      ref={viewport}
+      aria-label="Thread"
+      onScroll={(event) => {
+        pinnedToEnd.current = isScrolledToEnd(event.currentTarget);
+      }}
+      {...stylex.props(styles.root)}
+    >
+      <div {...stylex.props(styles.messageBody)}>
+        {messagesQuery.hasNextPage ? (
+          <div {...stylex.props(styles.loadOlder)}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={messagesQuery.isFetchingNextPage}
+              onClick={() => void messagesQuery.fetchNextPage()}
+            >
+              {messagesQuery.isFetchingNextPage ? "Loading…" : "Load older messages"}
+            </Button>
+          </div>
+        ) : null}
 
-          {messagesQuery.isFetchNextPageError ? (
-            <p role="alert" {...stylex.props(styles.pageError)}>
-              Could not load older messages.
-            </p>
-          ) : null}
+        {messagesQuery.isFetchNextPageError ? (
+          <p role="alert" {...stylex.props(styles.pageError)}>
+            Could not load older messages.
+          </p>
+        ) : null}
 
-          {threadView.messages.length === 0 ? (
-            <div {...stylex.props(styles.empty)}>
-              <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
-            </div>
-          ) : (
-            <ol {...stylex.props(styles.messageList)}>
-              {threadView.messages.map(({ message, fromUser, reply }) => {
-                return (
-                  <li
-                    key={message.id}
+        {threadView.messages.length === 0 ? (
+          <div {...stylex.props(styles.empty)}>
+            <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
+          </div>
+        ) : (
+          <ol {...stylex.props(styles.messageList)}>
+            {threadView.messages.map(({ message, fromUser, reply }) => {
+              return (
+                <li
+                  key={message.id}
+                  {...stylex.props(
+                    styles.message,
+                    fromUser ? styles.userMessage : styles.assistantMessage,
+                  )}
+                >
+                  <article
+                    aria-label={fromUser ? "You" : "Assistant"}
                     {...stylex.props(
-                      styles.message,
-                      fromUser ? styles.userMessage : styles.assistantMessage,
+                      styles.bubble,
+                      fromUser ? styles.userBubble : styles.assistantBubble,
                     )}
                   >
-                    <article
-                      aria-label={fromUser ? "You" : "Assistant"}
-                      {...stylex.props(
-                        styles.bubble,
-                        fromUser ? styles.userBubble : styles.assistantBubble,
-                      )}
-                    >
-                      <p {...stylex.props(styles.content)}>{message.content}</p>
-                    </article>
-                    <time
-                      dateTime={new Date(message.createdAt).toISOString()}
-                      {...stylex.props(styles.timestamp)}
-                    >
-                      {formatTimestamp(message.createdAt)}
-                    </time>
-                    {reply ? (
-                      <div {...stylex.props(styles.replyState)}>
-                        <p
-                          role={message.id === threadView.latestMessageId ? "status" : undefined}
-                          {...stylex.props(
-                            styles.replyStatus,
-                            reply.generation.status === GenerationStatus.Failed &&
-                              styles.replyFailure,
-                          )}
+                    <p {...stylex.props(styles.content)}>{message.content}</p>
+                  </article>
+                  <time
+                    dateTime={new Date(message.createdAt).toISOString()}
+                    {...stylex.props(styles.timestamp)}
+                  >
+                    {formatTimestamp(message.createdAt)}
+                  </time>
+                  {reply ? (
+                    <div {...stylex.props(styles.replyState)}>
+                      <p
+                        role={message.id === threadView.latestMessageId ? "status" : undefined}
+                        {...stylex.props(
+                          styles.replyStatus,
+                          reply.generation.status === GenerationStatus.Failed &&
+                            styles.replyFailure,
+                        )}
+                      >
+                        {replyStatusText(reply.generation, reply.retrying)}
+                      </p>
+                      {reply.canRetry && !reply.retrying ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          style={styles.retryButton}
+                          disabled={operationPending || modelPending}
+                          onClick={() => void retryReply(message.turnId)}
                         >
-                          {replyStatusText(reply.generation, reply.retrying)}
+                          Retry
+                        </Button>
+                      ) : null}
+                      {reply.retryFailed ? (
+                        <p role="alert" {...stylex.props(styles.retryError)}>
+                          Couldn’t retry the reply.
                         </p>
-                        {reply.canRetry && !reply.retrying ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            style={styles.retryButton}
-                            disabled={operationPending}
-                            onClick={() => void retryReply(message.turnId)}
-                          >
-                            Retry
-                          </Button>
-                        ) : null}
-                        {reply.retryFailed ? (
-                          <p role="alert" {...stylex.props(styles.retryError)}>
-                            Couldn’t retry the reply.
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </div>
 
-      <div {...stylex.props(styles.composerShell)}>
-        <form onSubmit={sendMessage} {...stylex.props(styles.composer)}>
-          <div {...stylex.props(styles.composerField)}>
-            <label htmlFor={composerId} {...stylex.props(styles.visuallyHidden)}>
-              Message
-            </label>
-            <textarea
-              id={composerId}
-              value={draft}
-              rows={3}
-              maxLength={threadView.messageContentMaxLength}
-              placeholder="Write a message…"
-              aria-describedby={composerDescription || undefined}
-              onChange={(event) => setDraft(event.currentTarget.value)}
-              onKeyDown={handleComposerKeyDown}
-              {...stylex.props(styles.textarea)}
+      <div ref={composerShell} {...stylex.props(styles.composerShell)}>
+        <Composer onSubmit={sendMessage}>
+          <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
+          <Composer.Input
+            id={composerInputId}
+            value={draft}
+            maxLength={threadView.messageContentMaxLength}
+            aria-describedby={sendError ? sendErrorId : undefined}
+            onChange={(event) => {
+              setDraft(event.currentTarget.value);
+              setSendError(null);
+            }}
+            onKeyDown={handleComposerKeyDown}
+          />
+          <Composer.Footer>
+            <Composer.Controls>
+              {composerControls}
+              {sendError ? (
+                <Composer.Status id={sendErrorId} role="alert" tone="danger">
+                  {sendError}
+                </Composer.Status>
+              ) : null}
+            </Composer.Controls>
+            <Composer.Submit
+              pending={operationPending}
+              disabled={!model || modelPending || !draft.trim()}
             />
-            {!model ? (
-              <p id={modelRequirementId} {...stylex.props(styles.modelRequirement)}>
-                Choose a default model in{" "}
-                <Link to="/settings/general" {...stylex.props(styles.modelLink)}>
-                  Settings
-                </Link>
-                .
-              </p>
-            ) : null}
-            {sendError ? (
-              <p id={sendErrorId} role="alert" {...stylex.props(styles.sendError)}>
-                {sendError}
-              </p>
-            ) : null}
-          </div>
-          <Button type="submit" style={styles.sendButton} disabled={!model || operationPending}>
-            {operationPending ? "Generating…" : "Send"}
-          </Button>
-        </form>
+          </Composer.Footer>
+        </Composer>
       </div>
     </section>
   );
@@ -285,16 +302,15 @@ const styles = stylex.create({
     flex: 1,
     flexDirection: "column",
     minHeight: 0,
-  },
-  viewport: {
-    flex: 1,
-    minHeight: 0,
     overflowY: "auto",
+    scrollbarGutter: "stable",
   },
   messageBody: {
+    display: "flex",
+    flex: "1 0 auto",
+    flexDirection: "column",
     marginInline: "auto",
     maxWidth: "42rem",
-    minHeight: "100%",
     padding: "1.5rem",
     width: "100%",
   },
@@ -313,9 +329,9 @@ const styles = stylex.create({
   empty: {
     alignItems: "center",
     display: "flex",
+    flex: 1,
     flexDirection: "column",
     justifyContent: "center",
-    minHeight: "100%",
     textAlign: "center",
   },
   emptyDescription: {
@@ -391,81 +407,14 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightXSmall,
   },
   composerShell: {
-    backgroundColor: tokens.surface,
-    borderTopColor: tokens.border,
-    borderTopStyle: "solid",
-    borderTopWidth: 1,
+    bottom: 0,
     flexShrink: 0,
-  },
-  composer: {
-    alignItems: "flex-end",
-    display: "flex",
-    gap: "0.75rem",
     marginInline: "auto",
     maxWidth: "42rem",
-    padding: "1rem 1.5rem",
+    paddingBlock: "0 1.5rem",
+    paddingInline: "1.5rem",
+    position: "sticky",
     width: "100%",
-  },
-  composerField: {
-    flex: 1,
-    minWidth: 0,
-  },
-  sendButton: {
-    minWidth: "6.75rem",
-  },
-  textarea: {
-    appearance: "none",
-    backgroundColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 3.5%, transparent)`,
-      ":focus": `color-mix(in oklab, ${tokens.foreground} 5%, transparent)`,
-    },
-    borderColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 10%, transparent)`,
-      ":focus": `color-mix(in oklab, ${tokens.accent} 45%, transparent)`,
-    },
-    borderRadius: tokens.radiusMedium,
-    borderStyle: "solid",
-    borderWidth: 1,
-    caretColor: tokens.accent,
-    color: tokens.foreground,
-    display: "block",
-    fontFamily: "inherit",
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    minHeight: "3.75rem",
-    outline: "none",
-    paddingBlock: "0.625rem",
-    paddingInline: "0.75rem",
-    resize: "vertical",
-    width: "100%",
-    "::placeholder": {
-      color: tokens.muted,
-    },
-  },
-  sendError: {
-    color: tokens.danger,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
-  },
-  modelRequirement: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
-  },
-  modelLink: {
-    color: tokens.foreground,
-    textDecorationLine: "underline",
-    textUnderlineOffset: "0.15em",
-  },
-  visuallyHidden: {
-    clip: "rect(0 0 0 0)",
-    clipPath: "inset(50%)",
-    height: 1,
-    overflow: "hidden",
-    position: "absolute",
-    whiteSpace: "nowrap",
-    width: 1,
+    zIndex: 1,
   },
 });

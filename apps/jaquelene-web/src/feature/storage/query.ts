@@ -2,7 +2,6 @@ import { ErrorSeverity } from "@jaquelene/diagnostics";
 import {
   Storage,
   StorageCategory,
-  type StorageAreaUsage,
   type StorageDeletion,
   type StorageUsage,
 } from "@jaquelene/ipc/renderer";
@@ -18,6 +17,7 @@ import { providersQuery } from "@/feature/provider/query";
 import { scenarioQueryKey } from "@/feature/scenario/query";
 import { threadQueryKey } from "@/feature/thread/query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
+import { reconcileStorageDeletion, type StorageDeletionTarget } from "./usage";
 
 const measureStorageUsage = requireIpcMethod(Storage?.measureUsage);
 const deleteStorageArea = requireIpcMethod(Storage?.deleteArea);
@@ -34,40 +34,17 @@ export function remeasureStorageUsage(queryClient: QueryClient) {
   return queryClient.fetchQuery({ ...storageUsageQuery, staleTime: 0 });
 }
 
-function mergeStorageDeletion(usage: StorageUsage, deletion: StorageDeletion): StorageUsage {
-  const currentAreas = new Map(usage.areas.map((area) => [area.id, area]));
-  const replacements = new Map<string, StorageAreaUsage>();
-
-  for (const area of deletion.areas) {
-    const currentArea = currentAreas.get(area.id);
-
-    if (!currentArea) {
-      throw new Error(`Storage deletion returned unknown area "${area.id}".`);
-    }
-
-    if (currentArea.category !== area.category) {
-      throw new Error(`Storage deletion changed the category of area "${area.id}".`);
-    }
-
-    if (replacements.has(area.id)) {
-      throw new Error(`Storage deletion returned area "${area.id}" more than once.`);
-    }
-
-    replacements.set(area.id, area);
-  }
-
-  return {
-    areas: usage.areas.map((area) => replacements.get(area.id) ?? area),
-  };
-}
-
-function applyStorageDeletion(queryClient: QueryClient, deletion: StorageDeletion) {
+function applyStorageDeletion(
+  queryClient: QueryClient,
+  deletion: StorageDeletion,
+  target: StorageDeletionTarget,
+) {
   queryClient.setQueryData<StorageUsage>(storageUsageQuery.queryKey, (usage) => {
     if (!usage) {
       throw new Error("Storage usage is unavailable while applying a deletion.");
     }
 
-    return mergeStorageDeletion(usage, deletion);
+    return reconcileStorageDeletion(usage, deletion, target);
   });
 }
 
@@ -121,7 +98,8 @@ export function useDeleteStorageCategory() {
     scope: { id: "storage" },
     mutationFn: deleteStorageCategory,
     onMutate: (id) => cancelCategoryQueries(queryClient, id),
-    onSuccess: (deletion) => applyStorageDeletion(queryClient, deletion),
+    onSuccess: (deletion, id) =>
+      applyStorageDeletion(queryClient, deletion, { kind: "category", id }),
     onSettled(_usage, _error, id) {
       void refreshCategoryQueries(queryClient, id).catch((cause: unknown) => {
         reportError("storage.cache.refresh", cause, ErrorSeverity.Warning);
@@ -138,6 +116,6 @@ export function useDeleteStorageArea() {
     mutationKey: ["storage", "delete-area"],
     scope: { id: "storage" },
     mutationFn: deleteStorageArea,
-    onSuccess: (deletion) => applyStorageDeletion(queryClient, deletion),
+    onSuccess: (deletion, id) => applyStorageDeletion(queryClient, deletion, { kind: "area", id }),
   });
 }

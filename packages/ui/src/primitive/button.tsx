@@ -113,10 +113,10 @@ const styles = stylex.create({
   },
   solidDanger: {
     backgroundColor: {
-      default: tokens.dangerSurface,
-      ":not(:disabled):hover": tokens.dangerSurfaceHover,
+      default: `color-mix(in oklch, ${tokens.danger} 82%, ${tokens.canvas})`,
+      ":not(:disabled):hover": tokens.danger,
     },
-    color: tokens.foreground,
+    color: tokens.canvas,
   },
   ghostDanger: {
     backgroundColor: {

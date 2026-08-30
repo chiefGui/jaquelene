@@ -32,6 +32,7 @@ function AdvancedRoute() {
   const writeToDiskId = useId();
   const writeToDiskLabelId = useId();
   const writeToDiskDescriptionId = useId();
+  const writeToDiskErrorId = useId();
   const openLogsFolderErrorId = useId();
   const preferenceError = setWriteToDisk.isError ? "Couldn’t save the preference." : null;
 
@@ -58,20 +59,24 @@ function AdvancedRoute() {
                   <Item.Label id={writeToDiskLabelId} render={<label htmlFor={writeToDiskId} />}>
                     Save logs
                   </Item.Label>
-                  <Item.Description
-                    id={writeToDiskDescriptionId}
-                    role={preferenceError ? "alert" : undefined}
-                    style={preferenceError ? styles.error : undefined}
-                  >
-                    {preferenceError ??
-                      "Keep app logs on this device to help troubleshoot problems."}
+                  <Item.Description id={writeToDiskDescriptionId}>
+                    Keep app logs on this device to help troubleshoot problems.
                   </Item.Description>
+                  {preferenceError ? (
+                    <Item.Description id={writeToDiskErrorId} role="alert" style={styles.error}>
+                      {preferenceError}
+                    </Item.Description>
+                  ) : null}
                 </Item.Content>
 
                 <Switch
                   id={writeToDiskId}
                   aria-labelledby={writeToDiskLabelId}
-                  aria-describedby={writeToDiskDescriptionId}
+                  aria-describedby={
+                    preferenceError
+                      ? `${writeToDiskDescriptionId} ${writeToDiskErrorId}`
+                      : writeToDiskDescriptionId
+                  }
                   aria-busy={setWriteToDisk.isPending || undefined}
                   checked={preferences.writeToDisk}
                   disabled={setWriteToDisk.isPending}

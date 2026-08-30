@@ -15,7 +15,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { storagePalette } from "../../feature/storage/palette.stylex";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import {
@@ -208,6 +208,7 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
 
 function StorageRouteError() {
   const router = useRouter();
+  const headingId = useId();
 
   return (
     <>
@@ -215,8 +216,8 @@ function StorageRouteError() {
 
       <ContentPane.Viewport>
         <ContentPane.Body>
-          <Item.Section aria-labelledby="storage-error-heading">
-            <Item.Heading id="storage-error-heading">Usage</Item.Heading>
+          <Item.Section aria-labelledby={headingId}>
+            <Item.Heading id={headingId}>Usage</Item.Heading>
 
             <Item.Group>
               <Item.Root>
@@ -234,6 +235,8 @@ function StorageRouteError() {
 function StorageRoute() {
   const queryClient = useQueryClient();
   const { data: usage } = useSuspenseQuery(storageUsageQuery);
+  const usageHeadingId = useId();
+  const usageDescriptionId = useId();
   const [confirmation, setConfirmation] = useState<StorageCategory | null>(null);
   const deleteStorageCategory = useDeleteStorageCategory();
   const storageMutationPending = useIsMutating({ mutationKey: ["storage"] }) > 0;
@@ -269,10 +272,10 @@ function StorageRoute() {
 
       <ContentPane.Viewport>
         <ContentPane.Body>
-          <Item.Section aria-labelledby="storage-usage-heading">
+          <Item.Section aria-labelledby={usageHeadingId} aria-describedby={usageDescriptionId}>
             <div {...stylex.props(styles.sectionHeader)}>
-              <Item.Heading id="storage-usage-heading">Usage</Item.Heading>
-              <p {...stylex.props(styles.sectionDescription)}>
+              <Item.Heading id={usageHeadingId}>Usage</Item.Heading>
+              <p id={usageDescriptionId} {...stylex.props(styles.sectionDescription)}>
                 Everything listed here is stored on this device.
               </p>
             </div>
@@ -408,9 +411,6 @@ const styles = stylex.create({
     flexShrink: 0,
     height: "0.5rem",
     width: "0.5rem",
-  },
-  error: {
-    color: tokens.danger,
   },
   content: {
     color: storagePalette.content,

@@ -56,7 +56,13 @@ export function ConfirmDialog({
           <Dialog.Dismiss disabled={pending} render={<Button ref={cancelButton} variant="ghost" />}>
             Cancel
           </Dialog.Dismiss>
-          <Button type="button" tone="danger" disabled={pending} onClick={onConfirm}>
+          <Button
+            type="button"
+            variant="ghost"
+            tone="danger"
+            disabled={pending}
+            onClick={onConfirm}
+          >
             {confirmLabel}
           </Button>
         </div>

@@ -110,11 +110,11 @@ const styles = stylex.create({
   ghostDanger: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 10%, transparent)`,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.danger} 10%, transparent)`,
+      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
     },
     color: {
-      default: tokens.muted,
+      default: `color-mix(in oklab, ${tokens.danger} 72%, ${tokens.muted})`,
       ":not(:disabled):hover": tokens.danger,
       ":is([data-focus-visible])": tokens.danger,
     },

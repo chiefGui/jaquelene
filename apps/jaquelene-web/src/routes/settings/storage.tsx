@@ -16,6 +16,7 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
+import { storagePalette } from "../../feature/storage/palette.stylex";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import {
   remeasureStorageUsage,
@@ -137,7 +138,7 @@ function StorageDeleteAction({
         trigger={
           <Tooltip.Anchor
             render={
-              <IconButton aria-label={accessibleLabel} tone="danger" disabled={disabled}>
+              <IconButton aria-label={accessibleLabel} disabled={disabled}>
                 <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
               </IconButton>
             }
@@ -177,7 +178,7 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
   return (
     <Item.Root>
       <div {...stylex.props(styles.category)}>
-        <span aria-hidden="true" {...stylex.props(styles.categoryMarker, styles.appData)} />
+        <span aria-hidden="true" {...stylex.props(styles.categoryMarker, styles.logs)} />
         <Item.Label>Logs</Item.Label>
       </div>
 
@@ -394,10 +395,13 @@ const styles = stylex.create({
     color: tokens.danger,
   },
   content: {
-    color: tokens.accent,
+    color: storagePalette.content,
   },
   appData: {
-    color: `color-mix(in oklch, ${tokens.muted} 60%, ${tokens.surfaceRaised})`,
+    color: storagePalette.appData,
+  },
+  logs: {
+    color: storagePalette.logs,
   },
 });
 

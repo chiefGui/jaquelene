@@ -3,15 +3,16 @@ import {
   GenerationStatus,
   ThreadMessageAuthor,
   type ThreadMessage,
+  type TurnAcceptance,
   type TurnGeneration,
-  type TurnSubmission,
+  type TurnSettlement,
 } from "@jaquelene/ipc/renderer";
 import { describe, expect, it } from "vite-plus/test";
-import { mergeThreadSubmission, type ThreadQueryData } from "./thread-query-cache";
+import { mergeThreadTurnState, type ThreadQueryData } from "./thread-query-cache";
 
 const threadId = "thread-test";
 
-function failedTurn(sequence: number): TurnSubmission {
+function pendingTurn(sequence: number): TurnAcceptance {
   const turnId = `turn-${sequence}`;
   const userMessage: ThreadMessage = {
     id: `message-${sequence}`,
@@ -27,25 +28,37 @@ function failedTurn(sequence: number): TurnSubmission {
     turnId,
     providerId: "provider",
     modelId: "model",
-    status: GenerationStatus.Failed,
-    failureKind: GenerationFailureKind.Provider,
+    status: GenerationStatus.Pending,
     startedAt: sequence,
-    finishedAt: sequence,
   };
 
   return {
     turn: { id: turnId, threadId, createdAt: sequence },
     userMessage,
     generation,
+  };
+}
+
+function failedTurn(sequence: number): TurnSettlement {
+  const pending = pendingTurn(sequence);
+
+  return {
+    ...pending,
+    generation: {
+      ...pending.generation,
+      status: GenerationStatus.Failed,
+      failureKind: GenerationFailureKind.Provider,
+      finishedAt: sequence,
+    },
     assistantActivated: false,
   };
 }
 
-function completedRetry(submission: TurnSubmission, sequence: number): TurnSubmission {
+function completedTurn(acceptance: TurnAcceptance, sequence: number): TurnSettlement {
   const assistantMessage: ThreadMessage = {
     id: `message-${sequence}`,
     threadId,
-    turnId: submission.turn.id,
+    turnId: acceptance.turn.id,
     sequence,
     author: ThreadMessageAuthor.Assistant,
     content: "Recovered reply",
@@ -53,15 +66,15 @@ function completedRetry(submission: TurnSubmission, sequence: number): TurnSubmi
   };
 
   return {
-    ...submission,
+    ...acceptance,
     generation: {
-      id: `generation-${sequence}`,
-      turnId: submission.generation.turnId,
-      providerId: submission.generation.providerId,
-      modelId: submission.generation.modelId,
+      id: acceptance.generation.id,
+      turnId: acceptance.generation.turnId,
+      providerId: acceptance.generation.providerId,
+      modelId: acceptance.generation.modelId,
       status: GenerationStatus.Completed,
       outputMessageId: assistantMessage.id,
-      startedAt: sequence,
+      startedAt: acceptance.generation.startedAt,
       finishedAt: sequence,
     },
     assistantMessage,
@@ -70,7 +83,7 @@ function completedRetry(submission: TurnSubmission, sequence: number): TurnSubmi
 }
 
 describe("thread query cache", () => {
-  it("uses the server page capacity when a submission overflows the latest page", () => {
+  it("uses server page capacity when an accepted turn overflows the latest page", () => {
     const first = failedTurn(1);
     const second = failedTurn(2);
     const data: ThreadQueryData = {
@@ -85,16 +98,19 @@ describe("thread query cache", () => {
       pageParams: [""],
     };
 
-    const updated = mergeThreadSubmission(data, threadId, "submit", failedTurn(3));
+    const updated = mergeThreadTurnState(data, threadId, "submit", pendingTurn(3));
 
     expect(updated?.pages.map((page) => page.messages.map(({ sequence }) => sequence))).toEqual([
       [2, 3],
       [1],
     ]);
     expect(updated?.pages.map(({ pageSize }) => pageSize)).toEqual([2, 2]);
+    expect(updated?.pages[0]?.generations).toContainEqual(
+      expect.objectContaining({ turnId: "turn-3", status: GenerationStatus.Pending }),
+    );
   });
 
-  it("keeps loaded history in server-sized pages as new turns arrive", () => {
+  it("keeps loaded history in server-sized pages as turns settle", () => {
     const initialTurns = Array.from({ length: 50 }, (_, index) => failedTurn(index + 1));
     const initial: ThreadQueryData = {
       pages: [
@@ -111,7 +127,7 @@ describe("thread query cache", () => {
     let current = initial;
 
     for (let sequence = 51; sequence <= 101; sequence += 1) {
-      const updated = mergeThreadSubmission(current, threadId, "submit", failedTurn(sequence));
+      const updated = mergeThreadTurnState(current, threadId, "settle", failedTurn(sequence));
 
       if (!updated) {
         throw new Error(`Turn ${sequence} could not be merged into the thread query cache.`);
@@ -131,9 +147,17 @@ describe("thread query cache", () => {
     expect(initial.pages[0]?.messages).toHaveLength(50);
   });
 
-  it("replaces a failed latest attempt with its successful retry", () => {
+  it("advances a failed latest turn through pending retry and completion", () => {
     const failed = failedTurn(1);
-    const completed = completedRetry(failed, 2);
+    const retryAcceptance: TurnAcceptance = {
+      turn: failed.turn,
+      userMessage: failed.userMessage,
+      generation: {
+        ...pendingTurn(2).generation,
+        turnId: failed.turn.id,
+      },
+    };
+    const completed = completedTurn(retryAcceptance, 2);
     const data: ThreadQueryData = {
       pages: [
         {
@@ -146,7 +170,10 @@ describe("thread query cache", () => {
       pageParams: [""],
     };
 
-    expect(mergeThreadSubmission(data, threadId, "retry", completed)).toEqual({
+    const pending = mergeThreadTurnState(data, threadId, "retry", retryAcceptance);
+
+    expect(pending?.pages[0]?.generations).toEqual([retryAcceptance.generation]);
+    expect(pending && mergeThreadTurnState(pending, threadId, "settle", completed)).toEqual({
       pages: [
         {
           messages: [failed.userMessage, completed.assistantMessage],
@@ -159,7 +186,24 @@ describe("thread query cache", () => {
     });
   });
 
-  it("refetches instead of merging a retry that switches an older branch", () => {
+  it("does not downgrade a fast settlement when pending acceptance arrives later", () => {
+    const acceptance = pendingTurn(1);
+    const completed = completedTurn(acceptance, 2);
+    const empty: ThreadQueryData = {
+      pages: [{ messages: [], generations: [], pageSize: 50, messageContentMaxLength: 100_000 }],
+      pageParams: [""],
+    };
+    const settled = mergeThreadTurnState(empty, threadId, "settle", completed);
+
+    if (!settled) {
+      throw new Error("The completed turn could not be merged.");
+    }
+
+    expect(mergeThreadTurnState(settled, threadId, "submit", acceptance)).toBe(settled);
+    expect(settled.pages[0]?.generations).toEqual([completed.generation]);
+  });
+
+  it("requests authoritative reconciliation when an older branch settles", () => {
     const first = failedTurn(1);
     const second = failedTurn(2);
     const data: ThreadQueryData = {
@@ -174,6 +218,6 @@ describe("thread query cache", () => {
       pageParams: [""],
     };
 
-    expect(mergeThreadSubmission(data, threadId, "retry", completedRetry(first, 3))).toBeNull();
+    expect(mergeThreadTurnState(data, threadId, "settle", completedTurn(first, 3))).toBeNull();
   });
 });

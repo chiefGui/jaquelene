@@ -71,11 +71,12 @@ describe("backend", () => {
     const first = await createBackend(backendOptions(databasePath, [provider]));
     const scenario = first.scenarios.create("Voyage");
     const campaign = first.campaigns.start(scenario.id);
-    const submitted = await first.turns.submit({
+    const submittedOperation = first.turns.submit({
       threadId: campaign.threadId,
       content: "Begin",
       model: { providerId: provider.descriptor.id, modelId: "maker/model" },
     });
+    const submitted = await submittedOperation.settlement;
 
     const firstClose = first.close();
     expect(first.close()).toBe(firstClose);
@@ -86,13 +87,13 @@ describe("backend", () => {
     await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(
       "Backend is closed.",
     );
-    await expect(
+    expect(() =>
       first.turns.submit({
         threadId: campaign.threadId,
         content: "Continue",
         model: { providerId: provider.descriptor.id, modelId: "maker/model" },
       }),
-    ).rejects.toThrow("Backend is closed.");
+    ).toThrow("Backend is closed.");
 
     const reopened = await createBackend(backendOptions(databasePath));
 
@@ -169,7 +170,7 @@ describe("backend", () => {
 
     const closing = backend.close();
 
-    const interrupted = await pending;
+    const interrupted = await pending.settlement;
     await closing;
     expect(providerSignal?.aborted).toBe(true);
     expect(interrupted.generation).toEqual(
@@ -205,7 +206,7 @@ describe("backend", () => {
     });
 
     const closing = backend.close();
-    const interrupted = await pending;
+    const interrupted = await pending.settlement;
     await closing;
 
     expect(generate).not.toHaveBeenCalled();

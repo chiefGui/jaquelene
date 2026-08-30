@@ -3,31 +3,14 @@ import {
   ThreadMessageAuthor,
   type ThreadMessage,
   type ThreadMessagePage,
+  type TurnAcceptance,
   type TurnGeneration,
-  type TurnSubmission,
+  type TurnSettlement,
 } from "@jaquelene/ipc/renderer";
 import type { InfiniteData } from "@tanstack/react-query";
 
 export type ThreadQueryData = InfiniteData<ThreadMessagePage, string>;
-
-export function hasPendingReply(data: ThreadQueryData | undefined) {
-  const latestPage = data?.pages[0];
-
-  if (!latestPage) {
-    return false;
-  }
-
-  const latestMessage = latestPage.messages.at(-1);
-
-  return (
-    latestMessage?.author === ThreadMessageAuthor.User &&
-    latestPage.generations.some(
-      (generation) =>
-        generation.turnId === latestMessage.turnId &&
-        generation.status === GenerationStatus.Pending,
-    )
-  );
-}
+type TurnState = TurnAcceptance | TurnSettlement;
 
 function selectGenerations(
   messages: readonly ThreadMessage[],
@@ -43,29 +26,40 @@ function selectGenerations(
   });
 }
 
-export function mergeThreadSubmission(
+function isSettlement(state: TurnState): state is TurnSettlement {
+  return "assistantActivated" in state;
+}
+
+function compareGenerationOrder(left: TurnGeneration, right: TurnGeneration) {
+  return left.startedAt - right.startedAt || left.id.localeCompare(right.id);
+}
+
+export function mergeThreadTurnState(
   data: ThreadQueryData,
   threadId: string,
-  operation: "submit" | "retry",
-  submission: TurnSubmission,
+  operation: "submit" | "retry" | "settle",
+  state: TurnState,
 ) {
-  const completed = submission.generation.status === GenerationStatus.Completed;
-  const assistantMessage = submission.assistantMessage;
+  const settled = isSettlement(state);
+  const completed = state.generation.status === GenerationStatus.Completed;
+  const assistantMessage = settled ? state.assistantMessage : undefined;
 
   if (
-    submission.turn.threadId !== threadId ||
-    submission.userMessage.threadId !== threadId ||
-    submission.userMessage.turnId !== submission.turn.id ||
-    submission.userMessage.author !== ThreadMessageAuthor.User ||
-    submission.generation.turnId !== submission.turn.id ||
-    completed !== Boolean(assistantMessage) ||
-    completed !== submission.assistantActivated ||
+    state.turn.threadId !== threadId ||
+    state.userMessage.threadId !== threadId ||
+    state.userMessage.turnId !== state.turn.id ||
+    state.userMessage.author !== ThreadMessageAuthor.User ||
+    state.generation.turnId !== state.turn.id ||
+    (!settled && state.generation.status !== GenerationStatus.Pending) ||
+    (settled && state.generation.status === GenerationStatus.Pending) ||
+    (settled && completed !== Boolean(assistantMessage)) ||
+    (settled && completed !== state.assistantActivated) ||
     (assistantMessage &&
       (assistantMessage.threadId !== threadId ||
-        assistantMessage.turnId !== submission.turn.id ||
+        assistantMessage.turnId !== state.turn.id ||
         assistantMessage.author !== ThreadMessageAuthor.Assistant ||
-        assistantMessage.id !== submission.generation.outputMessageId ||
-        assistantMessage.sequence <= submission.userMessage.sequence))
+        assistantMessage.id !== state.generation.outputMessageId ||
+        assistantMessage.sequence <= state.userMessage.sequence))
   ) {
     return null;
   }
@@ -87,12 +81,17 @@ export function mergeThreadSubmission(
   const pageSize = firstPage.pageSize;
 
   const userPage = data.pages.findIndex((page) =>
-    page.messages.some(({ id }) => id === submission.userMessage.id),
+    page.messages.some(({ id }) => id === state.userMessage.id),
   );
 
   if (
     userPage > 0 ||
-    (operation === "retry" && firstPage.messages.at(-1)?.id !== submission.userMessage.id)
+    (operation === "retry" && firstPage.messages.at(-1)?.id !== state.userMessage.id) ||
+    (operation === "settle" &&
+      settled &&
+      state.assistantActivated &&
+      userPage === 0 &&
+      firstPage.messages.at(-1)?.id !== state.userMessage.id)
   ) {
     return null;
   }
@@ -103,9 +102,21 @@ export function mergeThreadSubmission(
     operation === "submit" &&
     userPage === -1 &&
     latestSequence !== undefined &&
-    submission.userMessage.sequence <= latestSequence
+    state.userMessage.sequence <= latestSequence
   ) {
     return null;
+  }
+
+  const currentGeneration = firstPage.generations.find(({ turnId }) => turnId === state.turn.id);
+
+  if (
+    currentGeneration &&
+    (compareGenerationOrder(currentGeneration, state.generation) > 0 ||
+      (currentGeneration.id === state.generation.id &&
+        currentGeneration.status !== GenerationStatus.Pending &&
+        state.generation.status === GenerationStatus.Pending))
+  ) {
+    return data;
   }
 
   const messages = [...firstPage.messages];
@@ -120,7 +131,7 @@ export function mergeThreadSubmission(
     }
   }
 
-  upsertMessage(submission.userMessage);
+  upsertMessage(state.userMessage);
 
   if (assistantMessage) {
     upsertMessage(assistantMessage);
@@ -128,8 +139,8 @@ export function mergeThreadSubmission(
 
   messages.sort((left, right) => left.sequence - right.sequence);
   const generations = [
-    ...firstPage.generations.filter(({ turnId }) => turnId !== submission.turn.id),
-    submission.generation,
+    ...firstPage.generations.filter(({ turnId }) => turnId !== state.turn.id),
+    state.generation,
   ];
   const pages = [...data.pages];
   const pageParams = [...data.pageParams];

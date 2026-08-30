@@ -3,7 +3,8 @@ import type {
   GenerationFailureKind,
   ThreadMessage,
   Turns,
-  TurnSubmission,
+  TurnAcceptance,
+  TurnSettlement,
 } from "@jaquelene/backend";
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
@@ -79,15 +80,21 @@ function toIpcGeneration(generation: Generation) {
   };
 }
 
-function toIpcSubmission(submission: TurnSubmission) {
+function toIpcAcceptance(acceptance: TurnAcceptance) {
   return {
-    turn: { ...submission.turn },
-    userMessage: toIpcMessage(submission.userMessage),
-    generation: toIpcGeneration(submission.generation),
-    ...(submission.assistantMessage
-      ? { assistantMessage: toIpcMessage(submission.assistantMessage) }
+    turn: { ...acceptance.turn },
+    userMessage: toIpcMessage(acceptance.userMessage),
+    generation: toIpcGeneration(acceptance.generation),
+  };
+}
+
+function toIpcSettlement(settlement: TurnSettlement) {
+  return {
+    ...toIpcAcceptance(settlement),
+    ...(settlement.assistantMessage
+      ? { assistantMessage: toIpcMessage(settlement.assistantMessage) }
       : {}),
-    assistantActivated: submission.assistantActivated,
+    assistantActivated: settlement.assistantActivated,
   };
 }
 
@@ -112,13 +119,13 @@ function unexpectedFailureStage(failureKind: Generation["failureKind"]) {
 function reportUnexpectedFailure(
   diagnostics: ErrorReporter,
   operation: "thread.turn.submit" | "thread.turn.retry",
-  submission: TurnSubmission,
+  settlement: TurnSettlement,
 ) {
-  if (!submission.failure) {
+  if (!settlement.failure) {
     return;
   }
 
-  const stage = unexpectedFailureStage(submission.generation.failureKind);
+  const stage = unexpectedFailureStage(settlement.generation.failureKind);
 
   if (!stage) {
     return;
@@ -128,7 +135,7 @@ function reportUnexpectedFailure(
     severity: ErrorSeverity.Error,
     operation,
     error: new Error(`Generation failed during ${stage}.`, {
-      cause: submission.failure.cause,
+      cause: settlement.failure.cause,
     }),
   });
 }
@@ -153,23 +160,59 @@ export function exposeThreadMessaging(
     },
   });
 
-  TurnsIpc.for(target).setImplementation({
-    async submit(request) {
-      const submission = await turns.submit({
+  const dispatcher = TurnsIpc.for(target).setImplementation({
+    submit(request) {
+      const operation = turns.submit({
         threadId: ids.thread.parse(request.threadId),
         content: request.content,
         model: { ...request.model },
       });
-      reportUnexpectedFailure(diagnostics, "thread.turn.submit", submission);
-      return toIpcSubmission(submission);
+      observeSettlement("thread.turn.submit", operation.settlement);
+      return toIpcAcceptance(operation.acceptance);
     },
-    async retry(request) {
-      const submission = await turns.retry({
+    retry(request) {
+      const operation = turns.retry({
         turnId: ids.turn.parse(request.turnId),
         model: { ...request.model },
       });
-      reportUnexpectedFailure(diagnostics, "thread.turn.retry", submission);
-      return toIpcSubmission(submission);
+      observeSettlement("thread.turn.retry", operation.settlement);
+      return toIpcAcceptance(operation.acceptance);
     },
   });
+
+  function observeSettlement(
+    operation: "thread.turn.submit" | "thread.turn.retry",
+    settlement: Promise<TurnSettlement>,
+  ) {
+    void settlement.then(
+      (result) => {
+        reportUnexpectedFailure(diagnostics, operation, result);
+
+        if (target.isDestroyed() || target.detached) {
+          return;
+        }
+
+        try {
+          dispatcher.dispatchSettled(toIpcSettlement(result));
+        } catch (cause) {
+          if (target.isDestroyed() || target.detached) {
+            return;
+          }
+
+          diagnostics.report({
+            severity: ErrorSeverity.Error,
+            operation: `${operation}.dispatch`,
+            error: new Error("Could not publish settled turn state.", { cause }),
+          });
+        }
+      },
+      (cause: unknown) => {
+        diagnostics.report({
+          severity: ErrorSeverity.Error,
+          operation,
+          error: new Error("An accepted turn could not settle.", { cause }),
+        });
+      },
+    );
+  }
 }

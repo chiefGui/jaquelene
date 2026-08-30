@@ -1,15 +1,25 @@
-import type { GenerationEngine } from "#backend/generation/generations";
-import type { ModelReference } from "#backend/provider/provider";
+import type { Database } from "#backend/database/database";
+import type {
+  AcceptedReplyGeneration,
+  GenerationEngine,
+  ReplyGenerationExecution,
+} from "#backend/generation/generations";
 import type { Generation } from "#backend/generation/schema";
 import type { ThreadId, TurnId } from "#backend/id";
+import type { ModelReference } from "#backend/provider/provider";
 import type { ThreadMessage, Turn } from "#backend/thread/schema";
 import type { ThreadEngine } from "#backend/thread/threads";
 
 type TurnGenerationEngine = Pick<
   GenerationEngine,
-  "executeReply" | "listLatestForTurns" | "requireRegisteredModel"
->;
-type TurnThreads = Pick<ThreadEngine, "getTurnInput" | "listMessages" | "startTurn">;
+  "acceptReplyInTransaction" | "listLatestForTurns" | "requireRegisteredModel"
+> & {
+  scheduleAcceptedReply(
+    accepted: AcceptedReplyGeneration,
+    signal?: AbortSignal,
+  ): Promise<ReplyGenerationExecution>;
+};
+type TurnThreads = Pick<ThreadEngine, "getTurnInput" | "listMessages" | "startTurnInTransaction">;
 
 type ListThreadRequest = Parameters<TurnThreads["listMessages"]>[0];
 
@@ -30,13 +40,21 @@ export type RetryTurnRequest = {
   signal?: AbortSignal;
 };
 
-export type TurnSubmission = {
+export type TurnAcceptance = {
   turn: Turn;
   userMessage: ThreadMessage;
   generation: Generation;
+};
+
+export type TurnSettlement = TurnAcceptance & {
   assistantMessage: ThreadMessage | null;
   assistantActivated: boolean;
   failure: Readonly<{ cause: unknown }> | null;
+};
+
+export type TurnOperation = {
+  acceptance: TurnAcceptance;
+  settlement: Promise<TurnSettlement>;
 };
 
 function copyModel({ providerId, modelId }: ModelReference): ModelReference {
@@ -51,54 +69,67 @@ function assertNotAborted(signal: AbortSignal | undefined) {
   }
 }
 
-export function createTurns(threads: TurnThreads, generations: TurnGenerationEngine) {
+function settleTurn(
+  acceptance: TurnAcceptance,
+  execution: ReplyGenerationExecution,
+): TurnSettlement {
+  if (execution.outcome === "failed") {
+    return {
+      ...acceptance,
+      generation: execution.generation,
+      assistantMessage: null,
+      assistantActivated: false,
+      failure: { cause: execution.cause },
+    };
+  }
+
+  return {
+    ...acceptance,
+    generation: execution.generation,
+    assistantMessage: execution.message,
+    assistantActivated: execution.activated,
+    failure: null,
+  };
+}
+
+export function createTurns(
+  database: Database,
+  threads: TurnThreads,
+  generations: TurnGenerationEngine,
+) {
   const activeThreadOperations = new Set<ThreadId>();
 
-  async function runExclusive<Result>(threadId: ThreadId, operation: () => Promise<Result>) {
+  function startExclusive(threadId: ThreadId, start: () => TurnOperation) {
     if (activeThreadOperations.has(threadId)) {
       throw new RangeError(`Thread "${threadId}" already has an active turn operation.`);
     }
 
     activeThreadOperations.add(threadId);
 
+    let operation: TurnOperation;
+
     try {
-      return await operation();
-    } finally {
+      operation = start();
+    } catch (cause) {
       activeThreadOperations.delete(threadId);
+      throw cause;
     }
+
+    void operation.settlement.then(
+      () => activeThreadOperations.delete(threadId),
+      () => activeThreadOperations.delete(threadId),
+    );
+    return operation;
   }
 
-  async function generate(
-    turn: Turn,
-    userMessage: ThreadMessage,
-    model: ModelReference,
+  function beginSettlement(
+    acceptance: TurnAcceptance,
+    acceptedGeneration: AcceptedReplyGeneration,
     signal?: AbortSignal,
-  ): Promise<TurnSubmission> {
-    const execution = await generations.executeReply({
-      turnId: turn.id,
-      model,
-      ...(signal ? { signal } : {}),
-    });
-
-    if (execution.outcome === "failed") {
-      return {
-        turn,
-        userMessage,
-        generation: execution.generation,
-        assistantMessage: null,
-        assistantActivated: false,
-        failure: { cause: execution.cause },
-      };
-    }
-
-    return {
-      turn,
-      userMessage,
-      generation: execution.generation,
-      assistantMessage: execution.message,
-      assistantActivated: execution.activated,
-      failure: null,
-    };
+  ) {
+    return generations
+      .scheduleAcceptedReply(acceptedGeneration, signal)
+      .then((execution) => settleTurn(acceptance, execution));
   }
 
   return {
@@ -111,18 +142,36 @@ export function createTurns(threads: TurnThreads, generations: TurnGenerationEng
       return { ...page, generations: generationsForPage };
     },
 
-    async submit({ threadId, content, model: requestedModel, signal }: SubmitTurnRequest) {
+    submit({ threadId, content, model: requestedModel, signal }: SubmitTurnRequest): TurnOperation {
       const model = copyModel(requestedModel);
       generations.requireRegisteredModel(model);
       assertNotAborted(signal);
 
-      return runExclusive(threadId, () => {
-        const { turn, message } = threads.startTurn(threadId, content);
-        return generate(turn, message, model, signal);
+      return startExclusive(threadId, () => {
+        const accepted = database.transaction((transaction) => {
+          const { turn, message } = threads.startTurnInTransaction(transaction, threadId, content);
+          const acceptedGeneration = generations.acceptReplyInTransaction(
+            transaction,
+            turn.id,
+            model,
+          );
+          const acceptance = {
+            turn,
+            userMessage: message,
+            generation: acceptedGeneration.generation,
+          } satisfies TurnAcceptance;
+
+          return { acceptance, acceptedGeneration };
+        });
+
+        return {
+          acceptance: accepted.acceptance,
+          settlement: beginSettlement(accepted.acceptance, accepted.acceptedGeneration, signal),
+        };
       });
     },
 
-    async retry({ turnId, model: requestedModel, signal }: RetryTurnRequest) {
+    retry({ turnId, model: requestedModel, signal }: RetryTurnRequest): TurnOperation {
       const model = copyModel(requestedModel);
       generations.requireRegisteredModel(model);
       assertNotAborted(signal);
@@ -132,14 +181,26 @@ export function createTurns(threads: TurnThreads, generations: TurnGenerationEng
         throw new RangeError(`Turn "${turnId}" does not exist.`);
       }
 
-      return runExclusive(input.turn.threadId, () => {
+      return startExclusive(input.turn.threadId, () => {
         const latestGeneration = generations.listLatestForTurns([turnId])[0];
 
         if (latestGeneration?.status !== "failed") {
           throw new RangeError(`Turn "${turnId}" has no failed generation to retry.`);
         }
 
-        return generate(input.turn, input.message, model, signal);
+        const acceptedGeneration = database.transaction((transaction) =>
+          generations.acceptReplyInTransaction(transaction, turnId, model),
+        );
+        const acceptance = {
+          turn: input.turn,
+          userMessage: input.message,
+          generation: acceptedGeneration.generation,
+        } satisfies TurnAcceptance;
+
+        return {
+          acceptance,
+          settlement: beginSettlement(acceptance, acceptedGeneration, signal),
+        };
       });
     },
   };

@@ -96,7 +96,13 @@ structure RetryTurnRequest {
   model: ModelReference
 }
 
-structure TurnSubmission {
+structure TurnAcceptance {
+  turn: Turn
+  userMessage: ThreadMessage
+  generation: TurnGeneration
+}
+
+structure TurnSettlement {
   turn: Turn
   userMessage: ThreadMessage
   generation: TurnGeneration
@@ -115,6 +121,9 @@ interface Threads {
 [Validator=TrustedRenderer]
 [ContextBridge]
 interface Turns {
-  submit(request: SubmitTurnRequest) -> TurnSubmission
-  retry(request: RetryTurnRequest) -> TurnSubmission
+  submit(request: SubmitTurnRequest) -> TurnAcceptance
+  retry(request: RetryTurnRequest) -> TurnAcceptance
+
+  [Event]
+  settled(settlement: TurnSettlement)
 }

@@ -1,13 +1,18 @@
-import type { Generation, Turns, TurnSubmission } from "@jaquelene/backend";
+import type { Generation, TurnAcceptance, TurnSettlement, Turns } from "@jaquelene/backend";
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
-import type { IThreadsImpl, ITurnsImpl } from "@jaquelene/ipc/main";
+import type {
+  IThreadsImpl,
+  ITurnsImpl,
+  TurnSettlement as IpcTurnSettlement,
+} from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const implementations = vi.hoisted(() => ({
   threads: undefined as IThreadsImpl | undefined,
   turns: undefined as ITurnsImpl | undefined,
+  dispatchSettled: vi.fn<(settlement: IpcTurnSettlement) => void>(),
 }));
 
 vi.mock("@jaquelene/ipc/main", () => ({
@@ -35,6 +40,7 @@ vi.mock("@jaquelene/ipc/main", () => ({
     for: () => ({
       setImplementation(implementation: ITurnsImpl) {
         implementations.turns = implementation;
+        return { dispatchSettled: implementations.dispatchSettled };
       },
     }),
   },
@@ -50,40 +56,78 @@ function requireImplementations() {
   return { threads: implementations.threads, turns: implementations.turns };
 }
 
-function createFailedSubmission(
-  failureKind: NonNullable<Generation["failureKind"]>,
-  cause: unknown,
-): TurnSubmission {
+function createTurnState() {
   const threadId = ids.thread.create();
   const turnId = ids.turn.create();
+  const userMessageId = ids.message.create();
+  const assistantMessageId = ids.message.create();
+  const turn = { id: turnId, threadId, createdAt: 100 };
+  const userMessage = {
+    id: userMessageId,
+    threadId,
+    turnId,
+    parentMessageId: null,
+    sequence: 1,
+    author: "user" as const,
+    content: "Hello",
+    createdAt: 100,
+  };
+  const pendingGeneration: Generation = {
+    id: ids.generation.create(),
+    turnId,
+    providerId: "openrouter",
+    modelId: "maker/model",
+    status: "pending",
+    failureKind: null,
+    providerGenerationId: null,
+    resolvedModelId: null,
+    finishReason: null,
+    inputTokens: null,
+    outputTokens: null,
+    totalTokens: null,
+    outputMessageId: null,
+    startedAt: 101,
+    finishedAt: null,
+  };
+  const acceptance: TurnAcceptance = { turn, userMessage, generation: pendingGeneration };
+  const assistantMessage = {
+    id: assistantMessageId,
+    threadId,
+    turnId,
+    parentMessageId: userMessageId,
+    sequence: 2,
+    author: "assistant" as const,
+    content: "Hi",
+    createdAt: 102,
+  };
+  const completed: TurnSettlement = {
+    ...acceptance,
+    generation: {
+      ...pendingGeneration,
+      status: "completed",
+      outputMessageId: assistantMessageId,
+      finishedAt: 102,
+    },
+    assistantMessage,
+    assistantActivated: true,
+    failure: null,
+  };
+
+  return { acceptance, completed };
+}
+
+function failedSettlement(
+  failureKind: NonNullable<Generation["failureKind"]>,
+  cause: unknown,
+): TurnSettlement {
+  const { acceptance } = createTurnState();
 
   return {
-    turn: { id: turnId, threadId, createdAt: 100 },
-    userMessage: {
-      id: ids.message.create(),
-      threadId,
-      turnId,
-      parentMessageId: null,
-      sequence: 1,
-      author: "user",
-      content: "Hello",
-      createdAt: 100,
-    },
+    ...acceptance,
     generation: {
-      id: ids.generation.create(),
-      turnId,
-      providerId: "openrouter",
-      modelId: "maker/model",
+      ...acceptance.generation,
       status: "failed",
       failureKind,
-      providerGenerationId: null,
-      resolvedModelId: null,
-      finishReason: null,
-      inputTokens: null,
-      outputTokens: null,
-      totalTokens: null,
-      outputMessageId: null,
-      startedAt: 101,
       finishedAt: 102,
     },
     assistantMessage: null,
@@ -92,99 +136,65 @@ function createFailedSubmission(
   };
 }
 
+function emptyPage() {
+  return {
+    messages: [],
+    generations: [],
+    pageSize: 50,
+    messageContentMaxLength: 100_000,
+  };
+}
+
+function activeTarget() {
+  return {
+    detached: false,
+    isDestroyed: () => false,
+  } as WebFrameMain;
+}
+
+beforeEach(() => {
+  implementations.threads = undefined;
+  implementations.turns = undefined;
+  implementations.dispatchSettled.mockClear();
+});
+
 describe("thread IPC", () => {
-  it("maps durable turn activity and parses transport identities", async () => {
-    const threadId = ids.thread.create();
-    const turnId = ids.turn.create();
-    const userMessageId = ids.message.create();
-    const assistantMessageId = ids.message.create();
-    const failedGeneration: Generation = {
-      id: ids.generation.create(),
-      turnId,
-      providerId: "openrouter",
-      modelId: "maker/model",
-      status: "failed",
-      failureKind: "provider",
-      providerGenerationId: null,
-      resolvedModelId: null,
-      finishReason: null,
-      inputTokens: null,
-      outputTokens: null,
-      totalTokens: null,
-      outputMessageId: null,
-      startedAt: 101,
-      finishedAt: 102,
-    };
-    const completedGeneration: Generation = {
-      ...failedGeneration,
-      id: ids.generation.create(),
-      status: "completed",
-      failureKind: null,
-      outputMessageId: assistantMessageId,
-      startedAt: 103,
-      finishedAt: 104,
-    };
-    const turn = { id: turnId, threadId, createdAt: 100 };
-    const userMessage = {
-      id: userMessageId,
-      threadId,
-      turnId,
-      parentMessageId: null,
-      sequence: 1,
-      author: "user" as const,
-      content: "Hello",
-      createdAt: 100,
-    };
-    const assistantMessage = {
-      id: assistantMessageId,
-      threadId,
-      turnId,
-      parentMessageId: userMessageId,
-      sequence: 2,
-      author: "assistant" as const,
-      content: "Hi",
-      createdAt: 104,
-    };
-    const completedSubmission: TurnSubmission = {
-      turn,
-      userMessage,
-      generation: completedGeneration,
-      assistantMessage,
-      assistantActivated: true,
-      failure: null,
-    };
-    const providerFailure = new Error("Provider unavailable");
-    const failedSubmission: TurnSubmission = {
-      turn,
-      userMessage,
-      generation: failedGeneration,
-      assistantMessage: null,
-      assistantActivated: false,
-      failure: { cause: providerFailure },
-    };
+  it("returns pending acceptance and dispatches committed settlement separately", async () => {
+    const { acceptance, completed } = createTurnState();
+    let settle!: (settlement: TurnSettlement) => void;
+    const settlement = new Promise<TurnSettlement>((resolve) => {
+      settle = resolve;
+    });
     const backendTurns: Turns = {
       listForThread: vi.fn(() => ({
-        messages: [userMessage],
-        generations: [failedGeneration],
-        pageSize: 50,
-        messageContentMaxLength: 100_000,
+        ...emptyPage(),
+        messages: [acceptance.userMessage],
+        generations: [acceptance.generation],
       })),
-      submit: vi.fn(async () => completedSubmission),
-      retry: vi.fn(async () => failedSubmission),
+      submit: vi.fn(() => ({ acceptance, settlement })),
+      retry: vi.fn(() => ({ acceptance, settlement })),
     };
     const report = vi.fn<ErrorReporter["report"]>();
 
-    exposeThreadMessaging({} as WebFrameMain, backendTurns, { report });
+    exposeThreadMessaging(activeTarget(), backendTurns, { report });
     const ipc = requireImplementations();
-    const page = await ipc.threads.listMessages({ threadId });
+    const page = await ipc.threads.listMessages({ threadId: acceptance.turn.threadId });
+    const model = { providerId: "openrouter", modelId: "maker/model" };
+    const submitted = await ipc.turns.submit({
+      threadId: acceptance.turn.threadId,
+      content: "Hello",
+      model,
+    });
 
-    expect(backendTurns.listForThread).toHaveBeenCalledWith({ threadId });
+    expect(backendTurns.listForThread).toHaveBeenCalledWith({
+      threadId: acceptance.turn.threadId,
+    });
     expect(page).toEqual({
       messages: [
         {
-          id: userMessageId,
-          threadId,
-          turnId,
+          id: acceptance.userMessage.id,
+          threadId: acceptance.turn.threadId,
+          turnId: acceptance.turn.id,
           sequence: 1,
           author: "user",
           content: "Hello",
@@ -193,55 +203,42 @@ describe("thread IPC", () => {
       ],
       generations: [
         {
-          id: failedGeneration.id,
-          turnId,
+          id: acceptance.generation.id,
+          turnId: acceptance.turn.id,
           providerId: "openrouter",
           modelId: "maker/model",
-          status: "failed",
-          failureKind: "provider",
+          status: "pending",
           startedAt: 101,
-          finishedAt: 102,
         },
       ],
       pageSize: 50,
       messageContentMaxLength: 100_000,
     });
-
-    const model = { providerId: "openrouter", modelId: "maker/model" };
-    const submitted = await ipc.turns.submit({ threadId, content: "Hello", model });
-    const retried = await ipc.turns.retry({ turnId, model });
-
-    expect(backendTurns.submit).toHaveBeenCalledWith({ threadId, content: "Hello", model });
-    expect(backendTurns.retry).toHaveBeenCalledWith({ turnId, model });
-    expect(submitted).toEqual({
-      turn,
-      userMessage: page.messages[0],
-      generation: {
-        id: completedGeneration.id,
-        turnId,
-        providerId: "openrouter",
-        modelId: "maker/model",
-        status: "completed",
-        outputMessageId: assistantMessageId,
-        startedAt: 103,
-        finishedAt: 104,
-      },
-      assistantMessage: {
-        id: assistantMessageId,
-        threadId,
-        turnId,
-        sequence: 2,
-        author: "assistant",
-        content: "Hi",
-        createdAt: 104,
-      },
-      assistantActivated: true,
+    expect(backendTurns.submit).toHaveBeenCalledWith({
+      threadId: acceptance.turn.threadId,
+      content: "Hello",
+      model,
     });
-    expect(retried).toEqual({
-      turn,
+    expect(submitted).toEqual({
+      turn: acceptance.turn,
       userMessage: page.messages[0],
-      generation: page.generations[0],
-      assistantActivated: false,
+      generation: expect.objectContaining({ status: "pending" }),
+    });
+    expect(implementations.dispatchSettled).not.toHaveBeenCalled();
+
+    settle(completed);
+    await vi.waitFor(() => expect(implementations.dispatchSettled).toHaveBeenCalledOnce());
+
+    expect(implementations.dispatchSettled).toHaveBeenCalledWith({
+      turn: completed.turn,
+      userMessage: page.messages[0],
+      generation: expect.objectContaining({
+        id: completed.generation.id,
+        status: "completed",
+        outputMessageId: completed.assistantMessage?.id,
+      }),
+      assistantMessage: expect.objectContaining({ content: "Hi" }),
+      assistantActivated: true,
     });
     expect(report).not.toHaveBeenCalled();
   });
@@ -250,106 +247,190 @@ describe("thread IPC", () => {
     ["prompt", "prompt compilation"],
     ["invalid-output", "provider output validation"],
     ["storage", "reply storage"],
-  ] as const)("reports durable %s failures with their cause", async (failureKind, stage) => {
+  ] as const)("reports durable %s failures after acceptance", async (failureKind, stage) => {
     const cause = new Error(`${failureKind} failed`);
-    const submission = createFailedSubmission(failureKind, cause);
+    const failed = failedSettlement(failureKind, cause);
+    const acceptance: TurnAcceptance = {
+      turn: failed.turn,
+      userMessage: failed.userMessage,
+      generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
+    };
     const backendTurns: Turns = {
-      listForThread: vi.fn(() => ({
-        messages: [],
-        generations: [],
-        pageSize: 50,
-        messageContentMaxLength: 100_000,
-      })),
-      submit: vi.fn(async () => submission),
+      listForThread: vi.fn(emptyPage),
+      submit: vi.fn(() => ({ acceptance, settlement: Promise.resolve(failed) })),
       retry: vi.fn(),
     };
     const report = vi.fn<ErrorReporter["report"]>();
 
-    exposeThreadMessaging({} as WebFrameMain, backendTurns, { report });
+    exposeThreadMessaging(activeTarget(), backendTurns, { report });
     await requireImplementations().turns.submit({
-      threadId: submission.turn.threadId,
+      threadId: failed.turn.threadId,
       content: "Hello",
       model: { providerId: "openrouter", modelId: "maker/model" },
     });
 
-    expect(report).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
     expect(report).toHaveBeenCalledWith({
       severity: ErrorSeverity.Error,
       operation: "thread.turn.submit",
       error: expect.objectContaining({ message: `Generation failed during ${stage}.`, cause }),
     });
+    expect(implementations.dispatchSettled).toHaveBeenCalledOnce();
   });
 
   it("labels unexpected retry failures as retry operations", async () => {
     const cause = new Error("Prompt compilation failed");
-    const submission = createFailedSubmission("prompt", cause);
+    const failed = failedSettlement("prompt", cause);
+    const acceptance: TurnAcceptance = {
+      turn: failed.turn,
+      userMessage: failed.userMessage,
+      generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
+    };
     const backendTurns: Turns = {
-      listForThread: vi.fn(() => ({
-        messages: [],
-        generations: [],
-        pageSize: 50,
-        messageContentMaxLength: 100_000,
-      })),
+      listForThread: vi.fn(emptyPage),
       submit: vi.fn(),
-      retry: vi.fn(async () => submission),
+      retry: vi.fn(() => ({ acceptance, settlement: Promise.resolve(failed) })),
     };
     const report = vi.fn<ErrorReporter["report"]>();
+    const model = { providerId: "openrouter", modelId: "maker/model" };
 
-    exposeThreadMessaging({} as WebFrameMain, backendTurns, { report });
-    await requireImplementations().turns.retry({
-      turnId: submission.turn.id,
-      model: { providerId: "openrouter", modelId: "maker/model" },
+    exposeThreadMessaging(activeTarget(), backendTurns, { report });
+    const accepted = await requireImplementations().turns.retry({
+      turnId: failed.turn.id,
+      model,
     });
 
+    expect(backendTurns.retry).toHaveBeenCalledWith({ turnId: failed.turn.id, model });
+    expect(accepted.generation.status).toBe("pending");
+    await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
     expect(report).toHaveBeenCalledWith(
       expect.objectContaining({ operation: "thread.turn.retry" }),
     );
   });
 
-  it("does not diagnose an interrupted generation as an application failure", async () => {
-    const submission = createFailedSubmission("interrupted", new Error("Backend is closing"));
+  it("reports a rejected settlement observer without dispatching incomplete state", async () => {
+    const { acceptance } = createTurnState();
+    const cause = new Error("Settlement ownership failed");
     const backendTurns: Turns = {
-      listForThread: vi.fn(() => ({
-        messages: [],
-        generations: [],
-        pageSize: 50,
-        messageContentMaxLength: 100_000,
-      })),
-      submit: vi.fn(async () => submission),
+      listForThread: vi.fn(emptyPage),
+      submit: vi.fn(() => ({ acceptance, settlement: Promise.reject(cause) })),
       retry: vi.fn(),
     };
     const report = vi.fn<ErrorReporter["report"]>();
 
-    exposeThreadMessaging({} as WebFrameMain, backendTurns, { report });
+    exposeThreadMessaging(activeTarget(), backendTurns, { report });
     await requireImplementations().turns.submit({
-      threadId: submission.turn.threadId,
+      threadId: acceptance.turn.threadId,
       content: "Hello",
       model: { providerId: "openrouter", modelId: "maker/model" },
     });
 
+    await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
+    expect(report).toHaveBeenCalledWith({
+      severity: ErrorSeverity.Error,
+      operation: "thread.turn.submit",
+      error: expect.objectContaining({ message: "An accepted turn could not settle.", cause }),
+    });
+    expect(implementations.dispatchSettled).not.toHaveBeenCalled();
+  });
+
+  it("does not diagnose interruption as an application failure", async () => {
+    const interrupted = failedSettlement("interrupted", new Error("Backend is closing"));
+    const acceptance: TurnAcceptance = {
+      turn: interrupted.turn,
+      userMessage: interrupted.userMessage,
+      generation: {
+        ...interrupted.generation,
+        status: "pending",
+        failureKind: null,
+        finishedAt: null,
+      },
+    };
+    const backendTurns: Turns = {
+      listForThread: vi.fn(emptyPage),
+      submit: vi.fn(() => ({ acceptance, settlement: Promise.resolve(interrupted) })),
+      retry: vi.fn(),
+    };
+    const report = vi.fn<ErrorReporter["report"]>();
+
+    exposeThreadMessaging(activeTarget(), backendTurns, { report });
+    await requireImplementations().turns.submit({
+      threadId: interrupted.turn.threadId,
+      content: "Hello",
+      model: { providerId: "openrouter", modelId: "maker/model" },
+    });
+
+    await vi.waitFor(() => expect(implementations.dispatchSettled).toHaveBeenCalledOnce());
     expect(report).not.toHaveBeenCalled();
   });
 
-  it("rejects malformed TypeIDs at the adapter boundary", async () => {
+  it("does not dispatch settlement state to a destroyed renderer", async () => {
+    const { acceptance, completed } = createTurnState();
     const backendTurns: Turns = {
-      listForThread: vi.fn(() => ({
-        messages: [],
-        generations: [],
-        pageSize: 50,
-        messageContentMaxLength: 100_000,
-      })),
+      listForThread: vi.fn(emptyPage),
+      submit: vi.fn(() => ({ acceptance, settlement: Promise.resolve(completed) })),
+      retry: vi.fn(),
+    };
+    const target = {
+      detached: false,
+      isDestroyed: () => true,
+    } as WebFrameMain;
+    const report = vi.fn<ErrorReporter["report"]>();
+
+    exposeThreadMessaging(target, backendTurns, { report });
+    await requireImplementations().turns.submit({
+      threadId: acceptance.turn.threadId,
+      content: "Hello",
+      model: { providerId: "openrouter", modelId: "maker/model" },
+    });
+
+    expect(implementations.dispatchSettled).not.toHaveBeenCalled();
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("reports settlement dispatch failures for an active renderer", async () => {
+    const { acceptance, completed } = createTurnState();
+    const backendTurns: Turns = {
+      listForThread: vi.fn(emptyPage),
+      submit: vi.fn(() => ({ acceptance, settlement: Promise.resolve(completed) })),
+      retry: vi.fn(),
+    };
+    const cause = new Error("IPC send failed");
+    const report = vi.fn<ErrorReporter["report"]>();
+    implementations.dispatchSettled.mockImplementationOnce(() => {
+      throw cause;
+    });
+
+    exposeThreadMessaging(activeTarget(), backendTurns, { report });
+    await requireImplementations().turns.submit({
+      threadId: acceptance.turn.threadId,
+      content: "Hello",
+      model: { providerId: "openrouter", modelId: "maker/model" },
+    });
+
+    await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
+    expect(report).toHaveBeenCalledWith({
+      severity: ErrorSeverity.Error,
+      operation: "thread.turn.submit.dispatch",
+      error: expect.objectContaining({ message: "Could not publish settled turn state.", cause }),
+    });
+  });
+
+  it("rejects malformed TypeIDs at the adapter boundary", () => {
+    const backendTurns: Turns = {
+      listForThread: vi.fn(emptyPage),
       submit: vi.fn(),
       retry: vi.fn(),
     };
-    exposeThreadMessaging({} as WebFrameMain, backendTurns, { report: vi.fn() });
+    exposeThreadMessaging(activeTarget(), backendTurns, { report: vi.fn() });
     const ipc = requireImplementations();
     const model = { providerId: "openrouter", modelId: "maker/model" };
 
     expect(() => ipc.threads.listMessages({ threadId: "invalid" })).toThrow(TypeError);
-    await expect(
-      ipc.turns.submit({ threadId: "invalid", content: "Hello", model }),
-    ).rejects.toThrow(TypeError);
-    await expect(ipc.turns.retry({ turnId: "invalid", model })).rejects.toThrow(TypeError);
+    expect(() => ipc.turns.submit({ threadId: "invalid", content: "Hello", model })).toThrow(
+      TypeError,
+    );
+    expect(() => ipc.turns.retry({ turnId: "invalid", model })).toThrow(TypeError);
     expect(backendTurns.listForThread).not.toHaveBeenCalled();
     expect(backendTurns.submit).not.toHaveBeenCalled();
     expect(backendTurns.retry).not.toHaveBeenCalled();

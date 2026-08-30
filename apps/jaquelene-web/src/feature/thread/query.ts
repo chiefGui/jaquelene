@@ -1,21 +1,35 @@
-import { Threads, Turns, type ModelReference, type TurnSubmission } from "@jaquelene/ipc/renderer";
+import {
+  Threads,
+  Turns,
+  type ModelReference,
+  type TurnAcceptance,
+  type TurnSettlement,
+} from "@jaquelene/ipc/renderer";
 import {
   type QueryClient,
   infiniteQueryOptions,
   useIsMutating,
   useMutation,
+  useMutationState,
   useQueryClient,
 } from "@tanstack/react-query";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
-import { hasPendingReply, mergeThreadSubmission, type ThreadQueryData } from "./thread-query-cache";
+import { mergeThreadTurnState, type ThreadQueryData } from "./thread-query-cache";
 
 const listThreadMessages = requireIpcMethod(Threads?.listMessages);
 const submitTurn = requireIpcMethod(Turns?.submit);
 const retryTurn = requireIpcMethod(Turns?.retry);
+const onTurnSettled = requireIpcMethod(Turns?.onSettled);
 export const threadQueryKey = ["threads"] as const;
-const PENDING_GENERATION_REFRESH_INTERVAL_MS = 1_000;
 
-type TurnOperation = "submit" | "retry";
+type TurnOperation = "submit" | "retry" | "settle";
+export type SubmitTurnVariables = {
+  clientId: string;
+  content: string;
+  submittedAt: number;
+  model: ModelReference;
+};
 
 export function threadMessagesQuery(threadId: string) {
   return infiniteQueryOptions({
@@ -28,8 +42,6 @@ export function threadMessagesQuery(threadId: string) {
         ...(pageParam ? { before: pageParam } : {}),
       }),
     getNextPageParam: (page) => page.nextCursor,
-    refetchInterval: ({ state }) =>
-      hasPendingReply(state.data) ? PENDING_GENERATION_REFRESH_INTERVAL_MS : false,
   });
 }
 
@@ -49,7 +61,7 @@ function reconcileSubmission(
   queryClient: QueryClient,
   threadId: string,
   operation: TurnOperation,
-  submission: TurnSubmission,
+  state: TurnAcceptance | TurnSettlement,
 ) {
   const query = threadMessagesQuery(threadId);
   const current = queryClient.getQueryData<ThreadQueryData>(query.queryKey);
@@ -58,13 +70,17 @@ function reconcileSubmission(
     return;
   }
 
-  const updated = mergeThreadSubmission(current, threadId, operation, submission);
+  const updated = mergeThreadTurnState(current, threadId, operation, state);
 
   if (updated) {
     queryClient.setQueryData(query.queryKey, updated);
     return;
   }
 
+  reportError(
+    "thread.turn.reconcile",
+    new Error(`Could not reconcile ${operation} state for thread "${threadId}".`),
+  );
   return queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
 }
 
@@ -77,6 +93,31 @@ export function useIsTurnOperationPending(threadId: string) {
   return useIsMutating({ mutationKey: turnMutationKey(threadId) }) > 0;
 }
 
+export function usePendingTurnSubmission(threadId: string) {
+  const pending = useMutationState<SubmitTurnVariables>({
+    filters: {
+      exact: true,
+      mutationKey: [...turnMutationKey(threadId), "submit"],
+      status: "pending",
+    },
+    select: (mutation) => mutation.state.variables as SubmitTurnVariables,
+  });
+
+  return pending.at(-1) ?? null;
+}
+
+export function installThreadSettlementReconciliation(queryClient: QueryClient) {
+  return onTurnSettled((settlement) => {
+    try {
+      void Promise.resolve(
+        reconcileSubmission(queryClient, settlement.turn.threadId, "settle", settlement),
+      ).catch((cause: unknown) => reportError("thread.turn.settlement", cause));
+    } catch (cause) {
+      reportError("thread.turn.settlement", cause);
+    }
+  });
+}
+
 export function useSubmitTurn(threadId: string) {
   const queryClient = useQueryClient();
 
@@ -84,7 +125,7 @@ export function useSubmitTurn(threadId: string) {
     ...ipcMutationOptions,
     mutationKey: [...turnMutationKey(threadId), "submit"],
     scope: turnMutationScope(threadId),
-    mutationFn: ({ content, model }: { content: string; model: ModelReference }) =>
+    mutationFn: ({ content, model }: SubmitTurnVariables) =>
       submitTurn({ threadId, content, model: copyModelReference(model) }),
     onSuccess(submission) {
       return reconcileSubmission(queryClient, threadId, "submit", submission);

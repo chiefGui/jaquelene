@@ -1,4 +1,3 @@
-import symbol from "@jaquelene/brand/symbol.svg";
 import * as stylex from "@stylexjs/stylex";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 
@@ -6,16 +5,14 @@ export function Home() {
   return (
     <main {...stylex.props(styles.root)}>
       <section aria-labelledby="introduction" {...stylex.props(styles.introduction)}>
-        <div {...stylex.props(styles.symbolFrame)}>
-          <img
-            alt=""
-            draggable={false}
-            height={symbol.height}
-            src={symbol.src}
-            width={symbol.width}
-            {...stylex.props(styles.symbol)}
-          />
-        </div>
+        <img
+          alt=""
+          draggable={false}
+          height={84}
+          src="/symbol-circle.svg"
+          width={84}
+          {...stylex.props(styles.symbol)}
+        />
 
         <h1 id="introduction" {...stylex.props(styles.heading)}>
           jaquelene
@@ -80,19 +77,13 @@ const styles = stylex.create({
     textAlign: "center",
     width: "100%",
   },
-  symbolFrame: {
-    aspectRatio: "1",
-    backgroundColor: "#ffffff",
-    borderRadius: "50%",
-    boxShadow: "0 1.5rem 5rem oklch(0 0 0 / 36%)",
-    overflow: "hidden",
-    width: "clamp(4.25rem, 6vw, 5.25rem)",
-  },
   symbol: {
+    aspectRatio: "1",
     display: "block",
-    height: "100%",
-    objectFit: "cover",
+    filter: "drop-shadow(0 1.5rem 5rem oklch(0 0 0 / 36%))",
+    height: "auto",
     width: "100%",
+    maxWidth: "clamp(4.25rem, 6vw, 5.25rem)",
   },
   heading: {
     fontSize: "clamp(3.5rem, 8vw, 5.75rem)",

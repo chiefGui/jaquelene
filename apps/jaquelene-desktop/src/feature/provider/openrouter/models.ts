@@ -44,18 +44,13 @@ const client = new OpenRouterCore({
 });
 
 async function loadOpenRouterModels(apiKey: string, signal: AbortSignal) {
-  const pages = await modelsListForUser(client, { bearer: apiKey }, undefined, { signal });
-  const models: OpenRouterCatalogModel[] = [];
+  const response = await modelsListForUser(client, { bearer: apiKey }, undefined, { signal });
 
-  for await (const page of pages) {
-    if (!page.ok) {
-      throw page.error;
-    }
-
-    models.push(...page.value.result.data);
+  if (!response.ok) {
+    throw response.error;
   }
 
-  return models;
+  return response.value.data;
 }
 
 function normalizeIdentity(value: string) {

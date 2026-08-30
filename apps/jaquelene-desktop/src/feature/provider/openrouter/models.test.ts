@@ -1,11 +1,69 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { createOpenRouterModels } from "./models";
 
 function operationSignal() {
   return new AbortController().signal;
 }
 
+function connection(apiKey: string) {
+  return {
+    async withApiKey<Result>(use: (value: string) => Promise<Result>) {
+      return use(apiKey);
+    },
+  };
+}
+
+afterEach(() => vi.restoreAllMocks());
+
 describe("OpenRouter model provider", () => {
+  it("loads the connected user's catalog through the consolidated OpenRouter SDK", async () => {
+    const fetchRequest = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        data: [
+          {
+            architecture: {
+              input_modalities: ["text"],
+              modality: "text->text",
+              output_modalities: ["text"],
+            },
+            canonical_slug: "meta-llama/text-model",
+            context_length: 128_000,
+            created: 1,
+            default_parameters: null,
+            id: "meta-llama/text-model",
+            links: { details: "https://openrouter.ai/meta-llama/text-model" },
+            name: "Meta: Text model",
+            per_request_limits: null,
+            pricing: { prompt: "0.000002", completion: "0.000006" },
+            supported_parameters: [],
+            supported_voices: null,
+            top_provider: { is_moderated: false },
+          },
+        ],
+      }),
+    );
+    const models = createOpenRouterModels(connection("openrouter-model-key"));
+
+    await expect(models.list(operationSignal())).resolves.toEqual([
+      {
+        id: "meta-llama/text-model",
+        name: "Text model",
+        brandId: "meta",
+        tokenPricing: { inputUsdPerMillion: 2, outputUsdPerMillion: 6 },
+      },
+    ]);
+
+    const sentRequest = fetchRequest.mock.calls[0]?.[0];
+    expect(sentRequest).toBeInstanceOf(Request);
+    if (!(sentRequest instanceof Request)) {
+      throw new TypeError("OpenRouter did not issue a Request.");
+    }
+
+    expect(sentRequest.url).toBe("https://openrouter.ai/api/v1/models/user");
+    expect(sentRequest.headers.get("Authorization")).toBe("Bearer openrouter-model-key");
+    expect(sentRequest.headers.get("X-OpenRouter-Title")).toBe("Jaquelene");
+  });
+
   it("lists text models available to the connected API key", async () => {
     const apiKey = "openrouter-model-key";
     const useCredential = vi.fn();

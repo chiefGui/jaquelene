@@ -14,6 +14,8 @@ function toIpcCategory(category: StorageCategory) {
       return IpcStorageCategory.Content;
     case BackendStorageCategory.AppData:
       return IpcStorageCategory.AppData;
+    case BackendStorageCategory.Cache:
+      return IpcStorageCategory.Cache;
   }
 }
 
@@ -23,6 +25,8 @@ function fromIpcCategory(category: IpcStorageCategory): StorageCategory {
       return BackendStorageCategory.Content;
     case IpcStorageCategory.AppData:
       return BackendStorageCategory.AppData;
+    case IpcStorageCategory.Cache:
+      return BackendStorageCategory.Cache;
   }
 }
 

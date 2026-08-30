@@ -37,10 +37,23 @@ export function reportError(
 }
 
 export function installUnhandledErrorReporting() {
-  window.addEventListener("error", (event) => {
+  const onError = (event: ErrorEvent) => {
     reportError("renderer.unhandled-error", event.error ?? new Error(event.message));
-  });
-  window.addEventListener("unhandledrejection", (event) => {
+  };
+  const onUnhandledRejection = (event: PromiseRejectionEvent) => {
     reportError("renderer.unhandled-rejection", event.reason);
-  });
+  };
+  window.addEventListener("error", onError);
+  window.addEventListener("unhandledrejection", onUnhandledRejection);
+  let installed = true;
+
+  return () => {
+    if (!installed) {
+      return;
+    }
+
+    installed = false;
+    window.removeEventListener("error", onError);
+    window.removeEventListener("unhandledrejection", onUnhandledRejection);
+  };
 }

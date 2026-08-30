@@ -6,6 +6,7 @@ const maximumByteCount = BigInt(Number.MAX_SAFE_INTEGER);
 
 export const StorageCategory = {
   Content: "content",
+  Cache: "cache",
   AppData: "app-data",
 } as const;
 
@@ -123,12 +124,40 @@ function pathsOverlap(left: string, right: string) {
   return pathContains(left, right) || pathContains(right, left);
 }
 
+export function assertStoragePathsAreDisjoint(
+  owners: readonly Readonly<{ id: StorageAreaId; paths: readonly string[] }>[],
+) {
+  const registeredPaths: Array<{ path: string; comparisonKey: string }> = [];
+
+  for (const owner of owners) {
+    for (const path of owner.paths) {
+      if (!path || !isAbsolute(path)) {
+        throw new TypeError(`Storage area "${owner.id}" requires absolute owned paths.`);
+      }
+
+      const pathComparisonKey = getPathComparisonKey(path);
+      const overlappingPath = registeredPaths.find(({ comparisonKey }) =>
+        pathsOverlap(comparisonKey, pathComparisonKey),
+      );
+
+      if (overlappingPath?.comparisonKey === pathComparisonKey) {
+        throw new TypeError(`Storage path "${path}" is registered more than once.`);
+      }
+
+      if (overlappingPath) {
+        throw new TypeError(`Storage paths "${overlappingPath.path}" and "${path}" overlap.`);
+      }
+
+      registeredPaths.push({ path, comparisonKey: pathComparisonKey });
+    }
+  }
+}
+
 function registerStorageAreas(areas: readonly StorageArea[]) {
   const registeredIds = new Set<StorageAreaId>();
-  const registeredPaths: Array<{ path: string; comparisonKey: string }> = [];
   const categories = new Set<StorageCategory>(Object.values(StorageCategory));
 
-  return areas.map((area) => {
+  const registeredAreas = areas.map((area) => {
     if (typeof area.id !== "string" || !area.id.trim()) {
       throw new TypeError("Storage areas require an identity.");
     }
@@ -147,35 +176,16 @@ function registerStorageAreas(areas: readonly StorageArea[]) {
       throw new TypeError(`Storage area "${area.id}" requires a delete operation.`);
     }
 
-    const paths = area.paths.map((path) => {
-      if (!path || !isAbsolute(path)) {
-        throw new TypeError(`Storage area "${area.id}" requires absolute owned paths.`);
-      }
-
-      const pathComparisonKey = getPathComparisonKey(path);
-      const overlappingPath = registeredPaths.find(({ comparisonKey }) =>
-        pathsOverlap(comparisonKey, pathComparisonKey),
-      );
-
-      if (overlappingPath?.comparisonKey === pathComparisonKey) {
-        throw new TypeError(`Storage path "${path}" is registered more than once.`);
-      }
-
-      if (overlappingPath) {
-        throw new TypeError(`Storage paths "${overlappingPath.path}" and "${path}" overlap.`);
-      }
-
-      registeredPaths.push({ path, comparisonKey: pathComparisonKey });
-      return path;
-    });
-
     return {
       id: area.id,
       category: area.category,
-      paths,
+      paths: [...area.paths],
       delete: area.delete,
     } satisfies StorageArea;
   });
+
+  assertStoragePathsAreDisjoint(registeredAreas);
+  return registeredAreas;
 }
 
 async function measureAreas(areas: readonly StorageArea[]) {

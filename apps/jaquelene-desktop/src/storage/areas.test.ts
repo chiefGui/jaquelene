@@ -15,12 +15,16 @@ const directories: string[] = [];
 function createDiagnostics(
   deleteAll: () => Promise<void> = async () => undefined,
 ): ApplicationDiagnostics {
+  const close = async () => undefined;
+
   return {
     report() {},
     recordRendererReport() {},
     deleteAll,
     openDirectory: async () => undefined,
-    close: async () => undefined,
+    inspect: () => ({ state: "open" }),
+    close,
+    [Symbol.asyncDispose]: close,
   };
 }
 

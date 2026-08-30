@@ -1,16 +1,21 @@
 import { Context, Effect, Layer } from "effect";
+import type { ResourceCache } from "#backend/resource-cache/resource-cache";
+import { ResourceCacheService } from "#backend/resource-cache/service";
 import { StorageCategory, type StorageArea } from "#backend/storage/storage";
 import type {
-  ApiKeyProviderConfiguration,
+  ApiKeyProviderConfigurationSnapshot,
   ProviderAdapter,
   ProviderConfiguration,
   ProviderConfigureResult,
   ProviderDescriptor,
   ProviderGenerationRequest,
   ProviderGenerationResult,
+  ProviderFactory,
   ProviderId,
-  ProviderModel,
 } from "./provider";
+import { createModelCatalog, type Models, type ModelProvider } from "./model-catalog";
+
+export type { Models, ModelProvider } from "./model-catalog";
 
 export type ProviderSummary = ProviderDescriptor &
   Readonly<{
@@ -26,13 +31,6 @@ export type Providers = Readonly<{
     signal?: AbortSignal,
   ) => Promise<ProviderConfigureResult>;
   clearConfiguration: (providerId: ProviderId) => Promise<void>;
-}>;
-
-export type ModelProvider = Readonly<Pick<ProviderDescriptor, "id" | "brandId">>;
-
-export type Models = Readonly<{
-  listProviders: () => readonly ModelProvider[];
-  listModels: (providerId: ProviderId, signal?: AbortSignal) => Promise<readonly ProviderModel[]>;
 }>;
 
 export type ProviderGenerationRoute = Readonly<{
@@ -58,6 +56,10 @@ type RegisteredProvider = {
   configurationTail: Promise<void>;
 };
 
+type InspectedProviderConfiguration =
+  | Readonly<{ kind: "none"; state: "configured" }>
+  | (ApiKeyProviderConfigurationSnapshot & Readonly<{ kind: "api-key" }>);
+
 type ProviderSubsystem = Readonly<{
   providers: Providers;
   models: Models;
@@ -65,6 +67,74 @@ type ProviderSubsystem = Readonly<{
   storageAreas: readonly StorageArea[];
   close: () => Promise<void>;
 }>;
+
+async function disposeProvider(adapter: ProviderAdapter) {
+  const disposeAsync = adapter[Symbol.asyncDispose];
+
+  if (disposeAsync) {
+    await disposeAsync.call(adapter);
+    return;
+  }
+
+  adapter[Symbol.dispose]?.call(adapter);
+}
+
+async function disposeProviders(adapters: readonly ProviderAdapter[]) {
+  const failures: unknown[] = [];
+
+  for (const adapter of adapters.toReversed()) {
+    try {
+      await disposeProvider(adapter);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+
+  if (failures.length === 1) {
+    throw failures[0];
+  }
+
+  if (failures.length > 1) {
+    throw new AggregateError(failures, "Multiple provider adapters failed to close.");
+  }
+}
+
+async function createOwnedProviderSubsystem(
+  factories: readonly ProviderFactory[],
+  resourceCache: ResourceCache,
+  signal: AbortSignal,
+) {
+  const adapters: ProviderAdapter[] = [];
+
+  try {
+    for (const factory of factories) {
+      signal.throwIfAborted();
+      const adapter = await factory.create(signal);
+      adapters.push(adapter);
+
+      if (adapter.descriptor.id !== factory.id) {
+        throw new TypeError(
+          `Provider factory "${factory.id}" created provider "${adapter.descriptor.id}".`,
+        );
+      }
+
+      signal.throwIfAborted();
+    }
+
+    return createProviderSubsystem(adapters, resourceCache);
+  } catch (error) {
+    try {
+      await disposeProviders(adapters);
+    } catch (closeError) {
+      throw new AggregateError(
+        [error, closeError],
+        "Could not close provider adapters after acquisition failed.",
+      );
+    }
+
+    throw error;
+  }
+}
 
 function requireText(value: string, description: string) {
   if (!value.trim()) {
@@ -101,7 +171,7 @@ function requireAdapter(adapter: ProviderAdapter) {
 
 function requireApiKeyConfiguration(
   providerId: ProviderId,
-  configuration: ApiKeyProviderConfiguration,
+  configuration: ApiKeyProviderConfigurationSnapshot,
 ) {
   if (configuration.state === "unconfigured") {
     return configuration;
@@ -113,6 +183,10 @@ function requireApiKeyConfiguration(
 
   if (configuration.keyLabel !== undefined && !configuration.keyLabel.trim()) {
     throw new TypeError(`Provider "${providerId}" returned an invalid API-key label.`);
+  }
+
+  if (!configuration.revision.trim()) {
+    throw new TypeError(`Provider "${providerId}" returned an invalid configuration revision.`);
   }
 
   return configuration;
@@ -132,39 +206,6 @@ function requireConfigureResult(providerId: ProviderId, result: ProviderConfigur
   }
 
   return result;
-}
-
-function requireModel(providerId: ProviderId, model: ProviderModel) {
-  requireText(model.id, `"${providerId}" model identity`);
-  requireText(model.name, `"${providerId}" model "${model.id}" name`);
-  requireText(model.brandId, `"${providerId}" model "${model.id}" brand identity`);
-
-  if (model.tokenPricing) {
-    const { inputUsdPerMillion, outputUsdPerMillion } = model.tokenPricing;
-
-    if (
-      !Number.isFinite(inputUsdPerMillion) ||
-      inputUsdPerMillion < 0 ||
-      !Number.isFinite(outputUsdPerMillion) ||
-      outputUsdPerMillion < 0
-    ) {
-      throw new TypeError(`Provider "${providerId}" model "${model.id}" has invalid pricing.`);
-    }
-  }
-
-  return {
-    id: model.id,
-    name: model.name,
-    brandId: model.brandId,
-    ...(model.tokenPricing
-      ? {
-          tokenPricing: {
-            inputUsdPerMillion: model.tokenPricing.inputUsdPerMillion,
-            outputUsdPerMillion: model.tokenPricing.outputUsdPerMillion,
-          },
-        }
-      : {}),
-  } satisfies ProviderModel;
 }
 
 function interruption(signal: AbortSignal) {
@@ -193,7 +234,10 @@ function waitForOperation<Result>(operation: Promise<Result>, signal: AbortSigna
   return Promise.race([operation, interrupted]).finally(stopWaiting);
 }
 
-export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): ProviderSubsystem {
+export function createProviderSubsystem(
+  adapters: readonly ProviderAdapter[],
+  resourceCache: ResourceCache,
+): ProviderSubsystem {
   const providersById = new Map<ProviderId, RegisteredProvider>();
 
   for (const adapter of adapters) {
@@ -226,7 +270,7 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
     return provider;
   }
 
-  function inspectConfiguration(adapter: ProviderAdapter): ProviderConfiguration {
+  function inspectAdapterConfiguration(adapter: ProviderAdapter): InspectedProviderConfiguration {
     if (adapter.configuration.kind === "none") {
       return { kind: "none", state: "configured" };
     }
@@ -234,6 +278,24 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
     return {
       kind: "api-key",
       ...requireApiKeyConfiguration(adapter.descriptor.id, adapter.configuration.inspect()),
+    };
+  }
+
+  function inspectConfiguration(adapter: ProviderAdapter): ProviderConfiguration {
+    const configuration = inspectAdapterConfiguration(adapter);
+
+    if (configuration.kind === "none") {
+      return configuration;
+    }
+
+    if (configuration.state === "unconfigured") {
+      return { kind: "api-key", state: "unconfigured" };
+    }
+
+    return {
+      kind: "api-key",
+      state: "configured",
+      ...(configuration.keyLabel ? { keyLabel: configuration.keyLabel } : {}),
     };
   }
 
@@ -329,6 +391,63 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
     return trackOperation(controller, operationSignal, finalizedResult);
   }
 
+  function configurationRevision(provider: RegisteredProvider) {
+    const configuration = inspectAdapterConfiguration(provider.adapter);
+
+    if (configuration.state !== "configured") {
+      throw new Error(`Provider "${provider.adapter.descriptor.id}" is not configured.`);
+    }
+
+    return configuration.kind === "none" ? "configuration-free-v1" : configuration.revision;
+  }
+
+  const modelCatalog = createModelCatalog(resourceCache, {
+    listProviders: () =>
+      [...providersById.values()].flatMap<ModelProvider>((provider) =>
+        inspectAdapterConfiguration(provider.adapter).state === "configured"
+          ? [
+              {
+                id: provider.adapter.descriptor.id,
+                brandId: provider.adapter.descriptor.brandId,
+              },
+            ]
+          : [],
+      ),
+    getSource(providerId) {
+      if (state !== "open") {
+        throw new Error("Providers are closed.");
+      }
+
+      const provider = requireProvider(providerId);
+
+      if (provider.pendingClears > 0) {
+        throw new Error(`Provider "${providerId}" is disconnecting.`);
+      }
+
+      const expectedRevision = configurationRevision(provider);
+
+      return {
+        providerId,
+        configurationRevision: expectedRevision,
+        async list(signal) {
+          if (configurationRevision(provider) !== expectedRevision) {
+            throw new Error(`Provider "${providerId}" configuration changed before model loading.`);
+          }
+
+          const models = await runProviderUse(provider, signal, (operationSignal) =>
+            provider.adapter.models.list(operationSignal),
+          );
+
+          if (configurationRevision(provider) !== expectedRevision) {
+            throw new Error(`Provider "${providerId}" configuration changed during model loading.`);
+          }
+
+          return models;
+        },
+      };
+    },
+  });
+
   const providers: Providers = {
     list: () =>
       [...providersById.values()].map(({ adapter }) => ({
@@ -347,9 +466,19 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
         return Promise.reject(new TypeError(`Provider "${providerId}" does not use an API key.`));
       }
 
-      return changeConfiguration(provider, signal, async (operationSignal) =>
-        requireConfigureResult(providerId, await configuration.configure(apiKey, operationSignal)),
-      );
+      return changeConfiguration(provider, signal, async (operationSignal) => {
+        const result = requireConfigureResult(
+          providerId,
+          await configuration.configure(apiKey, operationSignal),
+        );
+
+        if (result.state === "configured") {
+          configurationRevision(provider);
+          await modelCatalog.invalidateProvider(providerId);
+        }
+
+        return result;
+      });
     },
 
     clearConfiguration(providerId) {
@@ -382,6 +511,12 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
           await Promise.allSettled(activeUses.map(({ result }) => result));
           signal.throwIfAborted();
           await configuration.clear();
+
+          if (inspectAdapterConfiguration(adapter).state !== "unconfigured") {
+            throw new Error(`Provider "${providerId}" remained configured after clearing it.`);
+          }
+
+          await modelCatalog.invalidateProvider(providerId);
         },
         () => {
           provider.pendingClears -= 1;
@@ -390,38 +525,7 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
     },
   };
 
-  const models: Models = {
-    listProviders: () =>
-      [...providersById.values()].flatMap(({ adapter }) =>
-        inspectConfiguration(adapter).state === "configured"
-          ? [{ id: adapter.descriptor.id, brandId: adapter.descriptor.brandId }]
-          : [],
-      ),
-
-    listModels(providerId, signal) {
-      const provider = requireProvider(providerId);
-      const { adapter } = provider;
-
-      return runProviderUse(provider, signal, async (operationSignal) => {
-        const models = await adapter.models.list(operationSignal);
-        const modelsById = new Map<string, ProviderModel>();
-
-        for (const model of models) {
-          const registered = requireModel(providerId, model);
-
-          if (modelsById.has(registered.id)) {
-            throw new Error(
-              `Provider "${providerId}" returned model "${registered.id}" more than once.`,
-            );
-          }
-
-          modelsById.set(registered.id, registered);
-        }
-
-        return [...modelsById.values()];
-      });
-    },
-  };
+  const models = modelCatalog.models;
 
   const generationRoutes = new Map<ProviderId, ProviderGenerationRoute>(
     [...providersById.values()].map((provider) => [
@@ -462,17 +566,18 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
     close() {
       if (!closePromise) {
         state = "closing";
+        modelCatalog.close();
         const reason = new Error("Providers are closing.");
 
         for (const { controller } of activeOperations) {
           controller.abort(reason);
         }
 
-        closePromise = Promise.allSettled([...activeOperations].map(({ result }) => result)).then(
-          () => {
+        closePromise = Promise.allSettled([...activeOperations].map(({ result }) => result))
+          .then(() => disposeProviders(adapters))
+          .finally(() => {
             state = "closed";
-          },
-        );
+          });
       }
 
       return closePromise;
@@ -483,12 +588,23 @@ export function createProviderSubsystem(adapters: readonly ProviderAdapter[]): P
 export class ProvidersService extends Context.Service<ProvidersService, ProviderSubsystem>()(
   "@jaquelene/backend/Providers",
 ) {
-  static readonly layer = (adapters: readonly ProviderAdapter[]) =>
+  static readonly layer = (factories: readonly ProviderFactory[]) =>
     Layer.effect(
       ProvidersService,
-      Effect.acquireRelease(
-        Effect.sync(() => ProvidersService.of(createProviderSubsystem(adapters))),
-        (providers) => Effect.promise(() => providers.close()),
-      ),
+      Effect.gen(function* () {
+        const resourceCache = yield* ResourceCacheService;
+
+        return yield* Effect.acquireRelease(
+          Effect.tryPromise({
+            try: (signal) => createOwnedProviderSubsystem(factories, resourceCache, signal),
+            catch: (error) =>
+              error instanceof Error
+                ? error
+                : new Error("Could not create provider adapters.", { cause: error }),
+          }),
+          (providers) => Effect.promise(() => providers.close()),
+          { interruptible: true },
+        );
+      }),
     );
 }

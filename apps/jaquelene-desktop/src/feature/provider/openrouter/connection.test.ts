@@ -44,12 +44,18 @@ describe("OpenRouter connection", () => {
 
     const [filePath] = getOpenRouterConnectionStoragePaths(directory);
     expect(readFileSync(filePath, "utf8")).not.toContain(apiKey);
+    const configured = connection.inspect();
+    expect(configured).toEqual({
+      state: "configured",
+      revision: expect.any(String),
+      keyLabel,
+    });
     const reopenedConnection = createOpenRouterConfiguration(directory, {
       encrypt,
       decrypt,
       verify,
     });
-    expect(reopenedConnection.inspect()).toEqual({ state: "configured", keyLabel });
+    expect(reopenedConnection.inspect()).toEqual(configured);
     expect(verify).toHaveBeenCalledOnce();
     expect(decrypt).not.toHaveBeenCalled();
     await expect(reopenedConnection.withApiKey(async (value) => value)).resolves.toBe(apiKey);
@@ -97,10 +103,15 @@ describe("OpenRouter connection", () => {
     expect(encrypt).not.toHaveBeenCalled();
   });
 
-  it("ignores an invalid credential store", async () => {
+  it("ignores an incomplete credential document", async () => {
     const directory = createUserDataDirectory();
     const [filePath] = getOpenRouterConnectionStoragePaths(directory);
-    writeFileSync(filePath, JSON.stringify({ unexpected: "value" }));
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        credential: { encryptedApiKey: Buffer.from("incomplete").toString("base64") },
+      }),
+    );
     const encrypt = vi.fn(async (value: string) => Buffer.from(value));
     const decrypt = vi.fn(async (value: Buffer) => value.toString());
     const verify = vi.fn(async () => ({
@@ -160,6 +171,7 @@ describe("OpenRouter connection", () => {
     expect(encrypt).not.toHaveBeenCalledWith("openrouter-replacement-key");
     expect(connection.inspect()).toEqual({
       state: "configured",
+      revision: expect.any(String),
       keyLabel: "sk-or-v1-current...789",
     });
     await expect(connection.withApiKey(async (value) => value)).resolves.toBe(

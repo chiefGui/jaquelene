@@ -6,6 +6,7 @@ const electron = vi.hoisted(() => ({
   fetch: vi.fn(),
   handle: vi.fn(),
   registerSchemesAsPrivileged: vi.fn(),
+  unhandle: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -13,6 +14,7 @@ vi.mock("electron", () => ({
   protocol: {
     handle: electron.handle,
     registerSchemesAsPrivileged: electron.registerSchemesAsPrivileged,
+    unhandle: electron.unhandle,
   },
 }));
 
@@ -56,7 +58,7 @@ describe("app protocol", () => {
 
   it("serves the web app entry point and its assets", async () => {
     const root = resolve("web-dist");
-    handleAppScheme(root);
+    const registration = handleAppScheme(root);
     const handle = registeredHandler();
 
     await handle({ url: appUrl, destination: "document" });
@@ -70,6 +72,10 @@ describe("app protocol", () => {
       2,
       pathToFileURL(join(root, "assets/app.js")).toString(),
     );
+    registration[Symbol.dispose]();
+    registration[Symbol.dispose]();
+    expect(electron.unhandle).toHaveBeenCalledOnce();
+    expect(electron.unhandle).toHaveBeenCalledWith("app");
   });
 
   it("serves the web app entry point for application routes", async () => {

@@ -54,11 +54,13 @@ type StorageCategoryView = Readonly<{
   StorageCategoryPresentation;
 
 function presentStorageCategories({ areas }: StorageUsage): readonly StorageCategoryView[] {
-  return ([StorageCategory.Content, StorageCategory.AppData] as const).map((id) => ({
-    id,
-    bytes: areas.reduce((total, area) => total + (area.category === id ? area.bytes : 0), 0),
-    ...storageCategoryPresentations[id],
-  }));
+  return ([StorageCategory.Content, StorageCategory.Cache, StorageCategory.AppData] as const).map(
+    (id) => ({
+      id,
+      bytes: areas.reduce((total, area) => total + (area.category === id ? area.bytes : 0), 0),
+      ...storageCategoryPresentations[id],
+    }),
+  );
 }
 
 function requireDiagnosticsArea({ areas }: StorageUsage) {
@@ -415,6 +417,9 @@ const styles = stylex.create({
   content: {
     color: storagePalette.content,
   },
+  cache: {
+    color: `color-mix(in oklch, ${tokens.accent} 45%, ${tokens.muted})`,
+  },
   appData: {
     color: storagePalette.appData,
   },
@@ -432,6 +437,15 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
       description:
         "This permanently deletes your chats and other content you created in Jaquelene.",
       error: "Couldn’t finish clearing content.",
+    },
+  },
+  [StorageCategory.Cache]: {
+    label: "Cache",
+    color: styles.cache,
+    confirmation: {
+      heading: "Delete cache?",
+      description: "Remote data will be fetched again when needed.",
+      error: "Couldn’t finish deleting the cache.",
     },
   },
   [StorageCategory.AppData]: {

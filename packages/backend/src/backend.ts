@@ -68,7 +68,7 @@ function createApplicationLayer() {
             promptCompiler: createTurnPromptCompiler(threads),
             providers: providers.generations,
           });
-          const turns = createTurns(threads, generationSubsystem.replies);
+          const turns = createTurns(database, threads, generationSubsystem.replies);
 
           return ApplicationService.of({
             scenarios,
@@ -188,6 +188,10 @@ export async function createBackend({
         assertOpen();
         return application.campaigns.get(id);
       },
+      setModelOverride(id, model) {
+        assertOpen();
+        return application.campaigns.setModelOverride(id, model);
+      },
     },
     threads: {
       create() {
@@ -213,17 +217,11 @@ export async function createBackend({
         return application.turns.listForThread(request);
       },
       submit(request) {
-        if (state !== "open") {
-          return Promise.reject(new Error("Backend is closed."));
-        }
-
+        assertOpen();
         return application.turns.submit(request);
       },
       retry(request) {
-        if (state !== "open") {
-          return Promise.reject(new Error("Backend is closed."));
-        }
-
+        assertOpen();
         return application.turns.retry(request);
       },
     },

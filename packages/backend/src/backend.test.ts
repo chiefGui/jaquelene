@@ -71,11 +71,16 @@ describe("backend", () => {
     const first = await createBackend(backendOptions(databasePath, [provider]));
     const scenario = first.scenarios.create("Voyage");
     const campaign = first.campaigns.start(scenario.id);
-    const submitted = await first.turns.submit({
+    const submittedOperation = first.turns.submit({
       threadId: campaign.threadId,
       content: "Begin",
       model: { providerId: provider.descriptor.id, modelId: "maker/model" },
     });
+    const submitted = await submittedOperation.settlement;
+
+    if (submitted.outcome !== "completed") {
+      throw new Error("Expected the submitted reply to complete.");
+    }
 
     const firstClose = first.close();
     expect(first.close()).toBe(firstClose);
@@ -87,13 +92,13 @@ describe("backend", () => {
     await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(
       "Backend is closed.",
     );
-    await expect(
+    expect(() =>
       first.turns.submit({
         threadId: campaign.threadId,
         content: "Continue",
         model: { providerId: provider.descriptor.id, modelId: "maker/model" },
       }),
-    ).rejects.toThrow("Backend is closed.");
+    ).toThrow("Backend is closed.");
 
     const reopened = await createBackend(backendOptions(databasePath));
 
@@ -176,20 +181,24 @@ describe("backend", () => {
 
     const closing = backend.close();
 
-    const interrupted = await pending;
+    const interrupted = await pending.settlement;
     await closing;
+
+    if (interrupted.outcome !== "failed") {
+      throw new Error("Expected the active reply to be interrupted.");
+    }
+
     expect(providerSignal?.aborted).toBe(true);
     expect(interrupted.generation).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
     );
-    expect(interrupted.assistantMessage).toBeNull();
 
     const database = openDatabase(databasePath);
 
     try {
       expect(database.select().from(generationTable).get()).toEqual(
         expect.objectContaining({
-          turnId: interrupted.turn.id,
+          turnId: interrupted.userMessage.turnId,
           status: "failed",
           failureKind: "interrupted",
         }),
@@ -212,7 +221,7 @@ describe("backend", () => {
     });
 
     const closing = backend.close();
-    const interrupted = await pending;
+    const interrupted = await pending.settlement;
     await closing;
 
     expect(generate).not.toHaveBeenCalled();

@@ -8,24 +8,40 @@ import { Button, formatTimestamp } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import {
+  memo,
+  useCallback,
   useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { Composer } from "@/primitive/composer";
 import {
   threadMessagesQuery,
   useIsTurnOperationPending,
+  usePendingTurnSubmission,
   useRetryTurn,
   useSubmitTurn,
+  type SubmitTurnVariables,
 } from "./query";
-import { deriveThreadViewState } from "./thread-view-state";
+import { deriveThreadViewState, type ThreadViewState } from "./thread-view-state";
+
+type RetryStatus = "pending" | "failed" | null;
+
+function isScrolledToEnd(viewport: HTMLElement) {
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
+}
+
+function scrollToEnd(viewport: HTMLElement) {
+  viewport.scrollTop = viewport.scrollHeight;
+}
 
 function replyStatusText(generation: TurnGeneration, retrying: boolean) {
   if (retrying) {
@@ -44,25 +60,376 @@ function replyStatusText(generation: TurnGeneration, retrying: boolean) {
   }
 }
 
+type ThreadTimelineProps = Readonly<{
+  view: ThreadViewState;
+  pendingSubmission: SubmitTurnVariables | null;
+  viewport: RefObject<HTMLElement | null>;
+  pinnedToEnd: RefObject<boolean>;
+  modelAvailable: boolean;
+  retryStatus: RetryStatus;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  isFetchNextPageError: boolean;
+  operationPending: boolean;
+  loadOlder: () => Promise<unknown>;
+  retryReply: (turnId: string) => Promise<void>;
+}>;
+
+const ThreadTimeline = memo(function ThreadTimeline({
+  view,
+  pendingSubmission,
+  viewport,
+  pinnedToEnd,
+  modelAvailable,
+  retryStatus,
+  hasNextPage,
+  isFetchingNextPage,
+  isFetchNextPageError,
+  operationPending,
+  loadOlder,
+  retryReply,
+}: ThreadTimelineProps) {
+  const messageList = useRef<HTMLOListElement>(null);
+  const initialScrollComplete = useRef(false);
+  const lastPendingSubmissionId = useRef<string | null>(null);
+  const loadingOlder = useRef(false);
+  const paginationAnchor = useRef<{
+    element: Element;
+    top: number;
+  } | null>(null);
+  const [paginationRevision, setPaginationRevision] = useState(0);
+  const optimisticSubmission = view.replyPending ? null : pendingSubmission;
+  const empty = view.messages.length === 0 && !optimisticSubmission;
+
+  useLayoutEffect(() => {
+    const element = viewport.current;
+
+    if (!element || initialScrollComplete.current) {
+      return;
+    }
+
+    scrollToEnd(element);
+    initialScrollComplete.current = true;
+  }, [viewport]);
+
+  useLayoutEffect(() => {
+    const element = viewport.current;
+    const clientId = optimisticSubmission?.clientId ?? null;
+
+    if (!element || !clientId || clientId === lastPendingSubmissionId.current) {
+      return;
+    }
+
+    scrollToEnd(element);
+    lastPendingSubmissionId.current = clientId;
+  }, [optimisticSubmission?.clientId, viewport]);
+
+  useLayoutEffect(() => {
+    const element = viewport.current;
+
+    if (element && pinnedToEnd.current) {
+      scrollToEnd(element);
+    }
+  }, [modelAvailable, pinnedToEnd, retryStatus, view.latestMessageId, view.replyPending, viewport]);
+
+  useLayoutEffect(() => {
+    const element = viewport.current;
+    const anchor = paginationAnchor.current;
+
+    if (!element || !anchor) {
+      return;
+    }
+
+    if (element.contains(anchor.element)) {
+      element.scrollTop += anchor.element.getBoundingClientRect().top - anchor.top;
+    }
+
+    paginationAnchor.current = null;
+  }, [paginationRevision, viewport]);
+
+  async function loadOlderMessages() {
+    if (loadingOlder.current) {
+      return;
+    }
+
+    loadingOlder.current = true;
+    const element = viewport.current;
+    const anchorElement = messageList.current?.firstElementChild;
+
+    if (element && anchorElement) {
+      paginationAnchor.current = {
+        element: anchorElement,
+        top: anchorElement.getBoundingClientRect().top,
+      };
+    }
+
+    try {
+      await loadOlder();
+    } catch (cause) {
+      reportError("thread.messages.load-older", cause);
+    } finally {
+      loadingOlder.current = false;
+      setPaginationRevision((revision) => revision + 1);
+    }
+  }
+
+  return (
+    <div {...stylex.props(styles.messageBody)}>
+      {hasNextPage ? (
+        <div {...stylex.props(styles.loadOlder)}>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={isFetchingNextPage}
+            onClick={() => void loadOlderMessages()}
+          >
+            {isFetchingNextPage ? "Loading…" : "Load older messages"}
+          </Button>
+        </div>
+      ) : null}
+
+      {isFetchNextPageError ? (
+        <p role="alert" {...stylex.props(styles.pageError)}>
+          Could not load older messages.
+        </p>
+      ) : null}
+
+      {empty ? (
+        <div {...stylex.props(styles.empty)}>
+          <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
+        </div>
+      ) : (
+        <ol ref={messageList} {...stylex.props(styles.messageList)}>
+          {view.messages.map(({ message, fromUser, reply }) => {
+            return (
+              <li
+                key={message.id}
+                {...stylex.props(
+                  styles.message,
+                  fromUser ? styles.userMessage : styles.assistantMessage,
+                )}
+              >
+                <article
+                  aria-label={fromUser ? "You" : "Assistant"}
+                  {...stylex.props(
+                    styles.bubble,
+                    fromUser ? styles.userBubble : styles.assistantBubble,
+                  )}
+                >
+                  <p {...stylex.props(styles.content)}>{message.content}</p>
+                </article>
+                <time
+                  dateTime={new Date(message.createdAt).toISOString()}
+                  {...stylex.props(styles.timestamp)}
+                >
+                  {formatTimestamp(message.createdAt)}
+                </time>
+                {reply ? (
+                  <div {...stylex.props(styles.replyState)}>
+                    <p
+                      role={message.id === view.latestMessageId ? "status" : undefined}
+                      {...stylex.props(
+                        styles.replyStatus,
+                        reply.generation.status === GenerationStatus.Failed && styles.replyFailure,
+                      )}
+                    >
+                      {replyStatusText(reply.generation, reply.retrying)}
+                    </p>
+                    {reply.canRetry && !reply.retrying ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        style={styles.retryButton}
+                        disabled={operationPending}
+                        onClick={() => void retryReply(message.turnId)}
+                      >
+                        Retry
+                      </Button>
+                    ) : null}
+                    {reply.retryFailed ? (
+                      <p role="alert" {...stylex.props(styles.retryError)}>
+                        Couldn’t retry the reply.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+
+          {optimisticSubmission ? (
+            <li
+              key={optimisticSubmission.clientId}
+              {...stylex.props(styles.message, styles.userMessage)}
+            >
+              <article aria-label="You" {...stylex.props(styles.bubble, styles.userBubble)}>
+                <p {...stylex.props(styles.content)}>{optimisticSubmission.content}</p>
+              </article>
+              <time
+                dateTime={new Date(optimisticSubmission.submittedAt).toISOString()}
+                {...stylex.props(styles.timestamp)}
+              >
+                {formatTimestamp(optimisticSubmission.submittedAt)}
+              </time>
+              <div {...stylex.props(styles.replyState)}>
+                <p role="status" {...stylex.props(styles.replyStatus)}>
+                  Sending…
+                </p>
+              </div>
+            </li>
+          ) : null}
+        </ol>
+      )}
+    </div>
+  );
+});
+
+type ThreadComposerProps = Readonly<{
+  threadId: string;
+  model: ModelReference | null;
+  modelPending: boolean;
+  operationPending: boolean;
+  messageContentMaxLength: number;
+  composerControls: ReactNode;
+  viewport: RefObject<HTMLElement | null>;
+  pinnedToEnd: RefObject<boolean>;
+}>;
+
+const ThreadComposer = memo(function ThreadComposer({
+  threadId,
+  model,
+  modelPending,
+  operationPending,
+  messageContentMaxLength,
+  composerControls,
+  viewport,
+  pinnedToEnd,
+}: ThreadComposerProps) {
+  const submitTurnMutation = useSubmitTurn(threadId);
+  const [draft, setDraft] = useState("");
+  const [sendError, setSendError] = useState<string | null>(null);
+  const acceptingSubmission = useRef(false);
+  const draftRevision = useRef(0);
+  const composerInputId = useId();
+  const sendErrorId = useId();
+  const composerShell = useRef<HTMLDivElement>(null);
+  const submissionBlocked = operationPending || modelPending;
+
+  useLayoutEffect(() => {
+    const scrollViewport = viewport.current;
+    const shell = composerShell.current;
+
+    if (!scrollViewport || !shell) {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (pinnedToEnd.current) {
+        scrollToEnd(scrollViewport);
+      }
+    });
+    resizeObserver.observe(shell);
+
+    return () => resizeObserver.disconnect();
+  }, [pinnedToEnd, viewport]);
+
+  async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (submissionBlocked || acceptingSubmission.current || !model) {
+      return;
+    }
+
+    const content = draft;
+
+    if (!content.trim()) {
+      return;
+    }
+
+    setSendError(null);
+    const submittedRevision = draftRevision.current;
+    setDraft("");
+    acceptingSubmission.current = true;
+
+    try {
+      await submitTurnMutation.mutateAsync({
+        clientId: crypto.randomUUID(),
+        content,
+        submittedAt: Date.now(),
+        model: { providerId: model.providerId, modelId: model.modelId },
+      });
+    } catch (cause) {
+      setDraft((currentDraft) =>
+        draftRevision.current === submittedRevision ? content : currentDraft,
+      );
+      reportError("thread.turn.submit", cause);
+      setSendError("Could not send the message.");
+    } finally {
+      acceptingSubmission.current = false;
+    }
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    }
+  }
+
+  return (
+    <div ref={composerShell} {...stylex.props(styles.composerShell)}>
+      <Composer onSubmit={sendMessage}>
+        <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
+        <Composer.Input
+          id={composerInputId}
+          value={draft}
+          maxLength={messageContentMaxLength}
+          aria-describedby={sendError ? sendErrorId : undefined}
+          onChange={(event) => {
+            draftRevision.current += 1;
+            setDraft(event.currentTarget.value);
+            setSendError(null);
+          }}
+          onKeyDown={handleComposerKeyDown}
+        />
+        <Composer.Footer>
+          <Composer.Controls>
+            {composerControls}
+            {sendError ? (
+              <Composer.Status id={sendErrorId} role="alert" tone="danger">
+                {sendError}
+              </Composer.Status>
+            ) : null}
+          </Composer.Controls>
+          <Composer.Submit disabled={submissionBlocked || !model || !draft.trim()} />
+        </Composer.Footer>
+      </Composer>
+    </div>
+  );
+});
+
 export function ThreadView({
   threadId,
   model,
+  modelPending,
+  composerControls,
 }: {
   threadId: string;
   model: ModelReference | null;
+  modelPending: boolean;
+  composerControls: ReactNode;
 }) {
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
-  const submitTurnMutation = useSubmitTurn(threadId);
   const retryTurnMutation = useRetryTurn(threadId);
+  const retryTurn = retryTurnMutation.mutateAsync;
+  const resetRetry = retryTurnMutation.reset;
+  const acceptingRetry = useRef(false);
   const turnOperationPending = useIsTurnOperationPending(threadId);
-  const [draft, setDraft] = useState("");
-  const [sendError, setSendError] = useState<string | null>(null);
-  const composerId = useId();
-  const modelRequirementId = useId();
-  const sendErrorId = useId();
-  const viewport = useRef<HTMLDivElement>(null);
+  const pendingSubmission = usePendingTurnSubmission(threadId);
+  const viewport = useRef<HTMLElement>(null);
+  const pinnedToEnd = useRef(true);
   const retryTurnId = retryTurnMutation.variables?.turnId;
-  const retryStatus: "pending" | "failed" | null = retryTurnMutation.isPending
+  const retryStatus: RetryStatus = retryTurnMutation.isPending
     ? "pending"
     : retryTurnMutation.isError
       ? "failed"
@@ -78,203 +445,67 @@ export function ThreadView({
     [messagesQuery.data.pages, model, retryStatus, retryTurnId],
   );
   const operationPending = turnOperationPending || threadView.replyPending;
-  const composerDescription = [model ? null : modelRequirementId, sendError ? sendErrorId : null]
-    .filter((id) => id !== null)
-    .join(" ");
 
-  useLayoutEffect(() => {
-    if (viewport.current) {
-      viewport.current.scrollTop = viewport.current.scrollHeight;
-    }
-  }, [threadView.latestMessageId]);
+  const retryReply = useCallback(
+    async (turnId: string) => {
+      if (operationPending || !model || modelPending || acceptingRetry.current) {
+        return;
+      }
 
-  async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
+      acceptingRetry.current = true;
+      resetRetry();
 
-    if (operationPending) {
-      return;
-    }
+      try {
+        await retryTurn({
+          turnId,
+          model: { providerId: model.providerId, modelId: model.modelId },
+        });
+      } catch (cause) {
+        reportError("thread.turn.retry", cause);
+      } finally {
+        acceptingRetry.current = false;
+      }
+    },
+    [model, modelPending, operationPending, resetRetry, retryTurn],
+  );
 
-    const content = draft;
-
-    if (!content.trim()) {
-      setSendError("Write a message before sending it.");
-      return;
-    }
-
-    if (!model) {
-      setSendError("Choose a default model before sending.");
-      return;
-    }
-
-    setSendError(null);
-    retryTurnMutation.reset();
-
-    try {
-      await submitTurnMutation.mutateAsync({
-        content,
-        model: { providerId: model.providerId, modelId: model.modelId },
-      });
-      setDraft((currentDraft) => (currentDraft === content ? "" : currentDraft));
-    } catch (cause) {
-      reportError("thread.turn.submit", cause);
-      setSendError("Could not send the message.");
-    }
-  }
-
-  async function retryReply(turnId: string) {
-    if (operationPending || !model) {
-      return;
-    }
-
-    retryTurnMutation.reset();
-    setSendError(null);
-
-    try {
-      await retryTurnMutation.mutateAsync({
-        turnId,
-        model: { providerId: model.providerId, modelId: model.modelId },
-      });
-    } catch (cause) {
-      reportError("thread.turn.retry", cause);
-    }
-  }
-
-  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      event.currentTarget.form?.requestSubmit();
-    }
-  }
+  const loadOlder = useCallback(() => messagesQuery.fetchNextPage(), [messagesQuery.fetchNextPage]);
 
   return (
-    <section aria-label="Thread" {...stylex.props(styles.root)}>
-      <div ref={viewport} {...stylex.props(styles.viewport)}>
-        <div {...stylex.props(styles.messageBody)}>
-          {messagesQuery.hasNextPage ? (
-            <div {...stylex.props(styles.loadOlder)}>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={messagesQuery.isFetchingNextPage}
-                onClick={() => void messagesQuery.fetchNextPage()}
-              >
-                {messagesQuery.isFetchingNextPage ? "Loading…" : "Load older messages"}
-              </Button>
-            </div>
-          ) : null}
-
-          {messagesQuery.isFetchNextPageError ? (
-            <p role="alert" {...stylex.props(styles.pageError)}>
-              Could not load older messages.
-            </p>
-          ) : null}
-
-          {threadView.messages.length === 0 ? (
-            <div {...stylex.props(styles.empty)}>
-              <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
-            </div>
-          ) : (
-            <ol {...stylex.props(styles.messageList)}>
-              {threadView.messages.map(({ message, fromUser, reply }) => {
-                return (
-                  <li
-                    key={message.id}
-                    {...stylex.props(
-                      styles.message,
-                      fromUser ? styles.userMessage : styles.assistantMessage,
-                    )}
-                  >
-                    <article
-                      aria-label={fromUser ? "You" : "Assistant"}
-                      {...stylex.props(
-                        styles.bubble,
-                        fromUser ? styles.userBubble : styles.assistantBubble,
-                      )}
-                    >
-                      <p {...stylex.props(styles.content)}>{message.content}</p>
-                    </article>
-                    <time
-                      dateTime={new Date(message.createdAt).toISOString()}
-                      {...stylex.props(styles.timestamp)}
-                    >
-                      {formatTimestamp(message.createdAt)}
-                    </time>
-                    {reply ? (
-                      <div {...stylex.props(styles.replyState)}>
-                        <p
-                          role={message.id === threadView.latestMessageId ? "status" : undefined}
-                          {...stylex.props(
-                            styles.replyStatus,
-                            reply.generation.status === GenerationStatus.Failed &&
-                              styles.replyFailure,
-                          )}
-                        >
-                          {replyStatusText(reply.generation, reply.retrying)}
-                        </p>
-                        {reply.canRetry && !reply.retrying ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            style={styles.retryButton}
-                            disabled={operationPending}
-                            onClick={() => void retryReply(message.turnId)}
-                          >
-                            Retry
-                          </Button>
-                        ) : null}
-                        {reply.retryFailed ? (
-                          <p role="alert" {...stylex.props(styles.retryError)}>
-                            Couldn’t retry the reply.
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </div>
-      </div>
-
-      <div {...stylex.props(styles.composerShell)}>
-        <form onSubmit={sendMessage} {...stylex.props(styles.composer)}>
-          <div {...stylex.props(styles.composerField)}>
-            <label htmlFor={composerId} {...stylex.props(styles.visuallyHidden)}>
-              Message
-            </label>
-            <textarea
-              id={composerId}
-              value={draft}
-              rows={3}
-              maxLength={threadView.messageContentMaxLength}
-              placeholder="Write a message…"
-              aria-describedby={composerDescription || undefined}
-              onChange={(event) => setDraft(event.currentTarget.value)}
-              onKeyDown={handleComposerKeyDown}
-              {...stylex.props(styles.textarea)}
-            />
-            {!model ? (
-              <p id={modelRequirementId} {...stylex.props(styles.modelRequirement)}>
-                Choose a default model in{" "}
-                <Link to="/settings/general" {...stylex.props(styles.modelLink)}>
-                  Settings
-                </Link>
-                .
-              </p>
-            ) : null}
-            {sendError ? (
-              <p id={sendErrorId} role="alert" {...stylex.props(styles.sendError)}>
-                {sendError}
-              </p>
-            ) : null}
-          </div>
-          <Button type="submit" style={styles.sendButton} disabled={!model || operationPending}>
-            {operationPending ? "Generating…" : "Send"}
-          </Button>
-        </form>
-      </div>
+    <section
+      ref={viewport}
+      aria-label="Thread"
+      onScroll={(event) => {
+        pinnedToEnd.current = isScrolledToEnd(event.currentTarget);
+      }}
+      {...stylex.props(styles.root)}
+    >
+      <ThreadTimeline
+        key={`timeline:${threadId}`}
+        view={threadView}
+        pendingSubmission={pendingSubmission}
+        viewport={viewport}
+        pinnedToEnd={pinnedToEnd}
+        modelAvailable={model !== null}
+        retryStatus={retryStatus}
+        hasNextPage={messagesQuery.hasNextPage}
+        isFetchingNextPage={messagesQuery.isFetchingNextPage}
+        isFetchNextPageError={messagesQuery.isFetchNextPageError}
+        operationPending={operationPending || modelPending}
+        loadOlder={loadOlder}
+        retryReply={retryReply}
+      />
+      <ThreadComposer
+        key={`composer:${threadId}`}
+        threadId={threadId}
+        model={model}
+        modelPending={modelPending}
+        operationPending={operationPending}
+        messageContentMaxLength={threadView.messageContentMaxLength}
+        composerControls={composerControls}
+        viewport={viewport}
+        pinnedToEnd={pinnedToEnd}
+      />
     </section>
   );
 }
@@ -285,16 +516,15 @@ const styles = stylex.create({
     flex: 1,
     flexDirection: "column",
     minHeight: 0,
-  },
-  viewport: {
-    flex: 1,
-    minHeight: 0,
     overflowY: "auto",
+    scrollbarGutter: "stable",
   },
   messageBody: {
+    display: "flex",
+    flex: "1 0 auto",
+    flexDirection: "column",
     marginInline: "auto",
     maxWidth: "42rem",
-    minHeight: "100%",
     padding: "1.5rem",
     width: "100%",
   },
@@ -313,9 +543,9 @@ const styles = stylex.create({
   empty: {
     alignItems: "center",
     display: "flex",
+    flex: 1,
     flexDirection: "column",
     justifyContent: "center",
-    minHeight: "100%",
     textAlign: "center",
   },
   emptyDescription: {
@@ -391,81 +621,14 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightXSmall,
   },
   composerShell: {
-    backgroundColor: tokens.surface,
-    borderTopColor: tokens.border,
-    borderTopStyle: "solid",
-    borderTopWidth: 1,
+    bottom: 0,
     flexShrink: 0,
-  },
-  composer: {
-    alignItems: "flex-end",
-    display: "flex",
-    gap: "0.75rem",
     marginInline: "auto",
     maxWidth: "42rem",
-    padding: "1rem 1.5rem",
+    paddingBlock: "0 1.5rem",
+    paddingInline: "1.5rem",
+    position: "sticky",
     width: "100%",
-  },
-  composerField: {
-    flex: 1,
-    minWidth: 0,
-  },
-  sendButton: {
-    minWidth: "6.75rem",
-  },
-  textarea: {
-    appearance: "none",
-    backgroundColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 3.5%, transparent)`,
-      ":focus": `color-mix(in oklab, ${tokens.foreground} 5%, transparent)`,
-    },
-    borderColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 10%, transparent)`,
-      ":focus": `color-mix(in oklab, ${tokens.accent} 45%, transparent)`,
-    },
-    borderRadius: tokens.radiusMedium,
-    borderStyle: "solid",
-    borderWidth: 1,
-    caretColor: tokens.accent,
-    color: tokens.foreground,
-    display: "block",
-    fontFamily: "inherit",
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    minHeight: "3.75rem",
-    outline: "none",
-    paddingBlock: "0.625rem",
-    paddingInline: "0.75rem",
-    resize: "vertical",
-    width: "100%",
-    "::placeholder": {
-      color: tokens.muted,
-    },
-  },
-  sendError: {
-    color: tokens.danger,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
-  },
-  modelRequirement: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
-  },
-  modelLink: {
-    color: tokens.foreground,
-    textDecorationLine: "underline",
-    textUnderlineOffset: "0.15em",
-  },
-  visuallyHidden: {
-    clip: "rect(0 0 0 0)",
-    clipPath: "inset(50%)",
-    height: 1,
-    overflow: "hidden",
-    position: "absolute",
-    whiteSpace: "nowrap",
-    width: 1,
+    zIndex: 1,
   },
 });

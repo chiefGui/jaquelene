@@ -1,13 +1,15 @@
 export { createBackend } from "#backend/backend";
 export type { Backend, BackendOptions } from "#backend/backend";
-export type { Campaigns } from "#backend/campaign/campaigns";
+export type { Campaign, Campaigns } from "#backend/campaign/campaigns";
 export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
 export {
   requireModelReference,
+  requireModelSelection,
   type ApiKeyProviderConfiguration,
   type GenerationMessage,
   type GenerationUsage,
   type ModelReference,
+  type ModelSelection,
   type ProviderAdapter,
   type ProviderConfiguration,
   type ProviderConfigurationAdapter,
@@ -53,5 +55,7 @@ export type {
   SubmitTurnRequest,
   ThreadActivityPage,
   Turns,
-  TurnSubmission,
+  TurnAcceptance,
+  TurnOperation,
+  TurnSettlement,
 } from "#backend/turn/turns";

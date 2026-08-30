@@ -3,6 +3,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { installUnhandledErrorReporting } from "@/feature/diagnostics/diagnostics";
+import { installThreadSettlementReconciliation } from "@/feature/thread/query";
 import { RendererErrorBoundary } from "@/layout/renderer-error";
 import { routeTree } from "./routeTree.gen";
 import "@fontsource-variable/geist/wght.css";
@@ -10,6 +11,8 @@ import "@fontsource-variable/inter/wght.css";
 import "./styles.css";
 
 const queryClient = new QueryClient();
+const stopThreadSettlementReconciliation = installThreadSettlementReconciliation(queryClient);
+window.addEventListener("pagehide", stopThreadSettlementReconciliation, { once: true });
 const router = createRouter({
   routeTree,
   context: { queryClient },

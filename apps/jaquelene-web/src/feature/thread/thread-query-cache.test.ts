@@ -2,16 +2,22 @@ import {
   GenerationFailureKind,
   GenerationStatus,
   ThreadMessageAuthor,
+  type CompletedReply,
+  type FailedReply,
   type ThreadMessage,
   type TurnGeneration,
   type TurnSubmission,
 } from "@jaquelene/ipc/renderer";
 import { describe, expect, it } from "vite-plus/test";
-import { mergeThreadSubmission, type ThreadQueryData } from "./thread-query-cache";
+import {
+  reconcileThreadTurn,
+  type ThreadQueryData,
+  type ThreadTurnUpdate,
+} from "./thread-query-cache";
 
 const threadId = "thread-test";
 
-function failedTurn(sequence: number): TurnSubmission {
+function pendingTurn(sequence: number): TurnSubmission {
   const turnId = `turn-${sequence}`;
   const userMessage: ThreadMessage = {
     id: `message-${sequence}`,
@@ -27,25 +33,35 @@ function failedTurn(sequence: number): TurnSubmission {
     turnId,
     providerId: "provider",
     modelId: "model",
-    status: GenerationStatus.Failed,
-    failureKind: GenerationFailureKind.Provider,
+    status: GenerationStatus.Pending,
     startedAt: sequence,
-    finishedAt: sequence,
   };
 
   return {
-    turn: { id: turnId, threadId, createdAt: sequence },
     userMessage,
     generation,
-    assistantActivated: false,
   };
 }
 
-function completedRetry(submission: TurnSubmission, sequence: number): TurnSubmission {
+function failedTurn(sequence: number): FailedReply {
+  const pending = pendingTurn(sequence);
+
+  return {
+    ...pending,
+    generation: {
+      ...pending.generation,
+      status: GenerationStatus.Failed,
+      failureKind: GenerationFailureKind.Provider,
+      finishedAt: sequence,
+    },
+  };
+}
+
+function completedTurn(acceptance: TurnSubmission, sequence: number): CompletedReply {
   const assistantMessage: ThreadMessage = {
     id: `message-${sequence}`,
     threadId,
-    turnId: submission.turn.id,
+    turnId: acceptance.userMessage.turnId,
     sequence,
     author: ThreadMessageAuthor.Assistant,
     content: "Recovered reply",
@@ -53,24 +69,33 @@ function completedRetry(submission: TurnSubmission, sequence: number): TurnSubmi
   };
 
   return {
-    ...submission,
+    ...acceptance,
     generation: {
-      id: `generation-${sequence}`,
-      turnId: submission.generation.turnId,
-      providerId: submission.generation.providerId,
-      modelId: submission.generation.modelId,
+      id: acceptance.generation.id,
+      turnId: acceptance.generation.turnId,
+      providerId: acceptance.generation.providerId,
+      modelId: acceptance.generation.modelId,
       status: GenerationStatus.Completed,
       outputMessageId: assistantMessage.id,
-      startedAt: sequence,
+      startedAt: acceptance.generation.startedAt,
       finishedAt: sequence,
     },
     assistantMessage,
-    assistantActivated: true,
   };
 }
 
+function requireUpdated(data: ThreadQueryData, update: ThreadTurnUpdate) {
+  const reconciliation = reconcileThreadTurn(data, threadId, update);
+
+  if (reconciliation.outcome !== "updated") {
+    throw new Error(`Expected an updated cache, received ${reconciliation.outcome}.`);
+  }
+
+  return reconciliation.data;
+}
+
 describe("thread query cache", () => {
-  it("uses the server page capacity when a submission overflows the latest page", () => {
+  it("uses server page capacity when an accepted turn overflows the latest page", () => {
     const first = failedTurn(1);
     const second = failedTurn(2);
     const data: ThreadQueryData = {
@@ -85,16 +110,22 @@ describe("thread query cache", () => {
       pageParams: [""],
     };
 
-    const updated = mergeThreadSubmission(data, threadId, "submit", failedTurn(3));
+    const updated = requireUpdated(data, {
+      type: "submission-accepted",
+      ...pendingTurn(3),
+    });
 
-    expect(updated?.pages.map((page) => page.messages.map(({ sequence }) => sequence))).toEqual([
+    expect(updated.pages.map((page) => page.messages.map(({ sequence }) => sequence))).toEqual([
       [2, 3],
       [1],
     ]);
-    expect(updated?.pages.map(({ pageSize }) => pageSize)).toEqual([2, 2]);
+    expect(updated.pages.map(({ pageSize }) => pageSize)).toEqual([2, 2]);
+    expect(updated.pages[0]?.generations).toContainEqual(
+      expect.objectContaining({ turnId: "turn-3", status: GenerationStatus.Pending }),
+    );
   });
 
-  it("keeps loaded history in server-sized pages as new turns arrive", () => {
+  it("keeps loaded history in server-sized pages as turns settle", () => {
     const initialTurns = Array.from({ length: 50 }, (_, index) => failedTurn(index + 1));
     const initial: ThreadQueryData = {
       pages: [
@@ -111,13 +142,7 @@ describe("thread query cache", () => {
     let current = initial;
 
     for (let sequence = 51; sequence <= 101; sequence += 1) {
-      const updated = mergeThreadSubmission(current, threadId, "submit", failedTurn(sequence));
-
-      if (!updated) {
-        throw new Error(`Turn ${sequence} could not be merged into the thread query cache.`);
-      }
-
-      current = updated;
+      current = requireUpdated(current, { type: "reply-failed", ...failedTurn(sequence) });
     }
 
     expect(current.pages.map(({ messages }) => messages.length)).toEqual([50, 1, 50]);
@@ -131,9 +156,16 @@ describe("thread query cache", () => {
     expect(initial.pages[0]?.messages).toHaveLength(50);
   });
 
-  it("replaces a failed latest attempt with its successful retry", () => {
+  it("advances a failed latest turn through pending retry and completion", () => {
     const failed = failedTurn(1);
-    const completed = completedRetry(failed, 2);
+    const retryAcceptance: TurnSubmission = {
+      userMessage: failed.userMessage,
+      generation: {
+        ...pendingTurn(2).generation,
+        turnId: failed.userMessage.turnId,
+      },
+    };
+    const completed = completedTurn(retryAcceptance, 2);
     const data: ThreadQueryData = {
       pages: [
         {
@@ -146,7 +178,13 @@ describe("thread query cache", () => {
       pageParams: [""],
     };
 
-    expect(mergeThreadSubmission(data, threadId, "retry", completed)).toEqual({
+    const pending = requireUpdated(data, {
+      type: "retry-accepted",
+      generation: retryAcceptance.generation,
+    });
+
+    expect(pending.pages[0]?.generations).toEqual([retryAcceptance.generation]);
+    expect(requireUpdated(pending, { type: "reply-completed", ...completed })).toEqual({
       pages: [
         {
           messages: [failed.userMessage, completed.assistantMessage],
@@ -159,7 +197,52 @@ describe("thread query cache", () => {
     });
   });
 
-  it("refetches instead of merging a retry that switches an older branch", () => {
+  it("does not downgrade a fast settlement when pending acceptance arrives later", () => {
+    const acceptance = pendingTurn(1);
+    const completed = completedTurn(acceptance, 2);
+    const empty: ThreadQueryData = {
+      pages: [{ messages: [], generations: [], pageSize: 50, messageContentMaxLength: 100_000 }],
+      pageParams: [""],
+    };
+    const settled = requireUpdated(empty, { type: "reply-completed", ...completed });
+
+    expect(
+      reconcileThreadTurn(settled, threadId, { type: "submission-accepted", ...acceptance }),
+    ).toEqual({ outcome: "current" });
+    expect(settled.pages[0]?.generations).toEqual([completed.generation]);
+  });
+
+  it("requests authoritative reconciliation when an older branch settles", () => {
+    const first = failedTurn(1);
+    const second = failedTurn(2);
+    const data: ThreadQueryData = {
+      pages: [
+        {
+          messages: [second.userMessage],
+          generations: [second.generation],
+          pageSize: 1,
+          messageContentMaxLength: 100_000,
+          nextCursor: first.userMessage.id,
+        },
+        {
+          messages: [first.userMessage],
+          generations: [first.generation],
+          pageSize: 1,
+          messageContentMaxLength: 100_000,
+        },
+      ],
+      pageParams: ["", first.userMessage.id],
+    };
+
+    expect(
+      reconcileThreadTurn(data, threadId, {
+        type: "reply-completed",
+        ...completedTurn(first, 3),
+      }),
+    ).toEqual({ outcome: "reload" });
+  });
+
+  it("requests authoritative reconciliation when a retry target is not latest", () => {
     const first = failedTurn(1);
     const second = failedTurn(2);
     const data: ThreadQueryData = {
@@ -173,7 +256,46 @@ describe("thread query cache", () => {
       ],
       pageParams: [""],
     };
+    const generation = { ...pendingTurn(3).generation, turnId: first.userMessage.turnId };
 
-    expect(mergeThreadSubmission(data, threadId, "retry", completedRetry(first, 3))).toBeNull();
+    expect(reconcileThreadTurn(data, threadId, { type: "retry-accepted", generation })).toEqual({
+      outcome: "reload",
+    });
+  });
+
+  it("requests authoritative reconciliation for inconsistent turn updates", () => {
+    const acceptance = pendingTurn(1);
+    const completion = completedTurn(acceptance, 2);
+    const failure = failedTurn(1);
+    const data: ThreadQueryData = {
+      pages: [{ messages: [], generations: [], pageSize: 50, messageContentMaxLength: 100_000 }],
+      pageParams: [""],
+    };
+    const inconsistentUpdates: ThreadTurnUpdate[] = [
+      {
+        type: "submission-accepted",
+        ...acceptance,
+        userMessage: { ...acceptance.userMessage, threadId: "thread-other" },
+      },
+      {
+        type: "submission-accepted",
+        ...acceptance,
+        generation: { ...acceptance.generation, turnId: "turn-other" },
+      },
+      { type: "reply-failed", ...acceptance },
+      {
+        type: "reply-completed",
+        ...completion,
+        assistantMessage: {
+          ...completion.assistantMessage,
+          author: ThreadMessageAuthor.User,
+        },
+      },
+      { type: "retry-accepted", generation: failure.generation },
+    ];
+
+    for (const update of inconsistentUpdates) {
+      expect(reconcileThreadTurn(data, threadId, update)).toEqual({ outcome: "reload" });
+    }
   });
 });

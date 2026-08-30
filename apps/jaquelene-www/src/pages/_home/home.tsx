@@ -37,17 +37,6 @@ export function Home() {
   );
 }
 
-const reveal = stylex.keyframes({
-  from: {
-    opacity: 0,
-    transform: "translateY(0.75rem)",
-  },
-  to: {
-    opacity: 1,
-    transform: "translateY(0)",
-  },
-});
-
 const styles = stylex.create({
   root: {
     alignItems: "center",
@@ -64,16 +53,9 @@ const styles = stylex.create({
   },
   introduction: {
     alignItems: "center",
-    animationDuration: "850ms",
-    animationFillMode: "both",
-    animationName: {
-      default: reveal,
-      "@media (prefers-reduced-motion: reduce)": "none",
-    },
-    animationTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
     display: "flex",
     flexDirection: "column",
-    maxWidth: "40rem",
+    maxWidth: "48rem",
     textAlign: "center",
     width: "100%",
   },
@@ -99,7 +81,7 @@ const styles = stylex.create({
     letterSpacing: "-0.02em",
     lineHeight: 1.55,
     margin: "1.75rem 0 0",
-    maxWidth: "34rem",
+    maxWidth: "100%",
   },
   release: {
     alignItems: "center",

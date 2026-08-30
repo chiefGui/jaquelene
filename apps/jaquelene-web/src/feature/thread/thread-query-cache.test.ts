@@ -209,15 +209,46 @@ describe("thread query cache", () => {
     const data: ThreadQueryData = {
       pages: [
         {
-          messages: [first.userMessage, second.userMessage],
-          generations: [first.generation, second.generation],
+          messages: [second.userMessage],
+          generations: [second.generation],
+          pageSize: 1,
+          messageContentMaxLength: 100_000,
+          nextCursor: first.userMessage.id,
+        },
+        {
+          messages: [first.userMessage],
+          generations: [first.generation],
+          pageSize: 1,
+          messageContentMaxLength: 100_000,
+        },
+      ],
+      pageParams: ["", first.userMessage.id],
+    };
+
+    expect(mergeThreadTurnState(data, threadId, "settle", completedTurn(first, 3))).toBeNull();
+  });
+
+  it("rejects inconsistent metadata before moving overflow into the next page", () => {
+    const first = failedTurn(1);
+    const second = failedTurn(2);
+    const data: ThreadQueryData = {
+      pages: [
+        {
+          messages: [second.userMessage],
+          generations: [second.generation],
+          pageSize: 1,
+          messageContentMaxLength: 100_000,
+        },
+        {
+          messages: [first.userMessage],
+          generations: [first.generation],
           pageSize: 50,
           messageContentMaxLength: 100_000,
         },
       ],
-      pageParams: [""],
+      pageParams: ["", first.userMessage.id],
     };
 
-    expect(mergeThreadTurnState(data, threadId, "settle", completedTurn(first, 3))).toBeNull();
+    expect(mergeThreadTurnState(data, threadId, "submit", pendingTurn(3))).toBeNull();
   });
 });

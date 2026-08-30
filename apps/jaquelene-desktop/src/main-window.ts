@@ -13,7 +13,7 @@ import type { FavoriteModels } from "./feature/model/favorite-models";
 import { exposeFavoriteModels } from "./feature/model/favorite-models-ipc";
 import { exposeProviders } from "./feature/provider/ipc";
 import { exposeScenarios } from "./feature/scenario/ipc";
-import { exposeThreadMessaging } from "./feature/thread/ipc";
+import { createThreadMessaging } from "./feature/thread/ipc";
 import type { LocalState } from "./local-state";
 import type { Preferences } from "./preferences/preferences";
 import { exposeStorage } from "./storage/ipc";
@@ -54,6 +54,7 @@ export function createMainWindow({
   providers: Providers;
   storage: Storage;
 }) {
+  const threadMessaging = createThreadMessaging(turns, diagnostics);
   let currentWindow:
     | {
         browserWindow: BrowserWindow;
@@ -88,7 +89,7 @@ export function createMainWindow({
     exposeScenarios(browserWindow.webContents.mainFrame, scenarios);
     exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
     exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);
-    exposeThreadMessaging(browserWindow.webContents.mainFrame, turns, diagnostics);
+    const stopThreadMessaging = threadMessaging.expose(browserWindow.webContents.mainFrame);
     exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);
     exposeModelCatalog(browserWindow.webContents.mainFrame, modelCatalog);
     exposeFavoriteModels(browserWindow.webContents.mainFrame, favoriteModels);
@@ -132,6 +133,8 @@ export function createMainWindow({
 
     currentWindow = opened;
     browserWindow.once("closed", () => {
+      stopThreadMessaging();
+
       if (currentWindow === opened) {
         currentWindow = undefined;
       }

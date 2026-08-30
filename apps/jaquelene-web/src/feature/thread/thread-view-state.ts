@@ -21,6 +21,7 @@ type ThreadReplyView = Readonly<{
   kind: "reply";
   turnId: string;
   generation: TurnGeneration;
+  latest: boolean;
   retrying: boolean;
   retryFailed: boolean;
   canRetry: boolean;
@@ -62,32 +63,33 @@ export function deriveThreadViewState({
 
   const messages = chronologicalPages.flatMap((page) => page.messages);
   const latestMessage = messages.at(-1);
-  const items = messages.flatMap<ThreadTimelineItem>((message) => {
+  const items: ThreadTimelineItem[] = [];
+
+  for (const message of messages) {
     const fromUser = message.author === ThreadMessageAuthor.User;
     const messageView: ThreadMessageView = { kind: "message", message, fromUser };
     const generation = fromUser ? generationByTurn.get(message.turnId) : undefined;
+    items.push(messageView);
 
     if (!generation || generation.status === GenerationStatus.Completed) {
-      return [messageView];
+      continue;
     }
 
+    const latest = message.id === latestMessage?.id;
     const retrying = retryActivity?.status === "pending" && retryActivity.turnId === message.turnId;
-    const canRetry =
-      generation.status === GenerationStatus.Failed && message.id === latestMessage?.id && hasModel;
+    const canRetry = generation.status === GenerationStatus.Failed && latest && hasModel;
 
-    return [
-      messageView,
-      {
-        kind: "reply",
-        turnId: message.turnId,
-        generation,
-        retrying,
-        retryFailed:
-          canRetry && retryActivity?.status === "failed" && retryActivity.turnId === message.turnId,
-        canRetry,
-      },
-    ];
-  });
+    items.push({
+      kind: "reply",
+      turnId: message.turnId,
+      generation,
+      latest,
+      retrying,
+      retryFailed:
+        canRetry && retryActivity?.status === "failed" && retryActivity.turnId === message.turnId,
+      canRetry,
+    });
+  }
 
   return {
     items,

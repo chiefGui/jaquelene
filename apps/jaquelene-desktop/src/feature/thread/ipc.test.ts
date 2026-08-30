@@ -46,7 +46,11 @@ vi.mock("@jaquelene/ipc/main", () => ({
   },
 }));
 
-import { exposeThreadMessaging } from "./ipc";
+import { createThreadMessaging } from "./ipc";
+
+function exposeSingleRenderer(target: WebFrameMain, turns: Turns, diagnostics: ErrorReporter) {
+  return createThreadMessaging(turns, diagnostics).expose(target);
+}
 
 function requireImplementations() {
   if (!implementations.threads || !implementations.turns) {
@@ -176,7 +180,7 @@ describe("thread IPC", () => {
     };
     const report = vi.fn<ErrorReporter["report"]>();
 
-    exposeThreadMessaging(activeTarget(), backendTurns, { report });
+    exposeSingleRenderer(activeTarget(), backendTurns, { report });
     const ipc = requireImplementations();
     const page = await ipc.threads.listMessages({ threadId: acceptance.turn.threadId });
     const model = { providerId: "openrouter", modelId: "maker/model" };
@@ -262,7 +266,7 @@ describe("thread IPC", () => {
     };
     const report = vi.fn<ErrorReporter["report"]>();
 
-    exposeThreadMessaging(activeTarget(), backendTurns, { report });
+    exposeSingleRenderer(activeTarget(), backendTurns, { report });
     await requireImplementations().turns.submit({
       threadId: failed.turn.threadId,
       content: "Hello",
@@ -294,7 +298,7 @@ describe("thread IPC", () => {
     const report = vi.fn<ErrorReporter["report"]>();
     const model = { providerId: "openrouter", modelId: "maker/model" };
 
-    exposeThreadMessaging(activeTarget(), backendTurns, { report });
+    exposeSingleRenderer(activeTarget(), backendTurns, { report });
     const accepted = await requireImplementations().turns.retry({
       turnId: failed.turn.id,
       model,
@@ -318,7 +322,7 @@ describe("thread IPC", () => {
     };
     const report = vi.fn<ErrorReporter["report"]>();
 
-    exposeThreadMessaging(activeTarget(), backendTurns, { report });
+    exposeSingleRenderer(activeTarget(), backendTurns, { report });
     await requireImplementations().turns.submit({
       threadId: acceptance.turn.threadId,
       content: "Hello",
@@ -353,7 +357,7 @@ describe("thread IPC", () => {
     };
     const report = vi.fn<ErrorReporter["report"]>();
 
-    exposeThreadMessaging(activeTarget(), backendTurns, { report });
+    exposeSingleRenderer(activeTarget(), backendTurns, { report });
     await requireImplementations().turns.submit({
       threadId: interrupted.turn.threadId,
       content: "Hello",
@@ -377,7 +381,7 @@ describe("thread IPC", () => {
     } as WebFrameMain;
     const report = vi.fn<ErrorReporter["report"]>();
 
-    exposeThreadMessaging(target, backendTurns, { report });
+    exposeSingleRenderer(target, backendTurns, { report });
     await requireImplementations().turns.submit({
       threadId: acceptance.turn.threadId,
       content: "Hello",
@@ -385,6 +389,34 @@ describe("thread IPC", () => {
     });
 
     expect(implementations.dispatchSettled).not.toHaveBeenCalled();
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("delivers an in-flight settlement to a replacement renderer", async () => {
+    const { acceptance, completed } = createTurnState();
+    let settle!: (settlement: TurnSettlement) => void;
+    const settlement = new Promise<TurnSettlement>((resolve) => {
+      settle = resolve;
+    });
+    const backendTurns: Turns = {
+      listForThread: vi.fn(emptyPage),
+      submit: vi.fn(() => ({ acceptance, settlement })),
+      retry: vi.fn(),
+    };
+    const report = vi.fn<ErrorReporter["report"]>();
+    const messaging = createThreadMessaging(backendTurns, { report });
+    const stopSubmittingRenderer = messaging.expose(activeTarget());
+
+    await requireImplementations().turns.submit({
+      threadId: acceptance.turn.threadId,
+      content: "Hello",
+      model: { providerId: "openrouter", modelId: "maker/model" },
+    });
+    stopSubmittingRenderer();
+    messaging.expose(activeTarget());
+    settle(completed);
+
+    await vi.waitFor(() => expect(implementations.dispatchSettled).toHaveBeenCalledOnce());
     expect(report).not.toHaveBeenCalled();
   });
 
@@ -401,7 +433,7 @@ describe("thread IPC", () => {
       throw cause;
     });
 
-    exposeThreadMessaging(activeTarget(), backendTurns, { report });
+    exposeSingleRenderer(activeTarget(), backendTurns, { report });
     await requireImplementations().turns.submit({
       threadId: acceptance.turn.threadId,
       content: "Hello",
@@ -422,7 +454,7 @@ describe("thread IPC", () => {
       submit: vi.fn(),
       retry: vi.fn(),
     };
-    exposeThreadMessaging(activeTarget(), backendTurns, { report: vi.fn() });
+    exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     const ipc = requireImplementations();
     const model = { providerId: "openrouter", modelId: "maker/model" };
 

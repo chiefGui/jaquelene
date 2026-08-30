@@ -7,12 +7,8 @@ import type {
 } from "./generations";
 
 type ReplyGenerationEngine = Pick<GenerationEngine, "executeAcceptedReply" | "executeReply">;
-type ScheduleGeneration = (start: () => void) => void;
 
-export function superviseGenerations(
-  engine: ReplyGenerationEngine,
-  schedule: ScheduleGeneration = (start) => setImmediate(start),
-) {
+export function superviseGenerations(engine: ReplyGenerationEngine) {
   const shutdownController = new AbortController();
   const activeOperations = new Set<Promise<unknown>>();
   let acceptingWork = true;
@@ -50,7 +46,8 @@ export function superviseGenerations(
 
     const executionSignal = operationSignal(signal);
     const operation = new Promise<ReplyGenerationExecution>((resolve, reject) => {
-      schedule(() => {
+      // Let callers observe durable acceptance before prompt compilation or provider work starts.
+      setImmediate(() => {
         void engine.executeAcceptedReply(accepted, executionSignal).then(resolve, reject);
       });
     });

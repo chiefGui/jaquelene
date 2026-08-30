@@ -73,6 +73,7 @@ describe("thread view state", () => {
       expect.objectContaining({ kind: "message", fromUser: true }),
       expect.objectContaining({
         kind: "reply",
+        latest: true,
         generation: expect.objectContaining({ status: GenerationStatus.Pending }),
       }),
     ]);
@@ -100,6 +101,7 @@ describe("thread view state", () => {
     expect(state.items[1]).toEqual(
       expect.objectContaining({
         kind: "reply",
+        latest: true,
         canRetry: true,
         retryFailed: true,
       }),

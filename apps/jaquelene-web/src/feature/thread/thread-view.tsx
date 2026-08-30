@@ -55,7 +55,6 @@ type ThreadTimelineProps = Readonly<{
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   isFetchNextPageError: boolean;
-  pageCount: number;
   operationPending: boolean;
   loadOlder: () => Promise<unknown>;
   retryReply: (turnId: string) => Promise<void>;
@@ -67,19 +66,20 @@ const ThreadTimeline = memo(function ThreadTimeline({
   hasNextPage,
   isFetchingNextPage,
   isFetchNextPageError,
-  pageCount,
   operationPending,
   loadOlder,
   retryReply,
 }: ThreadTimelineProps) {
   const viewport = useRef<HTMLDivElement>(null);
+  const messageList = useRef<HTMLOListElement>(null);
   const initialScrollComplete = useRef(false);
   const lastPendingSubmissionId = useRef<string | null>(null);
+  const loadingOlder = useRef(false);
   const paginationAnchor = useRef<{
-    pageCount: number;
-    scrollHeight: number;
-    scrollTop: number;
+    element: Element;
+    top: number;
   } | null>(null);
+  const [paginationRevision, setPaginationRevision] = useState(0);
   const optimisticSubmission = view.replyPending ? null : pendingSubmission;
   const empty = view.items.length === 0 && !optimisticSubmission;
 
@@ -110,26 +110,41 @@ const ThreadTimeline = memo(function ThreadTimeline({
     const element = viewport.current;
     const anchor = paginationAnchor.current;
 
-    if (!element || !anchor || pageCount <= anchor.pageCount) {
+    if (!element || !anchor) {
       return;
     }
 
-    element.scrollTop = anchor.scrollTop + element.scrollHeight - anchor.scrollHeight;
+    if (element.contains(anchor.element)) {
+      element.scrollTop += anchor.element.getBoundingClientRect().top - anchor.top;
+    }
+
     paginationAnchor.current = null;
-  }, [pageCount]);
+  }, [paginationRevision]);
 
   async function loadOlderMessages() {
-    const element = viewport.current;
+    if (loadingOlder.current) {
+      return;
+    }
 
-    if (element) {
+    loadingOlder.current = true;
+    const element = viewport.current;
+    const anchorElement = messageList.current?.firstElementChild;
+
+    if (element && anchorElement) {
       paginationAnchor.current = {
-        pageCount,
-        scrollHeight: element.scrollHeight,
-        scrollTop: element.scrollTop,
+        element: anchorElement,
+        top: anchorElement.getBoundingClientRect().top,
       };
     }
 
-    await loadOlder();
+    try {
+      await loadOlder();
+    } catch (cause) {
+      reportError("thread.messages.load-older", cause);
+    } finally {
+      loadingOlder.current = false;
+      setPaginationRevision((revision) => revision + 1);
+    }
   }
 
   return (
@@ -159,7 +174,7 @@ const ThreadTimeline = memo(function ThreadTimeline({
             <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
           </div>
         ) : (
-          <ol {...stylex.props(styles.messageList)}>
+          <ol ref={messageList} {...stylex.props(styles.messageList)}>
             {view.items.map((item) => {
               if (item.kind === "reply") {
                 const failed = item.generation.status === GenerationStatus.Failed;
@@ -168,11 +183,7 @@ const ThreadTimeline = memo(function ThreadTimeline({
                   <li key={`reply:${item.generation.id}`} {...stylex.props(styles.replyMessage)}>
                     <div {...stylex.props(styles.replyState)}>
                       <p
-                        role={
-                          item.generation.status === GenerationStatus.Pending || item.retrying
-                            ? "status"
-                            : undefined
-                        }
+                        role={item.latest ? "status" : undefined}
                         {...stylex.props(styles.replyStatus, failed && styles.replyFailure)}
                       >
                         {replyStatusText(item.generation, item.retrying)}
@@ -377,6 +388,7 @@ export function ThreadView({
   const retryTurnMutation = useRetryTurn(threadId);
   const retryTurn = retryTurnMutation.mutateAsync;
   const resetRetry = retryTurnMutation.reset;
+  const acceptingRetry = useRef(false);
   const turnOperationPending = useIsTurnOperationPending(threadId);
   const pendingSubmission = usePendingTurnSubmission(threadId);
   const retryTurnId = retryTurnMutation.variables?.turnId;
@@ -399,10 +411,11 @@ export function ThreadView({
 
   const retryReply = useCallback(
     async (turnId: string) => {
-      if (operationPending || !model) {
+      if (operationPending || !model || acceptingRetry.current) {
         return;
       }
 
+      acceptingRetry.current = true;
       resetRetry();
 
       try {
@@ -412,6 +425,8 @@ export function ThreadView({
         });
       } catch (cause) {
         reportError("thread.turn.retry", cause);
+      } finally {
+        acceptingRetry.current = false;
       }
     },
     [model, operationPending, resetRetry, retryTurn],
@@ -428,7 +443,6 @@ export function ThreadView({
         hasNextPage={messagesQuery.hasNextPage}
         isFetchingNextPage={messagesQuery.isFetchingNextPage}
         isFetchNextPageError={messagesQuery.isFetchNextPageError}
-        pageCount={messagesQuery.data.pages.length}
         operationPending={operationPending}
         loadOlder={loadOlder}
         retryReply={retryReply}

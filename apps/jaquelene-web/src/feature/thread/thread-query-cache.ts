@@ -68,41 +68,27 @@ export function mergeThreadTurnState(
 
   if (
     !firstPage ||
-    data.pages.some(
-      (page) =>
-        page.pageSize !== firstPage.pageSize ||
-        page.messageContentMaxLength !== firstPage.messageContentMaxLength ||
-        page.messages.length > page.pageSize,
-    )
+    firstPage.messages.length > firstPage.pageSize ||
+    (firstPage.messages.length === 0 && data.pages.length > 1)
   ) {
     return null;
   }
 
   const pageSize = firstPage.pageSize;
-
-  const userPage = data.pages.findIndex((page) =>
-    page.messages.some(({ id }) => id === state.userMessage.id),
-  );
-
-  if (
-    userPage > 0 ||
-    (operation === "retry" && firstPage.messages.at(-1)?.id !== state.userMessage.id) ||
-    (operation === "settle" &&
-      settled &&
-      state.assistantActivated &&
-      userPage === 0 &&
-      firstPage.messages.at(-1)?.id !== state.userMessage.id)
-  ) {
-    return null;
-  }
-
+  const userIndex = firstPage.messages.findIndex(({ id }) => id === state.userMessage.id);
+  const userInFirstPage = userIndex !== -1;
   const latestSequence = firstPage.messages.at(-1)?.sequence;
 
   if (
-    operation === "submit" &&
-    userPage === -1 &&
-    latestSequence !== undefined &&
-    state.userMessage.sequence <= latestSequence
+    (!userInFirstPage &&
+      latestSequence !== undefined &&
+      state.userMessage.sequence <= latestSequence) ||
+    (operation === "retry" && (!userInFirstPage || userIndex !== firstPage.messages.length - 1)) ||
+    (operation === "settle" &&
+      settled &&
+      state.assistantActivated &&
+      userInFirstPage &&
+      userIndex !== firstPage.messages.length - 1)
   ) {
     return null;
   }
@@ -142,57 +128,70 @@ export function mergeThreadTurnState(
     ...firstPage.generations.filter(({ turnId }) => turnId !== state.turn.id),
     state.generation,
   ];
-  const pages = [...data.pages];
-  const pageParams = [...data.pageParams];
 
   if (messages.length <= pageSize) {
+    const pages = [...data.pages];
     pages[0] = {
       ...firstPage,
       messages,
       generations: selectGenerations(messages, generations),
     };
+
+    return { pages, pageParams: data.pageParams };
+  }
+
+  const overflowSize = messages.length - pageSize;
+  const overflowMessages = messages.slice(0, overflowSize);
+  const headMessages = messages.slice(overflowSize);
+  const overflowCursor = overflowMessages.at(-1)?.id;
+
+  if (!overflowCursor) {
+    return null;
+  }
+
+  const nextPage = data.pages[1];
+
+  if (
+    nextPage &&
+    (nextPage.pageSize !== pageSize ||
+      nextPage.messageContentMaxLength !== firstPage.messageContentMaxLength ||
+      nextPage.messages.length > pageSize)
+  ) {
+    return null;
+  }
+
+  const pages = [...data.pages];
+  const pageParams = [...data.pageParams];
+
+  if (nextPage && nextPage.messages.length + overflowMessages.length <= pageSize) {
+    const nextMessages = [...nextPage.messages, ...overflowMessages];
+    pages[0] = {
+      ...firstPage,
+      messages: headMessages,
+      generations: selectGenerations(headMessages, generations),
+      nextCursor: overflowCursor,
+    };
+    pages[1] = {
+      ...nextPage,
+      messages: nextMessages,
+      generations: selectGenerations(nextMessages, [...nextPage.generations, ...generations]),
+    };
+    pageParams[1] = overflowCursor;
   } else {
-    const overflowSize = messages.length - pageSize;
-    const overflowMessages = messages.slice(0, overflowSize);
-    const headMessages = messages.slice(overflowSize);
-    const overflowCursor = overflowMessages.at(-1)?.id;
-
-    if (!overflowCursor) {
-      return null;
-    }
-
-    const nextPage = pages[1];
-
-    if (nextPage && nextPage.messages.length + overflowMessages.length <= pageSize) {
-      const nextMessages = [...nextPage.messages, ...overflowMessages];
-      pages[0] = {
-        ...firstPage,
-        messages: headMessages,
-        generations: selectGenerations(headMessages, generations),
-        nextCursor: overflowCursor,
-      };
-      pages[1] = {
-        ...nextPage,
-        messages: nextMessages,
-        generations: selectGenerations(nextMessages, [...nextPage.generations, ...generations]),
-      };
-      pageParams[1] = overflowCursor;
-    } else {
-      pages[0] = {
-        ...firstPage,
-        messages: headMessages,
-        generations: selectGenerations(headMessages, generations),
-        nextCursor: overflowCursor,
-      };
-      pages.splice(1, 0, {
-        messages: overflowMessages,
-        generations: selectGenerations(overflowMessages, generations),
-        pageSize,
-        messageContentMaxLength: firstPage.messageContentMaxLength,
-        ...(firstPage.nextCursor ? { nextCursor: firstPage.nextCursor } : {}),
-      });
-      pageParams.splice(1, 0, overflowCursor);
-    }
+    pages[0] = {
+      ...firstPage,
+      messages: headMessages,
+      generations: selectGenerations(headMessages, generations),
+      nextCursor: overflowCursor,
+    };
+    pages.splice(1, 0, {
+      messages: overflowMessages,
+      generations: selectGenerations(overflowMessages, generations),
+      pageSize,
+      messageContentMaxLength: firstPage.messageContentMaxLength,
+      ...(firstPage.nextCursor ? { nextCursor: firstPage.nextCursor } : {}),
+    });
+    pageParams.splice(1, 0, overflowCursor);
   }
 
   return { pages, pageParams };

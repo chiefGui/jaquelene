@@ -55,6 +55,11 @@ type TurnGenerationInput = {
   activeMessageId: MessageId | null;
 };
 
+export type AcceptedReplyGeneration = Readonly<{
+  generation: Generation;
+  input: TurnGenerationInput;
+}>;
+
 function interruptionCause(signal: AbortSignal) {
   return signal.reason instanceof Error
     ? signal.reason
@@ -204,8 +209,11 @@ export function createGenerations(
     return Math.max(generation.startedAt, now());
   }
 
-  function requireTurnGenerationInput(turnId: TurnId): TurnGenerationInput {
-    const input = database
+  function requireTurnGenerationInput(
+    source: Pick<Database, "select">,
+    turnId: TurnId,
+  ): TurnGenerationInput {
+    const input = source
       .select({
         threadId: turnTable.threadId,
         inputMessageId: threadMessageTable.id,
@@ -330,24 +338,19 @@ export function createGenerations(
     });
   }
 
-  async function executeReply({
-    turnId,
-    model: requestedModel,
-    signal,
-  }: GenerateReplyRequest): Promise<ReplyGenerationExecution> {
+  function acceptReplyInTransaction(
+    transaction: Pick<Database, "insert" | "select">,
+    turnId: TurnId,
+    requestedModel: ModelReference,
+  ): AcceptedReplyGeneration {
     const model = {
       providerId: requestedModel.providerId,
       modelId: requestedModel.modelId,
     };
-    const provider = requireProvider(model);
+    requireProvider(model);
+    const input = requireTurnGenerationInput(transaction, turnId);
 
-    if (signal?.aborted) {
-      throw interruptionCause(signal);
-    }
-
-    const input = requireTurnGenerationInput(turnId);
-
-    const pendingGeneration = database
+    const pendingGeneration = transaction
       .select({ id: generationTable.id })
       .from(generationTable)
       .where(and(eq(generationTable.turnId, turnId), eq(generationTable.status, "pending")))
@@ -357,23 +360,48 @@ export function createGenerations(
       throw new RangeError(`Turn "${turnId}" already has a pending generation.`);
     }
 
-    const generation = {
-      id: ids.generation.create(),
-      turnId,
-      providerId: model.providerId,
-      modelId: model.modelId,
-      status: "pending",
-      startedAt: now(),
-    } as const;
+    const generation = transaction
+      .insert(generationTable)
+      .values({
+        id: ids.generation.create(),
+        turnId,
+        providerId: model.providerId,
+        modelId: model.modelId,
+        status: "pending",
+        startedAt: now(),
+      })
+      .returning()
+      .get();
 
-    database.insert(generationTable).values(generation).run();
+    if (!generation) {
+      throw new Error(`Could not create a generation for turn "${turnId}".`);
+    }
+
+    return { generation, input };
+  }
+
+  async function executeAcceptedReply(
+    { generation, input }: AcceptedReplyGeneration,
+    signal?: AbortSignal,
+  ): Promise<ReplyGenerationExecution> {
+    const provider = requireProvider({
+      providerId: generation.providerId,
+      modelId: generation.modelId,
+    });
+
+    if (signal?.aborted) {
+      return recordFailure(generation, "interrupted", interruptionCause(signal));
+    }
 
     let prompt: GenerationPrompt;
 
     try {
       prompt = requirePrompt(
-        await waitForOperation(Promise.resolve(promptCompiler.compile(turnId, signal)), signal),
-        turnId,
+        await waitForOperation(
+          Promise.resolve(promptCompiler.compile(generation.turnId, signal)),
+          signal,
+        ),
+        generation.turnId,
         input,
       );
     } catch (cause) {
@@ -392,7 +420,7 @@ export function createGenerations(
           {
             generationId: generation.id,
             threadId: prompt.threadId,
-            modelId: model.modelId,
+            modelId: generation.modelId,
             messages: prompt.messages,
           },
           signal,
@@ -416,7 +444,7 @@ export function createGenerations(
         const completionTime = finishedAt(generation);
         const { message, activated } = appendAssistantMessageInTransaction(transaction, {
           threadId: prompt.threadId,
-          turnId,
+          turnId: generation.turnId,
           parentMessageId: prompt.inputMessageId,
           activateIfMessageId: input.activeMessageId,
           content: output.text,
@@ -447,6 +475,25 @@ export function createGenerations(
     }
   }
 
+  async function executeReply({
+    turnId,
+    model,
+    signal,
+  }: GenerateReplyRequest): Promise<ReplyGenerationExecution> {
+    if (signal?.aborted) {
+      throw interruptionCause(signal);
+    }
+
+    const accepted = database.transaction((transaction) =>
+      acceptReplyInTransaction(transaction, turnId, model),
+    );
+    return executeAcceptedReply(accepted, signal);
+  }
+
+  function requireRegisteredModel(model: ModelReference) {
+    requireProvider(model);
+  }
+
   return {
     recoverInterrupted() {
       const recoveryTime = now();
@@ -462,11 +509,11 @@ export function createGenerations(
         .run();
     },
 
+    acceptReplyInTransaction,
+    executeAcceptedReply,
     executeReply,
     listLatestForTurns,
-    requireRegisteredModel(model: ModelReference) {
-      requireProvider(model);
-    },
+    requireRegisteredModel,
     async generateReply(request: GenerateReplyRequest) {
       const execution = await executeReply(request);
 

@@ -3,7 +3,8 @@ import type {
   GenerationFailureKind,
   ThreadMessage,
   Turns,
-  TurnSubmission,
+  TurnAcceptance,
+  TurnSettlement,
 } from "@jaquelene/backend";
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
@@ -13,6 +14,7 @@ import {
   ThreadMessageAuthor as IpcThreadMessageAuthor,
   Threads as ThreadsIpc,
   Turns as TurnsIpc,
+  type ITurnsDispatcher,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
 
@@ -79,15 +81,10 @@ function toIpcGeneration(generation: Generation) {
   };
 }
 
-function toIpcSubmission(submission: TurnSubmission) {
+function toIpcSubmission(acceptance: TurnAcceptance) {
   return {
-    turn: { ...submission.turn },
-    userMessage: toIpcMessage(submission.userMessage),
-    generation: toIpcGeneration(submission.generation),
-    ...(submission.assistantMessage
-      ? { assistantMessage: toIpcMessage(submission.assistantMessage) }
-      : {}),
-    assistantActivated: submission.assistantActivated,
+    userMessage: toIpcMessage(acceptance.userMessage),
+    generation: toIpcGeneration(acceptance.generation),
   };
 }
 
@@ -112,13 +109,13 @@ function unexpectedFailureStage(failureKind: Generation["failureKind"]) {
 function reportUnexpectedFailure(
   diagnostics: ErrorReporter,
   operation: "thread.turn.submit" | "thread.turn.retry",
-  submission: TurnSubmission,
+  settlement: TurnSettlement,
 ) {
-  if (!submission.failure) {
+  if (settlement.outcome !== "failed") {
     return;
   }
 
-  const stage = unexpectedFailureStage(submission.generation.failureKind);
+  const stage = unexpectedFailureStage(settlement.generation.failureKind);
 
   if (!stage) {
     return;
@@ -128,48 +125,131 @@ function reportUnexpectedFailure(
     severity: ErrorSeverity.Error,
     operation,
     error: new Error(`Generation failed during ${stage}.`, {
-      cause: submission.failure.cause,
+      cause: settlement.failure.cause,
     }),
   });
 }
 
-export function exposeThreadMessaging(
-  target: WebFrameMain,
-  turns: Turns,
-  diagnostics: ErrorReporter,
-) {
-  ThreadsIpc.for(target).setImplementation({
-    listMessages(request) {
-      const page = turns.listForThread({
-        ...request,
-        threadId: ids.thread.parse(request.threadId),
+export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) {
+  const destinations = new Map<WebFrameMain, ITurnsDispatcher>();
+
+  function publishTurnChange(
+    operation: "thread.turn.submit" | "thread.turn.retry",
+    dispatch: (dispatcher: ITurnsDispatcher) => void,
+  ) {
+    for (const [target, dispatcher] of destinations) {
+      if (target.isDestroyed() || target.detached) {
+        destinations.delete(target);
+        continue;
+      }
+
+      try {
+        dispatch(dispatcher);
+      } catch (cause) {
+        if (target.isDestroyed() || target.detached) {
+          destinations.delete(target);
+          continue;
+        }
+
+        diagnostics.report({
+          severity: ErrorSeverity.Error,
+          operation: `${operation}.dispatch`,
+          error: new Error("Could not publish turn state.", { cause }),
+        });
+      }
+    }
+  }
+
+  function publishSettlement(
+    operation: "thread.turn.submit" | "thread.turn.retry",
+    settlement: TurnSettlement,
+  ) {
+    reportUnexpectedFailure(diagnostics, operation, settlement);
+
+    if (settlement.outcome === "failed") {
+      const failure = {
+        userMessage: toIpcMessage(settlement.userMessage),
+        generation: toIpcGeneration(settlement.generation),
+      };
+      publishTurnChange(operation, (dispatcher) => dispatcher.dispatchReplyFailed(failure));
+      return;
+    }
+
+    if (!settlement.assistantActivated) {
+      const superseded = { threadId: settlement.userMessage.threadId };
+      publishTurnChange(operation, (dispatcher) => dispatcher.dispatchReplySuperseded(superseded));
+      return;
+    }
+
+    const completion = {
+      userMessage: toIpcMessage(settlement.userMessage),
+      assistantMessage: toIpcMessage(settlement.assistantMessage),
+      generation: toIpcGeneration(settlement.generation),
+    };
+    publishTurnChange(operation, (dispatcher) => dispatcher.dispatchReplyCompleted(completion));
+  }
+
+  function observeSettlement(
+    operation: "thread.turn.submit" | "thread.turn.retry",
+    settlement: Promise<TurnSettlement>,
+  ) {
+    void settlement.then(
+      (result) => {
+        publishSettlement(operation, result);
+      },
+      (cause: unknown) => {
+        diagnostics.report({
+          severity: ErrorSeverity.Error,
+          operation,
+          error: new Error("An accepted turn could not settle.", { cause }),
+        });
+      },
+    );
+  }
+
+  return {
+    expose(target: WebFrameMain) {
+      ThreadsIpc.for(target).setImplementation({
+        listMessages(request) {
+          const page = turns.listForThread({
+            ...request,
+            threadId: ids.thread.parse(request.threadId),
+          });
+
+          return {
+            ...page,
+            messages: page.messages.map(toIpcMessage),
+            generations: page.generations.map(toIpcGeneration),
+          };
+        },
       });
 
-      return {
-        ...page,
-        messages: page.messages.map(toIpcMessage),
-        generations: page.generations.map(toIpcGeneration),
+      const dispatcher = TurnsIpc.for(target).setImplementation({
+        submit(request) {
+          const operation = turns.submit({
+            threadId: ids.thread.parse(request.threadId),
+            content: request.content,
+            model: { ...request.model },
+          });
+          observeSettlement("thread.turn.submit", operation.settlement);
+          return toIpcSubmission(operation.acceptance);
+        },
+        retry(request) {
+          const operation = turns.retry({
+            turnId: ids.turn.parse(request.turnId),
+            model: { ...request.model },
+          });
+          observeSettlement("thread.turn.retry", operation.settlement);
+          return toIpcGeneration(operation.acceptance.generation);
+        },
+      });
+      destinations.set(target, dispatcher);
+
+      return () => {
+        if (destinations.get(target) === dispatcher) {
+          destinations.delete(target);
+        }
       };
     },
-  });
-
-  TurnsIpc.for(target).setImplementation({
-    async submit(request) {
-      const submission = await turns.submit({
-        threadId: ids.thread.parse(request.threadId),
-        content: request.content,
-        model: { ...request.model },
-      });
-      reportUnexpectedFailure(diagnostics, "thread.turn.submit", submission);
-      return toIpcSubmission(submission);
-    },
-    async retry(request) {
-      const submission = await turns.retry({
-        turnId: ids.turn.parse(request.turnId),
-        model: { ...request.model },
-      });
-      reportUnexpectedFailure(diagnostics, "thread.turn.retry", submission);
-      return toIpcSubmission(submission);
-    },
-  });
+  };
 }

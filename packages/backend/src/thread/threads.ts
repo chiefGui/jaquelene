@@ -242,6 +242,40 @@ export function appendAssistantMessageInTransaction(
 }
 
 export function createThreads(database: Database, now: () => number = Date.now) {
+  function startTurnInTransaction(
+    transaction: Pick<Database, "insert" | "update">,
+    threadId: ThreadId,
+    value: string,
+  ) {
+    const content = requireThreadMessageContent(value);
+    const createdAt = now();
+    const allocation = allocateMessageSequence(transaction, threadId);
+    const turn: Turn = {
+      id: ids.turn.create(),
+      threadId,
+      createdAt,
+    };
+    const message: ThreadMessage = {
+      id: ids.message.create(),
+      threadId,
+      turnId: turn.id,
+      parentMessageId: allocation.activeMessageId,
+      sequence: allocation.sequence,
+      author: "user",
+      content,
+      createdAt,
+    };
+
+    transaction.insert(turnTable).values(turn).run();
+    transaction.insert(threadMessageTable).values(message).run();
+
+    if (!moveActiveHead(transaction, threadId, allocation.activeMessageId, message.id)) {
+      throw new Error(`Thread "${threadId}" changed while its turn was being created.`);
+    }
+
+    return { turn, message };
+  }
+
   return {
     create() {
       return insertThread(database, now());
@@ -276,37 +310,12 @@ export function createThreads(database: Database, now: () => number = Date.now) 
     },
 
     startTurn(threadId: ThreadId, value: string) {
-      const content = requireThreadMessageContent(value);
-      const createdAt = now();
-
-      return database.transaction((transaction) => {
-        const allocation = allocateMessageSequence(transaction, threadId);
-        const turn: Turn = {
-          id: ids.turn.create(),
-          threadId,
-          createdAt,
-        };
-        const message: ThreadMessage = {
-          id: ids.message.create(),
-          threadId,
-          turnId: turn.id,
-          parentMessageId: allocation.activeMessageId,
-          sequence: allocation.sequence,
-          author: "user",
-          content,
-          createdAt,
-        };
-
-        transaction.insert(turnTable).values(turn).run();
-        transaction.insert(threadMessageTable).values(message).run();
-
-        if (!moveActiveHead(transaction, threadId, allocation.activeMessageId, message.id)) {
-          throw new Error(`Thread "${threadId}" changed while its turn was being created.`);
-        }
-
-        return { turn, message };
-      });
+      return database.transaction((transaction) =>
+        startTurnInTransaction(transaction, threadId, value),
+      );
     },
+
+    startTurnInTransaction,
 
     getTurnContext(turnId: TurnId) {
       const context = database

@@ -54,5 +54,7 @@ export type {
   SubmitTurnRequest,
   ThreadActivityPage,
   Turns,
-  TurnSubmission,
+  TurnAcceptance,
+  TurnOperation,
+  TurnSettlement,
 } from "#backend/turn/turns";

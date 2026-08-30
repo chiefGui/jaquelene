@@ -7,32 +7,28 @@ export const landingPitch =
 export function Home() {
   return (
     <main {...stylex.props(styles.root)}>
-      <canvas aria-hidden="true" data-ambient-ink="idle" {...stylex.props(styles.ambient)} />
+      <img
+        alt=""
+        draggable={false}
+        height={84}
+        src="/symbol-circle.svg"
+        width={84}
+        {...stylex.props(styles.symbol)}
+      />
 
-      <div {...stylex.props(styles.content)}>
-        <img
-          alt=""
-          draggable={false}
-          height={84}
-          src="/symbol-circle.svg"
-          width={84}
-          {...stylex.props(styles.symbol)}
-        />
-
-        <h1 {...stylex.props(styles.heading)}>jaquelene</h1>
-        <p {...stylex.props(styles.pitch)}>{landingPitch}</p>
-        <div {...stylex.props(styles.release)}>
-          <span {...stylex.props(styles.status)}>
-            <span aria-hidden="true" {...stylex.props(styles.statusDot)} />
-            Soon.
+      <h1 {...stylex.props(styles.heading)}>jaquelene</h1>
+      <p {...stylex.props(styles.pitch)}>{landingPitch}</p>
+      <div {...stylex.props(styles.release)}>
+        <span {...stylex.props(styles.status)}>
+          <span aria-hidden="true" {...stylex.props(styles.statusDot)} />
+          Soon.
+        </span>
+        <a href="https://github.com/chiefGui/jaquelene" {...stylex.props(styles.link)}>
+          GitHub
+          <span aria-hidden="true" {...stylex.props(styles.linkArrow)}>
+            ↗
           </span>
-          <a href="https://github.com/chiefGui/jaquelene" {...stylex.props(styles.link)}>
-            GitHub
-            <span aria-hidden="true" {...stylex.props(styles.linkArrow)}>
-              ↗
-            </span>
-          </a>
-        </div>
+        </a>
       </div>
     </main>
   );
@@ -45,31 +41,12 @@ const styles = stylex.create({
     boxSizing: "border-box",
     color: tokens.foreground,
     display: "flex",
-    justifyContent: "center",
-    isolation: "isolate",
-    minHeight: "100svh",
-    overflow: "hidden",
-    padding: "clamp(1.5rem, 5vw, 3rem)",
-    position: "relative",
-    textAlign: "center",
-  },
-  ambient: {
-    display: "block",
-    height: "100%",
-    inset: 0,
-    pointerEvents: "none",
-    position: "absolute",
-    width: "100%",
-    zIndex: 0,
-  },
-  content: {
-    alignItems: "center",
-    display: "flex",
     flexDirection: "column",
     gap: "clamp(1.5rem, 3vw, 2rem)",
-    position: "relative",
-    width: "100%",
-    zIndex: 1,
+    justifyContent: "center",
+    minHeight: "100svh",
+    padding: "clamp(1.5rem, 5vw, 3rem)",
+    textAlign: "center",
   },
   symbol: {
     display: "block",

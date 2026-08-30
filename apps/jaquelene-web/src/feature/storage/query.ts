@@ -9,7 +9,6 @@ import { queryOptions, useMutation, useQueryClient, type QueryClient } from "@ta
 import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
 import { campaignQueryKey } from "@/feature/campaign/query";
 import { defaultCampaignModelQuery } from "@/feature/campaign/preferences";
-import { resetModelCatalog } from "@/feature/model/catalog-query";
 import { favoriteModelsQuery } from "@/feature/model/favorite-models";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { diagnosticsPreferencesQuery } from "@/feature/diagnostics/preferences";
@@ -56,8 +55,17 @@ const appDataQueryKeys = [
   diagnosticsPreferencesQuery.queryKey,
   providersQuery.queryKey,
 ] as const;
+const cacheQueryFilter = {
+  predicate: (query: { meta?: Record<string, unknown> | undefined }) =>
+    query.meta?.storageCategory === StorageCategory.Cache,
+} as const;
 
 async function cancelCategoryQueries(queryClient: QueryClient, id: StorageCategory) {
+  if (id === StorageCategory.Cache) {
+    await queryClient.cancelQueries(cacheQueryFilter);
+    return;
+  }
+
   if (id === StorageCategory.Content) {
     await Promise.all(contentQueryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
     return;
@@ -71,6 +79,11 @@ async function cancelCategoryQueries(queryClient: QueryClient, id: StorageCatego
 }
 
 async function refreshCategoryQueries(queryClient: QueryClient, id: StorageCategory) {
+  if (id === StorageCategory.Cache) {
+    await queryClient.resetQueries(cacheQueryFilter);
+    return;
+  }
+
   if (id === StorageCategory.Content) {
     for (const queryKey of contentQueryKeys) {
       queryClient.removeQueries({ queryKey });
@@ -80,12 +93,9 @@ async function refreshCategoryQueries(queryClient: QueryClient, id: StorageCateg
   }
 
   if (id === StorageCategory.AppData) {
-    await Promise.all([
-      ...appDataQueryKeys.map((queryKey) =>
-        queryClient.invalidateQueries({ queryKey, exact: true }),
-      ),
-      resetModelCatalog(queryClient),
-    ]);
+    await Promise.all(
+      appDataQueryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey, exact: true })),
+    );
   }
 }
 

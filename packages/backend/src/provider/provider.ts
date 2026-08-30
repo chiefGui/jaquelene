@@ -69,6 +69,10 @@ export type ApiKeyProviderConfiguration =
   | Readonly<{ state: "unconfigured" }>
   | Readonly<{ state: "configured"; keyLabel?: string }>;
 
+export type ApiKeyProviderConfigurationSnapshot =
+  | Readonly<{ state: "unconfigured" }>
+  | Readonly<{ state: "configured"; revision: string; keyLabel?: string }>;
+
 export type ProviderConfiguration =
   | (ApiKeyProviderConfiguration & Readonly<{ kind: "api-key" }>)
   | Readonly<{ kind: "none"; state: "configured" }>;
@@ -81,7 +85,7 @@ export type ProviderConfigureResult =
 export type ProviderConfigurationAdapter =
   | Readonly<{
       kind: "api-key";
-      inspect: () => ApiKeyProviderConfiguration;
+      inspect: () => ApiKeyProviderConfigurationSnapshot;
       configure: (apiKey: string, signal: AbortSignal) => Promise<ProviderConfigureResult>;
       clear: () => Promise<void>;
       storagePaths: readonly string[];
@@ -106,4 +110,12 @@ export type ProviderAdapter = Readonly<{
   configuration: ProviderConfigurationAdapter;
   models: ProviderModelsAdapter;
   generation: ProviderGenerationAdapter;
+  [Symbol.dispose]?: () => void;
+  [Symbol.asyncDispose]?: () => PromiseLike<void>;
+}>;
+
+export type ProviderFactory = Readonly<{
+  id: ProviderId;
+  storagePaths: readonly string[];
+  create: (signal: AbortSignal) => ProviderAdapter | PromiseLike<ProviderAdapter>;
 }>;

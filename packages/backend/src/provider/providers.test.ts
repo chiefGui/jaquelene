@@ -1,18 +1,74 @@
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { ids } from "#backend/id";
+import type { CacheStore, StoredCacheEntry } from "#backend/resource-cache/cache-store";
+import { createResourceCache } from "#backend/resource-cache/resource-cache";
 import { StorageCategory } from "#backend/storage/storage";
 import type {
-  ApiKeyProviderConfiguration,
+  ApiKeyProviderConfigurationSnapshot,
   ProviderAdapter,
   ProviderConfigureResult,
 } from "./provider";
 import { createProviderSubsystem } from "./providers";
 
+async function createTestResourceCache() {
+  const entries = new Map<string, StoredCacheEntry>();
+  let revision = 0;
+  const store: CacheStore = {
+    async read(address) {
+      return entries.get(JSON.stringify(address));
+    },
+    async write(entry) {
+      entries.set(
+        JSON.stringify({ namespace: entry.namespace, scope: entry.scope, key: entry.key }),
+        entry,
+      );
+      revision = Math.max(revision, entry.revision);
+    },
+    async delete(selector, nextRevision) {
+      for (const [key, entry] of entries) {
+        if (
+          (selector.namespace === undefined || selector.namespace === entry.namespace) &&
+          (selector.scope === undefined || selector.scope === entry.scope) &&
+          (selector.key === undefined || selector.key === entry.key)
+        ) {
+          entries.delete(key);
+        }
+      }
+      revision = Math.max(revision, nextRevision);
+    },
+    async clear(nextRevision) {
+      entries.clear();
+      revision = Math.max(revision, nextRevision);
+    },
+    async inspect() {
+      return {
+        entries: entries.size,
+        logicalBytes: [...entries.values()].reduce((total, entry) => total + entry.payloadBytes, 0),
+        revision,
+      };
+    },
+    async close() {},
+  };
+
+  return createResourceCache(store, {
+    maxHotEntries: 16,
+    maxHotBytes: 1_024 * 1_024,
+    reportFailure: () => undefined,
+  });
+}
+
+async function listModels(
+  subsystem: ReturnType<typeof createProviderSubsystem>,
+  providerId: string,
+) {
+  return (await subsystem.models.getModels(providerId)).models;
+}
+
 function apiKeyProvider(overrides: Partial<ProviderAdapter> = {}): ProviderAdapter & {
   configuration: Extract<ProviderAdapter["configuration"], { kind: "api-key" }>;
 } {
-  let configuration: ApiKeyProviderConfiguration = { state: "unconfigured" };
+  let configuration: ApiKeyProviderConfigurationSnapshot = { state: "unconfigured" };
 
   return {
     descriptor: { id: "api-key-provider", name: "API-key provider", brandId: "api-key" },
@@ -25,7 +81,7 @@ function apiKeyProvider(overrides: Partial<ProviderAdapter> = {}): ProviderAdapt
           state: "configured",
           keyLabel: "key...123",
         } satisfies ProviderConfigureResult;
-        configuration = result;
+        configuration = { ...result, revision: "configuration-1" };
         return result;
       },
       async clear() {
@@ -84,7 +140,7 @@ describe("provider subsystem", () => {
   it("projects distinct provider shapes from one registration", async () => {
     const configured = apiKeyProvider();
     const local = configurationFreeProvider();
-    const subsystem = createProviderSubsystem([configured, local]);
+    const subsystem = createProviderSubsystem([configured, local], await createTestResourceCache());
 
     expect(subsystem.providers.list()).toEqual([
       {
@@ -101,7 +157,7 @@ describe("provider subsystem", () => {
       },
     ]);
     expect(subsystem.models.listProviders()).toEqual([{ id: "local-provider", brandId: "local" }]);
-    await expect(subsystem.models.listModels("local-provider")).resolves.toEqual([
+    await expect(listModels(subsystem, "local-provider")).resolves.toEqual([
       { id: "built-in", name: "Built in", brandId: "local" },
     ]);
     await expect(
@@ -122,9 +178,9 @@ describe("provider subsystem", () => {
     const adapter = apiKeyProvider();
     const configure = vi.spyOn(adapter.configuration, "configure");
     const clear = vi.spyOn(adapter.configuration, "clear");
-    const subsystem = createProviderSubsystem([adapter]);
+    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
 
-    await expect(subsystem.models.listModels(adapter.descriptor.id)).rejects.toThrow(
+    await expect(listModels(subsystem, adapter.descriptor.id)).rejects.toThrow(
       'Provider "api-key-provider" is not configured.',
     );
     await expect(
@@ -149,8 +205,94 @@ describe("provider subsystem", () => {
     await subsystem.close();
   });
 
+  it("isolates model snapshots across provider configuration revisions", async () => {
+    let configuration: ApiKeyProviderConfigurationSnapshot = {
+      state: "configured",
+      revision: "configuration-1",
+    };
+    const list = vi.fn(async () => [
+      {
+        id: "maker/model",
+        name: configuration.state === "configured" ? configuration.revision : "unconfigured",
+        brandId: "maker",
+      },
+    ]);
+    const adapter = apiKeyProvider({
+      configuration: {
+        kind: "api-key",
+        inspect: () => configuration,
+        async configure() {
+          configuration = { state: "configured", revision: "configuration-2" };
+          return { state: "configured" };
+        },
+        async clear() {
+          configuration = { state: "unconfigured" };
+        },
+        storagePaths: [],
+      },
+      models: { list },
+    });
+    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+
+    await expect(listModels(subsystem, adapter.descriptor.id)).resolves.toMatchObject([
+      { name: "configuration-1" },
+    ]);
+    await listModels(subsystem, adapter.descriptor.id);
+    expect(list).toHaveBeenCalledOnce();
+
+    await subsystem.providers.configureApiKey(adapter.descriptor.id, "replacement");
+    await expect(listModels(subsystem, adapter.descriptor.id)).resolves.toMatchObject([
+      { name: "configuration-2" },
+    ]);
+    expect(list).toHaveBeenCalledTimes(2);
+    await subsystem.close();
+  });
+
+  it("cannot commit a model refresh from a replaced provider configuration", async () => {
+    let configuration: ApiKeyProviderConfigurationSnapshot = {
+      state: "configured",
+      revision: "configuration-1",
+    };
+    const firstList =
+      Promise.withResolvers<readonly [{ id: string; name: string; brandId: string }]>();
+    const listingStarted = Promise.withResolvers<void>();
+    const list = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        listingStarted.resolve();
+        return firstList.promise;
+      })
+      .mockResolvedValueOnce([{ id: "maker/model", name: "Current", brandId: "maker" }] as const);
+    const adapter = apiKeyProvider({
+      configuration: {
+        kind: "api-key",
+        inspect: () => configuration,
+        async configure() {
+          configuration = { state: "configured", revision: "configuration-2" };
+          return { state: "configured" };
+        },
+        async clear() {
+          configuration = { state: "unconfigured" };
+        },
+        storagePaths: [],
+      },
+      models: { list },
+    });
+    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+    const obsolete = listModels(subsystem, adapter.descriptor.id);
+    await listingStarted.promise;
+
+    await subsystem.providers.configureApiKey(adapter.descriptor.id, "replacement");
+    await expect(obsolete).rejects.toThrow("invalidated");
+    firstList.resolve([{ id: "maker/model", name: "Obsolete", brandId: "maker" }]);
+    await expect(listModels(subsystem, adapter.descriptor.id)).resolves.toMatchObject([
+      { name: "Current" },
+    ]);
+    await subsystem.close();
+  });
+
   it("orders configuration changes at the subsystem boundary", async () => {
-    let configuration: ApiKeyProviderConfiguration = { state: "unconfigured" };
+    let configuration: ApiKeyProviderConfigurationSnapshot = { state: "unconfigured" };
     const finishConfiguration = Promise.withResolvers<void>();
     const events: string[] = [];
     const adapter = apiKeyProvider({
@@ -161,9 +303,9 @@ describe("provider subsystem", () => {
           events.push("configure:start");
           await finishConfiguration.promise;
           signal.throwIfAborted();
-          configuration = { state: "configured" };
+          configuration = { state: "configured", revision: "configuration-1" };
           events.push("configure:end");
-          return configuration;
+          return { state: "configured" };
         },
         async clear() {
           events.push("clear");
@@ -172,7 +314,7 @@ describe("provider subsystem", () => {
         storagePaths: [],
       },
     });
-    const subsystem = createProviderSubsystem([adapter]);
+    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
     const configuring = subsystem.providers.configureApiKey(adapter.descriptor.id, "secret");
     const clearing = subsystem.providers.clearConfiguration(adapter.descriptor.id);
 
@@ -190,7 +332,10 @@ describe("provider subsystem", () => {
   });
 
   it("interrupts active provider work before clearing its configuration", async () => {
-    let configuration: ApiKeyProviderConfiguration = { state: "configured" };
+    let configuration: ApiKeyProviderConfigurationSnapshot = {
+      state: "configured",
+      revision: "configuration-1",
+    };
     let activeSignal: AbortSignal | undefined;
     const modelListingStarted = Promise.withResolvers<void>();
     const clearStarted = Promise.withResolvers<void>();
@@ -220,8 +365,11 @@ describe("provider subsystem", () => {
     const unrelated = configurationFreeProvider({
       descriptor: { id: "unrelated", name: "Unrelated", brandId: "unrelated" },
     });
-    const subsystem = createProviderSubsystem([adapter, unrelated]);
-    const listing = subsystem.models.listModels(adapter.descriptor.id);
+    const subsystem = createProviderSubsystem(
+      [adapter, unrelated],
+      await createTestResourceCache(),
+    );
+    const listing = listModels(subsystem, adapter.descriptor.id);
     await modelListingStarted.promise;
 
     const clearing = subsystem.providers.clearConfiguration(adapter.descriptor.id);
@@ -229,10 +377,10 @@ describe("provider subsystem", () => {
     await expect(listing).rejects.toThrow('Provider "api-key-provider" is disconnecting.');
     await clearStarted.promise;
     expect(activeSignal?.aborted).toBe(true);
-    await expect(subsystem.models.listModels(adapter.descriptor.id)).rejects.toThrow(
+    await expect(listModels(subsystem, adapter.descriptor.id)).rejects.toThrow(
       'Provider "api-key-provider" is disconnecting.',
     );
-    await expect(subsystem.models.listModels(unrelated.descriptor.id)).resolves.toEqual([
+    await expect(listModels(subsystem, unrelated.descriptor.id)).resolves.toEqual([
       { id: "built-in", name: "Built in", brandId: "local" },
     ]);
 
@@ -250,7 +398,7 @@ describe("provider subsystem", () => {
     const adapter = apiKeyProvider({
       configuration: {
         kind: "api-key",
-        inspect: () => ({ state: "configured" }),
+        inspect: () => ({ state: "configured", revision: "configuration-1" }),
         async configure() {
           return { state: "configured" };
         },
@@ -260,7 +408,7 @@ describe("provider subsystem", () => {
         storagePaths: [],
       },
     });
-    const subsystem = createProviderSubsystem([adapter]);
+    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
 
     await expect(subsystem.providers.clearConfiguration(adapter.descriptor.id)).rejects.toBe(
       failure,
@@ -268,7 +416,7 @@ describe("provider subsystem", () => {
     await expect(
       subsystem.providers.configureApiKey(adapter.descriptor.id, "replacement"),
     ).resolves.toEqual({ state: "configured" });
-    await expect(subsystem.models.listModels(adapter.descriptor.id)).resolves.toEqual([
+    await expect(listModels(subsystem, adapter.descriptor.id)).resolves.toEqual([
       { id: "maker/model", name: "Model", brandId: "maker" },
     ]);
     await subsystem.close();
@@ -291,9 +439,9 @@ describe("provider subsystem", () => {
         },
       },
     });
-    const subsystem = createProviderSubsystem([adapter]);
+    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
 
-    await subsystem.models.listModels(adapter.descriptor.id);
+    await listModels(subsystem, adapter.descriptor.id);
     await subsystem.generations.get(adapter.descriptor.id)?.generate(generationRequest());
     expect(modelSignal).toHaveBeenCalledWith(expect.any(AbortSignal));
     expect(generationSignal).toHaveBeenCalledWith(expect.any(AbortSignal));
@@ -314,8 +462,8 @@ describe("provider subsystem", () => {
         },
       },
     });
-    const subsystem = createProviderSubsystem([adapter]);
-    const listing = subsystem.models.listModels(adapter.descriptor.id);
+    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+    const listing = listModels(subsystem, adapter.descriptor.id);
     await started.promise;
 
     const firstClose = subsystem.close();
@@ -324,15 +472,16 @@ describe("provider subsystem", () => {
     await firstClose;
     expect(subsystem.close()).toBe(firstClose);
     expect(activeSignal?.aborted).toBe(true);
-    await expect(subsystem.models.listModels(adapter.descriptor.id)).rejects.toThrow(
+    await expect(listModels(subsystem, adapter.descriptor.id)).rejects.toThrow(
       "Providers are closed.",
     );
   });
 
-  it("rejects duplicate identities without requiring provider-specific methods", () => {
+  it("rejects duplicate identities without requiring provider-specific methods", async () => {
     const provider = configurationFreeProvider();
+    const cache = await createTestResourceCache();
 
-    expect(() => createProviderSubsystem([provider, provider])).toThrow(
+    expect(() => createProviderSubsystem([provider, provider], cache)).toThrow(
       'Provider "local-provider" is registered more than once.',
     );
     expect(Object.keys(provider)).toEqual(["descriptor", "configuration", "models", "generation"]);

@@ -44,12 +44,18 @@ describe("OpenRouter connection", () => {
 
     const [filePath] = getOpenRouterConnectionStoragePaths(directory);
     expect(readFileSync(filePath, "utf8")).not.toContain(apiKey);
+    const configured = connection.inspect();
+    expect(configured).toEqual({
+      state: "configured",
+      revision: expect.any(String),
+      keyLabel,
+    });
     const reopenedConnection = createOpenRouterConfiguration(directory, {
       encrypt,
       decrypt,
       verify,
     });
-    expect(reopenedConnection.inspect()).toEqual({ state: "configured", keyLabel });
+    expect(reopenedConnection.inspect()).toEqual(configured);
     expect(verify).toHaveBeenCalledOnce();
     expect(decrypt).not.toHaveBeenCalled();
     await expect(reopenedConnection.withApiKey(async (value) => value)).resolves.toBe(apiKey);
@@ -115,6 +121,23 @@ describe("OpenRouter connection", () => {
     expect(verify).not.toHaveBeenCalled();
   });
 
+  it("resets a legacy credential that has no cache-isolation revision", () => {
+    const directory = createUserDataDirectory();
+    const [filePath] = getOpenRouterConnectionStoragePaths(directory);
+    writeFileSync(
+      filePath,
+      JSON.stringify({ encryptedApiKey: Buffer.from("legacy").toString("base64") }),
+    );
+    const connection = createOpenRouterConfiguration(directory, {
+      encrypt: async (value) => Buffer.from(value),
+      decrypt: async (value) => value.toString(),
+      verify: async () => ({ state: "configured" }),
+    });
+
+    expect(connection.inspect()).toEqual({ state: "unconfigured" });
+    expect(() => readFileSync(filePath, "utf8")).toThrow();
+  });
+
   it.each(["rejected", "unavailable"] as const)(
     "does not persist an API key when verification is %s",
     async (state) => {
@@ -160,6 +183,7 @@ describe("OpenRouter connection", () => {
     expect(encrypt).not.toHaveBeenCalledWith("openrouter-replacement-key");
     expect(connection.inspect()).toEqual({
       state: "configured",
+      revision: expect.any(String),
       keyLabel: "sk-or-v1-current...789",
     });
     await expect(connection.withApiKey(async (value) => value)).resolves.toBe(

@@ -16,6 +16,7 @@ import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type {
   AvailableModel,
+  ModelCatalogSnapshot,
   ModelProvider,
   ModelReference,
   ModelSelection,
@@ -27,15 +28,21 @@ import { tokens } from "@jaquelene/ui/theme.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { useQueries, useQuery, useSuspenseQuery, type UseQueryResult } from "@tanstack/react-query";
+import {
+  useQueries,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/react-virtual";
 import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -45,7 +52,7 @@ import {
 import { BrandMark, getBrandName } from "@/feature/brand/catalog";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { ProviderMark } from "@/feature/provider/mark";
-import { modelProvidersQuery, modelsForProviderQuery } from "./catalog-query";
+import { forceRefreshModels, modelProvidersQuery, modelsForProviderQuery } from "./catalog-query";
 import {
   favoriteModelsQuery,
   usePendingFavoriteModels,
@@ -138,11 +145,11 @@ type ModelPickerRootProps = {
 
 function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProps) {
   const [open, setOpenState] = useState(false);
+  const queryClient = useQueryClient();
   const { data: modelProviders } = useSuspenseQuery(modelProvidersQuery);
   const favoriteModels = useQuery({
     ...favoriteModelsQuery,
-    enabled: open,
-    throwOnError: true,
+    throwOnError: () => open,
   });
   const setFavoriteModel = useSetFavoriteModel();
   const pendingFavorites = usePendingFavoriteModels();
@@ -182,19 +189,21 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
   const [inputValue, setInputValue] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const requestedProviders = useMemo(() => {
+    const providerIds = new Set(favoriteModelIdsByProvider.keys());
+
     if (activeTab.type === "provider") {
-      return [activeTab];
+      providerIds.add(activeTab.id);
     }
 
-    return providers.filter(({ id }) => favoriteModelIdsByProvider.has(id));
+    return providers.filter(({ id }) => providerIds.has(id));
   }, [activeTab, favoriteModelIdsByProvider, providers]);
   const combineProviderModels = useCallback(
-    (results: UseQueryResult<AvailableModel[], Error>[]): ProviderModelsState => {
+    (results: UseQueryResult<ModelCatalogSnapshot, Error>[]): ProviderModelsState => {
       if (results.every(({ data }) => data !== undefined)) {
         return {
           status: "ready",
           catalogs: results.map((result, index) => ({
-            models: result.data!,
+            models: result.data!.models,
             provider: requestedProviders[index]!,
           })),
         };
@@ -204,9 +213,13 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
         return {
           status: "error",
           reload() {
-            for (const result of results) {
+            for (const [index, result] of results.entries()) {
               if (result.isError) {
-                void result.refetch();
+                const provider = requestedProviders[index];
+
+                if (provider) {
+                  void forceRefreshModels(queryClient, provider.id).catch(() => undefined);
+                }
               }
             }
           },
@@ -215,13 +228,10 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
 
       return { status: "loading" };
     },
-    [requestedProviders],
+    [queryClient, requestedProviders],
   );
   const providerModels = useQueries({
-    queries: requestedProviders.map((provider) => ({
-      ...modelsForProviderQuery(provider.id),
-      enabled: open,
-    })),
+    queries: requestedProviders.map((provider) => modelsForProviderQuery(provider.id)),
     combine: combineProviderModels,
   });
   const modelOptions = useMemo(() => {
@@ -299,7 +309,18 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
     setActionError(null);
 
     if (nextOpen) {
-      setSelectedTabId(preferredProvider?.tabId);
+      const selectedIsFavorite =
+        value !== null && favoriteModelIdsByProvider.get(value.providerId)?.has(value.modelId);
+      const initialTab = selectedIsFavorite ? favoriteTab : preferredProvider;
+      setSelectedTabId(initialTab?.tabId);
+
+      for (const provider of requestedProviders) {
+        void queryClient.refetchQueries({
+          queryKey: modelsForProviderQuery(provider.id).queryKey,
+          exact: true,
+          type: "active",
+        });
+      }
     }
   }
 
@@ -451,7 +472,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
     useFlushSync: false,
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (activeIndex >= 0) {
       virtualizer.scrollToIndex(activeIndex, { align: "auto" });
     }

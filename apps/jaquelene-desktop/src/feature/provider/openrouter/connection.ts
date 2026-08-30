@@ -1,8 +1,9 @@
 import type {
-  ApiKeyProviderConfiguration,
+  ApiKeyProviderConfigurationSnapshot,
   ProviderConfigurationAdapter,
   ProviderConfigureResult,
 } from "@jaquelene/backend";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import { deleteStoreFile } from "@/storage/delete-store-file";
@@ -11,6 +12,7 @@ import { openRouterProviderId } from "./identity";
 type StoredOpenRouterCredential = {
   encryptedApiKey?: string;
   keyLabel?: string;
+  revision?: string;
 };
 
 export type OpenRouterConfigurationDependencies = {
@@ -28,6 +30,7 @@ const storeName = openRouterProviderId;
 const schema = {
   encryptedApiKey: { type: "string", minLength: 1 },
   keyLabel: { type: "string", minLength: 1 },
+  revision: { type: "string", minLength: 1 },
 } satisfies Schema<StoredOpenRouterCredential>;
 
 export function getOpenRouterConnectionStoragePaths(userDataDirectory: string) {
@@ -46,14 +49,21 @@ export function createOpenRouterConfiguration(
     rootSchema: { additionalProperties: false },
   });
 
-  function inspect(): ApiKeyProviderConfiguration {
-    if (!store.has("encryptedApiKey")) {
+  if (store.has("encryptedApiKey") && !store.has("revision")) {
+    deleteStoreFile(store);
+  }
+
+  function inspect(): ApiKeyProviderConfigurationSnapshot {
+    const revision = store.get("revision");
+
+    if (!store.has("encryptedApiKey") || !revision) {
       return { state: "unconfigured" };
     }
 
     const keyLabel = store.get("keyLabel");
     return {
       state: "configured",
+      revision,
       ...(keyLabel ? { keyLabel } : {}),
     };
   }
@@ -102,6 +112,7 @@ export function createOpenRouterConfiguration(
       signal.throwIfAborted();
       store.set({
         encryptedApiKey: encryptedApiKey.toString("base64"),
+        revision: randomUUID(),
         ...(verification.keyLabel ? { keyLabel: verification.keyLabel } : {}),
       });
       return verification;

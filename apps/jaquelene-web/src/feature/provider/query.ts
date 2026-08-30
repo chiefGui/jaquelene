@@ -15,7 +15,7 @@ const clearProviderConfiguration = requireIpcMethod(Providers?.clearConfiguratio
 
 export const providersQuery = queryOptions({
   ...ipcQueryOptions,
-  staleTime: "static",
+  staleTime: Infinity,
   queryKey: ["providers"],
   queryFn: listProviders,
 });

@@ -12,6 +12,7 @@
     "apps/jaquelene-desktop": {
       "name": "jaquelene-desktop",
       "dependencies": {
+        "effect": "4.0.0-rc.112",
         "electron-store": "^11.0.2",
       },
       "devDependencies": {

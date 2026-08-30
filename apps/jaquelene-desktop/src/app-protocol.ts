@@ -55,4 +55,17 @@ export function handleAppScheme(webAppDirectory: string) {
 
     return net.fetch(pathToFileURL(resourcePath).toString());
   });
+
+  let installed = true;
+
+  return {
+    [Symbol.dispose]() {
+      if (!installed) {
+        return;
+      }
+
+      installed = false;
+      protocol.unhandle(scheme);
+    },
+  };
 }

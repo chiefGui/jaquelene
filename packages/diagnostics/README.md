@@ -1,8 +1,8 @@
 # Diagnostics
 
 Diagnostics describe unexpected failures after they reach an application boundary. This package
-owns their bounded, platform-independent representation; application adapters own report identity,
-persistence, transport, inspection, and recovery.
+owns their bounded, platform-independent representation and stable storage ownership identity;
+application adapters own report identity, persistence paths, transport, inspection, and recovery.
 
 - Expected negative outcomes belong in an operation's return contract when callers need distinct handling.
 - Invalid caller input rejects the violated contract with a standard error such as `TypeError` or `RangeError`.

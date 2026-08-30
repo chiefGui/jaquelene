@@ -25,6 +25,7 @@ const errorReportProperties = new Set([
 ]);
 
 export const MAX_ERROR_REPORT_PAYLOAD_LENGTH = 131_072;
+export const diagnosticsStorageAreaId = "diagnostics";
 
 export const ErrorSeverity = {
   Warning: "warning",

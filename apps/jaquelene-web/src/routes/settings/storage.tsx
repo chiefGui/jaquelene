@@ -1,26 +1,37 @@
-import {
-  StorageCategory,
-  type StorageCategoryUsage,
-  type StorageUsage,
-} from "@jaquelene/ipc/renderer";
-import { Button, Item, formatBytes } from "@jaquelene/ui";
-import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
+import { diagnosticsStorageAreaId } from "@jaquelene/diagnostics";
+import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { StorageCategory, type StorageAreaUsage, type StorageUsage } from "@jaquelene/ipc/renderer";
+import { Button, IconButton, Item, formatBytes } from "@jaquelene/ui";
+import { ConfirmDialog, type ConfirmDialogProps } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
+import {
+  useIsMutating,
+  useQueryClient,
+  useSuspenseQuery,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { storagePalette } from "../../feature/storage/palette.stylex";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { measureStorageUsage, useDeleteStorageCategory } from "@/feature/storage/query";
+import {
+  remeasureStorageUsage,
+  storageUsageQuery,
+  useDeleteStorageArea,
+  useDeleteStorageCategory,
+} from "@/feature/storage/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/storage")({
   loader: {
-    handler: measureStorageUsage,
+    handler: ({ context }) => remeasureStorageUsage(context.queryClient),
     staleReloadMode: "blocking",
   },
-  staleTime: 0,
   onError: (error) => reportError("storage.measure", error),
   errorComponent: StorageRouteError,
   component: StorageRoute,
@@ -36,13 +47,36 @@ type StorageCategoryPresentation = Readonly<{
   }>;
 }>;
 
-type StorageCategoryView = StorageCategoryUsage & StorageCategoryPresentation;
+type StorageCategoryView = Readonly<{
+  id: StorageCategory;
+  bytes: number;
+}> &
+  StorageCategoryPresentation;
 
-function presentStorageCategories({ categories }: StorageUsage): readonly StorageCategoryView[] {
-  return categories.map((category) => ({
-    ...category,
-    ...storageCategoryPresentations[category.id],
+function presentStorageCategories({ areas }: StorageUsage): readonly StorageCategoryView[] {
+  return ([StorageCategory.Content, StorageCategory.AppData] as const).map((id) => ({
+    id,
+    bytes: areas.reduce((total, area) => total + (area.category === id ? area.bytes : 0), 0),
+    ...storageCategoryPresentations[id],
   }));
+}
+
+function requireDiagnosticsArea({ areas }: StorageUsage) {
+  const area = areas.find(({ id }) => id === diagnosticsStorageAreaId);
+
+  if (!area || area.category !== StorageCategory.AppData) {
+    throw new Error("Diagnostics storage is not registered as app data.");
+  }
+
+  return area;
+}
+
+async function remeasureStorage(operation: string, queryClient: QueryClient) {
+  try {
+    await remeasureStorageUsage(queryClient);
+  } catch (cause) {
+    reportError(operation, cause);
+  }
 }
 
 function StorageHeader() {
@@ -87,8 +121,94 @@ function StorageUsageBar({
   );
 }
 
+type StorageClearActionProps = Omit<ConfirmDialogProps, "trigger"> & {
+  accessibleLabel: string;
+  disabled: boolean;
+};
+
+function StorageClearAction({
+  accessibleLabel,
+  disabled,
+  ...confirmation
+}: StorageClearActionProps) {
+  return (
+    <Tooltip.Root>
+      <ConfirmDialog
+        {...confirmation}
+        trigger={
+          <Tooltip.Anchor
+            render={
+              <IconButton aria-label={accessibleLabel} disabled={disabled}>
+                <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
+              </IconButton>
+            }
+          />
+        }
+      />
+
+      <Tooltip>Clear</Tooltip>
+    </Tooltip.Root>
+  );
+}
+
+function LogsStorage({ area }: { area: StorageAreaUsage }) {
+  const queryClient = useQueryClient();
+  const deleteStorageArea = useDeleteStorageArea();
+  const storageMutationPending = useIsMutating({ mutationKey: ["storage"] }) > 0;
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
+  function setClearConfirmationOpen(open: boolean) {
+    if (open) deleteStorageArea.reset();
+
+    if (!deleteStorageArea.isPending) {
+      setConfirmingClear(open);
+    }
+  }
+
+  async function clearLogs() {
+    try {
+      await deleteStorageArea.mutateAsync(area.id);
+      setConfirmingClear(false);
+    } catch (cause) {
+      reportError("storage.diagnostics.delete", cause);
+      await remeasureStorage("storage.diagnostics.remeasure", queryClient);
+    }
+  }
+
+  return (
+    <Item.Root>
+      <div {...stylex.props(styles.category)}>
+        <span aria-hidden="true" {...stylex.props(styles.categoryMarker, styles.logs)} />
+        <Item.Label>Logs</Item.Label>
+      </div>
+
+      <div {...stylex.props(styles.trailing)}>
+        <Item.Value>
+          <Item.ValueText>{formatBytes(area.bytes)}</Item.ValueText>
+        </Item.Value>
+
+        <div {...stylex.props(styles.actions)}>
+          <StorageClearAction
+            accessibleLabel="Clear logs"
+            disabled={storageMutationPending}
+            open={confirmingClear}
+            setOpen={setClearConfirmationOpen}
+            heading="Clear logs?"
+            description="Removes saved logs from this device. New logs may be created later."
+            confirmLabel="Clear"
+            pending={deleteStorageArea.isPending}
+            error={deleteStorageArea.isError ? "Couldn’t clear logs." : undefined}
+            onConfirm={() => void clearLogs()}
+          />
+        </div>
+      </div>
+    </Item.Root>
+  );
+}
+
 function StorageRouteError() {
   const router = useRouter();
+  const headingId = useId();
 
   return (
     <>
@@ -96,8 +216,8 @@ function StorageRouteError() {
 
       <ContentPane.Viewport>
         <ContentPane.Body>
-          <Item.Section aria-labelledby="storage-error-heading">
-            <Item.Heading id="storage-error-heading">Usage</Item.Heading>
+          <Item.Section aria-labelledby={headingId}>
+            <Item.Heading id={headingId}>Usage</Item.Heading>
 
             <Item.Group>
               <Item.Root>
@@ -113,27 +233,24 @@ function StorageRouteError() {
 }
 
 function StorageRoute() {
-  const loadedUsage = Route.useLoaderData();
-  const [latestUsage, setLatestUsage] = useState<StorageUsage | null>(null);
+  const queryClient = useQueryClient();
+  const { data: usage } = useSuspenseQuery(storageUsageQuery);
+  const usageHeadingId = useId();
+  const usageDescriptionId = useId();
   const [confirmation, setConfirmation] = useState<StorageCategory | null>(null);
   const deleteStorageCategory = useDeleteStorageCategory();
-  const usage = latestUsage ?? loadedUsage;
+  const storageMutationPending = useIsMutating({ mutationKey: ["storage"] }) > 0;
   const categories = presentStorageCategories(usage);
-  const totalBytes = categories.reduce((total, category) => total + category.bytes, 0);
+  const diagnosticsArea = requireDiagnosticsArea(usage);
+  const totalBytes = usage.areas.reduce((total, area) => total + area.bytes, 0);
 
-  async function deleteCategory(category: StorageCategoryView) {
+  async function clearCategory(category: StorageCategoryView) {
     try {
-      const nextUsage = await deleteStorageCategory.mutateAsync(category.id);
-      setLatestUsage(nextUsage);
+      await deleteStorageCategory.mutateAsync(category.id);
       setConfirmation(null);
     } catch (cause) {
-      reportError("storage.delete", cause);
-
-      try {
-        setLatestUsage(await measureStorageUsage());
-      } catch (measurementCause) {
-        reportError("storage.remeasure", measurementCause);
-      }
+      reportError("storage.category.delete", cause);
+      await remeasureStorage("storage.category.remeasure", queryClient);
     }
   }
 
@@ -155,8 +272,13 @@ function StorageRoute() {
 
       <ContentPane.Viewport>
         <ContentPane.Body>
-          <Item.Section aria-labelledby="storage-usage-heading">
-            <Item.Heading id="storage-usage-heading">Usage</Item.Heading>
+          <Item.Section aria-labelledby={usageHeadingId} aria-describedby={usageDescriptionId}>
+            <div {...stylex.props(styles.sectionHeader)}>
+              <Item.Heading id={usageHeadingId}>Usage</Item.Heading>
+              <p id={usageDescriptionId} {...stylex.props(styles.sectionDescription)}>
+                Everything listed here is stored on this device.
+              </p>
+            </div>
 
             <Item.Group>
               <Item.Root style={styles.summary}>
@@ -185,38 +307,35 @@ function StorageRoute() {
                       <Item.Label>{category.label}</Item.Label>
                     </div>
 
-                    <div {...stylex.props(styles.categoryEnd)}>
+                    <div {...stylex.props(styles.trailing)}>
                       <Item.Value>
                         <Item.ValueText>{formatBytes(category.bytes)}</Item.ValueText>
                       </Item.Value>
 
-                      <ConfirmDialog
-                        open={open}
-                        setOpen={(nextOpen) => setConfirmationOpen(category, nextOpen)}
-                        trigger={
-                          <Button
-                            variant="ghost"
-                            tone="danger"
-                            disabled={deleteStorageCategory.isPending}
-                          >
-                            Delete
-                          </Button>
-                        }
-                        heading={category.confirmation.heading}
-                        description={category.confirmation.description}
-                        confirmLabel="Delete"
-                        pending={pending}
-                        error={
-                          open && deleteStorageCategory.isError
-                            ? category.confirmation.error
-                            : undefined
-                        }
-                        onConfirm={() => void deleteCategory(category)}
-                      />
+                      <div {...stylex.props(styles.actions)}>
+                        <StorageClearAction
+                          accessibleLabel={`Clear ${category.label.toLowerCase()}`}
+                          disabled={storageMutationPending}
+                          open={open}
+                          setOpen={(nextOpen) => setConfirmationOpen(category, nextOpen)}
+                          heading={category.confirmation.heading}
+                          description={category.confirmation.description}
+                          confirmLabel="Clear"
+                          pending={pending}
+                          error={
+                            open && deleteStorageCategory.isError
+                              ? category.confirmation.error
+                              : undefined
+                          }
+                          onConfirm={() => void clearCategory(category)}
+                        />
+                      </div>
                     </div>
                   </Item.Root>
                 );
               })}
+
+              <LogsStorage area={diagnosticsArea} />
             </Item.Group>
           </Item.Section>
         </ContentPane.Body>
@@ -226,6 +345,19 @@ function StorageRoute() {
 }
 
 const styles = stylex.create({
+  sectionHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
+  sectionDescription: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    margin: 0,
+    paddingInline: "1rem",
+    textBox: "trim-both text",
+  },
   summary: {
     display: "block",
   },
@@ -262,11 +394,16 @@ const styles = stylex.create({
     gap: "0.75rem",
     minWidth: 0,
   },
-  categoryEnd: {
+  trailing: {
     alignItems: "center",
     display: "flex",
     flexShrink: 0,
-    gap: "0.75rem",
+    gap: "1.25rem",
+  },
+  actions: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.25rem",
   },
   categoryMarker: {
     backgroundColor: "currentColor",
@@ -276,10 +413,13 @@ const styles = stylex.create({
     width: "0.5rem",
   },
   content: {
-    color: tokens.accent,
+    color: storagePalette.content,
   },
   appData: {
-    color: `color-mix(in oklch, ${tokens.muted} 60%, ${tokens.surfaceRaised})`,
+    color: storagePalette.appData,
+  },
+  logs: {
+    color: storagePalette.logs,
   },
 });
 
@@ -288,18 +428,20 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
     label: "Content",
     color: styles.content,
     confirmation: {
-      heading: "Delete content?",
-      description: "This can’t be undone.",
-      error: "Couldn’t finish deleting content.",
+      heading: "Clear content?",
+      description:
+        "This permanently deletes your chats and other content you created in Jaquelene.",
+      error: "Couldn’t finish clearing content.",
     },
   },
   [StorageCategory.AppData]: {
     label: "App data",
     color: styles.appData,
     confirmation: {
-      heading: "Delete app data?",
-      description: "This resets the app without deleting your content.",
-      error: "Some app data couldn’t be deleted.",
+      heading: "Clear app data?",
+      description:
+        "This deletes your preferences, saved connections, and other app data. Your content is kept.",
+      error: "Some app data couldn’t be cleared.",
     },
   },
 };

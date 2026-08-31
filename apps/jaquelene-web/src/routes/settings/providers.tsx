@@ -240,11 +240,7 @@ const styles = stylex.create({
   },
   providerMarkContainer: {
     backgroundColor: `color-mix(in oklab, ${tokens.foreground} 4%, transparent)`,
-    display: "grid",
-    flexShrink: 0,
     height: "2rem",
-    placeItems: "center",
-    width: "2rem",
   },
   providerMark: {
     height: "0.875rem",

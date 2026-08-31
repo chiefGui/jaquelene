@@ -7,6 +7,7 @@ export const tokens = stylex.defineVars({
   canvas: "oklch(0.135 0.01 272)",
   danger: "oklch(0.7 0.16 22)",
   foreground: "oklch(0.925 0.014 282)",
+  foregroundStrong: "oklch(1 0 0)",
   muted: "oklch(0.68 0.03 280)",
   reasoning: "oklch(0.75 0.1 305)",
   success: "oklch(0.75 0.13 158)",

@@ -124,13 +124,19 @@ function ModelMark({ brandId, style }: { brandId: string; style?: StyleXStyles }
   return <BrandMark brandId={brandId} fallbackIcon={RoboticIcon} style={style} />;
 }
 
-function ReasoningIndicator({ required }: { required: boolean }) {
-  const label = required ? "Reasoning required" : "Supports reasoning";
-
+function ModelIndicator({
+  children,
+  label,
+  style,
+}: {
+  children: ReactNode;
+  label: string;
+  style: StyleXStyles;
+}) {
   return (
     <Tooltip.Root>
-      <Tooltip.Anchor focusable={false} render={<IconFrame style={styles.reasoningIndicator} />}>
-        <HugeiconsIcon icon={Brain01Icon} size={12} strokeWidth={1.5} aria-hidden="true" />
+      <Tooltip.Anchor focusable={false} render={<IconFrame style={style} />}>
+        {children}
         <VisuallyHidden>{label}</VisuallyHidden>
       </Tooltip.Anchor>
 
@@ -139,19 +145,21 @@ function ReasoningIndicator({ required }: { required: boolean }) {
   );
 }
 
+function ReasoningIndicator({ required }: { required: boolean }) {
+  const label = required ? "Reasoning required" : "Supports reasoning";
+
+  return (
+    <ModelIndicator label={label} style={styles.reasoningIndicator}>
+      <HugeiconsIcon icon={Brain01Icon} size={12} strokeWidth={1.5} aria-hidden="true" />
+    </ModelIndicator>
+  );
+}
+
 function FavoriteProviderIndicator({ provider }: { provider: ProviderTab }) {
   return (
-    <Tooltip.Root>
-      <Tooltip.Anchor
-        focusable={false}
-        render={<IconFrame style={styles.favoriteProviderIndicator} />}
-      >
-        <ProviderMark brandId={provider.brandId} style={styles.favoriteProviderMark} />
-        <VisuallyHidden>{provider.brandName}</VisuallyHidden>
-      </Tooltip.Anchor>
-
-      <Tooltip>{provider.brandName}</Tooltip>
-    </Tooltip.Root>
+    <ModelIndicator label={provider.brandName} style={styles.favoriteProviderIndicator}>
+      <ProviderMark brandId={provider.brandId} style={styles.favoriteProviderMark} />
+    </ModelIndicator>
   );
 }
 
@@ -827,7 +835,7 @@ export const ModelPicker = {
 } as const;
 
 const activeBackground = `color-mix(in oklab, ${tokens.accent} 10%, transparent)`;
-const activeModelName = "white";
+const activeModelName = tokens.foregroundStrong;
 const focusOutline = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
 
 const styles = stylex.create({
@@ -993,7 +1001,6 @@ const styles = stylex.create({
     backgroundColor: `color-mix(in oklab, ${tokens.foreground} 6%, transparent)`,
     color: tokens.muted,
     height: "1.125rem",
-    width: "1.125rem",
   },
   favoriteProviderMark: {
     height: "0.625rem",
@@ -1013,7 +1020,6 @@ const styles = stylex.create({
     backgroundColor: `color-mix(in oklab, ${tokens.reasoning} 14%, transparent)`,
     color: tokens.reasoning,
     height: "1.125rem",
-    width: "1.125rem",
   },
   favoriteButton: {
     backgroundColor: {

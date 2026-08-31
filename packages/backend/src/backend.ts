@@ -84,7 +84,9 @@ function createBackendServiceLayer() {
             promptCompiler: createTurnPromptCompiler(threads),
             providers: providers.generations,
           });
-          const turns = createTurns(database, threads, generationSubsystem.replies, campaigns);
+          const turns = createTurns(database, threads, generationSubsystem.replies, {
+            recordInTransaction: campaigns.recordContinuationInTransaction,
+          });
 
           return BackendService.of({
             scenarios,

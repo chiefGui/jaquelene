@@ -137,7 +137,7 @@ export function installThreadSettlementReconciliation(queryClient: QueryClient) 
   };
 }
 
-export function useSubmitTurn(threadId: string, onAccepted: () => void) {
+export function useSubmitTurn(threadId: string, onSubmissionAccepted: () => void) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -148,9 +148,9 @@ export function useSubmitTurn(threadId: string, onAccepted: () => void) {
       submitTurn({ threadId, content, model: copyModelReference(model) }),
     onSuccess(submission) {
       try {
-        onAccepted();
+        onSubmissionAccepted();
       } catch (cause) {
-        reportError("thread.turn.accepted", cause);
+        reportError("thread.turn.submission-accepted", cause);
       }
 
       return reconcileTurn(queryClient, threadId, {

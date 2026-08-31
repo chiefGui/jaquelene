@@ -293,7 +293,7 @@ type ThreadComposerProps = Readonly<{
   composerControls: ReactNode;
   viewport: RefObject<HTMLElement | null>;
   pinnedToEnd: RefObject<boolean>;
-  onTurnAccepted: () => void;
+  onSubmissionAccepted: () => void;
 }>;
 
 const ThreadComposer = memo(function ThreadComposer({
@@ -305,9 +305,9 @@ const ThreadComposer = memo(function ThreadComposer({
   composerControls,
   viewport,
   pinnedToEnd,
-  onTurnAccepted,
+  onSubmissionAccepted,
 }: ThreadComposerProps) {
-  const submitTurnMutation = useSubmitTurn(threadId, onTurnAccepted);
+  const submitTurnMutation = useSubmitTurn(threadId, onSubmissionAccepted);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const acceptingSubmission = useRef(false);
@@ -419,13 +419,13 @@ export function ThreadView({
   model,
   modelPending,
   composerControls,
-  onTurnAccepted,
+  onSubmissionAccepted,
 }: {
   threadId: string;
   model: ModelReference | null;
   modelPending: boolean;
   composerControls: ReactNode;
-  onTurnAccepted: () => void;
+  onSubmissionAccepted: () => void;
 }) {
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
   const retryTurnMutation = useRetryTurn(threadId);
@@ -513,7 +513,7 @@ export function ThreadView({
         composerControls={composerControls}
         viewport={viewport}
         pinnedToEnd={pinnedToEnd}
-        onTurnAccepted={onTurnAccepted}
+        onSubmissionAccepted={onSubmissionAccepted}
       />
     </section>
   );

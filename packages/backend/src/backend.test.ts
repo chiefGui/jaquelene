@@ -192,6 +192,12 @@ describe("backend", () => {
       throw new Error("Expected the submitted reply to complete.");
     }
 
+    expect(first.campaigns.getContinuation()).toEqual({
+      campaignId: campaign.id,
+      scenarioId: scenario.id,
+      scenarioTitle: scenario.title,
+    });
+
     const firstClose = first.close();
     expect(first.close()).toBe(firstClose);
     await firstClose;
@@ -214,6 +220,11 @@ describe("backend", () => {
 
     expect(reopened.scenarios.get(scenario.id)).toEqual(scenario);
     expect(reopened.campaigns.get(campaign.id)).toEqual(campaign);
+    expect(reopened.campaigns.getContinuation()).toEqual({
+      campaignId: campaign.id,
+      scenarioId: scenario.id,
+      scenarioTitle: scenario.title,
+    });
     expect(reopened.turns.listForThread({ threadId: campaign.threadId })).toEqual({
       messages: [submitted.userMessage, submitted.assistantMessage],
       generations: [submitted.generation],

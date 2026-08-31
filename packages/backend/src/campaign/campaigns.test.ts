@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -113,50 +113,34 @@ describe("campaigns", () => {
     });
   });
 
-  it("backfills the continuation from the latest persisted user message", () => {
-    const path = createDatabasePath();
-    const client = new DatabaseSync(path);
-
-    try {
-      client.exec(`
-        PRAGMA foreign_keys = ON;
-        CREATE TABLE scenarios (id text PRIMARY KEY NOT NULL, title text NOT NULL);
-        CREATE TABLE threads (id text PRIMARY KEY NOT NULL);
-        CREATE TABLE campaigns (
-          id text PRIMARY KEY NOT NULL,
-          scenario_id text NOT NULL,
-          thread_id text NOT NULL
-        );
-        CREATE TABLE thread_messages (
-          id text PRIMARY KEY NOT NULL,
-          thread_id text NOT NULL,
-          author text NOT NULL,
-          created_at integer NOT NULL
-        );
-        INSERT INTO scenarios VALUES ('scenario-a', 'First'), ('scenario-b', 'Second');
-        INSERT INTO threads VALUES ('thread-a'), ('thread-b');
-        INSERT INTO campaigns VALUES
-          ('campaign-a', 'scenario-a', 'thread-a'),
-          ('campaign-b', 'scenario-b', 'thread-b');
-        INSERT INTO thread_messages VALUES
-          ('message-a', 'thread-a', 'user', 100),
-          ('message-b', 'thread-b', 'user', 200),
-          ('message-c', 'thread-a', 'assistant', 300);
-      `);
-      const migration = readFileSync(
-        join(import.meta.dirname, "../migrations/20260831204320_old_ser_duncan/migration.sql"),
-        "utf8",
+  it("replaces the continuation only for campaign threads", () => {
+    const { campaigns, database, scenarios, threads } = openCampaigns(createDatabasePath());
+    const firstScenario = scenarios.create("First voyage");
+    const secondScenario = scenarios.create("Second voyage");
+    const firstCampaign = campaigns.start(firstScenario.id);
+    const secondCampaign = campaigns.start(secondScenario.id);
+    const independentThread = threads.create();
+    const recordContinuation = (threadId: typeof firstCampaign.threadId) =>
+      database.transaction((transaction) =>
+        campaigns.recordContinuationInTransaction(transaction, threadId),
       );
 
-      client.exec(migration);
+    recordContinuation(firstCampaign.threadId);
+    expect(campaigns.getContinuation()).toEqual({
+      campaignId: firstCampaign.id,
+      scenarioId: firstScenario.id,
+      scenarioTitle: firstScenario.title,
+    });
 
-      expect(client.prepare("SELECT id, campaign_id FROM campaign_continuation").get()).toEqual({
-        id: 1,
-        campaign_id: "campaign-b",
-      });
-    } finally {
-      client.close();
-    }
+    recordContinuation(independentThread.id);
+    expect(campaigns.getContinuation()?.campaignId).toBe(firstCampaign.id);
+
+    recordContinuation(secondCampaign.threadId);
+    expect(campaigns.getContinuation()).toEqual({
+      campaignId: secondCampaign.id,
+      scenarioId: secondScenario.id,
+      scenarioTitle: secondScenario.title,
+    });
   });
 
   it("creates a thread with a newly started campaign", () => {

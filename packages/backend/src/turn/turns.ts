@@ -1,5 +1,4 @@
 import type { Database } from "#backend/database/database";
-import type { CampaignEngine } from "#backend/campaign/campaigns";
 import type {
   AcceptedReplyGeneration,
   GenerationEngine,
@@ -21,7 +20,12 @@ type TurnGenerationEngine = Pick<
   ): Promise<ReplyGenerationExecution>;
 };
 type TurnThreads = Pick<ThreadEngine, "getTurnInput" | "listMessages" | "startTurnInTransaction">;
-type TurnCampaigns = Pick<CampaignEngine, "recordContinuationInTransaction">;
+type AcceptedTurnProjection = Readonly<{
+  recordInTransaction: (
+    transaction: Pick<Database, "insert" | "select">,
+    threadId: ThreadId,
+  ) => void;
+}>;
 
 type ListThreadRequest = Parameters<TurnThreads["listMessages"]>[0];
 
@@ -101,7 +105,7 @@ export function createTurns(
   database: Database,
   threads: TurnThreads,
   generations: TurnGenerationEngine,
-  campaigns: TurnCampaigns,
+  acceptedTurns: AcceptedTurnProjection,
 ) {
   const activeThreadOperations = new Set<ThreadId>();
 
@@ -161,7 +165,7 @@ export function createTurns(
             turn.id,
             model,
           );
-          campaigns.recordContinuationInTransaction(transaction, threadId);
+          acceptedTurns.recordInTransaction(transaction, threadId);
           const acceptance = {
             userMessage: message,
             generation: acceptedGeneration.generation,

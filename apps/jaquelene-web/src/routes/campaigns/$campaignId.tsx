@@ -114,7 +114,7 @@ function CampaignRoute() {
             threadId={campaign.threadId}
             model={effectiveModel}
             modelPending={effectiveModelPending}
-            onTurnAccepted={rememberCampaign}
+            onSubmissionAccepted={rememberCampaign}
             composerControls={
               <CampaignModelPicker
                 campaignId={campaign.id}

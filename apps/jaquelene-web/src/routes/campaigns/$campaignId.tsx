@@ -71,12 +71,11 @@ function CampaignRoute() {
             {scenario ? (
               <>
                 <Breadcrumb.Separator />
-                <Breadcrumb.Item style={styles.breadcrumbItem}>
+                <Breadcrumb.Item>
                   <Breadcrumb.Link
                     render={
                       <Link to="/scenarios/$scenarioId" params={{ scenarioId: scenario.id }} />
                     }
-                    style={styles.breadcrumbLink}
                   >
                     {scenario.title}
                   </Breadcrumb.Link>
@@ -121,15 +120,6 @@ function CampaignRoute() {
 }
 
 const styles = stylex.create({
-  breadcrumbItem: {
-    minWidth: 0,
-  },
-  breadcrumbLink: {
-    display: "block",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
   title: {
     fontSize: tokens.fontSizeLarge,
     fontWeight: 600,

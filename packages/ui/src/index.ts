@@ -1,4 +1,5 @@
 export { Button, type ButtonProps } from "./primitive/button";
+export { Chip, type ChipActionProps, type ChipFrameProps } from "./primitive/chip";
 export { IconFrame, type IconFrameProps } from "./primitive/icon-frame";
 export { IconButton, type IconButtonProps } from "./primitive/icon-button";
 export { Input, type InputProps } from "./primitive/input";

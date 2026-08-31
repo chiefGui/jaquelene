@@ -1,4 +1,5 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
+import { Chip, type ChipActionProps, type ChipFrameProps } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -6,6 +7,12 @@ import type { StyleXStyles } from "@stylexjs/stylex";
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
 };
+
+type BreadcrumbLinkProps = ChipActionProps & {
+  render: NonNullable<ChipActionProps["render"]>;
+};
+
+type BreadcrumbPageProps = ChipFrameProps;
 
 function BreadcrumbRoot({
   "aria-label": ariaLabel = "Breadcrumb",
@@ -19,19 +26,30 @@ function BreadcrumbList({ style, ...props }: StyleableProps<RoleProps<"ol">>) {
   return <Role.ol {...props} {...stylex.props(styles.list, style)} />;
 }
 
-function BreadcrumbItem({ style, ...props }: StyleableProps<RoleProps<"li">>) {
-  return <Role.li {...props} {...stylex.props(styles.textBox, style)} />;
+function BreadcrumbItem({ children, style, ...props }: StyleableProps<RoleProps<"li">>) {
+  return (
+    <Role.li {...props} {...stylex.props(styles.item, style)}>
+      {typeof children === "string" || typeof children === "number" ? (
+        <Chip.Frame>{children}</Chip.Frame>
+      ) : (
+        children
+      )}
+    </Role.li>
+  );
 }
 
-function BreadcrumbLink({ style, ...props }: StyleableProps<RoleProps<"a">>) {
-  return <Role.a {...props} {...stylex.props(styles.link, style)} />;
+function BreadcrumbLink({ style, ...props }: BreadcrumbLinkProps) {
+  return <Chip.Action {...props} style={style} />;
 }
 
-function BreadcrumbPage({ style, ...props }: StyleableProps<RoleProps<"span">>) {
-  return <Role.span {...props} aria-current="page" {...stylex.props(styles.page, style)} />;
+function BreadcrumbPage({ style, ...props }: BreadcrumbPageProps) {
+  return <Chip.Frame {...props} aria-current="page" style={[styles.page, style]} />;
 }
 
-function BreadcrumbSeparator({ children = ">", style, ...props }: StyleableProps<RoleProps<"li">>) {
+function BreadcrumbSeparator({
+  style,
+  ...props
+}: Omit<StyleableProps<RoleProps<"li">>, "children">) {
   return (
     <Role.li
       {...props}
@@ -39,7 +57,20 @@ function BreadcrumbSeparator({ children = ">", style, ...props }: StyleableProps
       aria-hidden="true"
       {...stylex.props(styles.separator, style)}
     >
-      {children}
+      <svg
+        viewBox="0 0 8 1"
+        preserveAspectRatio="none"
+        focusable="false"
+        {...stylex.props(styles.separatorIcon)}
+      >
+        <path
+          d="M0 0L8 .5L0 1"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
     </Role.li>
   );
 }
@@ -55,50 +86,45 @@ export const Breadcrumb = {
 
 const styles = stylex.create({
   root: {
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
+    height: "100%",
+    maxWidth: "100%",
     minWidth: 0,
   },
   list: {
     alignItems: "center",
     display: "flex",
-    gap: "0.5rem",
+    height: "100%",
+    maxWidth: "100%",
     minWidth: 0,
   },
-  textBox: {
+  item: {
+    alignItems: "center",
     color: tokens.muted,
-    textBox: "trim-both text",
-  },
-  link: {
-    color: {
-      default: tokens.muted,
-      ":hover": tokens.foreground,
+    display: "flex",
+    height: "100%",
+    minWidth: 0,
+    paddingInlineEnd: {
+      default: "0.375rem",
+      ":last-child": 0,
     },
-    outlineColor: {
-      default: null,
-      ":focus-visible": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
+    paddingInlineStart: {
+      default: "0.625rem",
+      ":first-child": 0,
     },
-    outlineOffset: {
-      default: null,
-      ":focus-visible": 2,
-    },
-    outlineStyle: {
-      default: "none",
-      ":focus-visible": "solid",
-    },
-    outlineWidth: {
-      default: null,
-      ":focus-visible": 1,
-    },
-    textBox: "trim-both text",
   },
   page: {
     color: tokens.foreground,
-    fontWeight: 500,
-    textBox: "trim-both text",
   },
   separator: {
-    color: tokens.muted,
-    textBox: "trim-both text",
+    color: tokens.border,
+    flexShrink: 0,
+    height: "100%",
+    width: "0.5rem",
+  },
+  separatorIcon: {
+    display: "block",
+    height: "100%",
+    overflow: "visible",
+    width: "100%",
   },
 });

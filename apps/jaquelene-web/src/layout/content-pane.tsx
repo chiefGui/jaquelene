@@ -3,6 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
 import { paneSurface } from "./pane-surface.stylex";
+import { shellChrome } from "./shell-chrome.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -23,7 +24,7 @@ function ContentPaneRoot({
 }
 
 function ContentPaneHeader({ style, ...props }: StyleableProps<ComponentProps<"header">>) {
-  return <header {...props} {...stylex.props(styles.header, style)} />;
+  return <header {...props} {...stylex.props(shellChrome.header, styles.header, style)} />;
 }
 
 function ContentPaneViewport({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
@@ -47,14 +48,10 @@ const styles = stylex.create({
     flexDirection: "column",
   },
   header: {
-    alignItems: "center",
     borderBottomColor: tokens.border,
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
-    display: "flex",
-    flexShrink: 0,
-    height: "3.5rem",
-    paddingInline: "1.25rem",
+    paddingInline: "0.75rem",
   },
   viewport: {
     flex: 1,

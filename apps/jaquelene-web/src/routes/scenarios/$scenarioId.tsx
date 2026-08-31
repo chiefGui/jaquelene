@@ -105,10 +105,8 @@ function ScenarioRoute() {
               <Breadcrumb.Link render={<Link to="/scenarios" />}>Scenarios</Breadcrumb.Link>
             </Breadcrumb.Item>
             <Breadcrumb.Separator />
-            <Breadcrumb.Item style={styles.breadcrumbItem}>
-              <Breadcrumb.Page style={styles.breadcrumbPage}>
-                {scenario?.title ?? "Scenario"}
-              </Breadcrumb.Page>
+            <Breadcrumb.Item>
+              <Breadcrumb.Page>{scenario?.title ?? "Scenario"}</Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
         </Breadcrumb.Root>
@@ -208,15 +206,6 @@ function ScenarioRoute() {
 }
 
 const styles = stylex.create({
-  breadcrumbItem: {
-    minWidth: 0,
-  },
-  breadcrumbPage: {
-    display: "block",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
   page: {
     display: "flex",
     flexDirection: "column",

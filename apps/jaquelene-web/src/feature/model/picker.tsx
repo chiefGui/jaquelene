@@ -582,14 +582,18 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                         {model.name}
                         {activeTab.type === "favorites" ? (
                           <FavoriteProviderIndicator provider={provider} />
-                        ) : (
-                          <span {...stylex.props(styles.modelAttribution)}>
-                            {" · "}
-                            {modelBrandName}
-                          </span>
-                        )}
+                        ) : null}
+                        {model.reasoning ? (
+                          <ReasoningIndicator required={model.reasoning.required} />
+                        ) : null}
                       </span>
                       <span {...stylex.props(styles.modelMetadata)}>
+                        {activeTab.type === "provider" ? (
+                          <>
+                            {modelBrandName}
+                            {" · "}
+                          </>
+                        ) : null}
                         {model.tokenPricing ? (
                           <>
                             Input {formatTokenPrice(model.tokenPricing.inputUsdPerMillion)}
@@ -599,12 +603,6 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                         ) : (
                           "Pricing varies"
                         )}
-                        {model.reasoning ? (
-                          <>
-                            {" · "}
-                            <ReasoningIndicator required={model.reasoning.required} />
-                          </>
-                        ) : null}
                       </span>
                     </span>
                   </span>
@@ -961,9 +959,6 @@ const styles = stylex.create({
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
-  modelAttribution: {
-    color: tokens.muted,
-  },
   favoriteProviderIndicator: {
     backgroundColor: `color-mix(in oklab, ${tokens.foreground} 6%, transparent)`,
     color: tokens.muted,
@@ -990,6 +985,7 @@ const styles = stylex.create({
     backgroundColor: `color-mix(in oklab, ${tokens.foreground} 6%, transparent)`,
     color: tokens.muted,
     height: "1.125rem",
+    marginLeft: "0.375rem",
     verticalAlign: "text-bottom",
     width: "1.125rem",
   },

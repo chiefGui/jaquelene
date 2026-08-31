@@ -1,7 +1,7 @@
 import type { Database } from "#backend/database/database";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import { createGenerations, type GenerationEngine, type Generations } from "./generations";
-import type { GenerationPromptCompiler } from "./prompt";
+import type { ReplyPreparer } from "./reply-preparation";
 import { superviseGenerations } from "./supervisor";
 
 type ReplyGenerations = Pick<
@@ -18,16 +18,16 @@ type GenerationSubsystem = Readonly<{
 
 type GenerationSubsystemOptions = Readonly<{
   database: Database;
-  promptCompiler: GenerationPromptCompiler;
+  replyPreparer: ReplyPreparer;
   providers: ProviderGenerationRouter;
 }>;
 
 export function createGenerationSubsystem({
   database,
-  promptCompiler,
+  replyPreparer,
   providers,
 }: GenerationSubsystemOptions): GenerationSubsystem {
-  const engine = createGenerations(database, promptCompiler, providers);
+  const engine = createGenerations(database, replyPreparer, providers);
   engine.recoverInterrupted();
   const supervised = superviseGenerations(engine);
 

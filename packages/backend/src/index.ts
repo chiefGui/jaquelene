@@ -6,12 +6,12 @@ export type {
 } from "#backend/resource-cache/resource-cache";
 export type { Campaign, Campaigns } from "#backend/campaign/campaigns";
 export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
+export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
 export {
   requireModelReference,
   requireModelSelection,
   type ApiKeyProviderConfiguration,
   type ApiKeyProviderConfigurationSnapshot,
-  type GenerationMessage,
   type GenerationUsage,
   type ModelReference,
   type ModelReasoningCapability,

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createGenerations } from "#backend/generation/generations";
-import { createTurnPromptCompiler } from "#backend/generation/prompt";
+import { createReplyPreparer } from "#backend/generation/reply-preparation";
 import { superviseGenerations } from "#backend/generation/supervisor";
 import { ids } from "#backend/id";
 import type {
@@ -37,7 +37,7 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
   const threads = createThreads(database, now);
   const generationEngine = createGenerations(
     database,
-    createTurnPromptCompiler(threads),
+    createReplyPreparer(threads),
     {
       get(providerId) {
         return providerId === "provider-a"

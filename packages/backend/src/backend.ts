@@ -2,7 +2,7 @@ import { Cause, Context, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { createCampaigns, type Campaigns } from "#backend/campaign/campaigns";
 import { DatabaseService, getDatabaseStoragePaths } from "#backend/database/database";
 import type { Generations } from "#backend/generation/generations";
-import { createTurnPromptCompiler } from "#backend/generation/prompt";
+import { createReplyPreparer } from "#backend/generation/reply-preparation";
 import { createGenerationSubsystem } from "#backend/generation/subsystem";
 import type { ProviderFactory } from "#backend/provider/provider";
 import { ProvidersService, type Models, type Providers } from "#backend/provider/providers";
@@ -81,7 +81,7 @@ function createBackendServiceLayer() {
           const threads = createThreads(database);
           const generationSubsystem = createGenerationSubsystem({
             database,
-            promptCompiler: createTurnPromptCompiler(threads),
+            replyPreparer: createReplyPreparer(threads),
             providers: providers.generations,
           });
           const turns = createTurns(database, threads, generationSubsystem.replies);

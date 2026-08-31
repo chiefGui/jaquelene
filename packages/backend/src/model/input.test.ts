@@ -4,7 +4,7 @@ import { requireModelInput, type ModelInput } from "./input";
 
 function validInput(): ModelInput {
   return {
-    instructions: [{ sourceKey: "test.system", content: "System instruction" }],
+    instructions: [{ sourceKey: "test.instruction", content: "Instruction" }],
     dialogue: [{ messageId: ids.message.create(), role: "user", content: "Hello" }],
   };
 }
@@ -26,7 +26,7 @@ describe("model input", () => {
     expect(() =>
       requireModelInput({
         ...input,
-        instructions: [{ sourceKey: " ", content: "System instruction" }],
+        instructions: [{ sourceKey: " ", content: "Instruction" }],
       }),
     ).toThrow("requires an instruction source key");
     expect(() =>

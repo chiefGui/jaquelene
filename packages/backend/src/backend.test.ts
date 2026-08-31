@@ -12,7 +12,7 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import { StorageCategory } from "#backend/storage/storage";
-import { factoryRoleplay } from "#backend/system-instruction/factory/roleplay";
+import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
 import {
   createThreads,
   THREAD_MESSAGE_CONTENT_MAX_LENGTH,
@@ -180,7 +180,7 @@ describe("backend", () => {
       },
     });
     const first = await createBackend(backendOptions(databasePath, [provider]));
-    expect(first.systemInstructions.listGroups()).toEqual(factoryRoleplay.listGroups());
+    expect(first.instructions.listGroups()).toEqual(factoryRoleplay.listGroups());
     const scenario = first.scenarios.create("Voyage");
     const campaign = first.campaigns.start(scenario.id);
     const submittedOperation = first.turns.submit({
@@ -199,7 +199,7 @@ describe("backend", () => {
     await firstClose;
 
     expect(() => first.scenarios.list()).toThrow("Backend is closed.");
-    expect(() => first.systemInstructions.listGroups()).toThrow("Backend is closed.");
+    expect(() => first.instructions.listGroups()).toThrow("Backend is closed.");
     await expect(first.storage.measureUsage()).rejects.toThrow("Backend is closed.");
     await expect(first.storage.deleteArea("content")).rejects.toThrow("Backend is closed.");
     await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(

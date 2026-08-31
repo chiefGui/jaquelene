@@ -1,17 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 import { ids } from "#backend/id";
 import { factoryRoleplay } from "./factory/roleplay";
-import {
-  createSystemInstructions,
-  resolveSystemInstruction,
-  type SystemInstructionSource,
-} from "./system-instructions";
+import { createInstructionRegistry, resolveInstruction, type InstructionSource } from "./registry";
 
-describe("system instructions", () => {
+describe("instruction registry", () => {
   it("lists the factory default instruction for inspection", () => {
-    const systemInstructions = createSystemInstructions([factoryRoleplay]);
+    const instructions = createInstructionRegistry([factoryRoleplay]);
 
-    expect(systemInstructions.listGroups()).toEqual([
+    expect(instructions.listGroups()).toEqual([
       {
         key: "roleplay",
         name: "Roleplay",
@@ -26,27 +22,27 @@ describe("system instructions", () => {
         ],
       },
     ]);
-    expect(systemInstructions.listGroups()[0]!.instructions[0]!.content.trim()).not.toBe("");
+    expect(instructions.listGroups()[0]!.instructions[0]!.content.trim()).not.toBe("");
   });
 
   it("returns owned listings", () => {
-    const systemInstructions = createSystemInstructions([factoryRoleplay]);
-    const first = systemInstructions.listGroups();
+    const instructions = createInstructionRegistry([factoryRoleplay]);
+    const first = instructions.listGroups();
 
     (first[0]!.instructions[0] as { name: string }).name = "Changed outside the catalog";
 
-    expect(systemInstructions.listGroups()[0]!.instructions[0]!.name).toBe("Default");
+    expect(instructions.listGroups()[0]!.instructions[0]!.name).toBe("Default");
   });
 
   it("applies the factory roleplay instruction only to campaigns", () => {
-    const systemInstructions = createSystemInstructions([factoryRoleplay]);
+    const instructions = createInstructionRegistry([factoryRoleplay]);
     const threadId = ids.thread.create();
 
-    expect(systemInstructions.resolve({ threadId, campaign: null })).toEqual([]);
-    const instruction = systemInstructions.listGroups()[0]!.instructions[0]!;
+    expect(instructions.resolve({ threadId, campaign: null })).toEqual([]);
+    const instruction = instructions.listGroups()[0]!.instructions[0]!;
 
     expect(
-      systemInstructions.resolve({
+      instructions.resolve({
         threadId,
         campaign: {
           id: ids.campaign.create(),
@@ -62,17 +58,17 @@ describe("system instructions", () => {
   });
 
   it("owns and preserves source order", () => {
-    const source = (key: string): SystemInstructionSource => ({
+    const source = (key: string): InstructionSource => ({
       listGroups: () => [],
       resolve: () => [{ key, name: key, content: `${key} content` }],
     });
     const sources = [source("global"), source("scenario")];
-    const systemInstructions = createSystemInstructions(sources);
+    const instructions = createInstructionRegistry(sources);
     sources.reverse();
     sources.push(source("campaign"));
 
     expect(
-      systemInstructions.resolve({
+      instructions.resolve({
         threadId: ids.thread.create(),
         campaign: null,
       }),
@@ -84,7 +80,7 @@ describe("system instructions", () => {
 
   it("resolves the reusable instruction primitive into model input", () => {
     expect(
-      resolveSystemInstruction({
+      resolveInstruction({
         key: "roleplay.custom",
         name: "Custom",
         content: "Custom roleplay behavior.",

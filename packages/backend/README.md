@@ -2,7 +2,7 @@
 
 `@jaquelene/backend` is Jaquelene's application composition and lifetime boundary.
 
-It owns SQLite, migrations, IDs, scenarios, campaigns, the code-owned system-instruction catalog, threads, durable turn submission and retry, reply preparation, generation state, active generation supervision, the provider registry, and storage measurement. Platform code supplies provider adapters and filesystem locations, then consumes the plain TypeScript facade returned by `createBackend`.
+It owns SQLite, migrations, IDs, scenarios, campaigns, the code-owned instruction catalog, threads, durable turn submission and retry, reply preparation, generation state, active generation supervision, the provider registry, and storage measurement. Platform code supplies provider adapters and filesystem locations, then consumes the plain TypeScript facade returned by `createBackend`.
 
 A provider adapter declares one stable identity and supplies configuration, model discovery, and generation capabilities. The provider subsystem validates and routes those capabilities, gives every network operation a cancellation signal, orders configuration changes, and derives provider-owned storage from the configuration capability. Disconnecting a provider stops and drains its active work before removing its credential. Adding a provider does not add another backend registry or storage manifest entry.
 

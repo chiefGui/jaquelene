@@ -57,11 +57,11 @@ export type {
   StorageUsage,
 } from "#backend/storage/storage";
 export type {
-  SystemInstruction,
-  SystemInstructionCatalogEntry,
-  SystemInstructionGroup,
-  SystemInstructions,
-} from "#backend/system-instruction/system-instructions";
+  CatalogInstruction,
+  Instruction,
+  InstructionCatalog,
+  InstructionGroup,
+} from "#backend/instruction/registry";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/threads";
 export type {

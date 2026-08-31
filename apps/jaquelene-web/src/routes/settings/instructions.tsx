@@ -1,21 +1,21 @@
-import { SystemInstructionOrigin, type SystemInstruction } from "@jaquelene/ipc/renderer";
+import { InstructionOrigin, type Instruction } from "@jaquelene/ipc/renderer";
 import { Badge, Item } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { systemInstructionGroupsQuery } from "@/feature/system-instruction/query";
+import { instructionGroupsQuery } from "@/feature/instruction/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/instructions")({
-  loader: ({ context }) => context.queryClient.query(systemInstructionGroupsQuery),
+  loader: ({ context }) => context.queryClient.query(instructionGroupsQuery),
   component: InstructionsRoute,
 });
 
-function FactoryInstruction({ instruction }: { instruction: SystemInstruction }) {
-  if (instruction.origin !== SystemInstructionOrigin.Factory) {
-    throw new Error(`Unknown system instruction origin "${instruction.origin}".`);
+function FactoryInstruction({ instruction }: { instruction: Instruction }) {
+  if (instruction.origin !== InstructionOrigin.Factory) {
+    throw new Error(`Unknown instruction origin "${instruction.origin}".`);
   }
 
   return (
@@ -31,7 +31,7 @@ function FactoryInstruction({ instruction }: { instruction: SystemInstruction })
 }
 
 function InstructionsRoute() {
-  const { data: groups } = useSuspenseQuery(systemInstructionGroupsQuery);
+  const { data: groups } = useSuspenseQuery(instructionGroupsQuery);
 
   return (
     <>
@@ -50,8 +50,8 @@ function InstructionsRoute() {
       <ContentPane.Viewport>
         <ContentPane.Body>
           {groups.map((group) => {
-            const headingId = `system-instruction-group-${group.key}`;
-            const descriptionId = `system-instruction-group-description-${group.key}`;
+            const headingId = `instruction-group-${group.key}`;
+            const descriptionId = `instruction-group-description-${group.key}`;
 
             return (
               <Item.Section

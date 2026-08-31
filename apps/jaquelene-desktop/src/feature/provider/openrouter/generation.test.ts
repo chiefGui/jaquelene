@@ -28,7 +28,7 @@ function generationRequest(): ProviderGenerationRequest {
     threadId: ids.thread.create(),
     modelId: "maker/requested-model",
     input: {
-      instructions: [{ sourceKey: "test.system", content: "System instruction" }],
+      instructions: [{ sourceKey: "test.instruction", content: "Instruction" }],
       dialogue: [
         { messageId: ids.message.create(), role: "user", content: "Earlier message" },
         { messageId: ids.message.create(), role: "assistant", content: "Earlier reply" },
@@ -69,7 +69,7 @@ describe("OpenRouter generation provider", () => {
       {
         model: request.modelId,
         messages: [
-          { role: "system", content: "System instruction" },
+          { role: "system", content: "Instruction" },
           { role: "user", content: "Earlier message" },
           { role: "assistant", content: "Earlier reply" },
           { role: "user", content: "Hello" },

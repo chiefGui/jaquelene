@@ -20,12 +20,12 @@ import {
   type StorageAreaId,
   type StorageCategory,
 } from "#backend/storage/storage";
-import { factoryRoleplay } from "#backend/system-instruction/factory/roleplay";
+import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
 import {
-  createSystemInstructions,
-  type SystemInstructionEngine,
-  type SystemInstructions,
-} from "#backend/system-instruction/system-instructions";
+  createInstructionRegistry,
+  type InstructionCatalog,
+  type InstructionRegistry,
+} from "#backend/instruction/registry";
 import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
 import { createTurns, type Turns } from "#backend/turn/turns";
 
@@ -47,7 +47,7 @@ export type BackendInspection = Readonly<{
 export type Backend = Readonly<{
   scenarios: Scenarios;
   campaigns: Campaigns;
-  systemInstructions: SystemInstructions;
+  instructions: InstructionCatalog;
   threads: Threads;
   turns: Turns;
   providers: Providers;
@@ -62,7 +62,7 @@ export type Backend = Readonly<{
 type BackendServices = Readonly<{
   scenarios: Scenarios;
   campaigns: CampaignEngine;
-  systemInstructions: SystemInstructionEngine;
+  instructions: InstructionRegistry;
   threads: ThreadEngine;
   turns: Turns;
   providers: Providers;
@@ -86,11 +86,11 @@ function createBackendServiceLayer() {
         Effect.sync(() => {
           const scenarios = createScenarios(database);
           const campaigns = createCampaigns(database);
-          const systemInstructions = createSystemInstructions([factoryRoleplay]);
+          const instructions = createInstructionRegistry([factoryRoleplay]);
           const threads = createThreads(database);
           const generationSubsystem = createGenerationSubsystem({
             database,
-            replyPreparer: createReplyPreparer(threads, campaigns, systemInstructions),
+            replyPreparer: createReplyPreparer(threads, campaigns, instructions),
             providers: providers.generations,
           });
           const turns = createTurns(database, threads, generationSubsystem.replies);
@@ -98,7 +98,7 @@ function createBackendServiceLayer() {
           return BackendService.of({
             scenarios,
             campaigns,
-            systemInstructions,
+            instructions,
             threads,
             turns,
             providers: providers.providers,
@@ -275,10 +275,10 @@ export async function createBackend(
         return services.campaigns.setModelOverride(id, model);
       },
     },
-    systemInstructions: {
+    instructions: {
       listGroups() {
         assertOpen();
-        return services.systemInstructions.listGroups();
+        return services.instructions.listGroups();
       },
     },
     threads: {

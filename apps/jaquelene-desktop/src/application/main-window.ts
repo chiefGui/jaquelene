@@ -1,9 +1,9 @@
 import type {
   Campaigns,
+  InstructionCatalog,
   Providers,
   Scenarios,
   Storage,
-  SystemInstructions,
   Turns,
 } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
@@ -21,7 +21,7 @@ import type { FavoriteModels } from "../feature/model/favorite-models";
 import { exposeFavoriteModels } from "../feature/model/favorite-models-ipc";
 import { exposeProviders } from "../feature/provider/ipc";
 import { exposeScenarios } from "../feature/scenario/ipc";
-import { exposeSystemInstructions } from "../feature/system-instruction/ipc";
+import { exposeInstructions } from "../feature/instruction/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
 import type { LocalState } from "../local-state";
 import type { Preferences } from "../preferences/preferences";
@@ -97,7 +97,7 @@ export function createMainWindowManager({
   localState,
   scenarios,
   campaigns,
-  systemInstructions,
+  instructions,
   turns,
   modelCatalog,
   favoriteModels,
@@ -110,7 +110,7 @@ export function createMainWindowManager({
   localState: LocalState;
   scenarios: Scenarios;
   campaigns: Campaigns;
-  systemInstructions: SystemInstructions;
+  instructions: InstructionCatalog;
   turns: Turns;
   modelCatalog: ModelCatalog;
   favoriteModels: FavoriteModels;
@@ -198,7 +198,7 @@ export function createMainWindowManager({
 
     try {
       exposeScenarios(browserWindow.webContents.mainFrame, scenarios);
-      exposeSystemInstructions(browserWindow.webContents.mainFrame, systemInstructions);
+      exposeInstructions(browserWindow.webContents.mainFrame, instructions);
       exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
       exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
       exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);

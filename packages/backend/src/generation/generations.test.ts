@@ -13,8 +13,8 @@ import type {
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import { createScenarios } from "#backend/scenario/scenarios";
-import { factoryRoleplay } from "#backend/system-instruction/factory/roleplay";
-import { createSystemInstructions } from "#backend/system-instruction/system-instructions";
+import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
+import { createInstructionRegistry } from "#backend/instruction/registry";
 import { threadMessageTable } from "#backend/thread/schema";
 import {
   createThreads,
@@ -61,10 +61,10 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   const campaigns = createCampaigns(database, now);
   const scenarios = createScenarios(database);
   const threads = createThreads(database, now);
-  const systemInstructions = createSystemInstructions([factoryRoleplay]);
+  const instructions = createInstructionRegistry([factoryRoleplay]);
   const generations = createGenerations(
     database,
-    createReplyPreparer(threads, campaigns, systemInstructions),
+    createReplyPreparer(threads, campaigns, instructions),
     generationRouter(provider),
     now,
   );
@@ -708,7 +708,7 @@ describe("generations", () => {
     const preparer = createReplyPreparer(
       threads,
       campaigns,
-      createSystemInstructions([factoryRoleplay]),
+      createInstructionRegistry([factoryRoleplay]),
     );
 
     const generations = createGenerations(database, preparer, generationRouter());

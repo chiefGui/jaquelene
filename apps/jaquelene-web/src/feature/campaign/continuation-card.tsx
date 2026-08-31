@@ -4,9 +4,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { campaignContinuationQuery } from "./query";
 
-const hoverBackground = `color-mix(in oklab, ${tokens.highlightForeground} 8%, ${tokens.highlightSurface})`;
-const focusColor = `color-mix(in oklab, ${tokens.highlightForeground} 60%, transparent)`;
-const labelColor = `color-mix(in oklab, ${tokens.highlightForeground} 72%, transparent)`;
+const focusColor = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
 
 export function CampaignContinuationCard() {
   const { data: continuation } = useSuspenseQuery(campaignContinuationQuery);
@@ -38,11 +36,11 @@ export function CampaignContinuationCard() {
 const styles = stylex.create({
   card: {
     backgroundColor: {
-      default: tokens.highlightSurface,
-      ":hover": hoverBackground,
+      default: tokens.surface,
+      ":hover": tokens.surfaceRaised,
     },
     borderRadius: tokens.radiusLarge,
-    color: tokens.highlightForeground,
+    color: tokens.foreground,
     display: "block",
     flexShrink: 0,
     marginBlockEnd: "0.75rem",
@@ -68,7 +66,7 @@ const styles = stylex.create({
     textAlign: "start",
   },
   eyebrow: {
-    color: labelColor,
+    color: tokens.muted,
     display: "block",
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,

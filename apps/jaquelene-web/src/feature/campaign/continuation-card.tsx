@@ -29,7 +29,7 @@ export function CampaignContinuationCard() {
       preload="intent"
       {...stylex.props(styles.card)}
     >
-      <span {...stylex.props(styles.eyebrow)}>Continue...</span>
+      <span {...stylex.props(styles.eyebrow)}>Continue last campaign</span>
       <span {...stylex.props(styles.title)}>{continuation.scenarioTitle}</span>
     </Link>
   );
@@ -77,7 +77,6 @@ const styles = stylex.create({
   title: {
     display: "block",
     fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.25rem",
     overflow: "hidden",

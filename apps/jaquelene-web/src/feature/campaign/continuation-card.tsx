@@ -4,7 +4,8 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { campaignContinuationQuery } from "./query";
 
-const hoverBackground = `color-mix(in oklab, ${tokens.accent} 8%, ${tokens.surfaceRaised})`;
+const background = `color-mix(in oklab, ${tokens.accent} 8%, transparent)`;
+const hoverBackground = `color-mix(in oklab, ${tokens.accent} 12%, transparent)`;
 const focusColor = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
 
 export function CampaignContinuationCard() {
@@ -28,7 +29,7 @@ export function CampaignContinuationCard() {
       preload="intent"
       {...stylex.props(styles.card)}
     >
-      <span {...stylex.props(styles.eyebrow)}>Continue campaign</span>
+      <span {...stylex.props(styles.eyebrow)}>Continue...</span>
       <span {...stylex.props(styles.title)}>{continuation.scenarioTitle}</span>
     </Link>
   );
@@ -37,13 +38,10 @@ export function CampaignContinuationCard() {
 const styles = stylex.create({
   card: {
     backgroundColor: {
-      default: tokens.surfaceRaised,
+      default: background,
       ":hover": hoverBackground,
     },
-    borderColor: tokens.surfaceRaisedBorder,
     borderRadius: tokens.radiusLarge,
-    borderStyle: "solid",
-    borderWidth: 1,
     color: tokens.foreground,
     display: "block",
     flexShrink: 0,
@@ -81,7 +79,7 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeSmall,
     fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
+    marginTop: "0.25rem",
     overflow: "hidden",
     textBox: "trim-both text",
     textOverflow: "ellipsis",

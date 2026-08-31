@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
 import { defineConfig } from "vite-plus";
+import { wgslVitePlugin } from "vgpu/client";
 import { createStylexPlugin } from "./stylex.config.ts";
 
 const appRoot = fileURLToPath(new URL(".", import.meta.url));
@@ -52,6 +53,7 @@ export default defineConfig({
   },
   plugins: [
     createStylexPlugin(),
+    wgslVitePlugin({ minify: true }),
     ipcTestConditionPlugin,
     contentSecurityPolicyPlugin,
     tanstackRouter({

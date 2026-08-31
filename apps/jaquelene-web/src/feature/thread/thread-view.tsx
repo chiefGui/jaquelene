@@ -22,7 +22,7 @@ import {
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { Composer } from "@/primitive/composer";
+import { Composer } from "@/feature/composer/composer";
 import {
   threadMessagesQuery,
   useIsTurnOperationPending,
@@ -378,7 +378,7 @@ const ThreadComposer = memo(function ThreadComposer({
 
   return (
     <div ref={composerShell} {...stylex.props(styles.composerShell)}>
-      <Composer onSubmit={sendMessage}>
+      <Composer pending={operationPending} onSubmit={sendMessage}>
         <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
         <Composer.Input
           id={composerInputId}
@@ -401,7 +401,10 @@ const ThreadComposer = memo(function ThreadComposer({
               </Composer.Status>
             ) : null}
           </Composer.Controls>
-          <Composer.Submit disabled={submissionBlocked || !model || !draft.trim()} />
+          <Composer.Submit
+            pending={operationPending}
+            disabled={modelPending || !model || !draft.trim()}
+          />
         </Composer.Footer>
       </Composer>
     </div>

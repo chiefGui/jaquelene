@@ -12,7 +12,7 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import { StorageCategory } from "#backend/storage/storage";
-import { factoryDefaultRoleplaySystemInstruction } from "#backend/system-instruction/system-instructions";
+import { factoryRoleplay } from "#backend/system-instruction/factory/roleplay";
 import {
   createThreads,
   THREAD_MESSAGE_CONTENT_MAX_LENGTH,
@@ -180,14 +180,7 @@ describe("backend", () => {
       },
     });
     const first = await createBackend(backendOptions(databasePath, [provider]));
-    expect(first.systemInstructions.listGroups()).toEqual([
-      {
-        key: "roleplay",
-        name: "Roleplay",
-        description: "Instructions that guide how the AI behaves during roleplay.",
-        instructions: [factoryDefaultRoleplaySystemInstruction],
-      },
-    ]);
+    expect(first.systemInstructions.listGroups()).toEqual(factoryRoleplay.listGroups());
     const scenario = first.scenarios.create("Voyage");
     const campaign = first.campaigns.start(scenario.id);
     const submittedOperation = first.turns.submit({

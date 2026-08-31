@@ -12,6 +12,8 @@ import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
+import { factoryRoleplay } from "#backend/system-instruction/factory/roleplay";
+import { createSystemInstructions } from "#backend/system-instruction/system-instructions";
 import {
   createThreads,
   THREAD_MESSAGE_CONTENT_MAX_LENGTH,
@@ -37,9 +39,10 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
   const database = openDatabase(createDatabasePath());
   const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
+  const systemInstructions = createSystemInstructions([factoryRoleplay]);
   const generationEngine = createGenerations(
     database,
-    createReplyPreparer(threads, campaigns),
+    createReplyPreparer(threads, campaigns, systemInstructions),
     {
       get(providerId) {
         return providerId === "provider-a"

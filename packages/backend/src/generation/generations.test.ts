@@ -13,7 +13,8 @@ import type {
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import { createScenarios } from "#backend/scenario/scenarios";
-import { factoryDefaultRoleplaySystemInstruction } from "#backend/system-instruction/system-instructions";
+import { factoryRoleplay } from "#backend/system-instruction/factory/roleplay";
+import { createSystemInstructions } from "#backend/system-instruction/system-instructions";
 import { threadMessageTable } from "#backend/thread/schema";
 import {
   createThreads,
@@ -60,9 +61,10 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   const campaigns = createCampaigns(database, now);
   const scenarios = createScenarios(database);
   const threads = createThreads(database, now);
+  const systemInstructions = createSystemInstructions([factoryRoleplay]);
   const generations = createGenerations(
     database,
-    createReplyPreparer(threads, campaigns),
+    createReplyPreparer(threads, campaigns, systemInstructions),
     generationRouter(provider),
     now,
   );
@@ -159,7 +161,7 @@ describe("generations", () => {
     });
   });
 
-  it("includes the factory narrator instruction for campaign replies", async () => {
+  it("includes the factory default roleplay instruction for campaign replies", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { campaigns, generations, scenarios, threads } = openGenerationEnvironment(provider);
     const scenario = scenarios.create("The Long Night");
@@ -171,6 +173,8 @@ describe("generations", () => {
       model: { providerId: provider.id, modelId: "maker/model" },
     });
 
+    const defaultRoleplay = factoryRoleplay.listGroups()[0]!.instructions[0]!;
+
     expect(provider.generate).toHaveBeenCalledWith({
       generationId: expect.stringMatching(/^generation_/),
       threadId: campaign.threadId,
@@ -178,8 +182,8 @@ describe("generations", () => {
       input: {
         instructions: [
           {
-            sourceKey: factoryDefaultRoleplaySystemInstruction.key,
-            content: factoryDefaultRoleplaySystemInstruction.content,
+            sourceKey: defaultRoleplay.key,
+            content: defaultRoleplay.content,
           },
         ],
         dialogue: [{ messageId: started.message.id, role: "user", content: "Begin" }],
@@ -701,7 +705,11 @@ describe("generations", () => {
     const { campaigns, database, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
-    const preparer = createReplyPreparer(threads, campaigns);
+    const preparer = createReplyPreparer(
+      threads,
+      campaigns,
+      createSystemInstructions([factoryRoleplay]),
+    );
 
     const generations = createGenerations(database, preparer, generationRouter());
     await expect(

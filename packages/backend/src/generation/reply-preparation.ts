@@ -1,10 +1,7 @@
 import type { CampaignEngine } from "#backend/campaign/campaigns";
 import type { MessageId, ThreadId, TurnId } from "#backend/id";
 import { requireModelInput, type ModelInput } from "#backend/model/input";
-import {
-  factoryDefaultRoleplaySystemInstruction,
-  resolveSystemInstruction,
-} from "#backend/system-instruction/system-instructions";
+import type { SystemInstructionEngine } from "#backend/system-instruction/system-instructions";
 import type { ThreadEngine } from "#backend/thread/threads";
 
 export type ReplyAnchor = Readonly<{
@@ -31,6 +28,7 @@ export function requireReplyInput(prepared: ModelInput, anchor: ReplyAnchor): Mo
 export function createReplyPreparer(
   threads: Pick<ThreadEngine, "getTurnContext">,
   campaigns: Pick<CampaignEngine, "getContextForThread">,
+  systemInstructions: Pick<SystemInstructionEngine, "resolve">,
 ): ReplyPreparer {
   return {
     prepare(anchor) {
@@ -46,9 +44,10 @@ export function createReplyPreparer(
       const campaign = campaigns.getContextForThread(anchor.threadId);
 
       return {
-        instructions: campaign
-          ? [resolveSystemInstruction(factoryDefaultRoleplaySystemInstruction)]
-          : [],
+        instructions: systemInstructions.resolve({
+          threadId: anchor.threadId,
+          campaign,
+        }),
         dialogue: context.messages.map(({ id: messageId, author: role, content }) => ({
           messageId,
           role,

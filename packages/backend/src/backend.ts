@@ -20,8 +20,10 @@ import {
   type StorageAreaId,
   type StorageCategory,
 } from "#backend/storage/storage";
+import { factoryRoleplay } from "#backend/system-instruction/factory/roleplay";
 import {
   createSystemInstructions,
+  type SystemInstructionEngine,
   type SystemInstructions,
 } from "#backend/system-instruction/system-instructions";
 import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
@@ -60,7 +62,7 @@ export type Backend = Readonly<{
 type BackendServices = Readonly<{
   scenarios: Scenarios;
   campaigns: CampaignEngine;
-  systemInstructions: SystemInstructions;
+  systemInstructions: SystemInstructionEngine;
   threads: ThreadEngine;
   turns: Turns;
   providers: Providers;
@@ -84,11 +86,11 @@ function createBackendServiceLayer() {
         Effect.sync(() => {
           const scenarios = createScenarios(database);
           const campaigns = createCampaigns(database);
-          const systemInstructions = createSystemInstructions();
+          const systemInstructions = createSystemInstructions([factoryRoleplay]);
           const threads = createThreads(database);
           const generationSubsystem = createGenerationSubsystem({
             database,
-            replyPreparer: createReplyPreparer(threads, campaigns),
+            replyPreparer: createReplyPreparer(threads, campaigns, systemInstructions),
             providers: providers.generations,
           });
           const turns = createTurns(database, threads, generationSubsystem.replies);

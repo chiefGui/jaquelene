@@ -1,3 +1,4 @@
+import type { CampaignId, ScenarioId, ThreadId } from "#backend/id";
 import type { ResolvedInstruction } from "#backend/model/input";
 
 export type SystemInstruction = Readonly<{
@@ -18,18 +19,30 @@ export type SystemInstructionGroup = Readonly<{
   instructions: readonly SystemInstructionCatalogEntry[];
 }>;
 
-export const factoryDefaultRoleplaySystemInstruction = Object.freeze({
-  key: "factory.roleplay.default",
-  name: "Default",
-  content:
-    "You are the narrator of an interactive roleplay. Use the provided context to portray the world and its characters, maintain continuity, and continue the story through narration and dialogue.",
-  origin: "factory" as const,
-}) satisfies SystemInstructionCatalogEntry;
+export type SystemInstructionContext = Readonly<{
+  threadId: ThreadId;
+  campaign: Readonly<{
+    id: CampaignId;
+    scenarioId: ScenarioId;
+  }> | null;
+}>;
+
+export type SystemInstructionContribution = Readonly<{
+  listGroups: () => readonly SystemInstructionGroup[];
+  resolve: (context: SystemInstructionContext) => readonly SystemInstruction[];
+}>;
 
 function copyInstruction(
   instruction: SystemInstructionCatalogEntry,
 ): SystemInstructionCatalogEntry {
   return { ...instruction };
+}
+
+function copyGroup(group: SystemInstructionGroup): SystemInstructionGroup {
+  return {
+    ...group,
+    instructions: group.instructions.map(copyInstruction),
+  };
 }
 
 export function resolveSystemInstruction(instruction: SystemInstruction): ResolvedInstruction {
@@ -39,19 +52,19 @@ export function resolveSystemInstruction(instruction: SystemInstruction): Resolv
   };
 }
 
-export function createSystemInstructions() {
+export function createSystemInstructions(contributions: readonly SystemInstructionContribution[]) {
   return {
     listGroups(): readonly SystemInstructionGroup[] {
-      return [
-        {
-          key: "roleplay",
-          name: "Roleplay",
-          description: "Instructions that guide how the AI behaves during roleplay.",
-          instructions: [copyInstruction(factoryDefaultRoleplaySystemInstruction)],
-        },
-      ];
+      return contributions.flatMap((contribution) => contribution.listGroups().map(copyGroup));
+    },
+
+    resolve(context: SystemInstructionContext): readonly ResolvedInstruction[] {
+      return contributions.flatMap((contribution) =>
+        contribution.resolve(context).map(resolveSystemInstruction),
+      );
     },
   };
 }
 
-export type SystemInstructions = ReturnType<typeof createSystemInstructions>;
+export type SystemInstructionEngine = ReturnType<typeof createSystemInstructions>;
+export type SystemInstructions = Pick<SystemInstructionEngine, "listGroups">;

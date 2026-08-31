@@ -579,7 +579,9 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                     />
                     <div {...stylex.props(styles.modelText)}>
                       <div {...stylex.props(styles.modelTitle)}>
-                        <span {...stylex.props(styles.modelName, selected && styles.selectedModel)}>
+                        <span
+                          {...stylex.props(styles.modelName, selected && styles.selectedModelName)}
+                        >
                           {model.name}
                         </span>
                         {activeTab.type === "favorites" || model.reasoning ? (
@@ -825,7 +827,7 @@ export const ModelPicker = {
 } as const;
 
 const activeBackground = `color-mix(in oklab, ${tokens.accent} 10%, transparent)`;
-const activeModelName = `color-mix(in oklab, ${tokens.foreground} 70%, white)`;
+const activeModelName = "white";
 const focusOutline = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
 
 const styles = stylex.create({
@@ -949,6 +951,14 @@ const styles = stylex.create({
   },
   selectedModel: {
     color: tokens.foreground,
+  },
+  selectedModelName: {
+    color: {
+      default: tokens.foreground,
+      [stylex.when.ancestor(":focus-within")]: activeModelName,
+      [stylex.when.ancestor(":hover")]: activeModelName,
+      [stylex.when.ancestor("[data-active-item]")]: activeModelName,
+    },
   },
   modelText: {
     flex: 1,

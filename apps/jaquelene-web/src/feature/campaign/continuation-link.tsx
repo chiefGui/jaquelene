@@ -5,8 +5,9 @@ import { Link, useMatchRoute } from "@tanstack/react-router";
 import { campaignContinuationQuery } from "./query";
 
 const focusColor = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
+const hoverBackground = `color-mix(in oklab, ${tokens.accent} 10%, transparent)`;
 
-export function CampaignContinuationCard() {
+export function CampaignContinuationLink() {
   const { data: continuation } = useSuspenseQuery(campaignContinuationQuery);
   const matchRoute = useMatchRoute();
 
@@ -25,25 +26,25 @@ export function CampaignContinuationCard() {
       to="/campaigns/$campaignId"
       params={{ campaignId: continuation.campaignId }}
       preload="intent"
-      {...stylex.props(styles.card)}
+      {...stylex.props(styles.link)}
     >
-      <span {...stylex.props(styles.eyebrow)}>Continue last campaign</span>
+      <span {...stylex.props(styles.prompt)}>Continue last campaign</span>
       <span {...stylex.props(styles.title)}>{continuation.scenarioTitle}</span>
     </Link>
   );
 }
 
 const styles = stylex.create({
-  card: {
+  link: {
     backgroundColor: {
-      default: tokens.surface,
-      ":hover": tokens.surfaceRaised,
+      default: "transparent",
+      ":hover": hoverBackground,
     },
-    borderRadius: tokens.radiusLarge,
+    borderRadius: tokens.radiusMedium,
     color: tokens.foreground,
     display: "block",
     flexShrink: 0,
-    marginBlockEnd: "0.75rem",
+    marginBlockEnd: "0.5rem",
     marginInline: "0.5rem",
     minWidth: 0,
     outlineColor: {
@@ -62,10 +63,11 @@ const styles = stylex.create({
       default: null,
       ":focus-visible": 1,
     },
-    padding: "0.75rem",
+    paddingBlock: "0.625rem",
+    paddingInline: "0.5rem",
     textAlign: "start",
   },
-  eyebrow: {
+  prompt: {
     color: tokens.muted,
     display: "block",
     fontSize: tokens.fontSizeXSmall,

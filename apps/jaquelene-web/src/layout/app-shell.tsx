@@ -6,7 +6,7 @@ import { Outlet, useMatches } from "@tanstack/react-router";
 import { useApplyUiFont } from "@/feature/appearance/user-interface/font";
 import { motionPreferences } from "@/feature/appearance/user-interface/motion";
 import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
-import { CampaignContinuationCard } from "@/feature/campaign/continuation-card";
+import { CampaignContinuationLink } from "@/feature/campaign/continuation-link";
 import { ContentPane } from "./content-pane";
 import { SecondarySidebarHost, SecondarySidebarHostProvider } from "./secondary-sidebar-host";
 import { StatusBar } from "./status-bar";
@@ -27,7 +27,7 @@ export function AppShell() {
     <MotionProvider mode={motionPreferences[preferences.motion].mode}>
       <SecondarySidebarHostProvider>
         <div {...stylex.props(styles.root)}>
-          <Sidebar lead={<CampaignContinuationCard />} />
+          <Sidebar lead={<CampaignContinuationLink />} />
           <div {...stylex.props(styles.workspace)}>
             <ContentPane.Root>
               <Outlet />

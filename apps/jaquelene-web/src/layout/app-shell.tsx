@@ -7,6 +7,7 @@ import { useApplyUiFont } from "@/feature/appearance/user-interface/font";
 import { motionPreferences } from "@/feature/appearance/user-interface/motion";
 import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
 import { ContentPane } from "./content-pane";
+import { SecondarySidebarHost, SecondarySidebarHostProvider } from "./secondary-sidebar-host";
 import { StatusBar } from "./status-bar";
 
 export function AppShell() {
@@ -23,13 +24,18 @@ export function AppShell() {
 
   return (
     <MotionProvider mode={motionPreferences[preferences.motion].mode}>
-      <div {...stylex.props(styles.root)}>
-        <Sidebar />
-        <ContentPane.Root>
-          <Outlet />
-        </ContentPane.Root>
-        <StatusBar />
-      </div>
+      <SecondarySidebarHostProvider>
+        <div {...stylex.props(styles.root)}>
+          <Sidebar />
+          <div {...stylex.props(styles.workspace)}>
+            <ContentPane.Root>
+              <Outlet />
+            </ContentPane.Root>
+            <SecondarySidebarHost />
+          </div>
+          <StatusBar />
+        </div>
+      </SecondarySidebarHostProvider>
     </MotionProvider>
   );
 }
@@ -46,5 +52,14 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightSmall,
     minHeight: 0,
     overflow: "hidden",
+  },
+  workspace: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
+    gridTemplateRows: "minmax(0, 1fr)",
+    marginRight: "0.5rem",
+    marginTop: "0.5rem",
+    minHeight: 0,
+    minWidth: 0,
   },
 });

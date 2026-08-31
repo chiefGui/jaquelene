@@ -2,6 +2,7 @@ import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
+import { paneSurface } from "./pane-surface.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -12,7 +13,13 @@ function ContentPaneRoot({
   style,
   ...props
 }: StyleableProps<ComponentProps<"main">>) {
-  return <main {...props} aria-label={ariaLabel} {...stylex.props(styles.root, style)} />;
+  return (
+    <main
+      {...props}
+      aria-label={ariaLabel}
+      {...stylex.props(paneSurface.root, styles.root, style)}
+    />
+  );
 }
 
 function ContentPaneHeader({ style, ...props }: StyleableProps<ComponentProps<"header">>) {
@@ -36,18 +43,8 @@ export const ContentPane = {
 
 const styles = stylex.create({
   root: {
-    backgroundColor: tokens.surface,
-    borderColor: tokens.border,
-    borderRadius: tokens.radiusXLarge,
-    borderStyle: "solid",
-    borderWidth: 1,
     display: "flex",
     flexDirection: "column",
-    marginRight: "0.5rem",
-    marginTop: "0.5rem",
-    minHeight: 0,
-    minWidth: 0,
-    overflow: "hidden",
   },
   header: {
     alignItems: "center",

@@ -15,6 +15,7 @@ import { Route as SettingsRouteRouteImport } from "./routes/settings/route";
 import { Route as CampaignsCampaignIdRouteImport } from "./routes/campaigns/$campaignId";
 import { Route as ScenariosIndexRouteImport } from "./routes/scenarios/index";
 import { Route as ScenariosScenarioIdRouteImport } from "./routes/scenarios/$scenarioId";
+import { Route as ScenariosNewRouteImport } from "./routes/scenarios/new";
 import { Route as SettingsAdvancedRouteImport } from "./routes/settings/advanced";
 import { Route as SettingsAppearanceRouteImport } from "./routes/settings/appearance";
 import { Route as SettingsGeneralRouteImport } from "./routes/settings/general";
@@ -51,6 +52,11 @@ const ScenariosScenarioIdRoute = ScenariosScenarioIdRouteImport.update({
   path: "/$scenarioId",
   getParentRoute: () => ScenariosRouteRoute,
 } as any);
+const ScenariosNewRoute = ScenariosNewRouteImport.update({
+  id: "/new",
+  path: "/new",
+  getParentRoute: () => ScenariosRouteRoute,
+} as any);
 const SettingsAdvancedRoute = SettingsAdvancedRouteImport.update({
   id: "/advanced",
   path: "/advanced",
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
+  "/scenarios/new": typeof ScenariosNewRoute;
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
+  "/scenarios/new": typeof ScenariosNewRoute;
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
+  "/scenarios/new": typeof ScenariosNewRoute;
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | "/settings"
     | "/campaigns/$campaignId"
     | "/scenarios/$scenarioId"
+    | "/scenarios/new"
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | "/settings"
     | "/campaigns/$campaignId"
     | "/scenarios/$scenarioId"
+    | "/scenarios/new"
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | "/settings"
     | "/campaigns/$campaignId"
     | "/scenarios/$scenarioId"
+    | "/scenarios/new"
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
@@ -208,6 +220,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ScenariosScenarioIdRouteImport;
       parentRoute: typeof ScenariosRouteRoute;
     };
+    "/scenarios/new": {
+      id: "/scenarios/new";
+      path: "/new";
+      fullPath: "/scenarios/new";
+      preLoaderRoute: typeof ScenariosNewRouteImport;
+      parentRoute: typeof ScenariosRouteRoute;
+    };
     "/settings/advanced": {
       id: "/settings/advanced";
       path: "/advanced";
@@ -248,11 +267,13 @@ declare module "@tanstack/react-router" {
 
 interface ScenariosRouteRouteChildren {
   ScenariosScenarioIdRoute: typeof ScenariosScenarioIdRoute;
+  ScenariosNewRoute: typeof ScenariosNewRoute;
   ScenariosIndexRoute: typeof ScenariosIndexRoute;
 }
 
 const ScenariosRouteRouteChildren: ScenariosRouteRouteChildren = {
   ScenariosScenarioIdRoute: ScenariosScenarioIdRoute,
+  ScenariosNewRoute: ScenariosNewRoute,
   ScenariosIndexRoute: ScenariosIndexRoute,
 };
 

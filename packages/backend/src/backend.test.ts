@@ -7,6 +7,7 @@ import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
 import type {
   ProviderAdapter,
+  ProviderFactory,
   ProviderGenerationAdapter,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
@@ -32,7 +33,19 @@ function backendOptions(
 ): BackendOptions {
   return {
     databasePath,
-    providers,
+    cache: {
+      path: join(databasePath, "..", "jaquelene-cache.sqlite"),
+      reportFailure: () => undefined,
+    },
+    providers: providers.map(
+      (provider) =>
+        ({
+          id: provider.descriptor.id,
+          storagePaths:
+            provider.configuration.kind === "api-key" ? provider.configuration.storagePaths : [],
+          create: () => provider,
+        }) satisfies ProviderFactory,
+    ),
     storageAreas: [],
   };
 }
@@ -61,6 +74,103 @@ afterEach(() => {
 });
 
 describe("backend", () => {
+  it("rejects cache storage that overlaps authoritative content before opening it", async () => {
+    const databasePath = createDatabasePath();
+    const options = backendOptions(databasePath);
+
+    await expect(
+      createBackend({ ...options, cache: { ...options.cache, path: databasePath } }),
+    ).rejects.toThrow(`Storage path "${databasePath}" is registered more than once.`);
+    expect(existsSync(databasePath)).toBe(false);
+  });
+
+  it("serves a persisted model catalog without repeating the remote request after restart", async () => {
+    const databasePath = createDatabasePath();
+    const firstList = vi.fn(async () => [
+      {
+        id: "maker/model",
+        name: "Model",
+        brandId: "maker",
+        reasoning: { required: true },
+      },
+    ]);
+    const first = await createBackend(
+      backendOptions(databasePath, [
+        {
+          ...providerAdapter("provider-a"),
+          models: { list: firstList },
+        },
+      ]),
+    );
+
+    await expect(first.models.getModels("provider-a")).resolves.toMatchObject({
+      models: [
+        {
+          id: "maker/model",
+          name: "Model",
+          brandId: "maker",
+          reasoning: { required: true },
+        },
+      ],
+      freshness: "fresh",
+    });
+    expect(firstList).toHaveBeenCalledOnce();
+    await first.close();
+
+    const secondList = vi.fn(async () => {
+      throw new Error("The remote catalog should not be requested while the snapshot is fresh.");
+    });
+    const reopened = await createBackend(
+      backendOptions(databasePath, [
+        {
+          ...providerAdapter("provider-a"),
+          models: { list: secondList },
+        },
+      ]),
+    );
+
+    await expect(reopened.models.getModels("provider-a")).resolves.toMatchObject({
+      models: [
+        {
+          id: "maker/model",
+          name: "Model",
+          brandId: "maker",
+          reasoning: { required: true },
+        },
+      ],
+      freshness: "fresh",
+    });
+    expect(secondList).not.toHaveBeenCalled();
+    await reopened.close();
+  });
+
+  it("clears derived snapshots through the cache storage owner", async () => {
+    const databasePath = createDatabasePath();
+    const list = vi.fn(async () => [{ id: "maker/model", name: "Model", brandId: "maker" }]);
+    const backend = await createBackend(
+      backendOptions(databasePath, [
+        {
+          ...providerAdapter("provider-a"),
+          models: { list },
+        },
+      ]),
+    );
+    const changes: number[] = [];
+    const unsubscribe = backend.models.subscribe((_providerId, revision) => {
+      changes.push(revision);
+    });
+
+    await backend.models.getModels("provider-a");
+    expect(list).toHaveBeenCalledOnce();
+    const changesBeforeClear = changes.length;
+    await backend.storage.deleteCategory(StorageCategory.Cache);
+    expect(changes).toHaveLength(changesBeforeClear + 1);
+    await backend.models.getModels("provider-a");
+    expect(list).toHaveBeenCalledTimes(2);
+    unsubscribe();
+    await backend.close();
+  });
+
   it("owns durable application services across close and reopen", async () => {
     const databasePath = createDatabasePath();
     const provider = providerAdapter("provider-a", {
@@ -71,11 +181,16 @@ describe("backend", () => {
     const first = await createBackend(backendOptions(databasePath, [provider]));
     const scenario = first.scenarios.create("Voyage");
     const campaign = first.campaigns.start(scenario.id);
-    const submitted = await first.turns.submit({
+    const submittedOperation = first.turns.submit({
       threadId: campaign.threadId,
       content: "Begin",
       model: { providerId: provider.descriptor.id, modelId: "maker/model" },
     });
+    const submitted = await submittedOperation.settlement;
+
+    if (submitted.outcome !== "completed") {
+      throw new Error("Expected the submitted reply to complete.");
+    }
 
     const firstClose = first.close();
     expect(first.close()).toBe(firstClose);
@@ -83,16 +198,17 @@ describe("backend", () => {
 
     expect(() => first.scenarios.list()).toThrow("Backend is closed.");
     await expect(first.storage.measureUsage()).rejects.toThrow("Backend is closed.");
+    await expect(first.storage.deleteArea("content")).rejects.toThrow("Backend is closed.");
     await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(
       "Backend is closed.",
     );
-    await expect(
+    expect(() =>
       first.turns.submit({
         threadId: campaign.threadId,
         content: "Continue",
         model: { providerId: provider.descriptor.id, modelId: "maker/model" },
       }),
-    ).rejects.toThrow("Backend is closed.");
+    ).toThrow("Backend is closed.");
 
     const reopened = await createBackend(backendOptions(databasePath));
 
@@ -107,6 +223,81 @@ describe("backend", () => {
     await reopened.close();
   });
 
+  it("closes provider adapters in reverse acquisition order", async () => {
+    const databasePath = createDatabasePath();
+    const closed: string[] = [];
+    const first = {
+      ...providerAdapter("provider-a"),
+      async [Symbol.asyncDispose]() {
+        closed.push("provider-a");
+      },
+    };
+    const second = {
+      ...providerAdapter("provider-b"),
+      async [Symbol.asyncDispose]() {
+        closed.push("provider-b");
+      },
+    };
+    const backend = await createBackend(backendOptions(databasePath, [first, second]));
+
+    await backend.close();
+
+    expect(closed).toEqual(["provider-b", "provider-a"]);
+    expect(backend.inspect()).toEqual({ state: "closed" });
+  });
+
+  it("keeps a finalization failure inspectable after closing", async () => {
+    const closeFailure = new Error("Provider close failed.");
+    const provider = {
+      ...providerAdapter("provider-a"),
+      async [Symbol.asyncDispose]() {
+        throw closeFailure;
+      },
+    };
+    const backend = await createBackend(backendOptions(createDatabasePath(), [provider]));
+
+    await expect(backend.close()).rejects.toBe(closeFailure);
+    expect(backend.inspect()).toEqual({
+      state: "closed",
+      terminalFailure: closeFailure,
+    });
+  });
+
+  it("disposes a provider produced after backend startup was cancelled", async () => {
+    const databasePath = createDatabasePath();
+    const adapter = deferred<ProviderAdapter>();
+    const dispose = vi.fn(async () => undefined);
+    const controller = new AbortController();
+    let factorySignal: AbortSignal | undefined;
+    const options = backendOptions(databasePath);
+    const creating = createBackend(
+      {
+        ...options,
+        providers: [
+          {
+            id: "provider-a",
+            storagePaths: [],
+            create(signal) {
+              factorySignal = signal;
+              return adapter.promise;
+            },
+          },
+        ],
+      },
+      controller.signal,
+    );
+    const rejected = expect(creating).rejects.toThrow("Startup left.");
+    await vi.waitFor(() => expect(factorySignal).toBeInstanceOf(AbortSignal));
+
+    controller.abort(new Error("Startup left."));
+    await rejected;
+    adapter.resolve({
+      ...providerAdapter("provider-a"),
+      [Symbol.asyncDispose]: dispose,
+    });
+    await vi.waitFor(() => expect(dispose).toHaveBeenCalledOnce());
+  });
+
   it("includes provider-owned configuration in application storage", async () => {
     const databasePath = createDatabasePath();
     const configurationPath = join(databasePath, "..", "provider-a.json");
@@ -118,7 +309,11 @@ describe("backend", () => {
         kind: "api-key" as const,
         inspect: () =>
           configured
-            ? ({ state: "configured" as const, keyLabel: "key...123" } as const)
+            ? ({
+                state: "configured" as const,
+                revision: "configuration-1",
+                keyLabel: "key...123",
+              } as const)
             : ({ state: "unconfigured" as const } as const),
         async configure() {
           configured = true;
@@ -135,10 +330,16 @@ describe("backend", () => {
 
     await expect(backend.storage.measureUsage()).resolves.toEqual(
       expect.objectContaining({
-        categories: expect.arrayContaining([{ id: StorageCategory.AppData, bytes: 47 }]),
+        areas: expect.arrayContaining([
+          {
+            id: "provider:provider-a",
+            category: StorageCategory.AppData,
+            bytes: 47,
+          },
+        ]),
       }),
     );
-    await backend.storage.deleteCategory(StorageCategory.AppData);
+    await backend.storage.deleteArea("provider:provider-a");
     expect(existsSync(configurationPath)).toBe(false);
     expect(backend.providers.inspectConfiguration(provider.descriptor.id)).toEqual({
       kind: "api-key",
@@ -169,20 +370,24 @@ describe("backend", () => {
 
     const closing = backend.close();
 
-    const interrupted = await pending;
+    const interrupted = await pending.settlement;
     await closing;
+
+    if (interrupted.outcome !== "failed") {
+      throw new Error("Expected the active reply to be interrupted.");
+    }
+
     expect(providerSignal?.aborted).toBe(true);
     expect(interrupted.generation).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
     );
-    expect(interrupted.assistantMessage).toBeNull();
 
     const database = openDatabase(databasePath);
 
     try {
       expect(database.select().from(generationTable).get()).toEqual(
         expect.objectContaining({
-          turnId: interrupted.turn.id,
+          turnId: interrupted.userMessage.turnId,
           status: "failed",
           failureKind: "interrupted",
         }),
@@ -205,7 +410,7 @@ describe("backend", () => {
     });
 
     const closing = backend.close();
-    const interrupted = await pending;
+    const interrupted = await pending.settlement;
     await closing;
 
     expect(generate).not.toHaveBeenCalled();

@@ -28,6 +28,11 @@
     font-weight: inherit;
   }
 
+  a,
+  img {
+    -webkit-user-drag: none;
+  }
+
   a {
     color: inherit;
     text-decoration: inherit;

@@ -38,6 +38,7 @@ describe("preferences storage", () => {
     preferences.appearance.userInterface.setScale(InterfaceScale.Percent125);
     preferences.appearance.userInterface.setMotion(MotionPreference.Full);
     preferences.campaign.setDefaultModel(defaultCampaignModel);
+    preferences.diagnostics.setWriteToDisk(false);
 
     const restored = createPreferences(directory);
     expect(restored.appearance.userInterface.get()).toEqual({
@@ -46,6 +47,7 @@ describe("preferences storage", () => {
       motion: MotionPreference.Full,
     });
     expect(restored.campaign.getDefaultModel()).toEqual(defaultCampaignModel);
+    expect(restored.diagnostics.get()).toEqual({ writeToDisk: false });
   });
 
   it("clears a default model without its display snapshot", () => {
@@ -71,6 +73,7 @@ describe("preferences storage", () => {
       name: "Model A",
       brandId: "brand-a",
     });
+    preferences.diagnostics.setWriteToDisk(false);
     listener.mockClear();
 
     preferences.deleteAll();
@@ -81,6 +84,7 @@ describe("preferences storage", () => {
       motion: MotionPreference.System,
     });
     expect(preferences.campaign.getDefaultModel()).toBeNull();
+    expect(preferences.diagnostics.get()).toEqual({ writeToDisk: true });
     expect(listener).toHaveBeenCalledOnce();
     expect(listener).toHaveBeenCalledWith({
       font: UiFont.Inter,

@@ -15,6 +15,11 @@ type OpenRouterCatalogModel = {
     completion: string;
     discount?: number | undefined;
   };
+  reasoning?:
+    | {
+        mandatory: boolean;
+      }
+    | undefined;
 };
 
 type LoadOpenRouterModels = (
@@ -101,7 +106,7 @@ function normalizeTokenPricing(
   return { inputUsdPerMillion, outputUsdPerMillion };
 }
 
-function normalizeModel({ id, name, pricing }: OpenRouterCatalogModel) {
+function normalizeModel({ id, name, pricing, reasoning }: OpenRouterCatalogModel) {
   const separator = id.indexOf("/");
   const authorId =
     separator > 0 ? id.slice(0, separator).replace(/^~+/, "").trim().toLowerCase() : "";
@@ -137,6 +142,7 @@ function normalizeModel({ id, name, pricing }: OpenRouterCatalogModel) {
     brandId,
     id,
     name: displayName,
+    ...(reasoning ? { reasoning: { required: reasoning.mandatory } } : {}),
     ...(tokenPricing ? { tokenPricing } : {}),
   };
 }

@@ -1,14 +1,20 @@
 export { createBackend } from "#backend/backend";
-export type { Backend, BackendOptions } from "#backend/backend";
+export type { Backend, BackendInspection, BackendOptions } from "#backend/backend";
+export type {
+  ResourceCacheFailure,
+  ResourceCacheInspection,
+} from "#backend/resource-cache/resource-cache";
 export type { Campaign, Campaigns } from "#backend/campaign/campaigns";
 export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
 export {
   requireModelReference,
   requireModelSelection,
   type ApiKeyProviderConfiguration,
+  type ApiKeyProviderConfigurationSnapshot,
   type GenerationMessage,
   type GenerationUsage,
   type ModelReference,
+  type ModelReasoningCapability,
   type ModelSelection,
   type ProviderAdapter,
   type ProviderConfiguration,
@@ -18,6 +24,7 @@ export {
   type ProviderGenerationAdapter,
   type ProviderGenerationRequest,
   type ProviderGenerationResult,
+  type ProviderFactory,
   type ProviderId,
   type ProviderModel,
   type ProviderModelsAdapter,
@@ -28,6 +35,7 @@ export type {
   Providers,
   ProviderSummary,
 } from "#backend/provider/providers";
+export type { ModelCatalogSnapshot } from "#backend/provider/model-catalog";
 export type { Generation, GenerationFailureKind } from "#backend/generation/schema";
 export {
   ids,
@@ -39,12 +47,13 @@ export {
   type TurnId,
 } from "#backend/id";
 export type { Scenarios } from "#backend/scenario/scenarios";
-export { StorageCategory } from "#backend/storage/storage";
+export { assertStoragePathsAreDisjoint, StorageCategory } from "#backend/storage/storage";
 export type {
   Storage,
   StorageArea,
   StorageAreaId,
-  StorageCategoryUsage,
+  StorageAreaUsage,
+  StorageDeletion,
   StorageUsage,
 } from "#backend/storage/storage";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
@@ -54,5 +63,7 @@ export type {
   SubmitTurnRequest,
   ThreadActivityPage,
   Turns,
-  TurnSubmission,
+  TurnAcceptance,
+  TurnOperation,
+  TurnSettlement,
 } from "#backend/turn/turns";

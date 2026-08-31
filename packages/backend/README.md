@@ -8,6 +8,8 @@ A provider adapter declares one stable identity and supplies configuration, mode
 
 Threads remain independent of campaigns. The turn service composes a thread write, prompt compilation, and generation into the durable submit/retry workflow; callers supply only a thread identity and model.
 
+A storage area is the canonical ownership and measurement unit. Usage remains attributable to individual owners, categories are projections over those areas, and both area and category deletion route through owner-defined lifecycle operations. Successful deletion returns fresh usage for only the affected areas, avoiding unrelated filesystem scans.
+
 Electron, IPC, windows, secure credential storage, and provider SDK details remain outside this package. Effect is an internal resource-management tool: it acquires backend resources once and releases them in dependency order, while synchronous SQLite operations stay on the direct hot path.
 
 Bundlers consume `@jaquelene/backend/build` to copy required runtime directories without depending on this package's source layout.

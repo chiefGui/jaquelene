@@ -7,7 +7,7 @@ import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
 import { tokens } from "../theme.stylex";
 
-type ButtonVariant = "ghost" | "solid";
+type ButtonVariant = "ghost" | "soft" | "solid";
 type ButtonTone = "danger" | "neutral";
 
 export type ButtonProps = Omit<AriakitButtonProps, "className" | "style"> & {
@@ -31,8 +31,7 @@ function ButtonRoot({
   variant = "solid",
   ...props
 }: ButtonProps) {
-  const toneStyle =
-    tone === "danger" ? (variant === "solid" ? styles.solidDanger : styles.ghostDanger) : undefined;
+  const toneStyle = tone === "danger" ? dangerStyles[variant] : undefined;
 
   return (
     <AriakitButton {...props} {...stylex.props(styles.root, styles[variant], toneStyle, style)}>
@@ -92,6 +91,24 @@ const styles = stylex.create({
     backgroundColor: {
       default: "transparent",
       ":not(:disabled):hover": `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
+    },
+    color: {
+      default: tokens.muted,
+      ":not(:disabled):hover": tokens.foreground,
+      ":is([data-focus-visible])": tokens.foreground,
+    },
+  },
+  soft: {
+    backgroundColor: {
+      default: `color-mix(in oklch, ${tokens.accent} 8%, transparent)`,
+      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.accent} 12%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 12%, transparent)`,
+    },
+    color: {
+      default: tokens.muted,
+      ":not(:disabled):hover": tokens.foreground,
+      ":is([data-focus-visible])": tokens.foreground,
     },
   },
   solidDanger: {
@@ -104,14 +121,34 @@ const styles = stylex.create({
   ghostDanger: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 10%, transparent)`,
+      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
     },
     color: {
-      default: tokens.muted,
+      default: `color-mix(in oklab, ${tokens.danger} 72%, ${tokens.muted})`,
       ":not(:disabled):hover": tokens.danger,
+      ":is([data-focus-visible])": tokens.danger,
+    },
+  },
+  softDanger: {
+    backgroundColor: {
+      default: `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
+      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 12%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.danger} 12%, transparent)`,
+    },
+    color: {
+      default: tokens.danger,
+      ":not(:disabled):hover": `color-mix(in oklab, ${tokens.danger} 82%, ${tokens.foreground})`,
+      ":is([data-focus-visible])": `color-mix(in oklab, ${tokens.danger} 82%, ${tokens.foreground})`,
     },
   },
   label: {
     textBox: "trim-both text",
   },
 });
+
+const dangerStyles = {
+  ghost: styles.ghostDanger,
+  soft: styles.softDanger,
+  solid: styles.solidDanger,
+} satisfies Record<ButtonVariant, StyleXStyles>;

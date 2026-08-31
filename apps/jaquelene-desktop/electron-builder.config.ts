@@ -1,7 +1,7 @@
 import type { Configuration } from "electron-builder";
 import packageManifest from "./package.json" with { type: "json" };
 import { productVersion } from "./scripts/product-version";
-import { applicationId } from "./src/application";
+import { applicationId } from "./src/application/identity";
 
 const applicationName = packageManifest.productName;
 const applicationPublisher = packageManifest.author;

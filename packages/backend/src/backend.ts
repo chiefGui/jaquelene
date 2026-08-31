@@ -1,17 +1,23 @@
 import { Cause, Context, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { createCampaigns, type Campaigns } from "#backend/campaign/campaigns";
-import { DatabaseService } from "#backend/database/database";
+import { DatabaseService, getDatabaseStoragePaths } from "#backend/database/database";
 import type { Generations } from "#backend/generation/generations";
 import { createTurnPromptCompiler } from "#backend/generation/prompt";
 import { createGenerationSubsystem } from "#backend/generation/subsystem";
-import type { ProviderAdapter } from "#backend/provider/provider";
+import type { ProviderFactory } from "#backend/provider/provider";
 import { ProvidersService, type Models, type Providers } from "#backend/provider/providers";
+import type { ResourceCacheFailure } from "#backend/resource-cache/resource-cache";
+import { ResourceCacheService } from "#backend/resource-cache/service";
+import { getCacheStoragePaths } from "#backend/resource-cache/sqlite-cache-store";
 import { createScenarios, type Scenarios } from "#backend/scenario/scenarios";
+import { createCacheStorageArea } from "#backend/storage/cache";
 import { createContentStorageArea } from "#backend/storage/content";
 import {
   StorageService,
+  assertStoragePathsAreDisjoint,
   type Storage,
   type StorageArea,
+  type StorageAreaId,
   type StorageCategory,
 } from "#backend/storage/storage";
 import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
@@ -19,8 +25,17 @@ import { createTurns, type Turns } from "#backend/turn/turns";
 
 export type BackendOptions = Readonly<{
   databasePath: string;
-  providers: readonly ProviderAdapter[];
+  cache: Readonly<{
+    path: string;
+    reportFailure: (failure: ResourceCacheFailure) => void;
+  }>;
+  providers: readonly ProviderFactory[];
   storageAreas: readonly StorageArea[];
+}>;
+
+export type BackendInspection = Readonly<{
+  state: "open" | "closing" | "closed";
+  terminalFailure?: unknown;
 }>;
 
 export type Backend = Readonly<{
@@ -32,10 +47,12 @@ export type Backend = Readonly<{
   models: Models;
   generations: Generations;
   storage: Storage;
+  inspect: () => BackendInspection;
   close: () => Promise<void>;
+  [Symbol.asyncDispose]: () => Promise<void>;
 }>;
 
-type Application = Readonly<{
+type BackendServices = Readonly<{
   scenarios: Scenarios;
   campaigns: Campaigns;
   threads: ThreadEngine;
@@ -46,13 +63,13 @@ type Application = Readonly<{
   close: () => Promise<void>;
 }>;
 
-class ApplicationService extends Context.Service<ApplicationService, Application>()(
-  "@jaquelene/backend/Application",
+class BackendService extends Context.Service<BackendService, BackendServices>()(
+  "@jaquelene/backend/Services",
 ) {}
 
-function createApplicationLayer() {
+function createBackendServiceLayer() {
   return Layer.effect(
-    ApplicationService,
+    BackendService,
     Effect.gen(function* () {
       const database = yield* DatabaseService;
       const providers = yield* ProvidersService;
@@ -67,9 +84,9 @@ function createApplicationLayer() {
             promptCompiler: createTurnPromptCompiler(threads),
             providers: providers.generations,
           });
-          const turns = createTurns(threads, generationSubsystem.replies);
+          const turns = createTurns(database, threads, generationSubsystem.replies);
 
-          return ApplicationService.of({
+          return BackendService.of({
             scenarios,
             campaigns,
             threads,
@@ -86,14 +103,20 @@ function createApplicationLayer() {
   );
 }
 
-function createStorageLayer(databasePath: string, storageAreas: readonly StorageArea[]) {
+function createStorageLayer(
+  databasePath: string,
+  cachePath: string,
+  storageAreas: readonly StorageArea[],
+) {
   return Layer.unwrap(
     Effect.gen(function* () {
       const database = yield* DatabaseService;
       const providers = yield* ProvidersService;
+      const resourceCache = yield* ResourceCacheService;
 
       return StorageService.layer([
         createContentStorageArea(database, databasePath),
+        createCacheStorageArea(resourceCache, cachePath),
         ...providers.storageAreas,
         ...storageAreas,
       ]);
@@ -105,6 +128,16 @@ function asError(cause: unknown, message: string) {
   return cause instanceof Error ? cause : new Error(message, { cause });
 }
 
+function causeError<E>(cause: Cause.Cause<E>, message: string) {
+  const errors = Cause.prettyErrors(cause);
+
+  if (errors.length === 1) {
+    return errors[0]!;
+  }
+
+  return new AggregateError(errors, message);
+}
+
 async function unwrapExit<A, E>(exitPromise: Promise<Exit.Exit<A, E>>) {
   const exit = await exitPromise;
 
@@ -112,32 +145,71 @@ async function unwrapExit<A, E>(exitPromise: Promise<Exit.Exit<A, E>>) {
     return exit.value;
   }
 
-  throw asError(Cause.squash(exit.cause), "Backend operation failed.");
+  throw causeError(exit.cause, "Backend operation failed.");
 }
 
-export async function createBackend({
-  databasePath,
-  providers,
-  storageAreas,
-}: BackendOptions): Promise<Backend> {
+function waitForAbort<Value>(result: Promise<Value>, signal?: AbortSignal) {
+  if (!signal) {
+    return result;
+  }
+
+  if (signal.aborted) {
+    result.catch(() => undefined);
+    return Promise.reject(signal.reason);
+  }
+
+  let removeListener: (() => void) | undefined;
+  const interrupted = new Promise<never>((_resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    removeListener = () => signal.removeEventListener("abort", onAbort);
+  });
+
+  return Promise.race([result, interrupted]).finally(removeListener);
+}
+
+export async function createBackend(
+  { databasePath, cache: cacheOptions, providers, storageAreas }: BackendOptions,
+  signal?: AbortSignal,
+): Promise<Backend> {
+  signal?.throwIfAborted();
+  assertStoragePathsAreDisjoint([
+    { id: "content", paths: getDatabaseStoragePaths(databasePath) },
+    { id: "cache", paths: getCacheStoragePaths(cacheOptions.path) },
+    ...providers.map((provider) => ({
+      id: `provider:${provider.id}`,
+      paths: provider.storagePaths,
+    })),
+    ...storageAreas.map(({ id, paths }) => ({ id, paths })),
+  ]);
   const databaseLayer = DatabaseService.layer(databasePath);
-  const providersLayer = ProvidersService.layer([...providers]);
+  const resourceCacheLayer = ResourceCacheService.layer(cacheOptions);
+  const infrastructureLayer = Layer.merge(databaseLayer, resourceCacheLayer);
+  const dependenciesLayer = ProvidersService.layer([...providers]).pipe(
+    Layer.provideMerge(infrastructureLayer),
+  );
   const runtime = ManagedRuntime.make(
     Layer.mergeAll(
-      createApplicationLayer(),
-      createStorageLayer(databasePath, [...storageAreas]),
-    ).pipe(Layer.provide(Layer.merge(databaseLayer, providersLayer))),
+      createBackendServiceLayer(),
+      createStorageLayer(databasePath, cacheOptions.path, [...storageAreas]),
+    ).pipe(Layer.provide(dependenciesLayer)),
   );
-  let application: Application;
+  let services: BackendServices;
 
   try {
-    application = Context.get(await runtime.context(), ApplicationService);
+    services = Context.get(await waitForAbort(runtime.context(), signal), BackendService);
   } catch (cause) {
+    const cleanupFailures: unknown[] = [cause];
+
     try {
       await runtime.dispose();
     } catch (disposeCause) {
+      cleanupFailures.push(disposeCause);
+    }
+
+    if (cleanupFailures.length > 1) {
       throw new AggregateError(
-        [cause, disposeCause],
+        cleanupFailures,
         "Could not close the backend after it failed to start.",
       );
     }
@@ -148,6 +220,7 @@ export async function createBackend({
   const measureStorageUsage = StorageService.use((storage) => storage.measureUsage());
   let state: "open" | "closing" | "closed" = "open";
   let closePromise: Promise<void> | undefined;
+  let terminalFailure: unknown;
 
   function assertOpen() {
     if (state !== "open") {
@@ -159,112 +232,117 @@ export async function createBackend({
     scenarios: {
       create(title) {
         assertOpen();
-        return application.scenarios.create(title);
+        return services.scenarios.create(title);
       },
       list() {
         assertOpen();
-        return application.scenarios.list();
+        return services.scenarios.list();
       },
       get(id) {
         assertOpen();
-        return application.scenarios.get(id);
+        return services.scenarios.get(id);
       },
       rename(id, title) {
         assertOpen();
-        return application.scenarios.rename(id, title);
+        return services.scenarios.rename(id, title);
       },
     },
     campaigns: {
       start(scenarioId) {
         assertOpen();
-        return application.campaigns.start(scenarioId);
+        return services.campaigns.start(scenarioId);
       },
       listForScenario(scenarioId) {
         assertOpen();
-        return application.campaigns.listForScenario(scenarioId);
+        return services.campaigns.listForScenario(scenarioId);
       },
       get(id) {
         assertOpen();
-        return application.campaigns.get(id);
+        return services.campaigns.get(id);
       },
       setModelOverride(id, model) {
         assertOpen();
-        return application.campaigns.setModelOverride(id, model);
+        return services.campaigns.setModelOverride(id, model);
       },
     },
     threads: {
       create() {
         assertOpen();
-        return application.threads.create();
+        return services.threads.create();
       },
       get(id) {
         assertOpen();
-        return application.threads.get(id);
+        return services.threads.get(id);
       },
       startTurn(threadId, content) {
         assertOpen();
-        return application.threads.startTurn(threadId, content);
+        return services.threads.startTurn(threadId, content);
       },
       listMessages(request) {
         assertOpen();
-        return application.threads.listMessages(request);
+        return services.threads.listMessages(request);
       },
     },
     turns: {
       listForThread(request) {
         assertOpen();
-        return application.turns.listForThread(request);
+        return services.turns.listForThread(request);
       },
       submit(request) {
-        if (state !== "open") {
-          return Promise.reject(new Error("Backend is closed."));
-        }
-
-        return application.turns.submit(request);
+        assertOpen();
+        return services.turns.submit(request);
       },
       retry(request) {
-        if (state !== "open") {
-          return Promise.reject(new Error("Backend is closed."));
-        }
-
-        return application.turns.retry(request);
+        assertOpen();
+        return services.turns.retry(request);
       },
     },
     providers: {
       list() {
         assertOpen();
-        return application.providers.list();
+        return services.providers.list();
       },
       inspectConfiguration(providerId) {
         assertOpen();
-        return application.providers.inspectConfiguration(providerId);
+        return services.providers.inspectConfiguration(providerId);
       },
       configureApiKey(providerId, apiKey, signal) {
         if (state !== "open") {
           return Promise.reject(new Error("Backend is closed."));
         }
 
-        return application.providers.configureApiKey(providerId, apiKey, signal);
+        return services.providers.configureApiKey(providerId, apiKey, signal);
       },
       clearConfiguration(providerId) {
         if (state !== "open") {
           return Promise.reject(new Error("Backend is closed."));
         }
 
-        return application.providers.clearConfiguration(providerId);
+        return services.providers.clearConfiguration(providerId);
       },
     },
     models: {
       listProviders() {
         assertOpen();
-        return application.models.listProviders();
+        return services.models.listProviders();
       },
-      listModels(providerId, signal) {
+      getModels(providerId, signal) {
         if (state !== "open") {
           return Promise.reject(new Error("Backend is closed."));
         }
 
-        return application.models.listModels(providerId, signal);
+        return services.models.getModels(providerId, signal);
+      },
+      refreshModels(providerId, signal) {
+        if (state !== "open") {
+          return Promise.reject(new Error("Backend is closed."));
+        }
+
+        return services.models.refreshModels(providerId, signal);
+      },
+      subscribe(listener) {
+        assertOpen();
+        return services.models.subscribe(listener);
       },
     },
     generations: {
@@ -273,7 +351,7 @@ export async function createBackend({
           return Promise.reject(new Error("Backend is closed."));
         }
 
-        return application.generations.generateReply(request);
+        return services.generations.generateReply(request);
       },
     },
     storage: {
@@ -283,6 +361,15 @@ export async function createBackend({
         }
 
         return unwrapExit(runtime.runPromiseExit(measureStorageUsage));
+      },
+      deleteArea(id: StorageAreaId) {
+        if (state !== "open") {
+          return Promise.reject(new Error("Backend is closed."));
+        }
+
+        return unwrapExit(
+          runtime.runPromiseExit(StorageService.use((storage) => storage.deleteArea(id))),
+        );
       },
       deleteCategory(id: StorageCategory) {
         if (state !== "open") {
@@ -294,15 +381,30 @@ export async function createBackend({
         );
       },
     },
-    close() {
-      if (!closePromise) {
-        state = "closing";
-        closePromise = runtime.dispose().finally(() => {
+    inspect() {
+      return {
+        state,
+        ...(terminalFailure === undefined ? {} : { terminalFailure }),
+      };
+    },
+    close: closeBackend,
+    [Symbol.asyncDispose]: closeBackend,
+  };
+
+  function closeBackend() {
+    if (!closePromise) {
+      state = "closing";
+      closePromise = runtime
+        .dispose()
+        .catch((error: unknown) => {
+          terminalFailure = error;
+          throw error;
+        })
+        .finally(() => {
           state = "closed";
         });
-      }
+    }
 
-      return closePromise;
-    },
-  };
+    return closePromise;
+  }
 }

@@ -1,6 +1,7 @@
-import type { ProviderAdapter } from "@jaquelene/backend";
+import type { ProviderAdapter, ProviderFactory } from "@jaquelene/backend";
 import {
   createOpenRouterConfiguration,
+  getOpenRouterConnectionStoragePaths,
   type OpenRouterConfigurationDependencies,
 } from "./connection";
 import { createOpenRouterGeneration } from "./generation";
@@ -24,5 +25,19 @@ export function createOpenRouterProvider(
     configuration,
     models: createOpenRouterModels(configuration),
     generation: createOpenRouterGeneration(configuration),
+  };
+}
+
+export function createOpenRouterProviderFactory(
+  userDataDirectory: string,
+  dependencies: OpenRouterConfigurationDependencies,
+): ProviderFactory {
+  return {
+    id: openRouterProviderId,
+    storagePaths: getOpenRouterConnectionStoragePaths(userDataDirectory),
+    create(signal) {
+      signal.throwIfAborted();
+      return createOpenRouterProvider(userDataDirectory, dependencies);
+    },
   };
 }

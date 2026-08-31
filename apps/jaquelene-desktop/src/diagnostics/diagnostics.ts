@@ -22,7 +22,9 @@ export type ApplicationDiagnostics = ErrorReporter &
     recordRendererReport: (report: ErrorReport) => void;
     deleteAll: () => Promise<void>;
     openDirectory: () => Promise<void>;
+    inspect: () => Readonly<{ state: "open" | "closing" | "closed" }>;
     close: () => Promise<void>;
+    [Symbol.asyncDispose]: () => Promise<void>;
   }>;
 
 function isMissing(error: unknown) {
@@ -45,10 +47,15 @@ export function getDiagnosticsStoragePath(userDataDirectory: string) {
   return join(userDataDirectory, "diagnostics");
 }
 
-export function createApplicationDiagnostics(
-  directoryPath: string,
-  openPath: PathOpener,
-): ApplicationDiagnostics {
+export function createApplicationDiagnostics({
+  directoryPath,
+  openPath,
+  shouldWriteToDisk,
+}: Readonly<{
+  directoryPath: string;
+  openPath: PathOpener;
+  shouldWriteToDisk: () => boolean;
+}>): ApplicationDiagnostics {
   const currentFilePath = join(directoryPath, currentFileName);
   const previousFilePath = join(directoryPath, previousFileName);
   let acceptingReports = true;
@@ -56,6 +63,8 @@ export function createApplicationDiagnostics(
   let queueCapacityReported = false;
   let persistenceFailureReported = false;
   let queue = Promise.resolve();
+  let state: "open" | "closing" | "closed" = "open";
+  let closePromise: Promise<void> | undefined;
 
   function notifyFallback(report: ErrorReport, failure: unknown) {
     try {
@@ -90,6 +99,15 @@ export function createApplicationDiagnostics(
   function persist(report: ErrorReport) {
     if (!acceptingReports) {
       notifyFallback(report, new Error("Diagnostics are closed."));
+      return;
+    }
+
+    try {
+      if (!shouldWriteToDisk()) {
+        return;
+      }
+    } catch (failure) {
+      notifyFallback(report, failure);
       return;
     }
 
@@ -134,6 +152,18 @@ export function createApplicationDiagnostics(
     }
   }
 
+  function close() {
+    if (!closePromise) {
+      acceptingReports = false;
+      state = "closing";
+      closePromise = queue.finally(() => {
+        state = "closed";
+      });
+    }
+
+    return closePromise;
+  }
+
   return {
     report(input: ReportInput) {
       persist(
@@ -163,9 +193,10 @@ export function createApplicationDiagnostics(
         await openPath(directoryPath);
       });
     },
-    async close() {
-      acceptingReports = false;
-      await queue;
+    inspect() {
+      return { state };
     },
+    close,
+    [Symbol.asyncDispose]: close,
   };
 }

@@ -44,12 +44,6 @@ enum GenerationFailureKind {
   Storage = "storage"
 }
 
-structure Turn {
-  id: string
-  threadId: string
-  createdAt: UnixTimeMilliseconds
-}
-
 structure ThreadMessage {
   id: string
   threadId: string
@@ -97,11 +91,23 @@ structure RetryTurnRequest {
 }
 
 structure TurnSubmission {
-  turn: Turn
   userMessage: ThreadMessage
   generation: TurnGeneration
-  assistantMessage?: ThreadMessage
-  assistantActivated: boolean
+}
+
+structure FailedReply {
+  userMessage: ThreadMessage
+  generation: TurnGeneration
+}
+
+structure CompletedReply {
+  userMessage: ThreadMessage
+  assistantMessage: ThreadMessage
+  generation: TurnGeneration
+}
+
+structure SupersededReply {
+  threadId: string
 }
 
 [RendererAPI]
@@ -116,5 +122,14 @@ interface Threads {
 [ContextBridge]
 interface Turns {
   submit(request: SubmitTurnRequest) -> TurnSubmission
-  retry(request: RetryTurnRequest) -> TurnSubmission
+  retry(request: RetryTurnRequest) -> TurnGeneration
+
+  [Event]
+  replyFailed(failure: FailedReply)
+
+  [Event]
+  replyCompleted(completion: CompletedReply)
+
+  [Event]
+  replySuperseded(reply: SupersededReply)
 }

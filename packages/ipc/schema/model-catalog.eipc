@@ -15,10 +15,15 @@ structure ModelTokenPricing {
   outputUsdPerMillion: number
 }
 
+structure ModelReasoningCapability {
+  required: boolean
+}
+
 structure AvailableModel {
   id: string
   name: string
   brandId: string
+  reasoning?: ModelReasoningCapability
   tokenPricing?: ModelTokenPricing
 }
 
@@ -29,10 +34,52 @@ structure ModelSelection {
   brandId: string
 }
 
+subtype ModelCatalogRevision = number(
+  minValue: 0
+  maxValue: 9007199254740991
+)
+
+enum ModelCatalogFreshness {
+  Fresh = "fresh"
+  Stale = "stale"
+}
+
+enum ModelCatalogRefreshState {
+  Idle = "idle"
+  Refreshing = "refreshing"
+  Failed = "failed"
+}
+
+enum ModelCatalogFailureKind {
+  Source = "source"
+  Timeout = "timeout"
+}
+
+structure ModelCatalogRefresh {
+  state: ModelCatalogRefreshState
+  startedAt?: number
+  failedAt?: number
+  retryAt?: number
+  failureKind?: ModelCatalogFailureKind
+}
+
+structure ModelCatalogSnapshot {
+  models: AvailableModel[]
+  revision: ModelCatalogRevision
+  freshness: ModelCatalogFreshness
+  updatedAt: number
+  discardAt: number
+  refresh: ModelCatalogRefresh
+}
+
 [RendererAPI]
 [Validator=TrustedRenderer]
 [ContextBridge]
 interface ModelCatalog {
   listProviders() -> ModelProvider[]
-  listModels(providerId: string) -> AvailableModel[]
+  getModels(providerId: string) -> ModelCatalogSnapshot
+  refreshModels(providerId: string) -> ModelCatalogSnapshot
+
+  [Event]
+  ModelsChanged(providerId: string, revision: ModelCatalogRevision)
 }

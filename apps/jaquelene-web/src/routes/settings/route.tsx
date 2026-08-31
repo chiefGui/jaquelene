@@ -14,21 +14,23 @@ function SettingsSidebar() {
         navigationLabel: "Settings",
         items: [
           {
+            action: "history-back",
             id: "back",
             icon: ArrowLeft01Icon,
             label: "Back",
-            to: "/",
           },
           {
             id: "general",
             icon: Settings01Icon,
             label: "General",
+            replace: true,
             to: "/settings/general",
           },
           {
             id: "appearance",
             icon: PaletteIcon,
             label: "Appearance",
+            replace: true,
             to: "/settings/appearance",
           },
           {
@@ -36,18 +38,21 @@ function SettingsSidebar() {
             icon: ConnectIcon,
             label: "Providers",
             preload: "render",
+            replace: true,
             to: "/settings/providers",
           },
           {
             id: "storage",
             icon: HardDriveIcon,
             label: "Storage",
+            replace: true,
             to: "/settings/storage",
           },
           {
             id: "advanced",
             icon: ToolsIcon,
             label: "Advanced",
+            replace: true,
             to: "/settings/advanced",
           },
         ],

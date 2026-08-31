@@ -1,6 +1,4 @@
-import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
-import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import {
   RouterContextProvider,
   createMemoryHistory,
@@ -15,16 +13,17 @@ import { PrimarySidebar } from "./primary-sidebar";
 
 type PrimarySidebarNavigation = ComponentProps<typeof PrimarySidebar>["navigation"];
 
-function renderSidebar(navigation: PrimarySidebarNavigation) {
+function renderSidebar(navigation: PrimarySidebarNavigation, initialEntry: string) {
   const rootRoute = createRootRoute();
   const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/" });
+  const scenariosRoute = createRoute({ getParentRoute: () => rootRoute, path: "scenarios" });
   const settingsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "settings/general",
   });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([homeRoute, settingsRoute]),
-    history: createMemoryHistory({ initialEntries: ["/settings/general"] }),
+    routeTree: rootRoute.addChildren([homeRoute, scenariosRoute, settingsRoute]),
+    history: createMemoryHistory({ initialEntries: [initialEntry] }),
   });
 
   return renderToStaticMarkup(
@@ -35,52 +34,59 @@ function renderSidebar(navigation: PrimarySidebarNavigation) {
 }
 
 describe("primary sidebar", () => {
-  it("renders Back first without an empty footer", () => {
-    const markup = renderSidebar({
-      navigationLabel: "Nested navigation",
-      items: [
-        {
-          id: "back",
-          icon: ArrowLeft01Icon,
-          label: "Back",
-          to: "/",
-        },
-        {
-          id: "nested-item",
-          icon: Home01Icon,
-          label: "Nested item",
-          to: "/settings/general",
-        },
-      ],
-    });
-    const backPosition = markup.indexOf(">Back</span>");
-    const nestedItemPosition = markup.indexOf(">Nested item</span>");
-
-    expect(backPosition).toBeGreaterThan(-1);
-    expect(backPosition).toBeLessThan(nestedItemPosition);
-    expect(markup).not.toContain("<footer");
-  });
-
-  it("renders the footer action as a labelled link", () => {
-    const markup = renderSidebar({
-      navigationLabel: "Home navigation",
-      items: [
-        {
-          id: "home",
-          icon: Home01Icon,
-          label: "Home",
-          to: "/",
-        },
-      ],
-      footerAction: {
-        icon: Settings01Icon,
-        label: "Settings action",
-        to: "/settings/general",
+  it("renders the persistent Settings action outside Settings", () => {
+    const markup = renderSidebar(
+      {
+        navigationLabel: "Scenarios",
+        items: [
+          {
+            id: "scenarios",
+            icon: Home01Icon,
+            label: "Scenarios",
+            to: "/scenarios",
+          },
+        ],
       },
-    });
+      "/scenarios",
+    );
 
     expect(markup).toContain("<footer");
-    expect(markup).toContain('aria-label="Settings action"');
+    expect(markup).toContain('aria-label="Settings"');
     expect(markup).toContain('href="/settings/general"');
+    expect(markup).not.toContain("<button");
+  });
+
+  it("renders a Back button in Settings", () => {
+    const markup = renderSidebar(
+      {
+        navigationLabel: "Settings",
+        items: [
+          {
+            action: "history-back",
+            id: "back",
+            icon: Home01Icon,
+            label: "Back",
+          },
+          {
+            id: "general",
+            icon: Home01Icon,
+            label: "General",
+            replace: true,
+            to: "/settings/general",
+          },
+        ],
+      },
+      "/settings/general",
+    );
+    const backPosition = markup.indexOf(">Back</span>");
+    const generalPosition = markup.indexOf(">General</span>");
+    const footerMarkup = markup.slice(markup.indexOf("<footer"));
+
+    expect(backPosition).toBeGreaterThan(-1);
+    expect(backPosition).toBeLessThan(generalPosition);
+    expect(footerMarkup).toContain("<button");
+    expect(footerMarkup).toContain('type="button"');
+    expect(footerMarkup).toContain('aria-label="Back"');
+    expect(footerMarkup).not.toContain('aria-label="Settings"');
   });
 });

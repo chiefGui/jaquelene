@@ -100,10 +100,20 @@ export function exposeUserInterfacePreferences(
   contents: WebContents,
   preferences: UserInterfacePreferences,
 ) {
-  const unsubscribe = preferences.subscribe((values) => {
+  const unsubscribePreferences = preferences.subscribe((values) => {
     applyInterfaceScale(contents, values.scale);
   });
-  contents.once("destroyed", unsubscribe);
+  let installed = true;
+  const dispose = () => {
+    if (!installed) {
+      return;
+    }
+
+    installed = false;
+    contents.off("destroyed", dispose);
+    unsubscribePreferences();
+  };
+  contents.once("destroyed", dispose);
 
   UserInterfacePreferencesIpc.for(contents.mainFrame).setImplementation({
     get: () => toIpcValues(preferences.get()),
@@ -111,4 +121,6 @@ export function exposeUserInterfacePreferences(
     setScale: (scale) => toIpcValues(preferences.setScale(fromIpcScale(scale))),
     setMotion: (motion) => toIpcValues(preferences.setMotion(fromIpcMotion(motion))),
   });
+
+  return dispose;
 }

@@ -1,6 +1,5 @@
 import BookOpen01Icon from "@hugeicons/core-free-icons/BookOpen01Icon";
 import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
-import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext } from "@tanstack/react-router";
 import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
@@ -26,12 +25,6 @@ function HomeSidebar() {
             to: "/scenarios",
           },
         ],
-        footerAction: {
-          icon: Settings01Icon,
-          label: "Settings",
-          preload: "render",
-          to: "/settings/general",
-        },
       }}
     />
   );

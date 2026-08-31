@@ -4,9 +4,10 @@ import {
   ProviderConfigureState,
   type Provider,
 } from "@jaquelene/ipc/renderer";
-import { Button, Input, Item } from "@jaquelene/ui";
+import { Button, IconFrame, Input, Item, Ping } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
+import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -102,11 +103,19 @@ function ProviderSettings({ provider }: { provider: Provider }) {
     <>
       <Item.Root>
         <div {...stylex.props(styles.provider)}>
-          <span {...stylex.props(styles.providerMarkContainer)}>
+          <IconFrame style={styles.providerMarkContainer}>
             <ProviderMark brandId={provider.brandId} style={styles.providerMark} />
-          </span>
+          </IconFrame>
           <Item.Content>
-            <Item.Label>{provider.name}</Item.Label>
+            <div {...stylex.props(styles.providerLabel)}>
+              <Item.Label>{provider.name}</Item.Label>
+              {configured ? (
+                <>
+                  <Ping style={styles.connected} />
+                  <VisuallyHidden>Connected</VisuallyHidden>
+                </>
+              ) : null}
+            </div>
             {keyLabel ? <Item.Description style={styles.mono}>{keyLabel}</Item.Description> : null}
           </Item.Content>
         </div>
@@ -231,16 +240,19 @@ const styles = stylex.create({
   },
   providerMarkContainer: {
     backgroundColor: `color-mix(in oklab, ${tokens.foreground} 4%, transparent)`,
-    borderRadius: tokens.radiusLarge,
-    display: "grid",
-    flexShrink: 0,
     height: "2rem",
-    placeItems: "center",
-    width: "2rem",
   },
   providerMark: {
     height: "0.875rem",
     width: "0.875rem",
+  },
+  providerLabel: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.5rem",
+  },
+  connected: {
+    color: tokens.success,
   },
   mono: {
     fontFamily: tokens.fontMono,

@@ -42,6 +42,10 @@ export function requireModelInput(input: ModelInput): ModelInput {
     requireText(messageId, "a dialogue message identity");
     requireText(content, "dialogue content");
 
+    if (role !== "user" && role !== "assistant") {
+      throw new TypeError(`A model input contains unsupported dialogue role "${role}".`);
+    }
+
     if (messageIds.has(messageId)) {
       throw new TypeError(`A model input cannot contain duplicate message "${messageId}".`);
     }

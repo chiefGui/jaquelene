@@ -83,7 +83,6 @@ export function createCampaigns(database: Database, now: () => number = Date.now
           .select({
             id: campaignTable.id,
             scenarioId: campaignTable.scenarioId,
-            threadId: campaignTable.threadId,
           })
           .from(campaignTable)
           .where(eq(campaignTable.threadId, threadId))

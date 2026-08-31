@@ -91,7 +91,7 @@ afterEach(() => {
 });
 
 describe("generations", () => {
-  it("routes a turn prompt and atomically stores its assistant reply", async () => {
+  it("routes semantic model input and atomically stores its assistant reply", async () => {
     let timestamp = 100;
     const generate = vi.fn(async () => ({
       text: "Assistant reply",

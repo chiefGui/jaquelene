@@ -147,7 +147,6 @@ describe("campaigns", () => {
     expect(campaigns.getContextForThread(campaign.threadId)).toEqual({
       id: campaign.id,
       scenarioId: campaign.scenarioId,
-      threadId: campaign.threadId,
     });
   });
 

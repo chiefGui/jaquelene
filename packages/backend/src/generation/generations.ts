@@ -53,7 +53,7 @@ type NormalizedProviderResult = {
 export type AcceptedReplyGeneration = Readonly<{
   generation: Generation;
   anchor: ReplyAnchor;
-  activeMessageIdAtAcceptance: MessageId | null;
+  activeMessageId: MessageId | null;
 }>;
 
 function interruptionCause(signal: AbortSignal) {
@@ -216,7 +216,7 @@ export function createGenerations(
         threadId: input.threadId,
         inputMessageId: input.inputMessageId,
       } satisfies ReplyAnchor,
-      activeMessageIdAtAcceptance: input.activeMessageId,
+      activeMessageId: input.activeMessageId,
     };
   }
 
@@ -362,7 +362,7 @@ export function createGenerations(
   }
 
   async function executeAcceptedReply(
-    { generation, anchor, activeMessageIdAtAcceptance }: AcceptedReplyGeneration,
+    { generation, anchor, activeMessageId }: AcceptedReplyGeneration,
     signal?: AbortSignal,
   ): Promise<ReplyGenerationExecution> {
     const provider = requireProvider({
@@ -426,7 +426,7 @@ export function createGenerations(
           threadId: anchor.threadId,
           turnId: generation.turnId,
           parentMessageId: anchor.inputMessageId,
-          activateIfMessageId: activeMessageIdAtAcceptance,
+          activateIfMessageId: activeMessageId,
           content: output.text,
           createdAt: completionTime,
         });

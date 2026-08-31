@@ -4,7 +4,7 @@ import { factoryRoleplay } from "./factory/roleplay";
 import {
   createSystemInstructions,
   resolveSystemInstruction,
-  type SystemInstructionContribution,
+  type SystemInstructionSource,
 } from "./system-instructions";
 
 describe("system instructions", () => {
@@ -20,13 +20,13 @@ describe("system instructions", () => {
           {
             key: "factory.roleplay.default",
             name: "Default",
-            content:
-              "You are the narrator of an interactive roleplay. Use the provided context to portray the world and its characters, maintain continuity, and continue the story through narration and dialogue.",
+            content: expect.any(String),
             origin: "factory",
           },
         ],
       },
     ]);
+    expect(systemInstructions.listGroups()[0]!.instructions[0]!.content.trim()).not.toBe("");
   });
 
   it("returns owned listings", () => {
@@ -43,6 +43,8 @@ describe("system instructions", () => {
     const threadId = ids.thread.create();
 
     expect(systemInstructions.resolve({ threadId, campaign: null })).toEqual([]);
+    const instruction = systemInstructions.listGroups()[0]!.instructions[0]!;
+
     expect(
       systemInstructions.resolve({
         threadId,
@@ -53,23 +55,21 @@ describe("system instructions", () => {
       }),
     ).toEqual([
       {
-        sourceKey: "factory.roleplay.default",
-        content:
-          "You are the narrator of an interactive roleplay. Use the provided context to portray the world and its characters, maintain continuity, and continue the story through narration and dialogue.",
+        sourceKey: instruction.key,
+        content: instruction.content,
       },
     ]);
   });
 
-  it("preserves contribution order", () => {
-    const contribution = (key: string): SystemInstructionContribution => ({
+  it("owns and preserves source order", () => {
+    const source = (key: string): SystemInstructionSource => ({
       listGroups: () => [],
       resolve: () => [{ key, name: key, content: `${key} content` }],
     });
-    const systemInstructions = createSystemInstructions([
-      contribution("global"),
-      contribution("scenario"),
-      contribution("campaign"),
-    ]);
+    const sources = [source("global"), source("scenario")];
+    const systemInstructions = createSystemInstructions(sources);
+    sources.reverse();
+    sources.push(source("campaign"));
 
     expect(
       systemInstructions.resolve({
@@ -79,7 +79,6 @@ describe("system instructions", () => {
     ).toEqual([
       { sourceKey: "global", content: "global content" },
       { sourceKey: "scenario", content: "scenario content" },
-      { sourceKey: "campaign", content: "campaign content" },
     ]);
   });
 

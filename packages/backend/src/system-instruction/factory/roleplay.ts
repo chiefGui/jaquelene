@@ -1,7 +1,7 @@
 import type {
   SystemInstructionCatalogEntry,
-  SystemInstructionContribution,
   SystemInstructionGroup,
+  SystemInstructionSource,
 } from "../system-instructions";
 
 const defaultInstruction = Object.freeze({
@@ -22,4 +22,4 @@ const group = Object.freeze({
 export const factoryRoleplay = Object.freeze({
   listGroups: () => [group],
   resolve: ({ campaign }) => (campaign ? [defaultInstruction] : []),
-}) satisfies SystemInstructionContribution;
+}) satisfies SystemInstructionSource;

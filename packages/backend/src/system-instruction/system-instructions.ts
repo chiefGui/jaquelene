@@ -27,7 +27,7 @@ export type SystemInstructionContext = Readonly<{
   }> | null;
 }>;
 
-export type SystemInstructionContribution = Readonly<{
+export type SystemInstructionSource = Readonly<{
   listGroups: () => readonly SystemInstructionGroup[];
   resolve: (context: SystemInstructionContext) => readonly SystemInstruction[];
 }>;
@@ -52,16 +52,16 @@ export function resolveSystemInstruction(instruction: SystemInstruction): Resolv
   };
 }
 
-export function createSystemInstructions(contributions: readonly SystemInstructionContribution[]) {
+export function createSystemInstructions(sources: readonly SystemInstructionSource[]) {
+  const registered = [...sources];
+
   return {
     listGroups(): readonly SystemInstructionGroup[] {
-      return contributions.flatMap((contribution) => contribution.listGroups().map(copyGroup));
+      return registered.flatMap((source) => source.listGroups().map(copyGroup));
     },
 
     resolve(context: SystemInstructionContext): readonly ResolvedInstruction[] {
-      return contributions.flatMap((contribution) =>
-        contribution.resolve(context).map(resolveSystemInstruction),
-      );
+      return registered.flatMap((source) => source.resolve(context).map(resolveSystemInstruction));
     },
   };
 }

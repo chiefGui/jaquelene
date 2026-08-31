@@ -43,11 +43,11 @@ function SettingsSidebar() {
             to: "/settings/providers",
           },
           {
-            id: "system-instructions",
+            id: "instructions",
             icon: AiFile01Icon,
-            label: "System instructions",
+            label: "Instructions",
             replace: true,
-            to: "/settings/system-instructions",
+            to: "/settings/instructions",
           },
           {
             id: "storage",

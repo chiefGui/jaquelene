@@ -8,9 +8,9 @@ import { systemInstructionGroupsQuery } from "@/feature/system-instruction/query
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
-export const Route = createFileRoute("/settings/system-instructions")({
+export const Route = createFileRoute("/settings/instructions")({
   loader: ({ context }) => context.queryClient.query(systemInstructionGroupsQuery),
-  component: SystemInstructionsRoute,
+  component: InstructionsRoute,
 });
 
 function FactoryInstruction({ instruction }: { instruction: SystemInstruction }) {
@@ -30,7 +30,7 @@ function FactoryInstruction({ instruction }: { instruction: SystemInstruction })
   );
 }
 
-function SystemInstructionsRoute() {
+function InstructionsRoute() {
   const { data: groups } = useSuspenseQuery(systemInstructionGroupsQuery);
 
   return (
@@ -41,7 +41,7 @@ function SystemInstructionsRoute() {
             <Breadcrumb.Item>Settings</Breadcrumb.Item>
             <Breadcrumb.Separator />
             <Breadcrumb.Item>
-              <Breadcrumb.Page>System instructions</Breadcrumb.Page>
+              <Breadcrumb.Page>Instructions</Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
         </Breadcrumb.Root>

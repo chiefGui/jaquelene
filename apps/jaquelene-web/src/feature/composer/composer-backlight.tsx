@@ -185,14 +185,19 @@ function readGeometry(host: HTMLElement, canvasSurface: Surface) {
   };
 }
 
-function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvasElement) {
-  currentEngine.attachment?.dispose();
-
+function getComposerHost(canvas: HTMLCanvasElement) {
   const host = canvas.parentElement;
 
-  if (!(host instanceof HTMLElement)) {
+  if (!(host instanceof HTMLFormElement)) {
     throw new Error("The composer backlight canvas must be mounted directly inside its form.");
   }
+
+  return host;
+}
+
+function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvasElement) {
+  currentEngine.attachment?.dispose();
+  const host = getComposerHost(canvas);
 
   let active = false;
   let disposed = false;

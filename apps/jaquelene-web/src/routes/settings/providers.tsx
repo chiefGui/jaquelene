@@ -4,7 +4,7 @@ import {
   ProviderConfigureState,
   type Provider,
 } from "@jaquelene/ipc/renderer";
-import { Button, Input, Item, Ping } from "@jaquelene/ui";
+import { Button, IconFrame, Input, Item, Ping } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import { VisuallyHidden } from "@ariakit/react/visually-hidden";
@@ -103,9 +103,9 @@ function ProviderSettings({ provider }: { provider: Provider }) {
     <>
       <Item.Root>
         <div {...stylex.props(styles.provider)}>
-          <span {...stylex.props(styles.providerMarkContainer)}>
+          <IconFrame style={styles.providerMarkContainer}>
             <ProviderMark brandId={provider.brandId} style={styles.providerMark} />
-          </span>
+          </IconFrame>
           <Item.Content>
             <div {...stylex.props(styles.providerLabel)}>
               <Item.Label>{provider.name}</Item.Label>
@@ -240,12 +240,7 @@ const styles = stylex.create({
   },
   providerMarkContainer: {
     backgroundColor: `color-mix(in oklab, ${tokens.foreground} 4%, transparent)`,
-    borderRadius: tokens.radiusLarge,
-    display: "grid",
-    flexShrink: 0,
     height: "2rem",
-    placeItems: "center",
-    width: "2rem",
   },
   providerMark: {
     height: "0.875rem",

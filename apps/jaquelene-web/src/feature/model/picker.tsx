@@ -9,6 +9,7 @@ import {
 import { useStoreState } from "@ariakit/react/store";
 import { Tab, TabList, TabPanel, TabProvider } from "@ariakit/react/tab";
 import { VisuallyHidden } from "@ariakit/react/visually-hidden";
+import Brain01Icon from "@hugeicons/core-free-icons/Brain01Icon";
 import RoboticIcon from "@hugeicons/core-free-icons/RoboticIcon";
 import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import StarIcon from "@hugeicons/core-free-icons/StarIcon";
@@ -21,7 +22,7 @@ import type {
   ModelReference,
   ModelSelection,
 } from "@jaquelene/ipc/renderer";
-import { Button, Input, Skeleton } from "@jaquelene/ui";
+import { Button, IconFrame, Input, Skeleton } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
 import { Select, type SelectProps } from "@jaquelene/ui/select";
 import { tokens } from "@jaquelene/ui/theme.stylex";
@@ -121,6 +122,45 @@ const modelOptionSize = modelOptionHeight + modelOptionGap;
 
 function ModelMark({ brandId, style }: { brandId: string; style?: StyleXStyles }) {
   return <BrandMark brandId={brandId} fallbackIcon={RoboticIcon} style={style} />;
+}
+
+function ModelIndicator({
+  children,
+  label,
+  style,
+}: {
+  children: ReactNode;
+  label: string;
+  style: StyleXStyles;
+}) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Anchor focusable={false} render={<IconFrame style={style} />}>
+        {children}
+        <VisuallyHidden>{label}</VisuallyHidden>
+      </Tooltip.Anchor>
+
+      <Tooltip>{label}</Tooltip>
+    </Tooltip.Root>
+  );
+}
+
+function ReasoningIndicator({ required }: { required: boolean }) {
+  const label = required ? "Reasoning required" : "Supports reasoning";
+
+  return (
+    <ModelIndicator label={label} style={styles.reasoningIndicator}>
+      <HugeiconsIcon icon={Brain01Icon} size={12} strokeWidth={1.5} aria-hidden="true" />
+    </ModelIndicator>
+  );
+}
+
+function FavoriteProviderIndicator({ provider }: { provider: ProviderTab }) {
+  return (
+    <ModelIndicator label={provider.brandName} style={styles.favoriteProviderIndicator}>
+      <ProviderMark brandId={provider.brandId} style={styles.favoriteProviderMark} />
+    </ModelIndicator>
+  );
 }
 
 function sameModel(left: ModelReference, right: ModelReference) {
@@ -540,23 +580,36 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                     />
                   ) : null}
 
-                  <span {...stylex.props(styles.modelDetails)}>
+                  <div {...stylex.props(styles.modelDetails)}>
                     <ModelMark
                       brandId={model.brandId}
                       style={[styles.modelMark, selected && styles.selectedModel]}
                     />
-                    <span {...stylex.props(styles.modelText)}>
-                      <span {...stylex.props(styles.modelName, selected && styles.selectedModel)}>
-                        {model.name}
-                        <span {...stylex.props(styles.modelAttribution)}>
-                          {" · "}
-                          {modelBrandName}
-                          {activeTab.type === "favorites" && provider.brandName !== modelBrandName
-                            ? ` via ${provider.brandName}`
-                            : null}
+                    <div {...stylex.props(styles.modelText)}>
+                      <div {...stylex.props(styles.modelTitle)}>
+                        <span
+                          {...stylex.props(styles.modelName, selected && styles.selectedModelName)}
+                        >
+                          {model.name}
                         </span>
-                      </span>
-                      <span {...stylex.props(styles.modelMetadata)}>
+                        {activeTab.type === "favorites" || model.reasoning ? (
+                          <div {...stylex.props(styles.modelIndicators)}>
+                            {activeTab.type === "favorites" ? (
+                              <FavoriteProviderIndicator provider={provider} />
+                            ) : null}
+                            {model.reasoning ? (
+                              <ReasoningIndicator required={model.reasoning.required} />
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div {...stylex.props(styles.modelMetadata)}>
+                        {activeTab.type === "provider" ? (
+                          <>
+                            {modelBrandName}
+                            {" · "}
+                          </>
+                        ) : null}
                         {model.tokenPricing ? (
                           <>
                             Input {formatTokenPrice(model.tokenPricing.inputUsdPerMillion)}
@@ -566,9 +619,9 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                         ) : (
                           "Pricing varies"
                         )}
-                      </span>
-                    </span>
-                  </span>
+                      </div>
+                    </div>
+                  </div>
                 </ComboboxItem>
 
                 <Button
@@ -782,6 +835,7 @@ export const ModelPicker = {
 } as const;
 
 const activeBackground = `color-mix(in oklab, ${tokens.accent} 10%, transparent)`;
+const activeModelName = "white";
 const focusOutline = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
 
 const styles = stylex.create({
@@ -906,27 +960,54 @@ const styles = stylex.create({
   selectedModel: {
     color: tokens.foreground,
   },
+  selectedModelName: {
+    color: {
+      default: tokens.foreground,
+      [stylex.when.ancestor(":focus-within")]: activeModelName,
+      [stylex.when.ancestor(":hover")]: activeModelName,
+      [stylex.when.ancestor("[data-active-item]")]: activeModelName,
+    },
+  },
   modelText: {
     flex: 1,
     minWidth: 0,
   },
+  modelTitle: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.5rem",
+    minWidth: 0,
+  },
   modelName: {
     color: {
-      default: `color-mix(in oklab, ${tokens.foreground} 75%, transparent)`,
-      [stylex.when.ancestor(":focus-within")]: tokens.foreground,
-      [stylex.when.ancestor(":hover")]: tokens.foreground,
-      [stylex.when.ancestor("[data-active-item]")]: tokens.foreground,
+      default: `color-mix(in oklab, ${tokens.foreground} 85%, transparent)`,
+      [stylex.when.ancestor(":focus-within")]: activeModelName,
+      [stylex.when.ancestor(":hover")]: activeModelName,
+      [stylex.when.ancestor("[data-active-item]")]: activeModelName,
     },
-    display: "block",
+    flexShrink: 1,
+    minWidth: 0,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
-  modelAttribution: {
+  modelIndicators: {
+    alignItems: "center",
+    display: "flex",
+    flexShrink: 0,
+    gap: "0.25rem",
+  },
+  favoriteProviderIndicator: {
+    backgroundColor: `color-mix(in oklab, ${tokens.foreground} 6%, transparent)`,
     color: tokens.muted,
+    height: "1.125rem",
+  },
+  favoriteProviderMark: {
+    height: "0.625rem",
+    width: "0.625rem",
   },
   modelMetadata: {
-    color: tokens.muted,
+    color: `color-mix(in oklab, ${tokens.muted} 75%, transparent)`,
     display: "block",
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
@@ -934,6 +1015,11 @@ const styles = stylex.create({
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  },
+  reasoningIndicator: {
+    backgroundColor: `color-mix(in oklab, ${tokens.reasoning} 14%, transparent)`,
+    color: tokens.reasoning,
+    height: "1.125rem",
   },
   favoriteButton: {
     backgroundColor: {

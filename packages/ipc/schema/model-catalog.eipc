@@ -15,10 +15,15 @@ structure ModelTokenPricing {
   outputUsdPerMillion: number
 }
 
+structure ModelReasoningCapability {
+  required: boolean
+}
+
 structure AvailableModel {
   id: string
   name: string
   brandId: string
+  reasoning?: ModelReasoningCapability
   tokenPricing?: ModelTokenPricing
 }
 

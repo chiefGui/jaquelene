@@ -14,6 +14,7 @@ export {
   type GenerationMessage,
   type GenerationUsage,
   type ModelReference,
+  type ModelReasoningCapability,
   type ModelSelection,
   type ProviderAdapter,
   type ProviderConfiguration,

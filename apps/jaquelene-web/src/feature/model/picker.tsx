@@ -825,6 +825,7 @@ export const ModelPicker = {
 } as const;
 
 const activeBackground = `color-mix(in oklab, ${tokens.accent} 10%, transparent)`;
+const activeModelName = `color-mix(in oklab, ${tokens.foreground} 70%, white)`;
 const focusOutline = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
 
 const styles = stylex.create({
@@ -962,9 +963,9 @@ const styles = stylex.create({
   modelName: {
     color: {
       default: `color-mix(in oklab, ${tokens.foreground} 85%, transparent)`,
-      [stylex.when.ancestor(":focus-within")]: tokens.foreground,
-      [stylex.when.ancestor(":hover")]: tokens.foreground,
-      [stylex.when.ancestor("[data-active-item]")]: tokens.foreground,
+      [stylex.when.ancestor(":focus-within")]: activeModelName,
+      [stylex.when.ancestor(":hover")]: activeModelName,
+      [stylex.when.ancestor("[data-active-item]")]: activeModelName,
     },
     flexShrink: 1,
     minWidth: 0,
@@ -989,7 +990,7 @@ const styles = stylex.create({
     width: "0.625rem",
   },
   modelMetadata: {
-    color: `color-mix(in oklab, ${tokens.muted} 80%, transparent)`,
+    color: `color-mix(in oklab, ${tokens.muted} 75%, transparent)`,
     display: "block",
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,

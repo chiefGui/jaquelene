@@ -4,8 +4,8 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { campaignContinuationQuery } from "./query";
 
-const background = `color-mix(in oklab, ${tokens.accent} 8%, transparent)`;
-const hoverBackground = `color-mix(in oklab, ${tokens.accent} 12%, transparent)`;
+const background = `color-mix(in oklab, ${tokens.secondary} 8%, transparent)`;
+const hoverBackground = `color-mix(in oklab, ${tokens.secondary} 12%, transparent)`;
 const focusColor = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
 
 export function CampaignContinuationCard() {

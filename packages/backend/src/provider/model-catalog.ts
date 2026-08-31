@@ -75,7 +75,20 @@ function requireModel(providerId: ProviderId, candidate: unknown): ProviderModel
     model.brandId,
     `Provider "${providerId}" model "${id}" brand identity`,
   );
+  let reasoning: ProviderModel["reasoning"];
   let tokenPricing: ProviderModel["tokenPricing"];
+
+  if (model.reasoning !== undefined) {
+    if (
+      typeof model.reasoning !== "object" ||
+      model.reasoning === null ||
+      typeof model.reasoning.required !== "boolean"
+    ) {
+      throw new TypeError(`Provider "${providerId}" model "${id}" has invalid reasoning.`);
+    }
+
+    reasoning = { required: model.reasoning.required };
+  }
 
   if (model.tokenPricing !== undefined) {
     const { inputUsdPerMillion, outputUsdPerMillion } = model.tokenPricing;
@@ -96,6 +109,7 @@ function requireModel(providerId: ProviderId, candidate: unknown): ProviderModel
     id,
     name,
     brandId,
+    ...(reasoning ? { reasoning } : {}),
     ...(tokenPricing ? { tokenPricing } : {}),
   };
 }
@@ -178,7 +192,7 @@ export function createModelCatalog(
       key: configurationRevision,
     }),
     codec: {
-      version: 1,
+      version: 2,
       encode: (value) => textEncoder.encode(JSON.stringify(value)),
       decode: (payload, input) => {
         const value = decodeValue(payload);

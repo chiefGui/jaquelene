@@ -19,10 +19,15 @@ export function requireModelReference(reference: ModelReference) {
   }
 }
 
+export type ModelReasoningCapability = Readonly<{
+  required: boolean;
+}>;
+
 export type ProviderModel = Readonly<{
   id: string;
   name: string;
   brandId: string;
+  reasoning?: ModelReasoningCapability;
   tokenPricing?: Readonly<{
     inputUsdPerMillion: number;
     outputUsdPerMillion: number;

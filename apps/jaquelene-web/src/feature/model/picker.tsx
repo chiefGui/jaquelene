@@ -9,6 +9,7 @@ import {
 import { useStoreState } from "@ariakit/react/store";
 import { Tab, TabList, TabPanel, TabProvider } from "@ariakit/react/tab";
 import { VisuallyHidden } from "@ariakit/react/visually-hidden";
+import Brain01Icon from "@hugeicons/core-free-icons/Brain01Icon";
 import RoboticIcon from "@hugeicons/core-free-icons/RoboticIcon";
 import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import StarIcon from "@hugeicons/core-free-icons/StarIcon";
@@ -121,6 +122,24 @@ const modelOptionSize = modelOptionHeight + modelOptionGap;
 
 function ModelMark({ brandId, style }: { brandId: string; style?: StyleXStyles }) {
   return <BrandMark brandId={brandId} fallbackIcon={RoboticIcon} style={style} />;
+}
+
+function ReasoningIndicator({ required }: { required: boolean }) {
+  const label = required ? "Reasoning required" : "Supports reasoning";
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Anchor
+        focusable={false}
+        render={<span {...stylex.props(styles.reasoningIndicator)} />}
+      >
+        <HugeiconsIcon icon={Brain01Icon} size={14} strokeWidth={1.5} aria-hidden="true" />
+        <VisuallyHidden>{label}</VisuallyHidden>
+      </Tooltip.Anchor>
+
+      <Tooltip>{label}</Tooltip>
+    </Tooltip.Root>
+  );
 }
 
 function sameModel(left: ModelReference, right: ModelReference) {
@@ -566,6 +585,12 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                         ) : (
                           "Pricing varies"
                         )}
+                        {model.reasoning ? (
+                          <>
+                            {" · "}
+                            <ReasoningIndicator required={model.reasoning.required} />
+                          </>
+                        ) : null}
                       </span>
                     </span>
                   </span>
@@ -934,6 +959,10 @@ const styles = stylex.create({
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  },
+  reasoningIndicator: {
+    display: "inline-flex",
+    verticalAlign: "text-bottom",
   },
   favoriteButton: {
     backgroundColor: {

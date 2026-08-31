@@ -22,12 +22,14 @@ describe("OpenRouter model provider", () => {
         name: "Meta: Text model",
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
+        reasoning: { mandatory: false },
       },
       {
         id: "new-lab/research-model",
         name: "New Lab: Research model",
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
+        reasoning: { mandatory: true },
       },
       {
         id: "x-ai/grok-model",
@@ -57,12 +59,14 @@ describe("OpenRouter model provider", () => {
         id: "meta-llama/text-model",
         name: "Text model",
         brandId: "meta",
+        reasoning: { required: false },
         tokenPricing,
       },
       {
         id: "new-lab/research-model",
         name: "Research model",
         brandId: "new-lab",
+        reasoning: { required: true },
         tokenPricing,
       },
       {

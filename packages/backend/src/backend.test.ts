@@ -86,7 +86,14 @@ describe("backend", () => {
 
   it("serves a persisted model catalog without repeating the remote request after restart", async () => {
     const databasePath = createDatabasePath();
-    const firstList = vi.fn(async () => [{ id: "maker/model", name: "Model", brandId: "maker" }]);
+    const firstList = vi.fn(async () => [
+      {
+        id: "maker/model",
+        name: "Model",
+        brandId: "maker",
+        reasoning: { required: true },
+      },
+    ]);
     const first = await createBackend(
       backendOptions(databasePath, [
         {
@@ -97,7 +104,14 @@ describe("backend", () => {
     );
 
     await expect(first.models.getModels("provider-a")).resolves.toMatchObject({
-      models: [{ id: "maker/model", name: "Model", brandId: "maker" }],
+      models: [
+        {
+          id: "maker/model",
+          name: "Model",
+          brandId: "maker",
+          reasoning: { required: true },
+        },
+      ],
       freshness: "fresh",
     });
     expect(firstList).toHaveBeenCalledOnce();
@@ -116,7 +130,14 @@ describe("backend", () => {
     );
 
     await expect(reopened.models.getModels("provider-a")).resolves.toMatchObject({
-      models: [{ id: "maker/model", name: "Model", brandId: "maker" }],
+      models: [
+        {
+          id: "maker/model",
+          name: "Model",
+          brandId: "maker",
+          reasoning: { required: true },
+        },
+      ],
       freshness: "fresh",
     });
     expect(secondList).not.toHaveBeenCalled();

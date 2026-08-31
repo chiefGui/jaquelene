@@ -79,10 +79,6 @@ export function PrimarySidebar({
 
   return (
     <aside aria-label="Primary sidebar" {...stylex.props(styles.root)}>
-      <header {...stylex.props(styles.header)}>
-        <span {...stylex.props(styles.brand)}>Jaquelene</span>
-      </header>
-
       {lead}
 
       <nav aria-label={navigation.navigationLabel} {...stylex.props(styles.navigation)}>
@@ -168,20 +164,7 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
-  },
-  header: {
-    alignItems: "center",
-    display: "flex",
-    flexShrink: 0,
-    height: "3.5rem",
-    paddingInline: "1rem",
-  },
-  brand: {
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 600,
-    letterSpacing: "-0.025em",
-    lineHeight: tokens.lineHeightSmall,
-    textBox: "trim-both text",
+    paddingBlockStart: "0.5rem",
   },
   navigation: {
     flex: 1,

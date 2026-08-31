@@ -366,7 +366,6 @@ const ThreadComposer = memo(function ThreadComposer({
       );
       reportError("thread.turn.submit", cause);
       setSendError("Could not send the message.");
-      return;
     } finally {
       acceptingSubmission.current = false;
     }

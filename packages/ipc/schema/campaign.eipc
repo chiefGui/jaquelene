@@ -8,6 +8,12 @@ structure Campaign {
   modelOverride?: ModelSelection
 }
 
+structure CampaignContinuation {
+  campaignId: string
+  scenarioId: string
+  scenarioTitle: string
+}
+
 [RendererAPI]
 [Validator=TrustedRenderer]
 [ContextBridge]
@@ -15,6 +21,7 @@ interface Campaigns {
   start(scenarioId: string) -> Campaign
   listForScenario(scenarioId: string) -> Campaign[]
   get(id: string) -> Campaign?
+  getContinuation() -> CampaignContinuation?
   setModelOverride(id: string, model: ModelSelection?) -> Campaign?
 }
 

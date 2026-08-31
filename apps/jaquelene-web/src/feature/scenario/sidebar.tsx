@@ -2,14 +2,15 @@ import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import Book01Icon from "@hugeicons/core-free-icons/Book01Icon";
 import Books01Icon from "@hugeicons/core-free-icons/Books01Icon";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { PrimarySidebar } from "@/layout/primary-sidebar";
+import { PrimarySidebar, type PrimarySidebarComponentProps } from "@/layout/primary-sidebar";
 import { scenariosQuery } from "./query";
 
-export function ScenariosSidebar() {
+export function ScenariosSidebar(props: PrimarySidebarComponentProps) {
   const { data: scenarios } = useSuspenseQuery(scenariosQuery);
 
   return (
     <PrimarySidebar
+      {...props}
       navigation={{
         navigationLabel: "Scenarios",
         items: [

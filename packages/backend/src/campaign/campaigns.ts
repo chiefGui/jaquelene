@@ -2,8 +2,9 @@ import { desc, eq, getTableColumns } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { ids, type CampaignId, type ScenarioId, type ThreadId } from "#backend/id";
 import { requireModelSelection, type ModelSelection } from "#backend/provider/provider";
+import { scenarioTable } from "#backend/scenario/schema";
 import { insertThread } from "#backend/thread/threads";
-import { campaignModelOverrideTable, campaignTable } from "./schema";
+import { campaignContinuationTable, campaignModelOverrideTable, campaignTable } from "./schema";
 
 export type Campaign = Readonly<{
   id: CampaignId;
@@ -11,6 +12,12 @@ export type Campaign = Readonly<{
   threadId: ThreadId;
   startedAt: number;
   modelOverride?: ModelSelection;
+}>;
+
+export type CampaignContinuation = Readonly<{
+  campaignId: CampaignId;
+  scenarioId: ScenarioId;
+  scenarioTitle: string;
 }>;
 
 type StoredCampaign = typeof campaignTable.$inferSelect & {
@@ -77,6 +84,50 @@ export function createCampaigns(database: Database, now: () => number = Date.now
       return campaign ? toCampaign(campaign) : null;
     },
 
+    getContinuation(): CampaignContinuation | null {
+      return (
+        database
+          .select({
+            campaignId: campaignTable.id,
+            scenarioId: campaignTable.scenarioId,
+            scenarioTitle: scenarioTable.title,
+          })
+          .from(campaignContinuationTable)
+          .innerJoin(campaignTable, eq(campaignTable.id, campaignContinuationTable.campaignId))
+          .innerJoin(scenarioTable, eq(scenarioTable.id, campaignTable.scenarioId))
+          .where(eq(campaignContinuationTable.id, 1))
+          .get() ?? null
+      );
+    },
+
+    recordContinuationInTransaction(
+      transaction: Pick<Database, "insert" | "select">,
+      threadId: ThreadId,
+    ) {
+      const campaign = transaction
+        .select({
+          id: campaignTable.id,
+          continuationId: campaignContinuationTable.campaignId,
+        })
+        .from(campaignTable)
+        .leftJoin(campaignContinuationTable, eq(campaignContinuationTable.id, 1))
+        .where(eq(campaignTable.threadId, threadId))
+        .get();
+
+      if (!campaign || campaign.continuationId === campaign.id) {
+        return;
+      }
+
+      transaction
+        .insert(campaignContinuationTable)
+        .values({ id: 1, campaignId: campaign.id })
+        .onConflictDoUpdate({
+          target: campaignContinuationTable.id,
+          set: { campaignId: campaign.id },
+        })
+        .run();
+    },
+
     setModelOverride(id: CampaignId, model: ModelSelection | null) {
       if (model) {
         requireModelSelection(model);
@@ -116,4 +167,8 @@ export function createCampaigns(database: Database, now: () => number = Date.now
   };
 }
 
-export type Campaigns = ReturnType<typeof createCampaigns>;
+export type CampaignEngine = ReturnType<typeof createCampaigns>;
+export type Campaigns = Pick<
+  CampaignEngine,
+  "start" | "listForScenario" | "get" | "getContinuation" | "setModelOverride"
+>;

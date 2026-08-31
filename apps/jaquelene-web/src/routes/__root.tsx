@@ -3,12 +3,14 @@ import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext } from "@tanstack/react-router";
 import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
+import { campaignContinuationQuery } from "@/feature/campaign/query";
 import { AppShell } from "@/layout/app-shell";
-import { PrimarySidebar } from "@/layout/primary-sidebar";
+import { PrimarySidebar, type PrimarySidebarComponentProps } from "@/layout/primary-sidebar";
 
-function HomeSidebar() {
+function HomeSidebar(props: PrimarySidebarComponentProps) {
   return (
     <PrimarySidebar
+      {...props}
       navigation={{
         navigationLabel: "Home",
         items: [
@@ -31,7 +33,12 @@ function HomeSidebar() {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  loader: ({ context }) => context.queryClient.query(userInterfacePreferencesQuery),
+  loader: async ({ context }) => {
+    await Promise.all([
+      context.queryClient.query(userInterfacePreferencesQuery),
+      context.queryClient.query(campaignContinuationQuery),
+    ]);
+  },
   staticData: {
     primarySidebar: HomeSidebar,
   },

@@ -1,13 +1,18 @@
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { useCallback } from "react";
 import { CampaignModelPicker } from "@/feature/campaign/model-picker";
 import {
   defaultCampaignModelQuery,
   useIsDefaultCampaignModelPending,
 } from "@/feature/campaign/preferences";
-import { campaignQuery, useIsCampaignModelOverridePending } from "@/feature/campaign/query";
+import {
+  cacheCampaignContinuation,
+  campaignQuery,
+  useIsCampaignModelOverridePending,
+} from "@/feature/campaign/query";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import { scenariosQuery } from "@/feature/scenario/query";
 import { ScenariosSidebar } from "@/feature/scenario/sidebar";
@@ -49,12 +54,24 @@ function CampaignRoute() {
   const { data: defaultModel } = useSuspenseQuery(defaultCampaignModelQuery);
   const defaultModelPending = useIsDefaultCampaignModelPending();
   const modelOverridePending = useIsCampaignModelOverridePending(campaignId);
+  const queryClient = useQueryClient();
   const scenario = campaign ? scenarios.find(({ id }) => id === campaign.scenarioId) : undefined;
   const inheritsDefaultModel = campaign?.modelOverride === undefined;
   const effectiveModel = campaign?.modelOverride ?? defaultModel;
   const effectiveModelPending =
     modelOverridePending || (inheritsDefaultModel && defaultModelPending);
   const modelSelectionPending = modelOverridePending || defaultModelPending;
+  const rememberCampaign = useCallback(() => {
+    if (!campaign || !scenario) {
+      return;
+    }
+
+    cacheCampaignContinuation(queryClient, {
+      campaignId: campaign.id,
+      scenarioId: scenario.id,
+      scenarioTitle: scenario.title,
+    });
+  }, [campaign, queryClient, scenario]);
 
   if (campaign && !scenario) {
     throw new Error(`Campaign "${campaign.id}" references an unavailable scenario.`);
@@ -97,6 +114,7 @@ function CampaignRoute() {
             threadId={campaign.threadId}
             model={effectiveModel}
             modelPending={effectiveModelPending}
+            onTurnAccepted={rememberCampaign}
             composerControls={
               <CampaignModelPicker
                 campaignId={campaign.id}

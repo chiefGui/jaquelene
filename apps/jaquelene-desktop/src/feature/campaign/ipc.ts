@@ -17,6 +17,7 @@ export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
     get(id) {
       return campaigns.get(ids.campaign.parse(id));
     },
+    getContinuation: campaigns.getContinuation,
     setModelOverride(id, model) {
       return campaigns.setModelOverride(ids.campaign.parse(id), model);
     },

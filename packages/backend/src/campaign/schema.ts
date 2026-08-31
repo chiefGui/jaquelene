@@ -37,6 +37,21 @@ export const campaignTable = sqliteTable(
   ],
 );
 
+export const campaignContinuationTable = sqliteTable(
+  "campaign_continuation",
+  {
+    id: integer().$type<1>().notNull(),
+    campaignId: text("campaign_id")
+      .$type<CampaignId>()
+      .notNull()
+      .references(() => campaignTable.id, { onDelete: "cascade" }),
+  },
+  (continuation) => [
+    primaryKey({ columns: [continuation.id] }),
+    check("campaign_continuation_singleton", sql`${continuation.id} = 1`),
+  ],
+);
+
 export const campaignModelOverrideTable = sqliteTable(
   "campaign_model_overrides",
   {

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createGenerations } from "#backend/generation/generations";
 import { createTurnPromptCompiler } from "#backend/generation/prompt";
@@ -11,6 +12,7 @@ import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
+import { createScenarios } from "#backend/scenario/scenarios";
 import {
   createThreads,
   THREAD_MESSAGE_CONTENT_MAX_LENGTH,
@@ -34,6 +36,8 @@ function createDatabasePath() {
 
 function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
+  const campaigns = createCampaigns(database, now);
+  const scenarios = createScenarios(database);
   const threads = createThreads(database, now);
   const generationEngine = createGenerations(
     database,
@@ -51,15 +55,20 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
     now,
   );
   const supervised = superviseGenerations(generationEngine);
-  const turns = createTurns(database, threads, {
-    acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
-    listLatestForTurns: generationEngine.listLatestForTurns,
-    requireRegisteredModel: generationEngine.requireRegisteredModel,
-    scheduleAcceptedReply: supervised.scheduleAcceptedReply,
-  });
+  const turns = createTurns(
+    database,
+    threads,
+    {
+      acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
+      listLatestForTurns: generationEngine.listLatestForTurns,
+      requireRegisteredModel: generationEngine.requireRegisteredModel,
+      scheduleAcceptedReply: supervised.scheduleAcceptedReply,
+    },
+    campaigns,
+  );
   databases.push(database);
   closeSupervisors.push(supervised.close);
-  return { database, generationEngine, threads, turns };
+  return { campaigns, database, generationEngine, scenarios, threads, turns };
 }
 
 function deferred<Result>() {
@@ -144,6 +153,62 @@ describe("turns", () => {
       pageSize: THREAD_MESSAGE_PAGE_SIZE,
       messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
+  });
+
+  it("tracks the campaign containing the latest accepted user turn", async () => {
+    const generate = vi.fn<TestGenerate>(async () => ({ text: "Reply" }));
+    const { campaigns, scenarios, threads, turns } = openTurnEnvironment(generate);
+    const firstScenario = scenarios.create("First voyage");
+    const secondScenario = scenarios.create("Second voyage");
+    const firstCampaign = campaigns.start(firstScenario.id);
+    const secondCampaign = campaigns.start(secondScenario.id);
+    const model = { providerId: "provider-a", modelId: "maker/model" };
+
+    expect(campaigns.getContinuation()).toBeNull();
+
+    const first = turns.submit({
+      threadId: firstCampaign.threadId,
+      content: "Begin the first voyage.",
+      model,
+    });
+    expect(campaigns.getContinuation()).toEqual({
+      campaignId: firstCampaign.id,
+      scenarioId: firstScenario.id,
+      scenarioTitle: firstScenario.title,
+    });
+
+    const second = turns.submit({
+      threadId: secondCampaign.threadId,
+      content: "Begin the second voyage.",
+      model,
+    });
+    expect(campaigns.getContinuation()).toEqual({
+      campaignId: secondCampaign.id,
+      scenarioId: secondScenario.id,
+      scenarioTitle: secondScenario.title,
+    });
+
+    const renamed = scenarios.rename(secondScenario.id, "Renamed voyage");
+
+    if (!renamed) {
+      throw new Error("Expected the continuation scenario to be renamed.");
+    }
+
+    expect(campaigns.getContinuation()).toEqual({
+      campaignId: secondCampaign.id,
+      scenarioId: secondScenario.id,
+      scenarioTitle: renamed.title,
+    });
+
+    const independentThread = threads.create();
+    const independent = turns.submit({
+      threadId: independentThread.id,
+      content: "Independent thread",
+      model,
+    });
+    expect(campaigns.getContinuation()?.campaignId).toBe(secondCampaign.id);
+
+    await Promise.all([first.settlement, second.settlement, independent.settlement]);
   });
 
   it("settles durable generation failures and accepts their retry immediately", async () => {
@@ -235,33 +300,40 @@ describe("turns", () => {
 
   it("rolls back a user turn when pending generation acceptance fails", () => {
     const generate = vi.fn(async () => ({ text: "Unused" }));
-    const { database, generationEngine, threads } = openTurnEnvironment(generate);
-    const thread = threads.create();
+    const { campaigns, database, generationEngine, scenarios, threads } =
+      openTurnEnvironment(generate);
+    const campaign = campaigns.start(scenarios.create("Rollback voyage").id);
     const acceptanceFailure = new Error("Could not persist pending generation.");
-    const turns = createTurns(database, threads, {
-      acceptReplyInTransaction() {
-        throw acceptanceFailure;
+    const turns = createTurns(
+      database,
+      threads,
+      {
+        acceptReplyInTransaction() {
+          throw acceptanceFailure;
+        },
+        listLatestForTurns: generationEngine.listLatestForTurns,
+        requireRegisteredModel: generationEngine.requireRegisteredModel,
+        scheduleAcceptedReply() {
+          throw new Error("Generation must not be scheduled after failed acceptance.");
+        },
       },
-      listLatestForTurns: generationEngine.listLatestForTurns,
-      requireRegisteredModel: generationEngine.requireRegisteredModel,
-      scheduleAcceptedReply() {
-        throw new Error("Generation must not be scheduled after failed acceptance.");
-      },
-    });
+      campaigns,
+    );
 
     expect(() =>
       turns.submit({
-        threadId: thread.id,
+        threadId: campaign.threadId,
         content: "Do not retain this",
         model: { providerId: "provider-a", modelId: "maker/model" },
       }),
     ).toThrow(acceptanceFailure);
-    expect(turns.listForThread({ threadId: thread.id })).toEqual({
+    expect(turns.listForThread({ threadId: campaign.threadId })).toEqual({
       messages: [],
       generations: [],
       pageSize: THREAD_MESSAGE_PAGE_SIZE,
       messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
     });
+    expect(campaigns.getContinuation()).toBeNull();
     expect(generate).not.toHaveBeenCalled();
   });
 

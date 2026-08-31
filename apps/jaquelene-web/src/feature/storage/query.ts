@@ -7,7 +7,7 @@ import {
 } from "@jaquelene/ipc/renderer";
 import { queryOptions, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
-import { campaignQueryKey } from "@/feature/campaign/query";
+import { cacheCampaignContinuation, campaignQueryKey } from "@/feature/campaign/query";
 import { defaultCampaignModelQuery } from "@/feature/campaign/preferences";
 import { favoriteModelsQuery } from "@/feature/model/favorite-models";
 import { reportError } from "@/feature/diagnostics/diagnostics";
@@ -78,7 +78,11 @@ async function cancelCategoryQueries(queryClient: QueryClient, id: StorageCatego
   }
 }
 
-async function refreshCategoryQueries(queryClient: QueryClient, id: StorageCategory) {
+async function refreshCategoryQueries(
+  queryClient: QueryClient,
+  id: StorageCategory,
+  deletionSucceeded: boolean,
+) {
   if (id === StorageCategory.Cache) {
     await queryClient.resetQueries(cacheQueryFilter);
     return;
@@ -87,6 +91,10 @@ async function refreshCategoryQueries(queryClient: QueryClient, id: StorageCateg
   if (id === StorageCategory.Content) {
     for (const queryKey of contentQueryKeys) {
       queryClient.removeQueries({ queryKey });
+    }
+
+    if (deletionSucceeded) {
+      cacheCampaignContinuation(queryClient, null);
     }
 
     return;
@@ -110,8 +118,8 @@ export function useDeleteStorageCategory() {
     onMutate: (id) => cancelCategoryQueries(queryClient, id),
     onSuccess: (deletion, id) =>
       applyStorageDeletion(queryClient, deletion, { kind: "category", id }),
-    onSettled(_usage, _error, id) {
-      void refreshCategoryQueries(queryClient, id).catch((cause: unknown) => {
+    onSettled(_usage, error, id) {
+      void refreshCategoryQueries(queryClient, id, !error).catch((cause: unknown) => {
         reportError("storage.category.refresh", cause, ErrorSeverity.Warning);
       });
     },

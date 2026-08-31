@@ -1,4 +1,5 @@
 import { queryOptions, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { reconcileCampaignContinuationScenario } from "@/feature/campaign/query";
 import { ipcMutationOptions, ipcQueryOptions } from "@/ipc";
 import { scenarioIpc, type Scenario } from "./ipc";
 
@@ -56,6 +57,7 @@ export function useRenameScenario() {
 
       if (result.status === "renamed") {
         cacheScenario(queryClient, result.scenario);
+        reconcileCampaignContinuationScenario(queryClient, result.scenario);
       } else {
         queryClient.setQueryData(scenarioQuery(id).queryKey, null);
       }

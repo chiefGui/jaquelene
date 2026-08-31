@@ -1,9 +1,10 @@
-import type { Campaign, ModelSelection } from "@jaquelene/ipc/renderer";
+import type { Campaign, CampaignContinuation, ModelSelection } from "@jaquelene/ipc/renderer";
 import { MutationObserver, QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const campaignsIpc = vi.hoisted(() => ({
   get: vi.fn(),
+  getContinuation: vi.fn(),
   listForScenario: vi.fn(),
   setModelOverride: vi.fn(),
   start: vi.fn(),
@@ -12,8 +13,11 @@ const campaignsIpc = vi.hoisted(() => ({
 vi.mock("@jaquelene/ipc/renderer", () => ({ Campaigns: campaignsIpc }));
 
 import {
+  cacheCampaignContinuation,
+  campaignContinuationQuery,
   campaignQuery,
   campaignsForScenarioQuery,
+  reconcileCampaignContinuationScenario,
   setCampaignModelOverrideMutationOptions,
 } from "./query";
 
@@ -55,6 +59,38 @@ function deferred<Result>() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+});
+
+describe("campaign continuation cache", () => {
+  const continuation: CampaignContinuation = {
+    campaignId: "campaign-a",
+    scenarioId: "scenario-a",
+    scenarioTitle: "Original scenario",
+  };
+
+  it("caches a confirmed continuation without another request", () => {
+    const queryClient = createQueryClient();
+
+    cacheCampaignContinuation(queryClient, continuation);
+
+    expect(queryClient.getQueryData(campaignContinuationQuery.queryKey)).toEqual(continuation);
+    expect(campaignsIpc.getContinuation).not.toHaveBeenCalled();
+  });
+
+  it("keeps the cached scenario title current after a rename", () => {
+    const queryClient = createQueryClient();
+    cacheCampaignContinuation(queryClient, continuation);
+
+    reconcileCampaignContinuationScenario(queryClient, {
+      id: continuation.scenarioId,
+      title: "Renamed scenario",
+    });
+
+    expect(queryClient.getQueryData(campaignContinuationQuery.queryKey)).toEqual({
+      ...continuation,
+      scenarioTitle: "Renamed scenario",
+    });
+  });
 });
 
 describe("campaign model override mutation", () => {

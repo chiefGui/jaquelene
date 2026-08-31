@@ -4,7 +4,7 @@ export type {
   ResourceCacheFailure,
   ResourceCacheInspection,
 } from "#backend/resource-cache/resource-cache";
-export type { Campaign, Campaigns } from "#backend/campaign/campaigns";
+export type { Campaign, CampaignContinuation, Campaigns } from "#backend/campaign/campaigns";
 export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
 export {
   requireModelReference,

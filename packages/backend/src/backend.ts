@@ -1,5 +1,5 @@
 import { Cause, Context, Effect, Exit, Layer, ManagedRuntime } from "effect";
-import { createCampaigns, type Campaigns } from "#backend/campaign/campaigns";
+import { createCampaigns, type CampaignEngine, type Campaigns } from "#backend/campaign/campaigns";
 import { DatabaseService, getDatabaseStoragePaths } from "#backend/database/database";
 import type { Generations } from "#backend/generation/generations";
 import { createTurnPromptCompiler } from "#backend/generation/prompt";
@@ -54,7 +54,7 @@ export type Backend = Readonly<{
 
 type BackendServices = Readonly<{
   scenarios: Scenarios;
-  campaigns: Campaigns;
+  campaigns: CampaignEngine;
   threads: ThreadEngine;
   turns: Turns;
   providers: Providers;
@@ -84,7 +84,7 @@ function createBackendServiceLayer() {
             promptCompiler: createTurnPromptCompiler(threads),
             providers: providers.generations,
           });
-          const turns = createTurns(database, threads, generationSubsystem.replies);
+          const turns = createTurns(database, threads, generationSubsystem.replies, campaigns);
 
           return BackendService.of({
             scenarios,
@@ -259,6 +259,10 @@ export async function createBackend(
       get(id) {
         assertOpen();
         return services.campaigns.get(id);
+      },
+      getContinuation() {
+        assertOpen();
+        return services.campaigns.getContinuation();
       },
       setModelOverride(id, model) {
         assertOpen();

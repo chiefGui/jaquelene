@@ -1,4 +1,9 @@
-import { Campaigns, type Campaign, type ModelSelection } from "@jaquelene/ipc/renderer";
+import {
+  Campaigns,
+  type Campaign,
+  type CampaignContinuation,
+  type ModelSelection,
+} from "@jaquelene/ipc/renderer";
 import {
   mutationOptions,
   queryOptions,
@@ -12,8 +17,15 @@ import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 const startCampaign = requireIpcMethod(Campaigns?.start);
 const listCampaignsForScenario = requireIpcMethod(Campaigns?.listForScenario);
 const getCampaign = requireIpcMethod(Campaigns?.get);
+const getCampaignContinuation = requireIpcMethod(Campaigns?.getContinuation);
 const setCampaignModelOverride = requireIpcMethod(Campaigns?.setModelOverride);
 export const campaignQueryKey = ["campaigns"] as const;
+
+export const campaignContinuationQuery = queryOptions({
+  ...ipcQueryOptions,
+  queryKey: [...campaignQueryKey, "continuation"],
+  queryFn: getCampaignContinuation,
+});
 
 function setCampaignModelOverrideMutationKey(id: string) {
   return [...campaignQueryKey, id, "set-model-override"] as const;
@@ -37,6 +49,26 @@ export function campaignQuery(id: string) {
     queryKey: [...campaignQueryKey, id],
     queryFn: () => getCampaign(id),
   });
+}
+
+export function cacheCampaignContinuation(
+  queryClient: QueryClient,
+  continuation: CampaignContinuation | null,
+) {
+  queryClient.setQueryData(campaignContinuationQuery.queryKey, continuation);
+}
+
+export function reconcileCampaignContinuationScenario(
+  queryClient: QueryClient,
+  scenario: Readonly<{ id: string; title: string }>,
+) {
+  queryClient.setQueryData<CampaignContinuation | null>(
+    campaignContinuationQuery.queryKey,
+    (continuation) =>
+      continuation?.scenarioId === scenario.id
+        ? { ...continuation, scenarioTitle: scenario.title }
+        : continuation,
+  );
 }
 
 function withoutModelOverride(campaign: Campaign): Campaign {

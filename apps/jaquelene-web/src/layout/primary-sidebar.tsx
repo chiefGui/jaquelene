@@ -12,7 +12,7 @@ import {
   useMatchRoute,
   useRouter,
 } from "@tanstack/react-router";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import type { FileRoutesByTo } from "@/routeTree.gen";
 
 type PrimarySidebarDestination = {
@@ -40,13 +40,20 @@ interface PrimarySidebarNavigation {
   items: readonly PrimarySidebarItem[];
 }
 
+export type PrimarySidebarComponentProps = Readonly<{
+  lead?: ReactNode;
+}>;
+
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
-    primarySidebar?: ComponentType;
+    primarySidebar?: ComponentType<PrimarySidebarComponentProps>;
   }
 }
 
-export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavigation }) {
+export function PrimarySidebar({
+  lead,
+  navigation,
+}: PrimarySidebarComponentProps & { navigation: PrimarySidebarNavigation }) {
   const matchRoute = useMatchRoute();
   const router = useRouter();
   const settingsActive = Boolean(matchRoute({ to: "/settings", fuzzy: true }));
@@ -75,6 +82,8 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
       <header {...stylex.props(styles.header)}>
         <span {...stylex.props(styles.brand)}>Jaquelene</span>
       </header>
+
+      {lead}
 
       <nav aria-label={navigation.navigationLabel} {...stylex.props(styles.navigation)}>
         <ul {...stylex.props(styles.list)}>

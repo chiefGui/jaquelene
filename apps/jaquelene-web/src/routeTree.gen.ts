@@ -21,6 +21,7 @@ import { Route as SettingsAppearanceRouteImport } from "./routes/settings/appear
 import { Route as SettingsGeneralRouteImport } from "./routes/settings/general";
 import { Route as SettingsProvidersRouteImport } from "./routes/settings/providers";
 import { Route as SettingsStorageRouteImport } from "./routes/settings/storage";
+import { Route as SettingsSystemInstructionsRouteImport } from "./routes/settings/system-instructions";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -82,6 +83,12 @@ const SettingsStorageRoute = SettingsStorageRouteImport.update({
   path: "/storage",
   getParentRoute: () => SettingsRouteRoute,
 } as any);
+const SettingsSystemInstructionsRoute =
+  SettingsSystemInstructionsRouteImport.update({
+    id: "/system-instructions",
+    path: "/system-instructions",
+    getParentRoute: () => SettingsRouteRoute,
+  } as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
@@ -95,6 +102,7 @@ export interface FileRoutesByFullPath {
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
+  "/settings/system-instructions": typeof SettingsSystemInstructionsRoute;
   "/scenarios/": typeof ScenariosIndexRoute;
 }
 export interface FileRoutesByTo {
@@ -108,6 +116,7 @@ export interface FileRoutesByTo {
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
+  "/settings/system-instructions": typeof SettingsSystemInstructionsRoute;
   "/scenarios": typeof ScenariosIndexRoute;
 }
 export interface FileRoutesById {
@@ -123,6 +132,7 @@ export interface FileRoutesById {
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
+  "/settings/system-instructions": typeof SettingsSystemInstructionsRoute;
   "/scenarios/": typeof ScenariosIndexRoute;
 }
 export interface FileRouteTypes {
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | "/settings/general"
     | "/settings/providers"
     | "/settings/storage"
+    | "/settings/system-instructions"
     | "/scenarios/";
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | "/settings/general"
     | "/settings/providers"
     | "/settings/storage"
+    | "/settings/system-instructions"
     | "/scenarios";
   id:
     | "__root__"
@@ -166,6 +178,7 @@ export interface FileRouteTypes {
     | "/settings/general"
     | "/settings/providers"
     | "/settings/storage"
+    | "/settings/system-instructions"
     | "/scenarios/";
   fileRoutesById: FileRoutesById;
 }
@@ -262,6 +275,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SettingsStorageRouteImport;
       parentRoute: typeof SettingsRouteRoute;
     };
+    "/settings/system-instructions": {
+      id: "/settings/system-instructions";
+      path: "/system-instructions";
+      fullPath: "/settings/system-instructions";
+      preLoaderRoute: typeof SettingsSystemInstructionsRouteImport;
+      parentRoute: typeof SettingsRouteRoute;
+    };
   }
 }
 
@@ -287,6 +307,7 @@ interface SettingsRouteRouteChildren {
   SettingsGeneralRoute: typeof SettingsGeneralRoute;
   SettingsProvidersRoute: typeof SettingsProvidersRoute;
   SettingsStorageRoute: typeof SettingsStorageRoute;
+  SettingsSystemInstructionsRoute: typeof SettingsSystemInstructionsRoute;
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
@@ -295,6 +316,7 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsProvidersRoute: SettingsProvidersRoute,
   SettingsStorageRoute: SettingsStorageRoute,
+  SettingsSystemInstructionsRoute: SettingsSystemInstructionsRoute,
 };
 
 const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(

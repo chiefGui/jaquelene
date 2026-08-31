@@ -56,6 +56,12 @@ export type {
   StorageDeletion,
   StorageUsage,
 } from "#backend/storage/storage";
+export type {
+  SystemInstruction,
+  SystemInstructionCatalogEntry,
+  SystemInstructionGroup,
+  SystemInstructions,
+} from "#backend/system-instruction/system-instructions";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/threads";
 export type {

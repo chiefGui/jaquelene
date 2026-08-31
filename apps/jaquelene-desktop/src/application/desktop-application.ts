@@ -148,6 +148,7 @@ export function launchDesktopApplication({
             localState,
             scenarios: backend.scenarios,
             campaigns: backend.campaigns,
+            systemInstructions: backend.systemInstructions,
             turns: backend.turns,
             modelCatalog: backend.models,
             favoriteModels,

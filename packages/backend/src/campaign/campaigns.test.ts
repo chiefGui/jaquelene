@@ -134,9 +134,21 @@ describe("campaigns", () => {
   });
 
   it("returns no campaign for an unknown identity", () => {
-    const { campaigns } = openCampaigns(createDatabasePath());
+    const { campaigns, threads } = openCampaigns(createDatabasePath());
 
     expect(campaigns.get(ids.campaign.create())).toBeNull();
+    expect(campaigns.getContextForThread(threads.create().id)).toBeNull();
+  });
+
+  it("finds the campaign that owns a thread", () => {
+    const { campaigns, scenarios } = openCampaigns(createDatabasePath());
+    const campaign = campaigns.start(scenarios.create("Thread owner").id);
+
+    expect(campaigns.getContextForThread(campaign.threadId)).toEqual({
+      id: campaign.id,
+      scenarioId: campaign.scenarioId,
+      threadId: campaign.threadId,
+    });
   });
 
   it("sets, replaces, and clears a campaign model override", () => {

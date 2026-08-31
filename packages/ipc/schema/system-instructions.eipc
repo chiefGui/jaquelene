@@ -1,0 +1,26 @@
+module jaquelene
+
+enum SystemInstructionOrigin {
+  Factory = "factory"
+}
+
+structure SystemInstruction {
+  key: string
+  name: string
+  content: string
+  origin: SystemInstructionOrigin
+}
+
+structure SystemInstructionGroup {
+  key: string
+  name: string
+  description: string
+  instructions: SystemInstruction[]
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface SystemInstructions {
+  listGroups() -> SystemInstructionGroup[]
+}

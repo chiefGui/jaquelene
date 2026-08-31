@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createGenerations } from "#backend/generation/generations";
 import { createReplyPreparer } from "#backend/generation/reply-preparation";
@@ -34,10 +35,11 @@ function createDatabasePath() {
 
 function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
+  const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
   const generationEngine = createGenerations(
     database,
-    createReplyPreparer(threads),
+    createReplyPreparer(threads, campaigns),
     {
       get(providerId) {
         return providerId === "provider-a"

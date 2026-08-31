@@ -1,3 +1,4 @@
+export { Badge, type BadgeProps } from "./primitive/badge";
 export { Button, type ButtonProps } from "./primitive/button";
 export { IconFrame, type IconFrameProps } from "./primitive/icon-frame";
 export { IconButton, type IconButtonProps } from "./primitive/icon-button";

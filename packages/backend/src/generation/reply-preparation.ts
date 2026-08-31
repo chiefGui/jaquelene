@@ -1,5 +1,10 @@
+import type { CampaignEngine } from "#backend/campaign/campaigns";
 import type { MessageId, ThreadId, TurnId } from "#backend/id";
 import { requireModelInput, type ModelInput } from "#backend/model/input";
+import {
+  factoryDefaultRoleplaySystemInstruction,
+  resolveSystemInstruction,
+} from "#backend/system-instruction/system-instructions";
 import type { ThreadEngine } from "#backend/thread/threads";
 
 export type ReplyAnchor = Readonly<{
@@ -23,7 +28,10 @@ export function requireReplyInput(prepared: ModelInput, anchor: ReplyAnchor): Mo
   return input;
 }
 
-export function createReplyPreparer(threads: Pick<ThreadEngine, "getTurnContext">): ReplyPreparer {
+export function createReplyPreparer(
+  threads: Pick<ThreadEngine, "getTurnContext">,
+  campaigns: Pick<CampaignEngine, "getContextForThread">,
+): ReplyPreparer {
   return {
     prepare(anchor) {
       const context = threads.getTurnContext(anchor.turnId);
@@ -35,8 +43,12 @@ export function createReplyPreparer(threads: Pick<ThreadEngine, "getTurnContext"
         throw new Error(`The accepted input for turn "${anchor.turnId}" has changed.`);
       }
 
+      const campaign = campaigns.getContextForThread(anchor.threadId);
+
       return {
-        instructions: [],
+        instructions: campaign
+          ? [resolveSystemInstruction(factoryDefaultRoleplaySystemInstruction)]
+          : [],
         dialogue: context.messages.map(({ id: messageId, author: role, content }) => ({
           messageId,
           role,

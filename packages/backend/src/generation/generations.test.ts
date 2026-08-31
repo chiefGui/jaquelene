@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
@@ -11,6 +12,8 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
+import { createScenarios } from "#backend/scenario/scenarios";
+import { factoryDefaultRoleplaySystemInstruction } from "#backend/system-instruction/system-instructions";
 import { threadMessageTable } from "#backend/thread/schema";
 import {
   createThreads,
@@ -54,15 +57,17 @@ function generationRouter(provider?: TestGenerationProvider): ProviderGeneration
 
 function openGenerationEnvironment(provider: TestGenerationProvider, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
+  const campaigns = createCampaigns(database, now);
+  const scenarios = createScenarios(database);
   const threads = createThreads(database, now);
   const generations = createGenerations(
     database,
-    createReplyPreparer(threads),
+    createReplyPreparer(threads, campaigns),
     generationRouter(provider),
     now,
   );
   databases.push(database);
-  return { database, generations, threads };
+  return { campaigns, database, generations, scenarios, threads };
 }
 
 function deferred<Result>() {
@@ -151,6 +156,34 @@ describe("generations", () => {
       messages: [started.message, result.message],
       pageSize: THREAD_MESSAGE_PAGE_SIZE,
       messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+    });
+  });
+
+  it("includes the factory narrator instruction for campaign replies", async () => {
+    const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
+    const { campaigns, generations, scenarios, threads } = openGenerationEnvironment(provider);
+    const scenario = scenarios.create("The Long Night");
+    const campaign = campaigns.start(scenario.id);
+    const started = threads.startTurn(campaign.threadId, "Begin");
+
+    await generations.generateReply({
+      turnId: started.turn.id,
+      model: { providerId: provider.id, modelId: "maker/model" },
+    });
+
+    expect(provider.generate).toHaveBeenCalledWith({
+      generationId: expect.stringMatching(/^generation_/),
+      threadId: campaign.threadId,
+      modelId: "maker/model",
+      input: {
+        instructions: [
+          {
+            sourceKey: factoryDefaultRoleplaySystemInstruction.key,
+            content: factoryDefaultRoleplaySystemInstruction.content,
+          },
+        ],
+        dialogue: [{ messageId: started.message.id, role: "user", content: "Begin" }],
+      },
     });
   });
 
@@ -665,10 +698,10 @@ describe("generations", () => {
 
   it("rejects an unknown provider identity before persisting an attempt", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { database, threads } = openGenerationEnvironment(provider);
+    const { campaigns, database, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
-    const preparer = createReplyPreparer(threads);
+    const preparer = createReplyPreparer(threads, campaigns);
 
     const generations = createGenerations(database, preparer, generationRouter());
     await expect(

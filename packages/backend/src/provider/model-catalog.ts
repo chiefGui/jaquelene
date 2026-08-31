@@ -192,7 +192,7 @@ export function createModelCatalog(
       key: configurationRevision,
     }),
     codec: {
-      version: 2,
+      version: 1,
       encode: (value) => textEncoder.encode(JSON.stringify(value)),
       decode: (payload, input) => {
         const value = decodeValue(payload);

@@ -2,19 +2,19 @@ import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
 
-export type SquircleProps = Omit<ComponentProps<"span">, "className" | "style"> & {
+export type IconFrameProps = Omit<ComponentProps<"span">, "className" | "style"> & {
   style?: StyleXStyles;
 };
 
-export function Squircle({ style, ...props }: SquircleProps) {
+export function IconFrame({ style, ...props }: IconFrameProps) {
   return <span {...props} {...stylex.props(styles.root, style)} />;
 }
 
 const styles = stylex.create({
   root: {
     alignItems: "center",
-    borderRadius: "50%",
-    cornerShape: "squircle",
+    aspectRatio: "1",
+    borderRadius: "25%",
     display: "inline-flex",
     flexShrink: 0,
     justifyContent: "center",

@@ -4,7 +4,7 @@ import {
   ProviderConfigureState,
   type Provider,
 } from "@jaquelene/ipc/renderer";
-import { Button, Input, Item, Ping, Squircle } from "@jaquelene/ui";
+import { Button, IconFrame, Input, Item, Ping } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import { VisuallyHidden } from "@ariakit/react/visually-hidden";
@@ -103,9 +103,9 @@ function ProviderSettings({ provider }: { provider: Provider }) {
     <>
       <Item.Root>
         <div {...stylex.props(styles.provider)}>
-          <Squircle style={styles.providerMarkContainer}>
+          <IconFrame style={styles.providerMarkContainer}>
             <ProviderMark brandId={provider.brandId} style={styles.providerMark} />
-          </Squircle>
+          </IconFrame>
           <Item.Content>
             <div {...stylex.props(styles.providerLabel)}>
               <Item.Label>{provider.name}</Item.Label>

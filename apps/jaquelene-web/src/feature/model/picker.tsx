@@ -835,7 +835,7 @@ export const ModelPicker = {
 } as const;
 
 const activeBackground = `color-mix(in oklab, ${tokens.accent} 10%, transparent)`;
-const activeModelName = tokens.foregroundStrong;
+const activeModelName = "white";
 const focusOutline = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
 
 const styles = stylex.create({

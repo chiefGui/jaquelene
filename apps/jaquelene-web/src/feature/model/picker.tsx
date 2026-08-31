@@ -22,7 +22,7 @@ import type {
   ModelReference,
   ModelSelection,
 } from "@jaquelene/ipc/renderer";
-import { Button, Input, Skeleton } from "@jaquelene/ui";
+import { Button, Input, Skeleton, Squircle } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
 import { Select, type SelectProps } from "@jaquelene/ui/select";
 import { tokens } from "@jaquelene/ui/theme.stylex";
@@ -129,15 +129,28 @@ function ReasoningIndicator({ required }: { required: boolean }) {
 
   return (
     <Tooltip.Root>
-      <Tooltip.Anchor
-        focusable={false}
-        render={<span {...stylex.props(styles.reasoningIndicator)} />}
-      >
-        <HugeiconsIcon icon={Brain01Icon} size={14} strokeWidth={1.5} aria-hidden="true" />
+      <Tooltip.Anchor focusable={false} render={<Squircle style={styles.reasoningIndicator} />}>
+        <HugeiconsIcon icon={Brain01Icon} size={12} strokeWidth={1.5} aria-hidden="true" />
         <VisuallyHidden>{label}</VisuallyHidden>
       </Tooltip.Anchor>
 
       <Tooltip>{label}</Tooltip>
+    </Tooltip.Root>
+  );
+}
+
+function FavoriteProviderIndicator({ provider }: { provider: ProviderTab }) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Anchor
+        focusable={false}
+        render={<Squircle style={styles.favoriteProviderIndicator} />}
+      >
+        <ProviderMark brandId={provider.brandId} style={styles.favoriteProviderMark} />
+        <VisuallyHidden>{provider.brandName}</VisuallyHidden>
+      </Tooltip.Anchor>
+
+      <Tooltip>{provider.brandName}</Tooltip>
     </Tooltip.Root>
   );
 }
@@ -567,13 +580,14 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                     <span {...stylex.props(styles.modelText)}>
                       <span {...stylex.props(styles.modelName, selected && styles.selectedModel)}>
                         {model.name}
-                        <span {...stylex.props(styles.modelAttribution)}>
-                          {" · "}
-                          {modelBrandName}
-                          {activeTab.type === "favorites" && provider.brandName !== modelBrandName
-                            ? ` via ${provider.brandName}`
-                            : null}
-                        </span>
+                        {activeTab.type === "favorites" ? (
+                          <FavoriteProviderIndicator provider={provider} />
+                        ) : (
+                          <span {...stylex.props(styles.modelAttribution)}>
+                            {" · "}
+                            {modelBrandName}
+                          </span>
+                        )}
                       </span>
                       <span {...stylex.props(styles.modelMetadata)}>
                         {model.tokenPricing ? (
@@ -950,6 +964,18 @@ const styles = stylex.create({
   modelAttribution: {
     color: tokens.muted,
   },
+  favoriteProviderIndicator: {
+    backgroundColor: `color-mix(in oklab, ${tokens.foreground} 6%, transparent)`,
+    color: tokens.muted,
+    height: "1.125rem",
+    marginLeft: "0.375rem",
+    verticalAlign: "text-bottom",
+    width: "1.125rem",
+  },
+  favoriteProviderMark: {
+    height: "0.625rem",
+    width: "0.625rem",
+  },
   modelMetadata: {
     color: tokens.muted,
     display: "block",
@@ -961,8 +987,11 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
   },
   reasoningIndicator: {
-    display: "inline-flex",
+    backgroundColor: `color-mix(in oklab, ${tokens.foreground} 6%, transparent)`,
+    color: tokens.muted,
+    height: "1.125rem",
     verticalAlign: "text-bottom",
+    width: "1.125rem",
   },
   favoriteButton: {
     backgroundColor: {

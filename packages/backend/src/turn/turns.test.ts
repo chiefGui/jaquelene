@@ -32,30 +32,25 @@ function createDatabasePath() {
   return join(directory, "jaquelene.sqlite");
 }
 
-function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
+function openTurnEnvironment(generate: TestGenerate) {
   const database = openDatabase(createDatabasePath());
   const acceptedThreadIds: ThreadId[] = [];
-  const acceptedTurns = {
-    recordInTransaction(_transaction: Pick<Database, "insert" | "select">, threadId: ThreadId) {
-      acceptedThreadIds.push(threadId);
-    },
+  const projectAcceptedUserTurn = (
+    _transaction: Pick<Database, "insert" | "select">,
+    threadId: ThreadId,
+  ) => {
+    acceptedThreadIds.push(threadId);
   };
-  const threads = createThreads(database, now);
-  const generationEngine = createGenerations(
-    database,
-    createTurnPromptCompiler(threads),
-    {
-      get(providerId) {
-        return providerId === "provider-a"
-          ? {
-              generate: (request, signal) =>
-                generate({ ...request, ...(signal ? { signal } : {}) }),
-            }
-          : undefined;
-      },
+  const threads = createThreads(database);
+  const generationEngine = createGenerations(database, createTurnPromptCompiler(threads), {
+    get(providerId) {
+      return providerId === "provider-a"
+        ? {
+            generate: (request, signal) => generate({ ...request, ...(signal ? { signal } : {}) }),
+          }
+        : undefined;
     },
-    now,
-  );
+  });
   const supervised = superviseGenerations(generationEngine);
   const turns = createTurns(
     database,
@@ -66,11 +61,11 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
       requireRegisteredModel: generationEngine.requireRegisteredModel,
       scheduleAcceptedReply: supervised.scheduleAcceptedReply,
     },
-    acceptedTurns,
+    projectAcceptedUserTurn,
   );
   databases.push(database);
   closeSupervisors.push(supervised.close);
-  return { acceptedThreadIds, acceptedTurns, database, generationEngine, threads, turns };
+  return { acceptedThreadIds, database, generationEngine, threads, turns };
 }
 
 function deferred<Result>() {
@@ -181,7 +176,7 @@ describe("turns", () => {
     await Promise.all([first.settlement, second.settlement]);
   });
 
-  it("settles durable generation failures and accepts their retry immediately", async () => {
+  it("accepts a failed generation retry without reprojecting its user turn", async () => {
     const providerFailure = new Error("Provider unavailable");
     const results: Array<ProviderGenerationResult | Error> = [
       providerFailure,
@@ -200,11 +195,13 @@ describe("turns", () => {
 
       return result;
     });
-    const { threads, turns } = openTurnEnvironment(generate);
+    const { acceptedThreadIds, threads, turns } = openTurnEnvironment(generate);
     const thread = threads.create();
     const model = { providerId: "provider-a", modelId: "maker/model" };
     const failedOperation = turns.submit({ threadId: thread.id, content: "Hello", model });
     const failed = await failedOperation.settlement;
+
+    expect(acceptedThreadIds).toEqual([thread.id]);
 
     if (failed.outcome !== "failed") {
       throw new Error("Expected reply generation to fail.");
@@ -217,6 +214,7 @@ describe("turns", () => {
 
     const retriedOperation = turns.retry({ turnId: failed.userMessage.turnId, model });
 
+    expect(acceptedThreadIds).toEqual([thread.id]);
     expect(retriedOperation.acceptance.userMessage).toEqual(failed.userMessage);
     expect(retriedOperation.acceptance.generation).toEqual(
       expect.objectContaining({ status: "pending" }),
@@ -270,7 +268,7 @@ describe("turns", () => {
 
   it("rolls back a user turn when pending generation acceptance fails", () => {
     const generate = vi.fn(async () => ({ text: "Unused" }));
-    const { acceptedThreadIds, acceptedTurns, database, generationEngine, threads } =
+    const { acceptedThreadIds, database, generationEngine, threads } =
       openTurnEnvironment(generate);
     const thread = threads.create();
     const acceptanceFailure = new Error("Could not persist pending generation.");
@@ -287,7 +285,9 @@ describe("turns", () => {
           throw new Error("Generation must not be scheduled after failed acceptance.");
         },
       },
-      acceptedTurns,
+      (_transaction, threadId) => {
+        acceptedThreadIds.push(threadId);
+      },
     );
 
     expect(() =>

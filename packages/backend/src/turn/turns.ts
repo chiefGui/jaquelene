@@ -20,12 +20,10 @@ type TurnGenerationEngine = Pick<
   ): Promise<ReplyGenerationExecution>;
 };
 type TurnThreads = Pick<ThreadEngine, "getTurnInput" | "listMessages" | "startTurnInTransaction">;
-type AcceptedTurnProjection = Readonly<{
-  recordInTransaction: (
-    transaction: Pick<Database, "insert" | "select">,
-    threadId: ThreadId,
-  ) => void;
-}>;
+type AcceptedUserTurnProjection = (
+  transaction: Pick<Database, "insert" | "select">,
+  threadId: ThreadId,
+) => void;
 
 type ListThreadRequest = Parameters<TurnThreads["listMessages"]>[0];
 
@@ -105,7 +103,7 @@ export function createTurns(
   database: Database,
   threads: TurnThreads,
   generations: TurnGenerationEngine,
-  acceptedTurns: AcceptedTurnProjection,
+  projectAcceptedUserTurn: AcceptedUserTurnProjection,
 ) {
   const activeThreadOperations = new Set<ThreadId>();
 
@@ -165,7 +163,7 @@ export function createTurns(
             turn.id,
             model,
           );
-          acceptedTurns.recordInTransaction(transaction, threadId);
+          projectAcceptedUserTurn(transaction, threadId);
           const acceptance = {
             userMessage: message,
             generation: acceptedGeneration.generation,

@@ -307,7 +307,7 @@ const ThreadComposer = memo(function ThreadComposer({
   pinnedToEnd,
   onTurnAccepted,
 }: ThreadComposerProps) {
-  const submitTurnMutation = useSubmitTurn(threadId);
+  const submitTurnMutation = useSubmitTurn(threadId, onTurnAccepted);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const acceptingSubmission = useRef(false);
@@ -369,12 +369,6 @@ const ThreadComposer = memo(function ThreadComposer({
       return;
     } finally {
       acceptingSubmission.current = false;
-    }
-
-    try {
-      onTurnAccepted();
-    } catch (cause) {
-      reportError("thread.turn.accepted", cause);
     }
   }
 

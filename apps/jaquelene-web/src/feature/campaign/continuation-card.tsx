@@ -46,6 +46,7 @@ const styles = stylex.create({
     borderWidth: 1,
     color: tokens.foreground,
     display: "block",
+    flexShrink: 0,
     marginBlockEnd: "0.75rem",
     marginInline: "0.5rem",
     minWidth: 0,

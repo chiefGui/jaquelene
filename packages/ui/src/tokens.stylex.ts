@@ -3,7 +3,36 @@ import { jaquelenePalette } from "./theme/jaquelene.theme.stylex";
 
 export type ThemePalette = Readonly<Record<keyof typeof jaquelenePalette, string>>;
 
-export const colors = stylex.defineVars(jaquelenePalette);
+// StyleX only extracts variables from a statically visible object literal.
+export const colors = stylex.defineVars({
+  // Surfaces
+  canvas: jaquelenePalette.canvas,
+  surface: jaquelenePalette.surface,
+  surfaceRaised: jaquelenePalette.surfaceRaised,
+  border: jaquelenePalette.border,
+  surfaceRaisedBorder: jaquelenePalette.surfaceRaisedBorder,
+  backdrop: jaquelenePalette.backdrop,
+
+  // Content and state
+  foreground: jaquelenePalette.foreground,
+  muted: jaquelenePalette.muted,
+  accent: jaquelenePalette.accent,
+  danger: jaquelenePalette.danger,
+  success: jaquelenePalette.success,
+  reasoning: jaquelenePalette.reasoning,
+
+  // Storage visualization
+  storageContent: jaquelenePalette.storageContent,
+  storageCache: jaquelenePalette.storageCache,
+  storageAppData: jaquelenePalette.storageAppData,
+  storageLogs: jaquelenePalette.storageLogs,
+
+  // Composer
+  composerGlowStart: jaquelenePalette.composerGlowStart,
+  composerGlowFirstBlend: jaquelenePalette.composerGlowFirstBlend,
+  composerGlowSecondBlend: jaquelenePalette.composerGlowSecondBlend,
+  composerGlowEnd: jaquelenePalette.composerGlowEnd,
+} satisfies ThemePalette);
 
 export const tokens = stylex.defineConsts({
   // Control geometry

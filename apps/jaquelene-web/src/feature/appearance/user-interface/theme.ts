@@ -1,12 +1,55 @@
 import { UiTheme } from "@jaquelene/ipc/renderer";
 import { draculaPalette } from "@jaquelene/ui/theme/dracula.stylex";
 import { jaquelenePalette } from "@jaquelene/ui/theme/jaquelene.stylex";
-import { colors } from "@jaquelene/ui/tokens.stylex";
+import { colors, type ThemePalette } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useLayoutEffect } from "react";
 
-const jaqueleneTheme = stylex.createTheme(colors, jaquelenePalette);
-const draculaTheme = stylex.createTheme(colors, draculaPalette);
+// StyleX only extracts themes from a statically visible object literal.
+const jaqueleneTheme = stylex.createTheme(colors, {
+  canvas: jaquelenePalette.canvas,
+  surface: jaquelenePalette.surface,
+  surfaceRaised: jaquelenePalette.surfaceRaised,
+  border: jaquelenePalette.border,
+  surfaceRaisedBorder: jaquelenePalette.surfaceRaisedBorder,
+  backdrop: jaquelenePalette.backdrop,
+  foreground: jaquelenePalette.foreground,
+  muted: jaquelenePalette.muted,
+  accent: jaquelenePalette.accent,
+  danger: jaquelenePalette.danger,
+  success: jaquelenePalette.success,
+  reasoning: jaquelenePalette.reasoning,
+  storageContent: jaquelenePalette.storageContent,
+  storageCache: jaquelenePalette.storageCache,
+  storageAppData: jaquelenePalette.storageAppData,
+  storageLogs: jaquelenePalette.storageLogs,
+  composerGlowStart: jaquelenePalette.composerGlowStart,
+  composerGlowFirstBlend: jaquelenePalette.composerGlowFirstBlend,
+  composerGlowSecondBlend: jaquelenePalette.composerGlowSecondBlend,
+  composerGlowEnd: jaquelenePalette.composerGlowEnd,
+} satisfies ThemePalette);
+const draculaTheme = stylex.createTheme(colors, {
+  canvas: draculaPalette.canvas,
+  surface: draculaPalette.surface,
+  surfaceRaised: draculaPalette.surfaceRaised,
+  border: draculaPalette.border,
+  surfaceRaisedBorder: draculaPalette.surfaceRaisedBorder,
+  backdrop: draculaPalette.backdrop,
+  foreground: draculaPalette.foreground,
+  muted: draculaPalette.muted,
+  accent: draculaPalette.accent,
+  danger: draculaPalette.danger,
+  success: draculaPalette.success,
+  reasoning: draculaPalette.reasoning,
+  storageContent: draculaPalette.storageContent,
+  storageCache: draculaPalette.storageCache,
+  storageAppData: draculaPalette.storageAppData,
+  storageLogs: draculaPalette.storageLogs,
+  composerGlowStart: draculaPalette.composerGlowStart,
+  composerGlowFirstBlend: draculaPalette.composerGlowFirstBlend,
+  composerGlowSecondBlend: draculaPalette.composerGlowSecondBlend,
+  composerGlowEnd: draculaPalette.composerGlowEnd,
+} satisfies ThemePalette);
 
 type UiThemeDefinition = {
   label: string;

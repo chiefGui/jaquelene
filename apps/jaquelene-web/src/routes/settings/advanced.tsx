@@ -42,7 +42,6 @@ function AdvancedRoute() {
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Separator />
             <Breadcrumb.Item>
               <Breadcrumb.Page>Advanced</Breadcrumb.Page>
             </Breadcrumb.Item>

@@ -87,7 +87,6 @@ function StorageHeader() {
       <Breadcrumb.Root>
         <Breadcrumb.List>
           <Breadcrumb.Item>Settings</Breadcrumb.Item>
-          <Breadcrumb.Separator />
           <Breadcrumb.Item>
             <Breadcrumb.Page>Storage</Breadcrumb.Page>
           </Breadcrumb.Item>

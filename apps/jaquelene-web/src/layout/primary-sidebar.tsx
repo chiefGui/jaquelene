@@ -79,7 +79,7 @@ export function PrimarySidebar({
 
   return (
     <aside aria-label="Primary sidebar" {...stylex.props(styles.root)}>
-      {lead}
+      <header {...stylex.props(styles.edge)}>{lead}</header>
 
       <nav aria-label={navigation.navigationLabel} {...stylex.props(styles.navigation)}>
         <ul {...stylex.props(styles.list)}>
@@ -115,7 +115,7 @@ export function PrimarySidebar({
         </ul>
       </nav>
 
-      <footer {...stylex.props(styles.footer)}>
+      <footer {...stylex.props(styles.edge)}>
         {settingsActive ? (
           <IconButton
             type="button"
@@ -163,10 +163,11 @@ const styles = stylex.create({
     backgroundColor: tokens.canvas,
     display: "flex",
     flexDirection: "column",
-    gridColumn: 1,
-    gridRow: "1 / -1",
     minHeight: 0,
-    paddingBlock: "0.5rem",
+  },
+  edge: {
+    flexShrink: 0,
+    padding: "0.5rem",
   },
   navigation: {
     flex: 1,
@@ -227,10 +228,6 @@ const styles = stylex.create({
     textBox: "trim-both text",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-  },
-  footer: {
-    flexShrink: 0,
-    paddingInline: "0.5rem",
   },
   footerAction: {
     height: "2.25rem",

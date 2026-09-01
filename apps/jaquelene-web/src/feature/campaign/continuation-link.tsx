@@ -43,9 +43,6 @@ const styles = stylex.create({
     borderRadius: tokens.radiusMedium,
     color: tokens.foreground,
     display: "block",
-    flexShrink: 0,
-    marginBlockEnd: "0.5rem",
-    marginInline: "0.5rem",
     minWidth: 0,
     outlineColor: {
       default: null,

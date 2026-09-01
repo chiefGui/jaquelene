@@ -56,8 +56,6 @@ const styles = stylex.create({
   },
   workspace: {
     display: "grid",
-    gridColumn: 2,
-    gridRow: 1,
     gridTemplateColumns: "minmax(0, 1fr) auto",
     gridTemplateRows: "minmax(0, 1fr)",
     marginRight: "0.5rem",

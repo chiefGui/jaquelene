@@ -89,12 +89,16 @@ function listMessageAncestry(
   { maximumCount, contentByteBudget }: ListMessageAncestryOptions = {},
 ) {
   const countLimit = maximumCount === undefined ? sql`1` : sql`path.depth < ${maximumCount - 1}`;
+  const anchorContentBytes = contentByteBudget === undefined ? sql`0` : sql`octet_length(content)`;
+  const cumulativeContentBytes =
+    contentByteBudget === undefined
+      ? sql`0`
+      : sql`path.cumulative_content_bytes + octet_length(parent.content)`;
   const byteLimit =
     contentByteBudget === undefined
       ? sql`1`
       : sql`
-          path.cumulative_content_bytes + octet_length(parent.content) <=
-          ${contentByteBudget}
+          ${cumulativeContentBytes} <= ${contentByteBudget}
         `;
 
   const rows = database.all<MessagePathRow>(sql`
@@ -119,7 +123,7 @@ function listMessageAncestry(
         author,
         content,
         created_at,
-        octet_length(content),
+        ${anchorContentBytes},
         0
       FROM thread_messages
       WHERE id = ${anchorMessageId} AND thread_id = ${threadId}
@@ -135,7 +139,7 @@ function listMessageAncestry(
         parent.author,
         parent.content,
         parent.created_at,
-        path.cumulative_content_bytes + octet_length(parent.content),
+        ${cumulativeContentBytes},
         path.depth + 1
       FROM thread_messages AS parent
       INNER JOIN message_path AS path

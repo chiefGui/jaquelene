@@ -484,7 +484,7 @@ export function ThreadView({
       }),
     [historical, messagesQuery.data.pages, model, retryStatus, retryTurnId],
   );
-  const operationPending = turnOperationPending || threadView.replyPending;
+  const operationPending = turnOperationPending || (!historical && threadView.replyPending);
 
   const retryReply = useCallback(
     async (turnId: string) => {

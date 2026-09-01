@@ -37,13 +37,13 @@ export const EmptyState = {
 
 const styles = stylex.create({
   root: {
-    alignItems: "center",
+    alignItems: "flex-start",
     display: "flex",
     flexDirection: "column",
     gap: "1.25rem",
     justifyContent: "center",
     maxWidth: "24rem",
-    textAlign: "center",
+    textAlign: "left",
     width: "100%",
   },
   illustration: {
@@ -51,7 +51,7 @@ const styles = stylex.create({
     display: "flex",
   },
   content: {
-    alignItems: "center",
+    alignItems: "flex-start",
     display: "flex",
     flexDirection: "column",
     gap: "0.25rem",

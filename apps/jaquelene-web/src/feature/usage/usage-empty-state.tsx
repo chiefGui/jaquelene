@@ -8,7 +8,7 @@ export function UsageEmptyState() {
         <svg
           aria-hidden="true"
           focusable="false"
-          viewBox="0 0 200 150"
+          viewBox="26 0 148 150"
           {...stylex.props(styles.illustration)}
         >
           <g
@@ -55,6 +55,6 @@ export function UsageEmptyState() {
 const styles = stylex.create({
   illustration: {
     height: "9.375rem",
-    width: "12.5rem",
+    width: "9.25rem",
   },
 });

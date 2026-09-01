@@ -72,20 +72,14 @@ function CampaignRoute() {
               <Breadcrumb.Link render={<Link to="/scenarios" />}>Scenarios</Breadcrumb.Link>
             </Breadcrumb.Item>
             {scenario ? (
-              <>
-                <Breadcrumb.Separator />
-                <Breadcrumb.Item>
-                  <Breadcrumb.Link
-                    render={
-                      <Link to="/scenarios/$scenarioId" params={{ scenarioId: scenario.id }} />
-                    }
-                  >
-                    {scenario.title}
-                  </Breadcrumb.Link>
-                </Breadcrumb.Item>
-              </>
+              <Breadcrumb.Item>
+                <Breadcrumb.Link
+                  render={<Link to="/scenarios/$scenarioId" params={{ scenarioId: scenario.id }} />}
+                >
+                  {scenario.title}
+                </Breadcrumb.Link>
+              </Breadcrumb.Item>
             ) : null}
-            <Breadcrumb.Separator />
             <Breadcrumb.Item>
               <Breadcrumb.Page>Campaign</Breadcrumb.Page>
             </Breadcrumb.Item>

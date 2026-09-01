@@ -36,7 +36,6 @@ function GeneralRoute() {
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Separator />
             <Breadcrumb.Item>
               <Breadcrumb.Page>General</Breadcrumb.Page>
             </Breadcrumb.Item>

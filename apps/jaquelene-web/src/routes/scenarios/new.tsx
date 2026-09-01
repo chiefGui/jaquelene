@@ -110,7 +110,6 @@ function NewScenarioRoute() {
             <Breadcrumb.Item>
               <Breadcrumb.Link render={<Link to="/scenarios" />}>Scenarios</Breadcrumb.Link>
             </Breadcrumb.Item>
-            <Breadcrumb.Separator />
             <Breadcrumb.Item>
               <Breadcrumb.Page id="create-scenario-page">Create scenario</Breadcrumb.Page>
             </Breadcrumb.Item>

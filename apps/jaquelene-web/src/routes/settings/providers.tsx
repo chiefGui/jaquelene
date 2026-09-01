@@ -210,7 +210,6 @@ function ProvidersRoute() {
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Separator />
             <Breadcrumb.Item>
               <Breadcrumb.Page>Providers</Breadcrumb.Page>
             </Breadcrumb.Item>

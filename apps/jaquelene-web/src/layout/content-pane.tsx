@@ -48,7 +48,7 @@ const styles = stylex.create({
     flexDirection: "column",
   },
   header: {
-    borderBottomColor: tokens.border,
+    borderBottomColor: `color-mix(in srgb, ${tokens.border} 55%, transparent)`,
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
     paddingInline: "0.75rem",

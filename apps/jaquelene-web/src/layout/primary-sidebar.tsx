@@ -163,8 +163,10 @@ const styles = stylex.create({
     backgroundColor: tokens.canvas,
     display: "flex",
     flexDirection: "column",
+    gridColumn: 1,
+    gridRow: "1 / -1",
     minHeight: 0,
-    paddingBlockStart: "2.75rem",
+    paddingBlock: "0.5rem",
   },
   navigation: {
     flex: 1,
@@ -228,7 +230,7 @@ const styles = stylex.create({
   },
   footer: {
     flexShrink: 0,
-    padding: "0.5rem",
+    paddingInline: "0.5rem",
   },
   footerAction: {
     height: "2.25rem",

@@ -100,6 +100,19 @@ export function createCampaigns(database: Database, now: () => number = Date.now
       );
     },
 
+    getContextForThread(threadId: ThreadId) {
+      return (
+        database
+          .select({
+            id: campaignTable.id,
+            scenarioId: campaignTable.scenarioId,
+          })
+          .from(campaignTable)
+          .where(eq(campaignTable.threadId, threadId))
+          .get() ?? null
+      );
+    },
+
     recordContinuationInTransaction(
       transaction: Pick<Database, "insert" | "select">,
       threadId: ThreadId,

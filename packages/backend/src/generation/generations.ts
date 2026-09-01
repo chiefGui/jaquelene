@@ -11,7 +11,8 @@ import {
   turnTable,
   type ThreadMessage,
 } from "#backend/thread/schema";
-import { ids, type MessageId, type ThreadId, type TurnId } from "#backend/id";
+import { ids, type MessageId, type TurnId } from "#backend/id";
+import type { ModelInput } from "#backend/model/input";
 import {
   requireModelReference,
   type GenerationUsage,
@@ -19,7 +20,7 @@ import {
   type ProviderGenerationResult,
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
-import type { GenerationPrompt, GenerationPromptCompiler } from "./prompt";
+import { requireReplyInput, type ReplyAnchor, type ReplyPreparer } from "./reply-preparation";
 import { generationTable, type Generation, type GenerationFailureKind } from "./schema";
 
 export type GenerateReplyRequest = {
@@ -49,15 +50,10 @@ type NormalizedProviderResult = {
   usage: GenerationUsage | null;
 };
 
-type TurnGenerationInput = {
-  threadId: ThreadId;
-  inputMessageId: MessageId;
-  activeMessageId: MessageId | null;
-};
-
 export type AcceptedReplyGeneration = Readonly<{
   generation: Generation;
-  input: TurnGenerationInput;
+  anchor: ReplyAnchor;
+  activeMessageId: MessageId | null;
 }>;
 
 function interruptionCause(signal: AbortSignal) {
@@ -169,28 +165,9 @@ function providerResultFields(output: NormalizedProviderResult) {
   };
 }
 
-function requirePrompt(prompt: GenerationPrompt, turnId: TurnId, input: TurnGenerationInput) {
-  if (prompt.turnId !== turnId) {
-    throw new Error(`The generation prompt does not belong to turn "${turnId}".`);
-  }
-
-  if (prompt.threadId !== input.threadId || prompt.inputMessageId !== input.inputMessageId) {
-    throw new Error(`The generation prompt does not identify the input for turn "${turnId}".`);
-  }
-
-  if (prompt.messages.length === 0 || prompt.messages.at(-1)?.role !== "user") {
-    throw new TypeError("A reply generation prompt must end with a user message.");
-  }
-
-  return {
-    ...prompt,
-    messages: prompt.messages.map((message) => ({ ...message })),
-  };
-}
-
 export function createGenerations(
   database: Database,
-  promptCompiler: GenerationPromptCompiler,
+  replyPreparer: ReplyPreparer,
   providers: ProviderGenerationRouter,
   now: () => number = Date.now,
 ) {
@@ -209,10 +186,7 @@ export function createGenerations(
     return Math.max(generation.startedAt, now());
   }
 
-  function requireTurnGenerationInput(
-    source: Pick<Database, "select">,
-    turnId: TurnId,
-  ): TurnGenerationInput {
+  function requireReplyContext(source: Pick<Database, "select">, turnId: TurnId) {
     const input = source
       .select({
         threadId: turnTable.threadId,
@@ -236,7 +210,14 @@ export function createGenerations(
       throw new Error(`Turn "${turnId}" has no user message.`);
     }
 
-    return { ...input, inputMessageId: input.inputMessageId };
+    return {
+      anchor: {
+        turnId,
+        threadId: input.threadId,
+        inputMessageId: input.inputMessageId,
+      } satisfies ReplyAnchor,
+      activeMessageId: input.activeMessageId,
+    };
   }
 
   function recordFailure(
@@ -348,7 +329,7 @@ export function createGenerations(
       modelId: requestedModel.modelId,
     };
     requireProvider(model);
-    const input = requireTurnGenerationInput(transaction, turnId);
+    const replyContext = requireReplyContext(transaction, turnId);
 
     const pendingGeneration = transaction
       .select({ id: generationTable.id })
@@ -377,11 +358,11 @@ export function createGenerations(
       throw new Error(`Could not create a generation for turn "${turnId}".`);
     }
 
-    return { generation, input };
+    return { generation, ...replyContext };
   }
 
   async function executeAcceptedReply(
-    { generation, input }: AcceptedReplyGeneration,
+    { generation, anchor, activeMessageId }: AcceptedReplyGeneration,
     signal?: AbortSignal,
   ): Promise<ReplyGenerationExecution> {
     const provider = requireProvider({
@@ -393,19 +374,18 @@ export function createGenerations(
       return recordFailure(generation, "interrupted", interruptionCause(signal));
     }
 
-    let prompt: GenerationPrompt;
+    let input: ModelInput;
 
     try {
-      prompt = requirePrompt(
+      input = requireReplyInput(
         await waitForOperation(
-          Promise.resolve(promptCompiler.compile(generation.turnId, signal)),
+          Promise.resolve(replyPreparer.prepare({ ...anchor }, signal)),
           signal,
         ),
-        generation.turnId,
-        input,
+        anchor,
       );
     } catch (cause) {
-      return recordFailure(generation, signal?.aborted ? "interrupted" : "prompt", cause);
+      return recordFailure(generation, signal?.aborted ? "interrupted" : "preparation", cause);
     }
 
     let providerResult: ProviderGenerationResult;
@@ -419,9 +399,9 @@ export function createGenerations(
         provider.generate(
           {
             generationId: generation.id,
-            threadId: prompt.threadId,
+            threadId: anchor.threadId,
             modelId: generation.modelId,
-            messages: prompt.messages,
+            input,
           },
           signal,
         ),
@@ -443,10 +423,10 @@ export function createGenerations(
       const result = database.transaction((transaction) => {
         const completionTime = finishedAt(generation);
         const { message, activated } = appendAssistantMessageInTransaction(transaction, {
-          threadId: prompt.threadId,
+          threadId: anchor.threadId,
           turnId: generation.turnId,
-          parentMessageId: prompt.inputMessageId,
-          activateIfMessageId: input.activeMessageId,
+          parentMessageId: anchor.inputMessageId,
+          activateIfMessageId: activeMessageId,
           content: output.text,
           createdAt: completionTime,
         });

@@ -44,7 +44,7 @@ export function superviseGenerations(engine: ReplyGenerationEngine) {
     }
 
     const executionSignal = operationSignal(signal);
-    // Let callers observe durable acceptance before prompt compilation or provider work starts.
+    // Let callers observe durable acceptance before reply preparation or provider work starts.
     const operation = new Promise<void>((resolve) => setImmediate(resolve)).then(() =>
       engine.executeAcceptedReply(accepted, executionSignal),
     );

@@ -18,7 +18,7 @@ CREATE TABLE `generations` (
 	CONSTRAINT `generations_output_message_fk` FOREIGN KEY (`turn_id`,`output_message_id`) REFERENCES `thread_messages`(`turn_id`,`id`),
 	CONSTRAINT "generations_model_reference_valid" CHECK(length(trim("provider_id")) > 0 AND length(trim("model_id")) > 0),
 	CONSTRAINT "generations_status_valid" CHECK("status" IN ('pending', 'completed', 'failed')),
-	CONSTRAINT "generations_failure_kind_valid" CHECK("failure_kind" IS NULL OR "failure_kind" IN ('prompt', 'provider', 'invalid-output', 'interrupted', 'storage')),
+	CONSTRAINT "generations_failure_kind_valid" CHECK("failure_kind" IS NULL OR "failure_kind" IN ('preparation', 'provider', 'invalid-output', 'interrupted', 'storage')),
 	CONSTRAINT "generations_provider_result_valid" CHECK(("provider_generation_id" IS NULL OR length(trim("provider_generation_id")) > 0)
         AND ("resolved_model_id" IS NULL OR length(trim("resolved_model_id")) > 0)
         AND ("finish_reason" IS NULL OR length(trim("finish_reason")) > 0)),

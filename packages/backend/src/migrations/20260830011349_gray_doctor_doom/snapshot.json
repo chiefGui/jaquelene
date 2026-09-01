@@ -839,7 +839,7 @@
       "table": "generations"
     },
     {
-      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('prompt', 'provider', 'invalid-output', 'interrupted', 'storage')",
+      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('preparation', 'provider', 'invalid-output', 'interrupted', 'storage')",
       "name": "generations_failure_kind_valid",
       "entityType": "checks",
       "table": "generations"

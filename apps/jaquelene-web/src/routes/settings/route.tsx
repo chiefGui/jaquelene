@@ -1,3 +1,4 @@
+import AiFile01Icon from "@hugeicons/core-free-icons/AiFile01Icon";
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import ConnectIcon from "@hugeicons/core-free-icons/ConnectIcon";
 import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
@@ -41,6 +42,13 @@ function SettingsSidebar(props: PrimarySidebarComponentProps) {
             preload: "render",
             replace: true,
             to: "/settings/providers",
+          },
+          {
+            id: "instructions",
+            icon: AiFile01Icon,
+            label: "Instructions",
+            replace: true,
+            to: "/settings/instructions",
           },
           {
             id: "storage",

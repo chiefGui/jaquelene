@@ -6,12 +6,12 @@ export type {
 } from "#backend/resource-cache/resource-cache";
 export type { Campaign, CampaignContinuation, Campaigns } from "#backend/campaign/campaigns";
 export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
+export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
 export {
   requireModelReference,
   requireModelSelection,
   type ApiKeyProviderConfiguration,
   type ApiKeyProviderConfigurationSnapshot,
-  type GenerationMessage,
   type GenerationUsage,
   type ModelReference,
   type ModelReasoningCapability,
@@ -56,6 +56,12 @@ export type {
   StorageDeletion,
   StorageUsage,
 } from "#backend/storage/storage";
+export type {
+  CatalogInstruction,
+  Instruction,
+  InstructionCatalog,
+  InstructionGroup,
+} from "#backend/instruction/registry";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/threads";
 export type {

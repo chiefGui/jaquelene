@@ -32,6 +32,65 @@ describe("OpenRouter reasoning", () => {
       },
     ],
     [
+      "budget-backed reasoning on by default",
+      { mandatory: false, defaultEnabled: true, supportsMaxTokens: true },
+      {
+        defaultPreset: "medium",
+        supportedPresets: ["max", "high", "medium", "low", "minimal", "off"],
+      },
+    ],
+    [
+      "budget-backed reasoning off by default",
+      { mandatory: false, defaultEnabled: false, supportsMaxTokens: true },
+      {
+        defaultPreset: "off",
+        supportedPresets: ["max", "high", "medium", "low", "minimal", "off"],
+      },
+    ],
+    [
+      "mandatory budget-backed reasoning",
+      { mandatory: true, defaultEnabled: true, supportsMaxTokens: true },
+      {
+        defaultPreset: "medium",
+        supportedPresets: ["max", "high", "medium", "low", "minimal"],
+      },
+    ],
+    [
+      "provider-managed budget-backed default",
+      { mandatory: false, supportsMaxTokens: true },
+      {
+        defaultPreset: "automatic",
+        supportedPresets: ["automatic", "max", "high", "medium", "low", "minimal", "off"],
+      },
+    ],
+    [
+      "budget-backed extra-high default",
+      {
+        mandatory: false,
+        defaultEnabled: true,
+        defaultEffort: "xhigh",
+        supportsMaxTokens: true,
+      },
+      {
+        defaultPreset: "max",
+        supportedPresets: ["max", "high", "medium", "low", "minimal", "off"],
+      },
+    ],
+    [
+      "native effort levels with additional budget support",
+      {
+        mandatory: false,
+        defaultEnabled: true,
+        defaultEffort: "high",
+        supportedEfforts: ["high", "low"],
+        supportsMaxTokens: true,
+      },
+      {
+        defaultPreset: "high",
+        supportedPresets: ["high", "low", "off"],
+      },
+    ],
+    [
       "graded reasoning off by default",
       {
         mandatory: false,
@@ -101,6 +160,7 @@ describe("OpenRouter reasoning", () => {
       "default effort that is not supported",
     ],
     [{ mandatory: false, supportedEfforts: "high" }, "invalid supported efforts"],
+    [{ mandatory: false, supportsMaxTokens: "yes" }, "invalid reasoning token-budget support"],
   ] as const)("rejects inconsistent metadata", (metadata, message) => {
     expect(() => normalizeOpenRouterReasoning("maker/model", metadata)).toThrow(message);
   });

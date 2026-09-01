@@ -19,6 +19,17 @@ export type OpenRouterReasoningRequest =
   | Readonly<{ enabled: true }>
   | Readonly<{ effort: ReasoningEffort | "none" }>;
 
+// OpenRouter translates these gateway efforts into percentages of the available
+// reasoning budget. "xhigh" is intentionally omitted because it is equivalent
+// to "max" for budget-backed models.
+const budgetBackedEfforts = [
+  "max",
+  "high",
+  "medium",
+  "low",
+  "minimal",
+] as const satisfies readonly ReasoningEffort[];
+
 function requireOptionalBoolean(
   value: unknown,
   field: string,
@@ -66,7 +77,11 @@ export function normalizeOpenRouterReasoning(
     "default-enabled state",
     modelId,
   );
-  requireOptionalBoolean(metadata.supportsMaxTokens, "token-budget support", modelId);
+  const supportsMaxTokens = requireOptionalBoolean(
+    metadata.supportsMaxTokens,
+    "token-budget support",
+    modelId,
+  );
 
   if (mandatory && defaultEnabled === false) {
     throw new TypeError(
@@ -86,6 +101,33 @@ export function normalizeOpenRouterReasoning(
   const reportedSupportedEfforts = metadata.supportedEfforts;
 
   if (reportedSupportedEfforts === undefined) {
+    if (supportsMaxTokens) {
+      const supportedPresets: ReasoningPreset[] = [...budgetBackedEfforts];
+
+      if (!mandatory) {
+        supportedPresets.push("off");
+      }
+
+      let defaultPreset: ReasoningPreset;
+
+      if (!mandatory && defaultEnabled === false) {
+        defaultPreset = "off";
+      } else if (!mandatory && defaultEnabled === undefined) {
+        defaultPreset = "automatic";
+        supportedPresets.unshift("automatic");
+      } else if (reportedDefaultPreset !== undefined) {
+        defaultPreset = reportedDefaultPreset === "xhigh" ? "max" : reportedDefaultPreset;
+      } else if (defaultEnabled === true) {
+        // OpenRouter defines enabled reasoning without an effort as medium.
+        defaultPreset = "medium";
+      } else {
+        defaultPreset = "automatic";
+        supportedPresets.unshift("automatic");
+      }
+
+      return requireModelReasoningCapability({ defaultPreset, supportedPresets }, description);
+    }
+
     if (mandatory) {
       return requireModelReasoningCapability(
         { defaultPreset: "on", supportedPresets: ["on"] },

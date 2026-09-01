@@ -82,23 +82,26 @@ describe("OpenRouter generation provider", () => {
     );
   });
 
-  it("sends an explicitly selected graded reasoning preset", async () => {
-    const signal = operationSignal();
-    const request = {
-      ...generationRequest(),
-      reasoning: { preset: "high" as const, source: "override" as const },
-    };
-    const send = vi.fn(async () => chatResult());
-    const provider = createOpenRouterGeneration(connection(), send);
+  it.each(["max", "xhigh", "high", "medium", "low", "minimal"] as const)(
+    "sends an explicitly selected %s reasoning preset without inventing a token budget",
+    async (preset) => {
+      const signal = operationSignal();
+      const request = {
+        ...generationRequest(),
+        reasoning: { preset, source: "override" as const },
+      };
+      const send = vi.fn(async () => chatResult());
+      const provider = createOpenRouterGeneration(connection(), send);
 
-    await provider.generate(request, signal);
+      await provider.generate(request, signal);
 
-    expect(send).toHaveBeenCalledWith(
-      "openrouter-key",
-      expect.objectContaining({ reasoning: { effort: "high" } }),
-      signal,
-    );
-  });
+      expect(send).toHaveBeenCalledWith(
+        "openrouter-key",
+        expect.objectContaining({ reasoning: { effort: preset } }),
+        signal,
+      );
+    },
+  );
 
   it.each([
     ["on", { enabled: true }],

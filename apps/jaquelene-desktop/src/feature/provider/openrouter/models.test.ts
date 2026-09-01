@@ -56,8 +56,8 @@ describe("OpenRouter model provider", () => {
         },
       },
       {
-        id: "inclusion/binary-on",
-        name: "Inclusion: Binary On",
+        id: "inclusion/budget-backed",
+        name: "Inclusion: Budget Backed",
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
         reasoning: { mandatory: false, defaultEnabled: true, supportsMaxTokens: true },
@@ -124,10 +124,13 @@ describe("OpenRouter model provider", () => {
         tokenPricing,
       },
       {
-        id: "inclusion/binary-on",
-        name: "Binary On",
+        id: "inclusion/budget-backed",
+        name: "Budget Backed",
         brandId: "inclusion",
-        reasoning: { defaultPreset: "on", supportedPresets: ["on", "off"] },
+        reasoning: {
+          defaultPreset: "medium",
+          supportedPresets: ["max", "high", "medium", "low", "minimal", "off"],
+        },
         tokenPricing,
       },
       {

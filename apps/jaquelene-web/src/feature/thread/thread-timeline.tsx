@@ -45,6 +45,7 @@ type ThreadTimelineSnapshot = Readonly<{
 type ThreadTimelineProps = Readonly<{
   view: ThreadViewState;
   pendingSubmission: SubmitTurnVariables | null;
+  endInset: number;
   viewport: RefObject<HTMLDivElement | null>;
   pinnedToEnd: RefObject<boolean>;
   hasNextPage: boolean;
@@ -79,6 +80,7 @@ function isScrolledToEnd(viewport: HTMLElement) {
 export const ThreadTimeline = memo(function ThreadTimeline({
   view,
   pendingSubmission,
+  endInset,
   viewport,
   pinnedToEnd,
   hasNextPage,
@@ -130,7 +132,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
     getItemKey,
     getScrollElement: () => viewport.current,
     overscan: 2,
-    paddingEnd: timelinePadding,
+    paddingEnd: timelinePadding + endInset,
     paddingStart,
     scrollMargin: scrollMargin ?? 0,
     useFlushSync: false,

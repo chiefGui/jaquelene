@@ -13,7 +13,6 @@ import {
   useState,
   type KeyboardEvent,
   type ReactNode,
-  type RefObject,
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
@@ -37,6 +36,39 @@ function scrollToEnd(viewport: HTMLElement) {
   viewport.scrollTop = viewport.scrollHeight;
 }
 
+type ThreadDockProps = Readonly<{
+  children: ReactNode;
+  onSizeChange: (height: number) => void;
+}>;
+
+function ThreadDock({ children, onSizeChange }: ThreadDockProps) {
+  const dock = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const element = dock.current;
+
+    if (!element) {
+      return;
+    }
+
+    const synchronizeSize = () => {
+      onSizeChange(Math.ceil(element.getBoundingClientRect().height));
+    };
+
+    synchronizeSize();
+    const resizeObserver = new ResizeObserver(synchronizeSize);
+    resizeObserver.observe(element);
+
+    return () => resizeObserver.disconnect();
+  }, [onSizeChange]);
+
+  return (
+    <div ref={dock} {...stylex.props(styles.composerShell)}>
+      {children}
+    </div>
+  );
+}
+
 type ThreadHistoryReturnProps = Readonly<{
   error: boolean;
   pending: boolean;
@@ -49,7 +81,7 @@ const ThreadHistoryReturn = memo(function ThreadHistoryReturn({
   returnToLatest,
 }: ThreadHistoryReturnProps) {
   return (
-    <div {...stylex.props(styles.composerShell)}>
+    <>
       <div {...stylex.props(styles.historyReturn)}>
         <p {...stylex.props(styles.historyDescription)}>Viewing older messages.</p>
         <Button type="button" disabled={pending} onClick={() => void returnToLatest()}>
@@ -61,7 +93,7 @@ const ThreadHistoryReturn = memo(function ThreadHistoryReturn({
           Could not return to the latest messages.
         </p>
       ) : null}
-    </div>
+    </>
   );
 });
 
@@ -72,8 +104,6 @@ type ThreadComposerProps = Readonly<{
   operationPending: boolean;
   messageMaxCodeUnits: number;
   composerControls: ReactNode;
-  viewport: RefObject<HTMLDivElement | null>;
-  pinnedToEnd: RefObject<boolean>;
 }>;
 
 const ThreadComposer = memo(function ThreadComposer({
@@ -83,8 +113,6 @@ const ThreadComposer = memo(function ThreadComposer({
   operationPending,
   messageMaxCodeUnits,
   composerControls,
-  viewport,
-  pinnedToEnd,
 }: ThreadComposerProps) {
   const submitTurnMutation = useSubmitTurn(threadId);
   const [draft, setDraft] = useState("");
@@ -93,26 +121,7 @@ const ThreadComposer = memo(function ThreadComposer({
   const draftRevision = useRef(0);
   const composerInputId = useId();
   const sendErrorId = useId();
-  const composerShell = useRef<HTMLDivElement>(null);
   const submissionBlocked = operationPending || modelPending;
-
-  useLayoutEffect(() => {
-    const scrollViewport = viewport.current;
-    const shell = composerShell.current;
-
-    if (!scrollViewport || !shell) {
-      return;
-    }
-
-    const resizeObserver = new ResizeObserver(() => {
-      if (pinnedToEnd.current) {
-        scrollToEnd(scrollViewport);
-      }
-    });
-    resizeObserver.observe(shell);
-
-    return () => resizeObserver.disconnect();
-  }, [pinnedToEnd, viewport]);
 
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,37 +167,35 @@ const ThreadComposer = memo(function ThreadComposer({
   }
 
   return (
-    <div ref={composerShell} {...stylex.props(styles.composerShell)}>
-      <Composer pending={operationPending} onSubmit={sendMessage}>
-        <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
-        <Composer.Input
-          id={composerInputId}
-          value={draft}
-          maxLength={messageMaxCodeUnits}
-          aria-describedby={sendError ? sendErrorId : undefined}
-          onChange={(event) => {
-            draftRevision.current += 1;
-            setDraft(event.currentTarget.value);
-            setSendError(null);
-          }}
-          onKeyDown={handleComposerKeyDown}
+    <Composer pending={operationPending} onSubmit={sendMessage}>
+      <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
+      <Composer.Input
+        id={composerInputId}
+        value={draft}
+        maxLength={messageMaxCodeUnits}
+        aria-describedby={sendError ? sendErrorId : undefined}
+        onChange={(event) => {
+          draftRevision.current += 1;
+          setDraft(event.currentTarget.value);
+          setSendError(null);
+        }}
+        onKeyDown={handleComposerKeyDown}
+      />
+      <Composer.Footer>
+        <Composer.Controls>
+          {composerControls}
+          {sendError ? (
+            <Composer.Status id={sendErrorId} role="alert" tone="danger">
+              {sendError}
+            </Composer.Status>
+          ) : null}
+        </Composer.Controls>
+        <Composer.Submit
+          pending={operationPending}
+          disabled={modelPending || !model || !draft.trim()}
         />
-        <Composer.Footer>
-          <Composer.Controls>
-            {composerControls}
-            {sendError ? (
-              <Composer.Status id={sendErrorId} role="alert" tone="danger">
-                {sendError}
-              </Composer.Status>
-            ) : null}
-          </Composer.Controls>
-          <Composer.Submit
-            pending={operationPending}
-            disabled={modelPending || !model || !draft.trim()}
-          />
-        </Composer.Footer>
-      </Composer>
-    </div>
+      </Composer.Footer>
+    </Composer>
   );
 });
 
@@ -215,6 +222,7 @@ export function ThreadView({
   const pendingSubmission = usePendingTurnSubmission(threadId);
   const viewport = useRef<HTMLDivElement>(null);
   const pinnedToEnd = useRef(true);
+  const [timelineEndInset, setTimelineEndInset] = useState(0);
   const retryTurnId = retryTurnMutation.variables?.turnId;
   const retryStatus: RetryStatus = retryTurnMutation.isPending
     ? "pending"
@@ -275,12 +283,21 @@ export function ThreadView({
   const retryPending = operationPending || modelPending || returnToLatestMutation.isPending;
   const historyNavigationPending = operationPending || returnToLatestMutation.isPending;
 
+  useLayoutEffect(() => {
+    const element = viewport.current;
+
+    if (element && pinnedToEnd.current) {
+      scrollToEnd(element);
+    }
+  }, [timelineEndInset]);
+
   return (
     <section aria-label="Thread" {...stylex.props(styles.root)}>
       <ThreadTimeline
         key={`timeline:${threadId}`}
         view={threadView}
         pendingSubmission={historical ? null : pendingSubmission}
+        endInset={timelineEndInset}
         viewport={viewport}
         pinnedToEnd={pinnedToEnd}
         hasNextPage={messagesQuery.hasNextPage}
@@ -291,25 +308,25 @@ export function ThreadView({
         loadOlder={loadOlder}
         retryReply={retryReply}
       />
-      {historical ? (
-        <ThreadHistoryReturn
-          error={returnToLatestMutation.isError}
-          pending={returnToLatestMutation.isPending}
-          returnToLatest={returnToLatest}
-        />
-      ) : (
-        <ThreadComposer
-          key={`composer:${threadId}`}
-          threadId={threadId}
-          model={model}
-          modelPending={modelPending}
-          operationPending={operationPending}
-          messageMaxCodeUnits={threadView.messageMaxCodeUnits}
-          composerControls={composerControls}
-          viewport={viewport}
-          pinnedToEnd={pinnedToEnd}
-        />
-      )}
+      <ThreadDock onSizeChange={setTimelineEndInset}>
+        {historical ? (
+          <ThreadHistoryReturn
+            error={returnToLatestMutation.isError}
+            pending={returnToLatestMutation.isPending}
+            returnToLatest={returnToLatest}
+          />
+        ) : (
+          <ThreadComposer
+            key={`composer:${threadId}`}
+            threadId={threadId}
+            model={model}
+            modelPending={modelPending}
+            operationPending={operationPending}
+            messageMaxCodeUnits={threadView.messageMaxCodeUnits}
+            composerControls={composerControls}
+          />
+        )}
+      </ThreadDock>
     </section>
   );
 }
@@ -321,14 +338,19 @@ const styles = stylex.create({
     flexDirection: "column",
     minHeight: 0,
     overflow: "hidden",
+    position: "relative",
   },
   composerShell: {
-    flexShrink: 0,
+    bottom: 0,
+    left: 0,
     marginInline: "auto",
     maxWidth: "42rem",
     paddingBlock: "0 1.5rem",
     paddingInline: "1.5rem",
+    position: "absolute",
+    right: 0,
     width: "100%",
+    zIndex: 1,
   },
   historyReturn: {
     alignItems: "center",

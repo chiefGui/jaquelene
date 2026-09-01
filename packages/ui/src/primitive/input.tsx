@@ -21,6 +21,8 @@ const styles = stylex.create({
     borderColor: {
       default: `color-mix(in oklab, ${tokens.foreground} 10%, transparent)`,
       ":focus": `color-mix(in oklab, ${tokens.accent} 45%, transparent)`,
+      ':is([aria-invalid="true"])': `color-mix(in oklab, ${tokens.danger} 58%, transparent)`,
+      ':is([aria-invalid="true"]):focus': `color-mix(in oklab, ${tokens.danger} 72%, transparent)`,
     },
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",

@@ -57,8 +57,8 @@ describe("campaigns", () => {
   it("starts campaigns for a scenario and lists the newest first", () => {
     let startedAt = 100;
     const { campaigns, scenarios } = openCampaigns(createDatabasePath(), () => startedAt++);
-    const scenario = scenarios.create("Campaign scenario");
-    const otherScenario = scenarios.create("Other scenario");
+    const scenario = scenarios.create({ title: "Campaign scenario" });
+    const otherScenario = scenarios.create({ title: "Other scenario" });
     const first = campaigns.start(scenario.id);
     const second = campaigns.start(scenario.id);
     campaigns.start(otherScenario.id);
@@ -75,7 +75,7 @@ describe("campaigns", () => {
   it("persists campaigns when the database is reopened", () => {
     const path = createDatabasePath();
     const firstConnection = openCampaigns(path, () => 200);
-    const scenario = firstConnection.scenarios.create("Persistent campaign scenario");
+    const scenario = firstConnection.scenarios.create({ title: "Persistent campaign scenario" });
     const started = firstConnection.campaigns.start(scenario.id);
     const configured = firstConnection.campaigns.setModelOverride(
       started.id,
@@ -94,7 +94,7 @@ describe("campaigns", () => {
 
   it("creates a thread with a newly started campaign", () => {
     const { campaigns, scenarios, threads } = openCampaigns(createDatabasePath(), () => 250);
-    const scenario = scenarios.create("Threaded campaign scenario");
+    const scenario = scenarios.create({ title: "Threaded campaign scenario" });
     const campaign = campaigns.start(scenario.id);
 
     expect(threads.get(campaign.threadId)).toEqual({
@@ -106,7 +106,7 @@ describe("campaigns", () => {
   it("requires every stored campaign to have an identity", () => {
     const path = createDatabasePath();
     const { database, scenarios, threads } = openCampaigns(path);
-    const scenario = scenarios.create("Campaign identity scenario");
+    const scenario = scenarios.create({ title: "Campaign identity scenario" });
     const thread = threads.create();
     closeDatabase(database);
 
@@ -142,7 +142,7 @@ describe("campaigns", () => {
 
   it("finds the campaign that owns a thread", () => {
     const { campaigns, scenarios } = openCampaigns(createDatabasePath());
-    const campaign = campaigns.start(scenarios.create("Thread owner").id);
+    const campaign = campaigns.start(scenarios.create({ title: "Thread owner" }).id);
 
     expect(campaigns.getContextForThread(campaign.threadId)).toEqual({
       id: campaign.id,
@@ -152,7 +152,7 @@ describe("campaigns", () => {
 
   it("sets, replaces, and clears a campaign model override", () => {
     const { campaigns, database, scenarios } = openCampaigns(createDatabasePath());
-    const campaign = campaigns.start(scenarios.create("Model override scenario").id);
+    const campaign = campaigns.start(scenarios.create({ title: "Model override scenario" }).id);
     const model = modelSelection("override");
     const replacement = modelSelection("replacement");
 
@@ -182,7 +182,9 @@ describe("campaigns", () => {
 
   it("rejects an incomplete campaign model override", () => {
     const { campaigns, scenarios } = openCampaigns(createDatabasePath());
-    const campaign = campaigns.start(scenarios.create("Invalid model override scenario").id);
+    const campaign = campaigns.start(
+      scenarios.create({ title: "Invalid model override scenario" }).id,
+    );
 
     expect(() =>
       campaigns.setModelOverride(campaign.id, {
@@ -202,7 +204,9 @@ describe("campaigns", () => {
   it("rejects incomplete or blank stored campaign model overrides", () => {
     const path = createDatabasePath();
     const { campaigns, database, scenarios } = openCampaigns(path);
-    const campaign = campaigns.start(scenarios.create("Partial model override scenario").id);
+    const campaign = campaigns.start(
+      scenarios.create({ title: "Partial model override scenario" }).id,
+    );
     closeDatabase(database);
     const client = new DatabaseSync(path);
 
@@ -228,7 +232,9 @@ describe("campaigns", () => {
 
   it("deletes a model override with its owning campaign", () => {
     const { campaigns, database, scenarios } = openCampaigns(createDatabasePath());
-    const campaign = campaigns.start(scenarios.create("Owned model override scenario").id);
+    const campaign = campaigns.start(
+      scenarios.create({ title: "Owned model override scenario" }).id,
+    );
     campaigns.setModelOverride(campaign.id, modelSelection("owned"));
 
     database.delete(campaignTable).where(eq(campaignTable.id, campaign.id)).run();

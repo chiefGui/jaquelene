@@ -1,22 +1,18 @@
+import {
+  parseCreateScenarioInput,
+  parseScenarioTitle,
+  type CreateScenarioInput,
+} from "@jaquelene/domain";
 import { eq } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { ids, type ScenarioId } from "#backend/id";
 import { scenarioTable } from "./schema";
 
-function requireScenarioTitle(value: string) {
-  const title = value.trim();
-
-  if (!title) {
-    throw new TypeError("Scenario title must contain text.");
-  }
-
-  return title;
-}
-
 export function createScenarios(database: Database) {
   return {
-    create(value: string) {
-      const scenario = { id: ids.scenario.create(), title: requireScenarioTitle(value) };
+    create(input: CreateScenarioInput) {
+      const { title } = parseCreateScenarioInput(input);
+      const scenario = { id: ids.scenario.create(), title };
       database.insert(scenarioTable).values(scenario).run();
       return scenario;
     },
@@ -30,7 +26,7 @@ export function createScenarios(database: Database) {
     },
 
     rename(id: ScenarioId, value: string) {
-      const title = requireScenarioTitle(value);
+      const title = parseScenarioTitle(value);
 
       return (
         database

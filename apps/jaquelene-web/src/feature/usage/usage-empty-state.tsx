@@ -15,27 +15,28 @@ export function UsageEmptyState() {
           stroke="currentColor"
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth="2.25"
+          strokeWidth="2"
         >
-          <g opacity="0.14" transform="translate(0 20)">
-            <path d="M45 78 84 101c10 6 22 6 32 0l39-23" />
-            <path d="M61 78 89 94c7 4 15 4 22 0l28-16" />
+          <path opacity="0.2" d="m28 101 66-38 78 45-66 38-78-45Z" />
+          <path opacity="0.38" d="m28 101 78 45 66-38" />
+
+          <g>
+            <path d="m137 39 16 9-16 9-16-9 16-9Z" fill="currentColor" fillOpacity="0.12" />
+            <path d="m121 48 16 9 16-9v53l-16 9-16-9V48Z" />
+            <path opacity="0.42" d="M137 57v53M121 66l16 9 16-9M121 84l16 9 16-9" />
           </g>
 
-          <g opacity="0.28" transform="translate(0 10)">
-            <path d="M45 78 84 101c10 6 22 6 32 0l39-23" />
-            <path d="M61 78 89 94c7 4 15 4 22 0l28-16" />
+          <g>
+            <path d="m96 61 14 8-14 8-14-8 14-8Z" fill="currentColor" fillOpacity="0.12" />
+            <path d="m82 69 14 8 14-8v42l-14 8-14-8V69Z" />
+            <path opacity="0.42" d="M96 77v42M82 89l14 8 14-8" />
           </g>
 
-          <path d="m45 78 39-23c10-6 22-6 32 0l39 23-39 23c-10 6-22 6-32 0L45 78Z" />
-          <path opacity="0.58" d="m61 78 28-16c7-4 15-4 22 0l28 16-28 16c-7 4-15 4-22 0L61 78Z" />
-
-          <path opacity="0.42" d="M61 68v-8M70 63V50M130 63V53M139 68V58" />
-
-          <ellipse cx="100" cy="55" rx="23" ry="11.5" />
-          <ellipse cx="100" cy="55" rx="16" ry="8" opacity="0.62" />
-          <path d="M77 55v9c0 6.4 10.3 11.5 23 11.5s23-5.1 23-11.5v-9" />
-          <path opacity="0.34" d="M84 79c9.8 5.7 22.2 5.7 32 0" />
+          <g>
+            <path d="m58 83 12 7-12 7-12-7 12-7Z" fill="currentColor" fillOpacity="0.12" />
+            <path d="m46 90 12 7 12-7v15l-12 7-12-7V90Z" />
+            <path opacity="0.42" d="M58 97v15" />
+          </g>
         </g>
       </svg>
 
@@ -53,7 +54,7 @@ const styles = stylex.create({
     justifyContent: "center",
   },
   illustration: {
-    color: `color-mix(in oklab, ${tokens.foreground} 28%, ${tokens.muted})`,
+    color: `color-mix(in oklab, ${tokens.foreground} 42%, ${tokens.muted})`,
     height: "9.375rem",
     width: "12.5rem",
   },

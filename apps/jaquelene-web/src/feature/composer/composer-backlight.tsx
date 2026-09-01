@@ -1,5 +1,6 @@
 import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { useReducedMotion } from "@jaquelene/ui/motion";
+import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -24,12 +25,25 @@ type ComposerBacklightMode = Readonly<{
   reducedMotion: boolean;
 }>;
 
+type ComposerBacklightColor = [number, number, number, number];
+
+type ComposerBacklightPalette = [
+  ComposerBacklightColor,
+  ComposerBacklightColor,
+  ComposerBacklightColor,
+  ComposerBacklightColor,
+];
+
 type ComposerBacklightUniforms = {
   params: {
     resolution: number[];
     time: number;
     border_radius: number;
     outset: number;
+    palette_end: number[];
+    palette_first_blend: number[];
+    palette_second_blend: number[];
+    palette_start: number[];
     pixel_scale: number;
   };
 };
@@ -81,6 +95,10 @@ async function createEngine(epoch: number) {
       time: 0,
       border_radius: 1,
       outset: 1,
+      palette_end: [0, 0, 0, 1],
+      palette_first_blend: [0, 0, 0, 1],
+      palette_second_blend: [0, 0, 0, 1],
+      palette_start: [0, 0, 0, 1],
       pixel_scale: 1,
     },
   };
@@ -195,6 +213,74 @@ function getComposerHost(canvas: HTMLCanvasElement) {
   return host;
 }
 
+function readBacklightPalette(host: HTMLElement) {
+  const probe = document.createElement("span");
+  probe.ariaHidden = "true";
+  probe.style.height = "0";
+  probe.style.pointerEvents = "none";
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  probe.style.width = "0";
+  host.append(probe);
+
+  const decoder = document.createElement("canvas");
+  decoder.height = 1;
+  decoder.width = 1;
+  const decoderContext = decoder.getContext("2d", { willReadFrequently: true });
+
+  if (!decoderContext) {
+    probe.remove();
+    throw new Error("The composer backlight could not create a color decoder.");
+  }
+
+  const context = decoderContext;
+
+  const paletteClassNames = [
+    stylex.props(styles.paletteStart).className,
+    stylex.props(styles.paletteFirstBlend).className,
+    stylex.props(styles.paletteSecondBlend).className,
+    stylex.props(styles.paletteEnd).className,
+  ];
+
+  function readColor(className: string | undefined): ComposerBacklightColor {
+    if (!className) {
+      throw new Error("The composer backlight palette is missing a theme token.");
+    }
+
+    probe.className = className;
+    const color = getComputedStyle(probe).color;
+    context.clearRect(0, 0, 1, 1);
+    context.fillStyle = color;
+    context.fillRect(0, 0, 1, 1);
+    const channels = context.getImageData(0, 0, 1, 1).data;
+    const normalize = (channel: number | undefined) => {
+      if (channel === undefined) {
+        throw new Error("The composer backlight received an invalid theme color.");
+      }
+
+      return channel / 255;
+    };
+
+    return [
+      normalize(channels[0]),
+      normalize(channels[1]),
+      normalize(channels[2]),
+      normalize(channels[3]),
+    ];
+  }
+
+  try {
+    return [
+      readColor(paletteClassNames[0]),
+      readColor(paletteClassNames[1]),
+      readColor(paletteClassNames[2]),
+      readColor(paletteClassNames[3]),
+    ] satisfies ComposerBacklightPalette;
+  } finally {
+    probe.remove();
+  }
+}
+
 function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvasElement) {
   currentEngine.attachment?.dispose();
   const host = getComposerHost(canvas);
@@ -288,6 +374,15 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
     }
   }
 
+  function updatePalette() {
+    const [start, firstBlend, secondBlend, end] = readBacklightPalette(host);
+    const params = currentEngine.uniforms.params;
+    params.palette_start.splice(0, 4, ...start);
+    params.palette_first_blend.splice(0, 4, ...firstBlend);
+    params.palette_second_blend.splice(0, 4, ...secondBlend);
+    params.palette_end.splice(0, 4, ...end);
+  }
+
   function synchronize() {
     stopLoop();
 
@@ -308,6 +403,8 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
     }
   }
 
+  updatePalette();
+
   const resizeObserver = new ResizeObserver(() => {
     if (active && reducedMotion && document.visibilityState === "visible") {
       renderOnce();
@@ -316,6 +413,21 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
   resizeObserver.observe(canvas);
   const positionObserver = new ResizeObserver(schedulePlacement);
   positionObserver.observe(host);
+  const themeObserver = new MutationObserver(() => {
+    try {
+      updatePalette();
+
+      if (active && reducedMotion && document.visibilityState === "visible") {
+        renderOnce();
+      }
+    } catch (error) {
+      fail(error);
+    }
+  });
+  themeObserver.observe(document.documentElement, {
+    attributeFilter: ["class", "data-theme"],
+    attributes: true,
+  });
   document.addEventListener("visibilitychange", synchronize);
   document.addEventListener("scroll", schedulePlacement, { capture: true, passive: true });
   window.addEventListener("resize", schedulePlacement, { passive: true });
@@ -344,6 +456,7 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
       stopLoop();
       resizeObserver.disconnect();
       positionObserver.disconnect();
+      themeObserver.disconnect();
       document.removeEventListener("visibilitychange", synchronize);
       document.removeEventListener("scroll", schedulePlacement, true);
       window.removeEventListener("resize", schedulePlacement);
@@ -444,6 +557,18 @@ const styles = stylex.create({
     transitionDuration: "0.14s",
     transitionProperty: "opacity",
     transitionTimingFunction: "cubic-bezier(0.2, 0, 0, 1)",
+  },
+  paletteStart: {
+    color: tokens.composerGlowStart,
+  },
+  paletteFirstBlend: {
+    color: tokens.composerGlowFirstBlend,
+  },
+  paletteSecondBlend: {
+    color: tokens.composerGlowSecondBlend,
+  },
+  paletteEnd: {
+    color: tokens.composerGlowEnd,
   },
 });
 

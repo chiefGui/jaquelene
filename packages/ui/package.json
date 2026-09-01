@@ -10,6 +10,8 @@
     "./motion": "./src/primitive/motion.tsx",
     "./popover": "./src/primitive/popover.tsx",
     "./select": "./src/primitive/select.tsx",
+    "./theme/dracula.stylex": "./src/theme/dracula.theme.stylex.ts",
+    "./theme/jaquelene.stylex": "./src/theme/jaquelene.theme.stylex.ts",
     "./theme.stylex": "./src/theme.stylex.ts",
     "./tooltip": "./src/primitive/tooltip.tsx"
   },

@@ -5,6 +5,10 @@ export const tokens = stylex.defineVars({
   backdrop: "oklch(0 0 0 / 55%)",
   border: "oklch(0.225 0.016 274)",
   canvas: "oklch(0.135 0.01 272)",
+  composerGlowEnd: "#33e0ff",
+  composerGlowFirstBlend: "#8557ff",
+  composerGlowSecondBlend: "#4785ff",
+  composerGlowStart: "#e657f5",
   danger: "oklch(0.7 0.16 22)",
   foreground: "oklch(0.925 0.014 282)",
   muted: "oklch(0.68 0.03 280)",
@@ -39,22 +43,4 @@ export const tokens = stylex.defineVars({
   lineHeightLarge: "1.5rem",
   lineHeightSmall: "1.125rem",
   lineHeightXSmall: "1rem",
-});
-
-export const draculaTheme = stylex.createTheme(tokens, {
-  accent: "#bd93f9",
-  border: "color-mix(in oklab, #44475a 72%, #282a36)",
-  canvas: "#282a36",
-  danger: "color-mix(in oklab, #ff5555 60%, #f8f8f2)",
-  foreground: "#f8f8f2",
-  muted: "color-mix(in oklab, #6272a4 52%, #f8f8f2)",
-  reasoning: "#ff79c6",
-  success: "#50fa7b",
-  storageAppData: "#8be9fd",
-  storageCache: "#6272a4",
-  storageContent: "#bd93f9",
-  storageLogs: "#ffb86c",
-  surface: "color-mix(in oklab, #282a36 94%, #f8f8f2)",
-  surfaceRaised: "color-mix(in oklab, #282a36 86%, #f8f8f2)",
-  surfaceRaisedBorder: "#44475a",
 });

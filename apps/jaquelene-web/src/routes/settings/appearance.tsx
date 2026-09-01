@@ -171,7 +171,12 @@ function ThemePreferenceItem({ disabled, error, onValueChange, value }: ThemePre
                     option.style,
                     selected && styles.themeOrbSelected,
                   )}
-                />
+                >
+                  <span {...stylex.props(styles.themeOrbCore)}>
+                    <span {...stylex.props(styles.themeOrbLiquid)} />
+                    <span {...stylex.props(styles.themeOrbShine)} />
+                  </span>
+                </span>
                 <span {...stylex.props(styles.themeLabel, selected && styles.themeLabelSelected)}>
                   {option.label}
                 </span>
@@ -210,13 +215,6 @@ function AppearanceRoute() {
             <Item.Heading id="user-interface-heading">User Interface</Item.Heading>
 
             <Item.Group>
-              <ThemePreferenceItem
-                disabled={setUiTheme.isPending}
-                error={setUiTheme.isError ? "Couldn't save the theme." : null}
-                onValueChange={setUiTheme.mutate}
-                value={preferences.theme}
-              />
-
               <PreferenceSelectItem
                 disabled={setUiFont.isPending}
                 error={setUiFont.isError ? "Couldn't save the font." : null}
@@ -242,6 +240,13 @@ function AppearanceRoute() {
                 onValueChange={setMotion.mutate}
                 options={Object.values(motionPreferences)}
                 value={preferences.motion}
+              />
+
+              <ThemePreferenceItem
+                disabled={setUiTheme.isPending}
+                error={setUiTheme.isError ? "Couldn't save the theme." : null}
+                onValueChange={setUiTheme.mutate}
+                value={preferences.theme}
               />
             </Item.Group>
           </Item.Section>
@@ -294,14 +299,53 @@ const styles = stylex.create({
     padding: "0.25rem",
   },
   themeOrb: {
+    alignItems: "center",
     backgroundColor: tokens.canvas,
-    backgroundImage: `conic-gradient(from 215deg, ${tokens.canvas} 0 42%, ${tokens.surfaceRaised} 42% 67%, ${tokens.accent} 67% 84%, ${tokens.foreground} 84%)`,
     borderColor: tokens.surfaceRaisedBorder,
     borderRadius: "50%",
     borderStyle: "solid",
     borderWidth: 1,
-    height: "2.5rem",
-    width: "2.5rem",
+    display: "flex",
+    height: "2.75rem",
+    justifyContent: "center",
+    padding: "0.125rem",
+    width: "2.75rem",
+  },
+  themeOrbCore: {
+    backgroundColor: tokens.surface,
+    backgroundImage: `radial-gradient(circle at 72% 76%, color-mix(in oklab, ${tokens.accent} 24%, transparent), transparent 56%), linear-gradient(145deg, ${tokens.surfaceRaised}, ${tokens.canvas} 76%)`,
+    borderColor: `color-mix(in oklab, ${tokens.foreground} 14%, transparent)`,
+    borderRadius: "50%",
+    borderStyle: "solid",
+    borderWidth: 1,
+    boxShadow: `inset 0 -0.375rem 0.875rem color-mix(in oklab, ${tokens.canvas} 58%, transparent)`,
+    height: "100%",
+    overflow: "hidden",
+    position: "relative",
+    width: "100%",
+  },
+  themeOrbLiquid: {
+    backgroundImage: `radial-gradient(circle at 72% 20%, color-mix(in oklab, ${tokens.foreground} 64%, transparent) 0 4%, transparent 22%), linear-gradient(124deg, ${tokens.reasoning}, ${tokens.accent} 48%, ${tokens.storageAppData})`,
+    borderRadius: "48% 52% 44% 56% / 34% 40% 60% 66%",
+    bottom: "-17%",
+    boxShadow: `inset 0 0.325rem 0.625rem color-mix(in oklab, ${tokens.foreground} 18%, transparent), 0 -0.125rem 0.5rem color-mix(in oklab, ${tokens.accent} 32%, transparent)`,
+    height: "73%",
+    left: "-18%",
+    position: "absolute",
+    transform: "rotate(-9deg)",
+    width: "136%",
+  },
+  themeOrbShine: {
+    backgroundImage: `radial-gradient(ellipse, color-mix(in oklab, ${tokens.foreground} 72%, transparent), transparent 68%)`,
+    borderRadius: "50%",
+    filter: "blur(0.35px)",
+    height: "0.5rem",
+    left: "0.5rem",
+    opacity: 0.78,
+    position: "absolute",
+    top: "0.375rem",
+    transform: "rotate(-28deg)",
+    width: "0.875rem",
   },
   themeOrbSelected: {
     boxShadow: `0 0 0 2px ${tokens.canvas}, 0 0 0 4px ${tokens.accent}`,

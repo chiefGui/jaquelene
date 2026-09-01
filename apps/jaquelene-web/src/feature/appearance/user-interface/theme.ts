@@ -1,18 +1,20 @@
 import { UiTheme } from "@jaquelene/ipc/renderer";
-import { draculaTheme, tokens } from "@jaquelene/ui/theme.stylex";
+import { draculaTheme } from "@jaquelene/ui/theme/dracula.stylex";
+import { jaqueleneTheme } from "@jaquelene/ui/theme/jaquelene.stylex";
+import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useLayoutEffect } from "react";
 
 type UiThemeDefinition = {
   label: string;
-  style: typeof draculaTheme | undefined;
+  style: typeof draculaTheme;
   value: UiTheme;
 };
 
 export const uiThemes = {
   [UiTheme.Jaquelene]: {
     label: "Jaquelene",
-    style: undefined,
+    style: jaqueleneTheme,
     value: UiTheme.Jaquelene,
   },
   [UiTheme.Dracula]: {

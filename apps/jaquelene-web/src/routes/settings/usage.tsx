@@ -253,9 +253,7 @@ function UsageRoute() {
                   <Item.Label id="usage-history-heading" render={<h2 />}>
                     Usage history
                   </Item.Label>
-                  <Item.Description>
-                    Clear totals without deleting campaigns or conversations.
-                  </Item.Description>
+                  <Item.Description>Permanently clear all recorded usage.</Item.Description>
                 </Item.Content>
 
                 <ConfirmDialog
@@ -269,7 +267,7 @@ function UsageRoute() {
                     }
                   }}
                   heading="Clear usage history?"
-                  description="Campaigns and conversations will remain, but usage totals and history will be permanently removed."
+                  description="All recorded usage will be permanently removed."
                   confirmLabel="Clear"
                   pending={clearHistory.isPending}
                   error={clearHistory.isError ? "Couldn’t clear usage history." : undefined}

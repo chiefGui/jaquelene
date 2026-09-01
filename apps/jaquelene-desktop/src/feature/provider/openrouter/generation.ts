@@ -1,7 +1,7 @@
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { chatSend } from "@openrouter/sdk/funcs/chatSend.js";
 import type { ChatMessages, ChatResult } from "@openrouter/sdk/models";
-import type { GenerationMessage, ProviderGenerationAdapter } from "@jaquelene/backend";
+import type { DialogueMessage, ModelInput, ProviderGenerationAdapter } from "@jaquelene/backend";
 import type { OpenRouterConfiguration } from "./connection";
 
 type SendOpenRouterChat = (
@@ -16,15 +16,20 @@ type SendOpenRouterChat = (
   signal: AbortSignal,
 ) => Promise<ChatResult>;
 
-function toOpenRouterMessage({ role, content }: GenerationMessage): ChatMessages {
+function toOpenRouterDialogue({ role, content }: DialogueMessage): ChatMessages {
   switch (role) {
-    case "system":
-      return { role, content };
     case "user":
       return { role, content };
     case "assistant":
       return { role, content };
   }
+}
+
+function toOpenRouterMessages({ instructions, dialogue }: ModelInput): ChatMessages[] {
+  return [
+    ...instructions.map(({ content }) => ({ role: "system" as const, content })),
+    ...dialogue.map(toOpenRouterDialogue),
+  ];
 }
 
 async function sendOpenRouterChat(
@@ -98,7 +103,7 @@ export function createOpenRouterGeneration(
           apiKey,
           {
             model: request.modelId,
-            messages: request.messages.map(toOpenRouterMessage),
+            messages: toOpenRouterMessages(request.input),
             metadata: { jaquelene_generation_id: request.generationId },
             sessionId: request.threadId,
             stream: false,

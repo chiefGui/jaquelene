@@ -27,12 +27,14 @@ function generationRequest(): ProviderGenerationRequest {
     generationId: ids.generation.create(),
     threadId: ids.thread.create(),
     modelId: "maker/requested-model",
-    messages: [
-      { role: "system", content: "System instruction" },
-      { role: "user", content: "Earlier message" },
-      { role: "assistant", content: "Earlier reply" },
-      { role: "user", content: "Hello" },
-    ],
+    input: {
+      instructions: [{ sourceKey: "test.instruction", content: "Instruction" }],
+      dialogue: [
+        { messageId: ids.message.create(), role: "user", content: "Earlier message" },
+        { messageId: ids.message.create(), role: "assistant", content: "Earlier reply" },
+        { messageId: ids.message.create(), role: "user", content: "Hello" },
+      ],
+    },
   };
 }
 
@@ -66,7 +68,12 @@ describe("OpenRouter generation provider", () => {
       "openrouter-key",
       {
         model: request.modelId,
-        messages: request.messages,
+        messages: [
+          { role: "system", content: "Instruction" },
+          { role: "user", content: "Earlier message" },
+          { role: "assistant", content: "Earlier reply" },
+          { role: "user", content: "Hello" },
+        ],
         metadata: { jaquelene_generation_id: request.generationId },
         sessionId: request.threadId,
         stream: false,

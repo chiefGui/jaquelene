@@ -1,4 +1,5 @@
 import type { GenerationId, ThreadId } from "#backend/id";
+import type { ModelInput } from "#backend/model/input";
 
 export type ProviderId = string;
 
@@ -44,11 +45,6 @@ export function requireModelSelection(selection: ModelSelection) {
   }
 }
 
-export type GenerationMessage = Readonly<{
-  role: "system" | "user" | "assistant";
-  content: string;
-}>;
-
 export type GenerationUsage = Readonly<{
   inputTokens: number;
   outputTokens: number;
@@ -59,7 +55,7 @@ export type ProviderGenerationRequest = Readonly<{
   generationId: GenerationId;
   threadId: ThreadId;
   modelId: string;
-  messages: readonly GenerationMessage[];
+  input: ModelInput;
 }>;
 
 export type ProviderGenerationResult = Readonly<{

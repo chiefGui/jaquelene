@@ -37,7 +37,7 @@ enum GenerationStatus {
 }
 
 enum GenerationFailureKind {
-  Prompt = "prompt"
+  Preparation = "preparation"
   Provider = "provider"
   InvalidOutput = "invalid-output"
   Interrupted = "interrupted"

@@ -132,7 +132,10 @@ function generationRequest() {
     generationId: ids.generation.create(),
     threadId: ids.thread.create(),
     modelId: "maker/model",
-    messages: [{ role: "user" as const, content: "Hello" }],
+    input: {
+      instructions: [],
+      dialogue: [{ messageId: ids.message.create(), role: "user" as const, content: "Hello" }],
+    },
   };
 }
 

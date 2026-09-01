@@ -2,11 +2,11 @@
 
 `@jaquelene/backend` is Jaquelene's application composition and lifetime boundary.
 
-It owns SQLite, migrations, IDs, scenarios, campaigns, threads, durable turn submission and retry, prompt compilation, generation state, active generation supervision, the provider registry, and storage measurement. Platform code supplies provider adapters and filesystem locations, then consumes the plain TypeScript facade returned by `createBackend`.
+It owns SQLite, migrations, IDs, scenarios, campaigns, the code-owned instruction catalog, threads, durable turn submission and retry, reply preparation, generation state, active generation supervision, the provider registry, and storage measurement. Platform code supplies provider adapters and filesystem locations, then consumes the plain TypeScript facade returned by `createBackend`.
 
 A provider adapter declares one stable identity and supplies configuration, model discovery, and generation capabilities. The provider subsystem validates and routes those capabilities, gives every network operation a cancellation signal, orders configuration changes, and derives provider-owned storage from the configuration capability. Disconnecting a provider stops and drains its active work before removing its credential. Adding a provider does not add another backend registry or storage manifest entry.
 
-Threads remain independent of campaigns. The turn service composes a thread write, prompt compilation, and generation into the durable submit/retry workflow; callers supply only a thread identity and model.
+Threads remain independent of campaigns. Reply preparation resolves campaign-owned context explicitly; a campaign reply includes Jaquelene's factory default roleplay instruction, while a standalone thread remains dialogue-only. The turn service composes a thread write, semantic model-input preparation, and generation into the durable submit/retry workflow; callers supply only a thread identity and model.
 
 A storage area is the canonical ownership and measurement unit. Usage remains attributable to individual owners, categories are projections over those areas, and both area and category deletion route through owner-defined lifecycle operations. Successful deletion returns fresh usage for only the affected areas, avoiding unrelated filesystem scans.
 

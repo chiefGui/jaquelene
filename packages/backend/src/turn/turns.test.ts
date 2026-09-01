@@ -2,15 +2,18 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createGenerations } from "#backend/generation/generations";
-import { createTurnPromptCompiler } from "#backend/generation/prompt";
+import { createReplyPreparer } from "#backend/generation/reply-preparation";
 import { superviseGenerations } from "#backend/generation/supervisor";
 import { ids } from "#backend/id";
 import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
+import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
+import { createInstructionRegistry } from "#backend/instruction/registry";
 import {
   createThreads,
   THREAD_MESSAGE_CONTENT_MAX_LENGTH,
@@ -34,10 +37,12 @@ function createDatabasePath() {
 
 function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
+  const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
+  const instructions = createInstructionRegistry([factoryRoleplay]);
   const generationEngine = createGenerations(
     database,
-    createTurnPromptCompiler(threads),
+    createReplyPreparer(threads, campaigns, instructions),
     {
       get(providerId) {
         return providerId === "provider-a"

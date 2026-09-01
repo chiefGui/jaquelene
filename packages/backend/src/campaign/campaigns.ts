@@ -77,6 +77,19 @@ export function createCampaigns(database: Database, now: () => number = Date.now
       return campaign ? toCampaign(campaign) : null;
     },
 
+    getContextForThread(threadId: ThreadId) {
+      return (
+        database
+          .select({
+            id: campaignTable.id,
+            scenarioId: campaignTable.scenarioId,
+          })
+          .from(campaignTable)
+          .where(eq(campaignTable.threadId, threadId))
+          .get() ?? null
+      );
+    },
+
     setModelOverride(id: CampaignId, model: ModelSelection | null) {
       if (model) {
         requireModelSelection(model);
@@ -116,4 +129,5 @@ export function createCampaigns(database: Database, now: () => number = Date.now
   };
 }
 
-export type Campaigns = ReturnType<typeof createCampaigns>;
+export type CampaignEngine = ReturnType<typeof createCampaigns>;
+export type Campaigns = Omit<CampaignEngine, "getContextForThread">;

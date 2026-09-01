@@ -286,12 +286,12 @@ function StorageRoute() {
       <ContentPane.Viewport>
         <ContentPane.Body>
           <Item.Section aria-labelledby={usageHeadingId} aria-describedby={usageDescriptionId}>
-            <div {...stylex.props(styles.sectionHeader)}>
+            <Item.SectionHeader>
               <Item.Heading id={usageHeadingId}>Usage</Item.Heading>
-              <p id={usageDescriptionId} {...stylex.props(styles.sectionDescription)}>
+              <Item.SectionDescription id={usageDescriptionId}>
                 Everything listed here is stored on this device.
-              </p>
-            </div>
+              </Item.SectionDescription>
+            </Item.SectionHeader>
 
             <Item.Group>
               <Item.Root style={styles.summary}>
@@ -356,19 +356,6 @@ function StorageRoute() {
 }
 
 const styles = stylex.create({
-  sectionHeader: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.5rem",
-  },
-  sectionDescription: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeXSmall,
-    lineHeight: tokens.lineHeightXSmall,
-    margin: 0,
-    paddingInline: "1rem",
-    textBox: "trim-both text",
-  },
   summary: {
     display: "block",
   },

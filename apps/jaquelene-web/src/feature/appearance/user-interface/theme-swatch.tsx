@@ -1,4 +1,3 @@
-import { useReducedMotion } from "@jaquelene/ui/motion";
 import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { UiThemeStyle } from "./theme";
@@ -9,18 +8,8 @@ type ThemeSwatchProps = {
 };
 
 export function ThemeSwatch({ selected, theme }: ThemeSwatchProps) {
-  const reducedMotion = useReducedMotion();
-
   return (
-    <span
-      aria-hidden="true"
-      {...stylex.props(
-        styles.root,
-        theme,
-        selected && styles.selected,
-        !reducedMotion && styles.interactive,
-      )}
-    />
+    <span aria-hidden="true" {...stylex.props(styles.root, theme, selected && styles.selected)} />
   );
 }
 
@@ -43,7 +32,6 @@ const styles = stylex.create({
     outlineWidth: 2,
     overflow: "hidden",
     position: "relative",
-    transform: "translateY(0) scale(1)",
     width: "3.25rem",
     "::before": {
       backgroundImage: `radial-gradient(circle at 28% 24%, color-mix(in oklch, ${colors.foreground} 42%, transparent) 0 5%, transparent 21%), linear-gradient(122deg, ${colors.reasoning}, ${colors.accent} 48%, ${colors.storageAppData})`,
@@ -69,15 +57,5 @@ const styles = stylex.create({
   },
   selected: {
     outlineColor: colors.accent,
-  },
-  interactive: {
-    transform: {
-      default: "translateY(0) scale(1)",
-      [stylex.when.ancestor(":not(:disabled):hover")]: "translateY(-0.0625rem) scale(1.025)",
-      [stylex.when.ancestor("[data-focus-visible]")]: "translateY(-0.0625rem) scale(1.025)",
-    },
-    transitionDuration: "0.16s",
-    transitionProperty: "transform",
-    transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
   },
 });

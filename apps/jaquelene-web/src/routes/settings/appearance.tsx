@@ -1,3 +1,4 @@
+import type { UiTheme } from "@jaquelene/ipc/renderer";
 import { Item } from "@jaquelene/ui";
 import { Select } from "@jaquelene/ui/select";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -112,8 +113,8 @@ function PreferenceSelectItem<Value extends string>({
 type ThemePreferenceItemProps = {
   disabled: boolean;
   error: string | null;
-  onValueChange: (value: (typeof uiThemes)[keyof typeof uiThemes]["value"]) => void;
-  value: (typeof uiThemes)[keyof typeof uiThemes]["value"];
+  onValueChange: (value: UiTheme) => void;
+  value: UiTheme;
 };
 
 function ThemePreferenceItem({ disabled, error, onValueChange, value }: ThemePreferenceItemProps) {

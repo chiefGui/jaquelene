@@ -23,7 +23,7 @@ export const draculaPalette = stylex.defineConsts({
   storageAppData: "oklch(0.78 0.085 213)",
   storageLogs: "oklch(0.76 0.105 67)",
 
-  // Composer glow
+  // Composer
   composerGlowStart: "oklch(0.7 0.16 347)",
   composerGlowFirstBlend: "oklch(0.72 0.14 302)",
   composerGlowSecondBlend: "oklch(0.52 0.065 269)",

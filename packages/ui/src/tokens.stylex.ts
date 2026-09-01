@@ -24,7 +24,7 @@ export const colors = stylex.defineVars({
   storageAppData: jaquelenePalette.storageAppData,
   storageLogs: jaquelenePalette.storageLogs,
 
-  // Composer glow
+  // Composer
   composerGlowStart: jaquelenePalette.composerGlowStart,
   composerGlowFirstBlend: jaquelenePalette.composerGlowFirstBlend,
   composerGlowSecondBlend: jaquelenePalette.composerGlowSecondBlend,

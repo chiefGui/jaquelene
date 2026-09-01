@@ -23,7 +23,7 @@ export const jaquelenePalette = stylex.defineConsts({
   storageAppData: "oklch(0.74 0.1 215)",
   storageLogs: "oklch(0.76 0.1 82)",
 
-  // Composer glow
+  // Composer
   composerGlowStart: "oklch(0.7033 0.2499 323.8)",
   composerGlowFirstBlend: "oklch(0.5999 0.2354 290)",
   composerGlowSecondBlend: "oklch(0.6396 0.1928 262.2)",

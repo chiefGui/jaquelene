@@ -12,7 +12,7 @@ export const draculaTheme = stylex.createTheme(tokens, {
   composerGlowStart: "#ff79c6",
   danger: "color-mix(in oklab, #ff5555 78%, #f8f8f2)",
   foreground: "#f8f8f2",
-  muted: "color-mix(in oklab, #6272a4 68%, #f8f8f2)",
+  muted: "color-mix(in oklab, #f8f8f2 58%, #282a36)",
   reasoning: "#ff79c6",
   shadowLarge: "0 20px 25px -5px rgb(8 9 12 / 20%), 0 8px 10px -6px rgb(8 9 12 / 24%)",
   shadowXLarge: "0 25px 50px -12px rgb(8 9 12 / 42%)",

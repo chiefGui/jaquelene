@@ -83,6 +83,13 @@ function deferred<Result>() {
   return { promise, reject, resolve };
 }
 
+function observeConfigurationMutation(queryClient: QueryClient, id: string) {
+  return new MutationObserver(
+    queryClient,
+    setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, id),
+  );
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
 });
@@ -100,10 +107,7 @@ describe("campaign generation configuration override mutation", () => {
     campaignsIpc.setGenerationConfigurationOverride.mockReturnValue(save.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
     queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
-    const mutation = new MutationObserver(
-      queryClient,
-      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
-    );
+    const mutation = observeConfigurationMutation(queryClient, original.id);
 
     const result = mutation.mutate(requestedConfiguration);
 
@@ -133,10 +137,7 @@ describe("campaign generation configuration override mutation", () => {
     const save = deferred<Campaign>();
     campaignsIpc.setGenerationConfigurationOverride.mockReturnValue(save.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
-    const mutation = new MutationObserver(
-      queryClient,
-      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
-    );
+    const mutation = observeConfigurationMutation(queryClient, original.id);
 
     const result = mutation.mutate(null);
 
@@ -163,10 +164,7 @@ describe("campaign generation configuration override mutation", () => {
       .mockReturnValueOnce(latestSave.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
     queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
-    const mutation = new MutationObserver(
-      queryClient,
-      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
-    );
+    const mutation = observeConfigurationMutation(queryClient, original.id);
 
     const firstResult = mutation.mutate(firstConfiguration);
     const latestResult = mutation.mutate(latestConfiguration);
@@ -207,10 +205,7 @@ describe("campaign generation configuration override mutation", () => {
       .mockReturnValueOnce(latestSave.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
     queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
-    const mutation = new MutationObserver(
-      queryClient,
-      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
-    );
+    const mutation = observeConfigurationMutation(queryClient, original.id);
 
     const firstResult = mutation.mutate(generationConfiguration("first", ReasoningPreset.On));
     const latestResult = mutation.mutate(generationConfiguration("latest", ReasoningPreset.Off));
@@ -244,10 +239,7 @@ describe("campaign generation configuration override mutation", () => {
       .mockReturnValueOnce(latestSave.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
     queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
-    const mutation = new MutationObserver(
-      queryClient,
-      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
-    );
+    const mutation = observeConfigurationMutation(queryClient, original.id);
 
     const firstResult = mutation.mutate(firstConfiguration);
     const latestResult = mutation.mutate(generationConfiguration("latest", ReasoningPreset.Off));
@@ -274,10 +266,7 @@ describe("campaign generation configuration override mutation", () => {
     campaignsIpc.setGenerationConfigurationOverride.mockRejectedValue(failure);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
     queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
-    const mutation = new MutationObserver(
-      queryClient,
-      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
-    );
+    const mutation = observeConfigurationMutation(queryClient, original.id);
 
     await expect(
       mutation.mutate(generationConfiguration("requested", ReasoningPreset.Minimal)),
@@ -292,10 +281,7 @@ describe("campaign generation configuration override mutation", () => {
   it("rejects an update when the campaign disappeared", async () => {
     const queryClient = createQueryClient();
     campaignsIpc.setGenerationConfigurationOverride.mockResolvedValue(null);
-    const mutation = new MutationObserver(
-      queryClient,
-      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, "missing-campaign"),
-    );
+    const mutation = observeConfigurationMutation(queryClient, "missing-campaign");
 
     await expect(mutation.mutate(generationConfiguration("requested"))).rejects.toThrow(
       'Campaign "missing-campaign" is unavailable.',

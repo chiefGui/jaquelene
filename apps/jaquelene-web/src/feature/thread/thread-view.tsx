@@ -21,7 +21,7 @@ import {
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { Composer } from "@/feature/composer/composer";
 import {
-  retainLoadedOlderThreadMessages,
+  retainLoadedThreadMessages,
   threadMessagesQuery,
   useIsTurnOperationPending,
   usePendingTurnSubmission,
@@ -98,28 +98,58 @@ function ThreadControlsLayer({ children, onHeightChange }: ThreadControlsLayerPr
   );
 }
 
-type ThreadHistoryReturnProps = Readonly<{
-  error: boolean;
-  pending: boolean;
+type ThreadHistoryControlsProps = Readonly<{
+  hasNewerMessages: boolean;
+  loadingNewerMessages: boolean;
+  newerMessagesFailed: boolean;
+  returnToLatestFailed: boolean;
+  returningToLatest: boolean;
+  navigationPending: boolean;
+  loadNewer: () => Promise<void>;
   returnToLatest: () => Promise<void>;
 }>;
 
-const ThreadHistoryReturn = memo(function ThreadHistoryReturn({
-  error,
-  pending,
+const ThreadHistoryControls = memo(function ThreadHistoryControls({
+  hasNewerMessages,
+  loadingNewerMessages,
+  newerMessagesFailed,
+  returnToLatestFailed,
+  returningToLatest,
+  navigationPending,
+  loadNewer,
   returnToLatest,
-}: ThreadHistoryReturnProps) {
+}: ThreadHistoryControlsProps) {
   return (
     <>
-      <div {...stylex.props(styles.historyReturn)}>
-        <p {...stylex.props(styles.historyDescription)}>Viewing older messages.</p>
-        <Button type="button" disabled={pending} onClick={() => void returnToLatest()}>
-          {pending ? "Returning…" : "Return to latest"}
-        </Button>
+      <div {...stylex.props(styles.historyControls)}>
+        <p {...stylex.props(styles.historyDescription)}>Viewing message history.</p>
+        <div {...stylex.props(styles.historyActions)}>
+          {hasNewerMessages ? (
+            <Button
+              type="button"
+              variant="ghost"
+              style={styles.loadNewerAction}
+              disabled={navigationPending}
+              onClick={() => void loadNewer()}
+            >
+              {loadingNewerMessages ? "Loading…" : "Load newer messages"}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            style={styles.returnToLatestAction}
+            disabled={navigationPending}
+            onClick={() => void returnToLatest()}
+          >
+            {returningToLatest ? "Returning…" : "Return to latest"}
+          </Button>
+        </div>
       </div>
-      {error ? (
+      {newerMessagesFailed || returnToLatestFailed ? (
         <p role="alert" {...stylex.props(styles.historyError)}>
-          Could not return to the latest messages.
+          {newerMessagesFailed
+            ? "Could not load newer messages."
+            : "Could not return to the latest messages."}
         </p>
       ) : null}
     </>
@@ -247,6 +277,7 @@ export function ThreadView({
   const retryTurn = retryTurnMutation.mutateAsync;
   const resetRetry = retryTurnMutation.reset;
   const acceptingRetry = useRef(false);
+  const historyNavigation = useRef<"older" | "newer" | "latest" | null>(null);
   const turnOperationPending = useIsTurnOperationPending(threadId);
   const pendingSubmission = usePendingTurnSubmission(threadId);
   const viewport = useRef<HTMLDivElement>(null);
@@ -301,10 +332,55 @@ export function ThreadView({
   );
 
   const loadOlder = useCallback(async () => {
-    await messagesQuery.fetchNextPage();
-    retainLoadedOlderThreadMessages(queryClient, threadId);
-  }, [messagesQuery.fetchNextPage, queryClient, threadId]);
+    if (historyNavigation.current || operationPending) {
+      return;
+    }
+
+    historyNavigation.current = "older";
+
+    try {
+      const result = await messagesQuery.fetchNextPage({ cancelRefetch: false });
+
+      if (result.isError) {
+        reportError("thread.messages.load-older", result.error);
+        return;
+      }
+
+      retainLoadedThreadMessages(queryClient, threadId, "older");
+    } catch (cause) {
+      reportError("thread.messages.load-older", cause);
+    } finally {
+      historyNavigation.current = null;
+    }
+  }, [messagesQuery.fetchNextPage, operationPending, queryClient, threadId]);
+  const loadNewer = useCallback(async () => {
+    if (historyNavigation.current || operationPending) {
+      return;
+    }
+
+    historyNavigation.current = "newer";
+
+    try {
+      const result = await messagesQuery.fetchPreviousPage({ cancelRefetch: false });
+
+      if (result.isError) {
+        reportError("thread.messages.load-newer", result.error);
+        return;
+      }
+
+      retainLoadedThreadMessages(queryClient, threadId, "newer");
+    } catch (cause) {
+      reportError("thread.messages.load-newer", cause);
+    } finally {
+      historyNavigation.current = null;
+    }
+  }, [messagesQuery.fetchPreviousPage, operationPending, queryClient, threadId]);
   const returnToLatest = useCallback(async () => {
+    if (historyNavigation.current || operationPending) {
+      return;
+    }
+
+    historyNavigation.current = "latest";
     const wasPinnedToEnd = pinnedToEnd.current;
     pinnedToEnd.current = true;
 
@@ -313,10 +389,16 @@ export function ThreadView({
     } catch (cause) {
       pinnedToEnd.current = wasPinnedToEnd;
       reportError("thread.messages.return-to-latest", cause);
+    } finally {
+      historyNavigation.current = null;
     }
-  }, [returnToLatestMessages]);
-  const retryPending = operationPending || configurationPending || returnToLatestMutation.isPending;
-  const historyNavigationPending = operationPending || returnToLatestMutation.isPending;
+  }, [operationPending, returnToLatestMessages]);
+  const historyNavigationPending =
+    operationPending ||
+    messagesQuery.isFetchingNextPage ||
+    messagesQuery.isFetchingPreviousPage ||
+    returnToLatestMutation.isPending;
+  const retryPending = operationPending || configurationPending || historyNavigationPending;
 
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -342,9 +424,10 @@ export function ThreadView({
           bottomInset={timelineBottomInset}
           viewport={viewport}
           pinnedToEnd={pinnedToEnd}
-          hasNextPage={messagesQuery.hasNextPage}
-          isFetchingNextPage={messagesQuery.isFetchingNextPage}
-          isFetchNextPageError={messagesQuery.isFetchNextPageError}
+          latestHistory={!historical}
+          hasOlderMessages={messagesQuery.hasNextPage}
+          loadingOlderMessages={messagesQuery.isFetchingNextPage}
+          olderMessagesFailed={messagesQuery.isFetchNextPageError}
           historyNavigationPending={historyNavigationPending}
           retryPending={retryPending}
           loadOlder={loadOlder}
@@ -352,9 +435,14 @@ export function ThreadView({
         />
         <ThreadControlsLayer onHeightChange={setTimelineBottomInset}>
           {historical ? (
-            <ThreadHistoryReturn
-              error={returnToLatestMutation.isError}
-              pending={returnToLatestMutation.isPending}
+            <ThreadHistoryControls
+              hasNewerMessages={messagesQuery.hasPreviousPage}
+              loadingNewerMessages={messagesQuery.isFetchingPreviousPage}
+              newerMessagesFailed={messagesQuery.isFetchPreviousPageError}
+              returnToLatestFailed={returnToLatestMutation.isError}
+              returningToLatest={returnToLatestMutation.isPending}
+              navigationPending={historyNavigationPending}
+              loadNewer={loadNewer}
               returnToLatest={returnToLatest}
             />
           ) : (
@@ -402,7 +490,7 @@ const styles = stylex.create({
     position: "absolute",
     right: 0,
   },
-  historyReturn: {
+  historyControls: {
     alignItems: "center",
     backgroundColor: tokens.surfaceRaised,
     borderColor: tokens.surfaceRaisedBorder,
@@ -410,6 +498,7 @@ const styles = stylex.create({
     borderStyle: "solid",
     borderWidth: 1,
     display: "flex",
+    flexWrap: "wrap",
     gap: "1rem",
     justifyContent: "space-between",
     padding: "0.75rem",
@@ -418,6 +507,21 @@ const styles = stylex.create({
     color: tokens.muted,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
+  },
+  historyActions: {
+    alignItems: "center",
+    display: "flex",
+    flexWrap: "wrap",
+    flexShrink: 0,
+    gap: "0.5rem",
+    justifyContent: "flex-end",
+    marginInlineStart: "auto",
+  },
+  loadNewerAction: {
+    minWidth: "9.75rem",
+  },
+  returnToLatestAction: {
+    minWidth: "7.75rem",
   },
   historyError: {
     color: tokens.danger,

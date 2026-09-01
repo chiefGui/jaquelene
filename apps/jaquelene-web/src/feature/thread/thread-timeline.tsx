@@ -11,7 +11,6 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { reportError } from "@/feature/diagnostics/diagnostics";
 import type { SubmitTurnVariables } from "./query";
 import { threadLayout } from "./thread-layout.stylex";
 import { PendingThreadMessageRow, ThreadMessageRow } from "./thread-message";
@@ -39,6 +38,9 @@ type ThreadTimelineItem =
 
 type ThreadTimelineSnapshot = Readonly<{
   latestMessageId: string | null;
+  messageIds: ReadonlySet<string>;
+  oldestSequence: number | null;
+  newestSequence: number | null;
   replyPending: boolean;
   submissionId: string | null;
 }>;
@@ -49,9 +51,10 @@ type ThreadTimelineProps = Readonly<{
   bottomInset: number;
   viewport: RefObject<HTMLDivElement | null>;
   pinnedToEnd: RefObject<boolean>;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  isFetchNextPageError: boolean;
+  latestHistory: boolean;
+  hasOlderMessages: boolean;
+  loadingOlderMessages: boolean;
+  olderMessagesFailed: boolean;
   historyNavigationPending: boolean;
   retryPending: boolean;
   loadOlder: () => Promise<void>;
@@ -76,9 +79,10 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   bottomInset,
   viewport,
   pinnedToEnd,
-  hasNextPage,
-  isFetchingNextPage,
-  isFetchNextPageError,
+  latestHistory,
+  hasOlderMessages,
+  loadingOlderMessages,
+  olderMessagesFailed,
   historyNavigationPending,
   retryPending,
   loadOlder,
@@ -87,11 +91,10 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   const historyControls = useRef<HTMLDivElement>(null);
   const messageList = useRef<HTMLOListElement>(null);
   const timelineSnapshot = useRef<ThreadTimelineSnapshot | null>(null);
-  const loadingOlder = useRef(false);
   const itemOrigin = useRef<number | null>(null);
   const [scrollMargin, setScrollMargin] = useState<number | null>(null);
   const optimisticSubmission = view.replyPending ? null : pendingSubmission;
-  const hasHistoryControls = hasNextPage || isFetchNextPageError;
+  const hasHistoryControls = hasOlderMessages || olderMessagesFailed;
   const paddingStart = hasHistoryControls ? 0 : timelinePadding;
   const items = useMemo<ThreadTimelineItem[]>(() => {
     const messages: ThreadTimelineItem[] = view.messages.map((value) => ({
@@ -199,48 +202,63 @@ export const ThreadTimeline = memo(function ThreadTimeline({
 
     const previous = timelineSnapshot.current;
     const clientId = optimisticSubmission?.clientId ?? null;
+    const oldestMessage = view.messages[0]?.message;
+    const newestMessage = view.messages.at(-1)?.message;
+    const messageIds = new Set(view.messages.map(({ message }) => message.id));
+    const sharesMessage = previous
+      ? view.messages.some(({ message }) => previous.messageIds.has(message.id))
+      : false;
+    const replacedWindow =
+      previous !== null && previous.messageIds.size > 0 && messageIds.size > 0 && !sharesMessage;
+    const movedToOlderWindow =
+      replacedWindow &&
+      newestMessage !== undefined &&
+      previous.oldestSequence !== null &&
+      newestMessage.sequence < previous.oldestSequence;
+    const movedToNewerWindow =
+      replacedWindow &&
+      oldestMessage !== undefined &&
+      previous.newestSequence !== null &&
+      oldestMessage.sequence > previous.newestSequence;
     const ownSubmissionAdded = clientId !== null && clientId !== previous?.submissionId;
     const timelineChanged =
       view.latestMessageId !== previous?.latestMessageId ||
       view.replyPending !== previous?.replyPending;
     const shouldScrollToEnd =
-      previous === null || ownSubmissionAdded || (pinnedToEnd.current && timelineChanged);
+      previous === null ||
+      ownSubmissionAdded ||
+      (latestHistory && (movedToNewerWindow || (pinnedToEnd.current && timelineChanged)));
 
-    if (shouldScrollToEnd) {
+    if (movedToOlderWindow) {
+      virtualizer.scrollToEnd();
+      pinnedToEnd.current = true;
+    } else if (movedToNewerWindow && !latestHistory) {
+      virtualizer.scrollToIndex(0, { align: "start" });
+      pinnedToEnd.current = false;
+    } else if (shouldScrollToEnd) {
       virtualizer.scrollToEnd();
       pinnedToEnd.current = true;
     }
 
     timelineSnapshot.current = {
       latestMessageId: view.latestMessageId,
+      messageIds,
+      oldestSequence: oldestMessage?.sequence ?? null,
+      newestSequence: newestMessage?.sequence ?? null,
       replyPending: view.replyPending,
       submissionId: clientId ?? previous?.submissionId ?? null,
     };
   }, [
     hasItems,
+    latestHistory,
     optimisticSubmission?.clientId,
     pinnedToEnd,
     scrollMargin,
     view.latestMessageId,
+    view.messages,
     view.replyPending,
     virtualizer,
   ]);
-
-  async function loadOlderMessages() {
-    if (loadingOlder.current) {
-      return;
-    }
-
-    loadingOlder.current = true;
-
-    try {
-      await loadOlder();
-    } catch (cause) {
-      reportError("thread.messages.load-older", cause);
-    } finally {
-      loadingOlder.current = false;
-    }
-  }
 
   return (
     <div {...stylex.props(styles.messageBody)}>
@@ -249,17 +267,18 @@ export const ThreadTimeline = memo(function ThreadTimeline({
           ref={historyControls}
           {...stylex.props(threadLayout.column, threadLayout.gutter, styles.historyControls)}
         >
-          {hasNextPage ? (
+          {hasOlderMessages ? (
             <Button
               type="button"
               variant="ghost"
-              disabled={isFetchingNextPage || historyNavigationPending}
-              onClick={() => void loadOlderMessages()}
+              style={styles.loadOlderAction}
+              disabled={historyNavigationPending}
+              onClick={() => void loadOlder()}
             >
-              {isFetchingNextPage ? "Loading…" : "Load older messages"}
+              {loadingOlderMessages ? "Loading…" : "Load older messages"}
             </Button>
           ) : null}
-          {isFetchNextPageError ? (
+          {olderMessagesFailed ? (
             <p role="alert" {...stylex.props(styles.pageError)}>
               Could not load older messages.
             </p>
@@ -341,6 +360,9 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     textAlign: "center",
+  },
+  loadOlderAction: {
+    minWidth: "9.5rem",
   },
   empty: {
     alignItems: "center",

@@ -12,6 +12,7 @@ import {
   GenerationFailureKind as IpcGenerationFailureKind,
   GenerationStatus as IpcGenerationStatus,
   ThreadMessageAuthor as IpcThreadMessageAuthor,
+  ThreadMessagePageDirection as IpcThreadMessagePageDirection,
   Threads as ThreadsIpc,
   Turns as TurnsIpc,
   type ITurnsDispatcher,
@@ -29,6 +30,15 @@ function toIpcAuthor(author: ThreadMessage["author"]) {
       return IpcThreadMessageAuthor.User;
     case "assistant":
       return IpcThreadMessageAuthor.Assistant;
+  }
+}
+
+function fromIpcPageDirection(direction: IpcThreadMessagePageDirection) {
+  switch (direction) {
+    case IpcThreadMessagePageDirection.Older:
+      return "older" as const;
+    case IpcThreadMessagePageDirection.Newer:
+      return "newer" as const;
   }
 }
 
@@ -225,8 +235,9 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
       ThreadsIpc.for(target).setImplementation({
         listMessages(request) {
           const page = turns.listForThread({
-            ...request,
             threadId: ids.thread.parse(request.threadId),
+            direction: fromIpcPageDirection(request.direction),
+            ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
           });
 
           return {

@@ -153,7 +153,7 @@ const styles = stylex.create({
   root: {
     alignItems: "center",
     display: "flex",
-    gap: "0.375rem",
+    gap: "0.25rem",
     minWidth: 0,
   },
   modelTrigger: {

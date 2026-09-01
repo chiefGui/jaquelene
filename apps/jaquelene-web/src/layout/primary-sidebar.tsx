@@ -80,7 +80,7 @@ export function PrimarySidebar({
 
   return (
     <aside aria-label="Primary sidebar" {...stylex.props(styles.root)}>
-      <header {...stylex.props(styles.edge)}>{lead}</header>
+      <header {...stylex.props(styles.edgeInline, styles.lead)}>{lead}</header>
 
       <nav aria-label={navigation.navigationLabel} {...stylex.props(styles.navigation)}>
         <ul {...stylex.props(styles.list)}>
@@ -116,7 +116,7 @@ export function PrimarySidebar({
         </ul>
       </nav>
 
-      <footer {...stylex.props(styles.edge)}>
+      <footer {...stylex.props(styles.edgeInline, styles.footer)}>
         {settingsActive ? (
           <IconButton
             type="button"
@@ -165,11 +165,18 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
-    paddingBlockStart: shellMetrics.statusBarHeight,
+    paddingBlock: shellMetrics.edgeInset,
   },
-  edge: {
+  edgeInline: {
+    paddingInline: shellMetrics.edgeInset,
+  },
+  lead: {
+    display: {
+      default: "block",
+      ":empty": "none",
+    },
     flexShrink: 0,
-    padding: shellMetrics.edgeInset,
+    paddingBlockEnd: shellMetrics.edgeInset,
   },
   navigation: {
     flex: 1,
@@ -230,6 +237,10 @@ const styles = stylex.create({
     textBox: "trim-both text",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  },
+  footer: {
+    flexShrink: 0,
+    paddingBlockStart: shellMetrics.edgeInset,
   },
   footerAction: {
     height: "2.25rem",

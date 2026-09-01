@@ -14,20 +14,39 @@ import {
 import { ids, type MessageId, type TurnId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import {
+  requireResolvedReasoning,
+  resolveReasoning,
+  type ResolvedReasoning,
+} from "#backend/model/reasoning";
+import type { Models } from "#backend/provider/model-catalog";
+import {
+  requireGenerationConfiguration,
   requireModelReference,
+  type GenerationConfiguration,
   type GenerationUsage,
   type ModelReference,
   type ProviderGenerationResult,
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import { requireReplyInput, type ReplyAnchor, type ReplyPreparer } from "./reply-preparation";
-import { generationTable, type Generation, type GenerationFailureKind } from "./schema";
+import {
+  generationTable,
+  toGeneration,
+  type Generation,
+  type GenerationFailureKind,
+  type StoredGeneration,
+} from "./schema";
 
 export type GenerateReplyRequest = {
   turnId: TurnId;
-  model: ModelReference;
+  configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
+
+export type ResolvedGenerationConfiguration = Readonly<{
+  model: ModelReference;
+  reasoning?: ResolvedReasoning;
+}>;
 
 export type ReplyGenerationExecution =
   | {
@@ -168,6 +187,7 @@ function providerResultFields(output: NormalizedProviderResult) {
 export function createGenerations(
   database: Database,
   replyPreparer: ReplyPreparer,
+  models: Pick<Models, "getModel">,
   providers: ProviderGenerationRouter,
   now: () => number = Date.now,
 ) {
@@ -226,7 +246,7 @@ export function createGenerations(
     cause: unknown,
     output?: NormalizedProviderResult,
   ): ReplyGenerationExecution {
-    let failedGeneration: Generation | undefined;
+    let failedGeneration: StoredGeneration | undefined;
 
     try {
       failedGeneration = database
@@ -272,7 +292,7 @@ export function createGenerations(
       }
     }
 
-    return { outcome: "failed", generation: failedGeneration, cause };
+    return { outcome: "failed", generation: toGeneration(failedGeneration), cause };
   }
 
   function listLatestForTurns(turnIds: readonly TurnId[]) {
@@ -283,7 +303,7 @@ export function createGenerations(
     }
 
     const newerGeneration = alias(generationTable, "newer_generation");
-    const generations = database
+    const storedGenerations = database
       .select()
       .from(generationTable)
       .where(
@@ -310,7 +330,10 @@ export function createGenerations(
       )
       .all();
     const generationByTurn = new Map(
-      generations.map((generation) => [generation.turnId, generation]),
+      storedGenerations.map((storedGeneration) => {
+        const generation = toGeneration(storedGeneration);
+        return [generation.turnId, generation];
+      }),
     );
 
     return uniqueTurnIds.flatMap((turnId) => {
@@ -322,13 +345,18 @@ export function createGenerations(
   function acceptReplyInTransaction(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
-    requestedModel: ModelReference,
+    requestedConfiguration: ResolvedGenerationConfiguration,
   ): AcceptedReplyGeneration {
-    const model = {
-      providerId: requestedModel.providerId,
-      modelId: requestedModel.modelId,
+    const configuration = {
+      model: {
+        providerId: requestedConfiguration.model.providerId,
+        modelId: requestedConfiguration.model.modelId,
+      },
+      ...(requestedConfiguration.reasoning === undefined
+        ? {}
+        : { reasoning: requireResolvedReasoning(requestedConfiguration.reasoning) }),
     };
-    requireProvider(model);
+    requireProvider(configuration.model);
     const replyContext = requireReplyContext(transaction, turnId);
 
     const pendingGeneration = transaction
@@ -341,23 +369,26 @@ export function createGenerations(
       throw new RangeError(`Turn "${turnId}" already has a pending generation.`);
     }
 
-    const generation = transaction
+    const storedGeneration = transaction
       .insert(generationTable)
       .values({
         id: ids.generation.create(),
         turnId,
-        providerId: model.providerId,
-        modelId: model.modelId,
+        providerId: configuration.model.providerId,
+        modelId: configuration.model.modelId,
+        reasoningPreset: configuration.reasoning?.preset ?? null,
+        reasoningPresetSource: configuration.reasoning?.source ?? null,
         status: "pending",
         startedAt: now(),
       })
       .returning()
       .get();
 
-    if (!generation) {
+    if (!storedGeneration) {
       throw new Error(`Could not create a generation for turn "${turnId}".`);
     }
 
+    const generation = toGeneration(storedGeneration);
     return { generation, ...replyContext };
   }
 
@@ -402,6 +433,7 @@ export function createGenerations(
             threadId: anchor.threadId,
             modelId: generation.modelId,
             input,
+            ...(generation.reasoning ? { reasoning: generation.reasoning } : {}),
           },
           signal,
         ),
@@ -430,7 +462,7 @@ export function createGenerations(
           content: output.text,
           createdAt: completionTime,
         });
-        const completedGeneration = transaction
+        const storedCompletedGeneration = transaction
           .update(generationTable)
           .set({
             status: "completed",
@@ -442,11 +474,11 @@ export function createGenerations(
           .returning()
           .get();
 
-        if (!completedGeneration) {
+        if (!storedCompletedGeneration) {
           throw new Error(`Generation "${generation.id}" is no longer pending.`);
         }
 
-        return { generation: completedGeneration, message, activated };
+        return { generation: toGeneration(storedCompletedGeneration), message, activated };
       });
 
       return { outcome: "completed", ...result };
@@ -457,21 +489,45 @@ export function createGenerations(
 
   async function executeReply({
     turnId,
-    model,
+    configuration,
     signal,
   }: GenerateReplyRequest): Promise<ReplyGenerationExecution> {
     if (signal?.aborted) {
       throw interruptionCause(signal);
     }
 
+    const resolvedConfiguration = await resolveConfiguration(configuration, signal);
     const accepted = database.transaction((transaction) =>
-      acceptReplyInTransaction(transaction, turnId, model),
+      acceptReplyInTransaction(transaction, turnId, resolvedConfiguration),
     );
     return executeAcceptedReply(accepted, signal);
   }
 
-  function requireRegisteredModel(model: ModelReference) {
-    requireProvider(model);
+  async function resolveConfiguration(
+    requestedConfiguration: GenerationConfiguration,
+    signal?: AbortSignal,
+  ): Promise<ResolvedGenerationConfiguration> {
+    const configuration = {
+      model: {
+        providerId: requestedConfiguration.model.providerId,
+        modelId: requestedConfiguration.model.modelId,
+      },
+      ...(requestedConfiguration.reasoningPresetOverride === undefined
+        ? {}
+        : { reasoningPresetOverride: requestedConfiguration.reasoningPresetOverride }),
+    };
+    requireGenerationConfiguration(configuration);
+    requireProvider(configuration.model);
+    const model = await models.getModel(configuration.model, signal);
+    const reasoning = resolveReasoning(model.reasoning, configuration.reasoningPresetOverride);
+
+    return {
+      model: {
+        providerId: configuration.model.providerId,
+        modelId: configuration.model.modelId,
+      },
+      ...(reasoning ? { reasoning } : {}),
+    };
   }
 
   return {
@@ -493,7 +549,7 @@ export function createGenerations(
     executeAcceptedReply,
     executeReply,
     listLatestForTurns,
-    requireRegisteredModel,
+    resolveConfiguration,
     async generateReply(request: GenerateReplyRequest) {
       const execution = await executeReply(request);
 

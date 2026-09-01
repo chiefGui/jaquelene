@@ -110,6 +110,26 @@
     },
     {
       "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "reasoning_preset",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "reasoning_preset_source",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -751,6 +771,12 @@
     {
       "value": "length(trim(\"provider_id\")) > 0 AND length(trim(\"model_id\")) > 0",
       "name": "generations_model_reference_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "(\"reasoning_preset\" IS NULL AND \"reasoning_preset_source\" IS NULL)\n        OR (\"reasoning_preset\" IS NOT NULL\n          AND \"reasoning_preset_source\" IS NOT NULL\n          AND \"reasoning_preset\" IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')\n          AND \"reasoning_preset_source\" IN ('model-default', 'override'))",
+      "name": "generations_reasoning_valid",
       "entityType": "checks",
       "table": "generations"
     },

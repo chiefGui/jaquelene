@@ -177,6 +177,68 @@ describe("provider subsystem", () => {
     await subsystem.close();
   });
 
+  it("preserves valid reasoning capabilities and rejects inconsistent ones", async () => {
+    const capable = configurationFreeProvider({
+      models: {
+        async list() {
+          return [
+            {
+              id: "reasoning-model",
+              name: "Reasoning model",
+              brandId: "local",
+              reasoning: {
+                defaultPreset: "high" as const,
+                supportedPresets: ["high", "medium", "low"] as const,
+              },
+            },
+          ];
+        },
+      },
+    });
+    const capableSubsystem = createProviderSubsystem([capable], await createTestResourceCache());
+
+    await expect(listModels(capableSubsystem, capable.descriptor.id)).resolves.toEqual([
+      {
+        id: "reasoning-model",
+        name: "Reasoning model",
+        brandId: "local",
+        reasoning: {
+          defaultPreset: "high",
+          supportedPresets: ["high", "medium", "low"],
+        },
+      },
+    ]);
+    await capableSubsystem.close();
+
+    const inconsistent = configurationFreeProvider({
+      descriptor: { id: "inconsistent", name: "Inconsistent", brandId: "local" },
+      models: {
+        async list() {
+          return [
+            {
+              id: "invalid-reasoning-model",
+              name: "Invalid reasoning model",
+              brandId: "local",
+              reasoning: {
+                defaultPreset: "high" as const,
+                supportedPresets: ["high", "on"] as const,
+              },
+            },
+          ];
+        },
+      },
+    });
+    const inconsistentSubsystem = createProviderSubsystem(
+      [inconsistent],
+      await createTestResourceCache(),
+    );
+
+    await expect(listModels(inconsistentSubsystem, inconsistent.descriptor.id)).rejects.toThrow(
+      'Provider "inconsistent" model "invalid-reasoning-model" reasoning cannot mix binary and graded reasoning presets.',
+    );
+    await inconsistentSubsystem.close();
+  });
+
   it("configures, exposes, and clears an API-key provider through the subsystem", async () => {
     const adapter = apiKeyProvider();
     const configure = vi.spyOn(adapter.configuration, "configure");

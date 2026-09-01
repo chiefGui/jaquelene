@@ -1,5 +1,11 @@
 import type { GenerationId, ThreadId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
+import {
+  requireReasoningPreset,
+  type ModelReasoningCapability,
+  type ReasoningPreset,
+  type ResolvedReasoning,
+} from "#backend/model/reasoning";
 
 export type ProviderId = string;
 
@@ -19,10 +25,6 @@ export function requireModelReference(reference: ModelReference) {
     throw new TypeError("A model reference requires provider and model identities.");
   }
 }
-
-export type ModelReasoningCapability = Readonly<{
-  required: boolean;
-}>;
 
 export type ProviderModel = Readonly<{
   id: string;
@@ -45,6 +47,34 @@ export function requireModelSelection(selection: ModelSelection) {
   }
 }
 
+export type GenerationConfiguration = Readonly<{
+  model: ModelReference;
+  reasoningPresetOverride?: ReasoningPreset;
+}>;
+
+export function requireGenerationConfiguration(configuration: GenerationConfiguration) {
+  requireModelReference(configuration.model);
+
+  if (configuration.reasoningPresetOverride !== undefined) {
+    requireReasoningPreset(configuration.reasoningPresetOverride);
+  }
+}
+
+export type GenerationConfigurationSelection = Readonly<{
+  model: ModelSelection;
+  reasoningPresetOverride?: ReasoningPreset;
+}>;
+
+export function requireGenerationConfigurationSelection(
+  configuration: GenerationConfigurationSelection,
+) {
+  requireModelSelection(configuration.model);
+
+  if (configuration.reasoningPresetOverride !== undefined) {
+    requireReasoningPreset(configuration.reasoningPresetOverride);
+  }
+}
+
 export type GenerationUsage = Readonly<{
   inputTokens: number;
   outputTokens: number;
@@ -56,6 +86,7 @@ export type ProviderGenerationRequest = Readonly<{
   threadId: ThreadId;
   modelId: string;
   input: ModelInput;
+  reasoning?: ResolvedReasoning;
 }>;
 
 export type ProviderGenerationResult = Readonly<{

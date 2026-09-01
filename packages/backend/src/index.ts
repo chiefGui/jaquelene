@@ -8,13 +8,30 @@ export type { Campaign, Campaigns } from "#backend/campaign/campaigns";
 export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
 export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
 export {
+  reasoningEfforts,
+  reasoningPresets,
+  reasoningPresetSources,
+  requireModelReasoningCapability,
+  requireReasoningPreset,
+  requireResolvedReasoning,
+  resolveReasoning,
+  type ModelReasoningCapability,
+  type ReasoningEffort,
+  type ReasoningPreset,
+  type ReasoningPresetSource,
+  type ResolvedReasoning,
+} from "#backend/model/reasoning";
+export {
+  requireGenerationConfiguration,
+  requireGenerationConfigurationSelection,
   requireModelReference,
   requireModelSelection,
   type ApiKeyProviderConfiguration,
   type ApiKeyProviderConfigurationSnapshot,
+  type GenerationConfiguration,
+  type GenerationConfigurationSelection,
   type GenerationUsage,
   type ModelReference,
-  type ModelReasoningCapability,
   type ModelSelection,
   type ProviderAdapter,
   type ProviderConfiguration,

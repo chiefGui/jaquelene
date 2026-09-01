@@ -67,10 +67,12 @@ function SelectValue({ children, fallback, style, ...props }: SelectValueProps) 
 }
 
 type SelectContentProps = StyleableProps<
-  Omit<ComboboxPopoverProps, "alwaysVisible" | "render" | "unmountOnHide">
->;
+  Omit<ComboboxPopoverProps, "alwaysVisible" | "render" | "sameWidth" | "unmountOnHide">
+> & {
+  width?: "content" | "trigger";
+};
 
-function SelectContent({ style, ...props }: SelectContentProps) {
+function SelectContent({ style, width = "trigger", ...props }: SelectContentProps) {
   const combobox = useComboboxContext();
   const mounted = useStoreState(combobox, "mounted") ?? false;
 
@@ -79,11 +81,11 @@ function SelectContent({ style, ...props }: SelectContentProps) {
       <ComboboxPopover
         portal
         gutter={8}
-        sameWidth
+        sameWidth={width === "trigger"}
         {...props}
         alwaysVisible
         render={<Popover.Surface />}
-        {...stylex.props(styles.content, style)}
+        {...stylex.props(styles.content, width === "content" && styles.contentWidth, style)}
       />
     </Popover.Presence>
   );
@@ -196,6 +198,10 @@ const styles = stylex.create({
     overflow: "hidden",
     padding: "0.25rem",
     zIndex: 50,
+  },
+  contentWidth: {
+    minWidth: "var(--popover-anchor-width)",
+    whiteSpace: "nowrap",
   },
   item: {
     alignItems: "center",

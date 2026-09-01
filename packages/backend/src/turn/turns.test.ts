@@ -54,6 +54,15 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
     database,
     createReplyPreparer(threads, campaigns, instructions),
     {
+      async getModel(reference) {
+        if (reference.providerId !== "provider-a") {
+          throw new RangeError(`Unknown test model provider "${reference.providerId}".`);
+        }
+
+        return { id: reference.modelId, name: "Test model", brandId: "test" };
+      },
+    },
+    {
       get(providerId) {
         return providerId === "provider-a"
           ? {
@@ -69,7 +78,7 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
   const turns = createTurns(database, threads, {
     acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
     listLatestForTurns: generationEngine.listLatestForTurns,
-    requireRegisteredModel: generationEngine.requireRegisteredModel,
+    resolveConfiguration: generationEngine.resolveConfiguration,
     scheduleAcceptedReply: supervised.scheduleAcceptedReply,
   });
   databases.push(database);
@@ -106,10 +115,12 @@ describe("turns", () => {
     const { threads, turns } = openTurnEnvironment(generate);
     const thread = threads.create();
 
-    const operation = turns.submit({
+    const operation = await turns.submit({
       threadId: thread.id,
       content: "Begin the voyage.",
-      model: { providerId: "provider-a", modelId: "maker/model" },
+      configuration: {
+        model: { providerId: "provider-a", modelId: "maker/model" },
+      },
     });
 
     expect(generate).not.toHaveBeenCalled();
@@ -127,6 +138,7 @@ describe("turns", () => {
         modelId: "maker/model",
       }),
     });
+    expect(operation.acceptance.generation).not.toHaveProperty("reasoning");
     expect(turns.listForThread({ threadId: thread.id })).toEqual({
       messages: [operation.acceptance.userMessage],
       generations: [operation.acceptance.generation],
@@ -180,8 +192,14 @@ describe("turns", () => {
     });
     const { threads, turns } = openTurnEnvironment(generate);
     const thread = threads.create();
-    const model = { providerId: "provider-a", modelId: "maker/model" };
-    const failedOperation = turns.submit({ threadId: thread.id, content: "Hello", model });
+    const configuration = {
+      model: { providerId: "provider-a", modelId: "maker/model" },
+    };
+    const failedOperation = await turns.submit({
+      threadId: thread.id,
+      content: "Hello",
+      configuration,
+    });
     const failed = await failedOperation.settlement;
 
     if (failed.outcome !== "failed") {
@@ -193,7 +211,10 @@ describe("turns", () => {
     );
     expect(failed.failure).toEqual({ cause: providerFailure });
 
-    const retriedOperation = turns.retry({ turnId: failed.userMessage.turnId, model });
+    const retriedOperation = await turns.retry({
+      turnId: failed.userMessage.turnId,
+      configuration,
+    });
 
     expect(retriedOperation.acceptance.userMessage).toEqual(failed.userMessage);
     expect(retriedOperation.acceptance.generation).toEqual(
@@ -222,16 +243,18 @@ describe("turns", () => {
     const { threads, turns } = openTurnEnvironment(generate);
     const thread = threads.create();
     const independentThread = threads.create();
-    const model = { providerId: "provider-a", modelId: "maker/model" };
-    const first = turns.submit({ threadId: thread.id, content: "First", model });
+    const configuration = {
+      model: { providerId: "provider-a", modelId: "maker/model" },
+    };
+    const first = await turns.submit({ threadId: thread.id, content: "First", configuration });
 
-    expect(() => turns.submit({ threadId: thread.id, content: "Too soon", model })).toThrow(
-      `Thread "${thread.id}" already has an active turn operation.`,
-    );
-    const independent = turns.submit({
+    await expect(
+      turns.submit({ threadId: thread.id, content: "Too soon", configuration }),
+    ).rejects.toThrow(`Thread "${thread.id}" already has an active turn operation.`);
+    const independent = await turns.submit({
       threadId: independentThread.id,
       content: "Independent",
-      model,
+      configuration,
     });
     await expect(independent.settlement).resolves.toEqual(
       expect.objectContaining({ outcome: "completed", assistantActivated: true }),
@@ -239,14 +262,14 @@ describe("turns", () => {
 
     firstReply.resolve({ text: "First reply" });
     await first.settlement;
-    const second = turns.submit({ threadId: thread.id, content: "Second", model });
+    const second = await turns.submit({ threadId: thread.id, content: "Second", configuration });
     await expect(second.settlement).resolves.toEqual(
       expect.objectContaining({ outcome: "completed", assistantActivated: true }),
     );
     expect(turns.listForThread({ threadId: thread.id }).messages).toHaveLength(4);
   });
 
-  it("rolls back a user turn when pending generation acceptance fails", () => {
+  it("rolls back a user turn when pending generation acceptance fails", async () => {
     const generate = vi.fn(async () => ({ text: "Unused" }));
     const { database, generationEngine, threads } = openTurnEnvironment(generate);
     const thread = threads.create();
@@ -256,19 +279,19 @@ describe("turns", () => {
         throw acceptanceFailure;
       },
       listLatestForTurns: generationEngine.listLatestForTurns,
-      requireRegisteredModel: generationEngine.requireRegisteredModel,
+      resolveConfiguration: generationEngine.resolveConfiguration,
       scheduleAcceptedReply() {
         throw new Error("Generation must not be scheduled after failed acceptance.");
       },
     });
 
-    expect(() =>
+    await expect(
       turns.submit({
         threadId: thread.id,
         content: "Do not retain this",
-        model: { providerId: "provider-a", modelId: "maker/model" },
+        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
       }),
-    ).toThrow(acceptanceFailure);
+    ).rejects.toBe(acceptanceFailure);
     expect(turns.listForThread({ threadId: thread.id })).toEqual({
       messages: [],
       generations: [],
@@ -277,34 +300,40 @@ describe("turns", () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
-  it("rejects invalid work before accepting a turn", () => {
+  it("rejects invalid work before accepting a turn", async () => {
     const generate = vi.fn(async () => ({ text: "Unused" }));
     const { threads, turns } = openTurnEnvironment(generate);
     const thread = threads.create();
-    const model = { providerId: "provider-a", modelId: "maker/model" };
+    const configuration = {
+      model: { providerId: "provider-a", modelId: "maker/model" },
+    };
     const interruption = new Error("Cancelled before submission");
     const controller = new AbortController();
     controller.abort(interruption);
 
-    expect(() =>
+    await expect(
       turns.submit({
         threadId: thread.id,
         content: "Hello",
-        model,
+        configuration,
         signal: controller.signal,
       }),
-    ).toThrow(interruption);
-    expect(() =>
+    ).rejects.toBe(interruption);
+    await expect(
       turns.submit({
         threadId: thread.id,
         content: "Hello",
-        model: { providerId: "missing-provider", modelId: "maker/model" },
+        configuration: {
+          model: { providerId: "missing-provider", modelId: "maker/model" },
+        },
       }),
-    ).toThrow('Unknown generation provider "missing-provider".');
-    expect(() => turns.submit({ threadId: thread.id, content: "  ", model })).toThrow(TypeError);
-    expect(() => turns.submit({ threadId: ids.thread.create(), content: "Hello", model })).toThrow(
-      RangeError,
-    );
+    ).rejects.toThrow('Unknown generation provider "missing-provider".');
+    await expect(
+      turns.submit({ threadId: thread.id, content: "  ", configuration }),
+    ).rejects.toThrow(TypeError);
+    await expect(
+      turns.submit({ threadId: ids.thread.create(), content: "Hello", configuration }),
+    ).rejects.toThrow(RangeError);
     expect(turns.listForThread({ threadId: thread.id }).messages).toEqual([]);
     expect(generate).not.toHaveBeenCalled();
   });

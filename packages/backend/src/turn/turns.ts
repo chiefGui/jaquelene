@@ -6,13 +6,13 @@ import type {
 } from "#backend/generation/generations";
 import type { Generation } from "#backend/generation/schema";
 import type { ThreadId, TurnId } from "#backend/id";
-import type { ModelReference } from "#backend/provider/provider";
+import type { GenerationConfiguration } from "#backend/provider/provider";
 import type { ThreadMessage } from "#backend/thread/schema";
-import type { ThreadEngine } from "#backend/thread/threads";
+import { requireThreadMessageContent, type ThreadEngine } from "#backend/thread/threads";
 
 type TurnGenerationEngine = Pick<
   GenerationEngine,
-  "acceptReplyInTransaction" | "listLatestForTurns" | "requireRegisteredModel"
+  "acceptReplyInTransaction" | "listLatestForTurns" | "resolveConfiguration"
 > & {
   scheduleAcceptedReply(
     accepted: AcceptedReplyGeneration,
@@ -30,13 +30,13 @@ export type ThreadActivityPage = ReturnType<TurnThreads["listMessages"]> & {
 export type SubmitTurnRequest = {
   threadId: ThreadId;
   content: string;
-  model: ModelReference;
+  configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
 
 export type RetryTurnRequest = {
   turnId: TurnId;
-  model: ModelReference;
+  configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
 
@@ -61,8 +61,16 @@ export type TurnOperation = {
   settlement: Promise<TurnSettlement>;
 };
 
-function copyModel({ providerId, modelId }: ModelReference): ModelReference {
-  return { providerId, modelId };
+function copyConfiguration(configuration: GenerationConfiguration): GenerationConfiguration {
+  return {
+    model: {
+      providerId: configuration.model.providerId,
+      modelId: configuration.model.modelId,
+    },
+    ...(configuration.reasoningPresetOverride === undefined
+      ? {}
+      : { reasoningPresetOverride: configuration.reasoningPresetOverride }),
+  };
 }
 
 function assertNotAborted(signal: AbortSignal | undefined) {
@@ -102,7 +110,10 @@ export function createTurns(
 ) {
   const activeThreadOperations = new Set<ThreadId>();
 
-  function startExclusive(threadId: ThreadId, start: () => TurnOperation) {
+  async function startExclusive(
+    threadId: ThreadId,
+    start: () => TurnOperation | Promise<TurnOperation>,
+  ) {
     if (activeThreadOperations.has(threadId)) {
       throw new RangeError(`Thread "${threadId}" already has an active turn operation.`);
     }
@@ -112,7 +123,7 @@ export function createTurns(
     let operation: TurnOperation;
 
     try {
-      operation = start();
+      operation = await start();
     } catch (cause) {
       activeThreadOperations.delete(threadId);
       throw cause;
@@ -145,18 +156,25 @@ export function createTurns(
       return { ...page, generations: generationsForPage };
     },
 
-    submit({ threadId, content, model: requestedModel, signal }: SubmitTurnRequest): TurnOperation {
-      const model = copyModel(requestedModel);
-      generations.requireRegisteredModel(model);
+    async submit({
+      threadId,
+      content,
+      configuration: requestedConfiguration,
+      signal,
+    }: SubmitTurnRequest): Promise<TurnOperation> {
+      const configuration = copyConfiguration(requestedConfiguration);
+      requireThreadMessageContent(content);
       assertNotAborted(signal);
 
-      return startExclusive(threadId, () => {
+      return startExclusive(threadId, async () => {
+        const resolvedConfiguration = await generations.resolveConfiguration(configuration, signal);
+        assertNotAborted(signal);
         const accepted = database.transaction((transaction) => {
           const { turn, message } = threads.startTurnInTransaction(transaction, threadId, content);
           const acceptedGeneration = generations.acceptReplyInTransaction(
             transaction,
             turn.id,
-            model,
+            resolvedConfiguration,
           );
           const acceptance = {
             userMessage: message,
@@ -173,9 +191,12 @@ export function createTurns(
       });
     },
 
-    retry({ turnId, model: requestedModel, signal }: RetryTurnRequest): TurnOperation {
-      const model = copyModel(requestedModel);
-      generations.requireRegisteredModel(model);
+    async retry({
+      turnId,
+      configuration: requestedConfiguration,
+      signal,
+    }: RetryTurnRequest): Promise<TurnOperation> {
+      const configuration = copyConfiguration(requestedConfiguration);
       assertNotAborted(signal);
       const input = threads.getTurnInput(turnId);
 
@@ -183,7 +204,9 @@ export function createTurns(
         throw new RangeError(`Turn "${turnId}" does not exist.`);
       }
 
-      return startExclusive(input.turn.threadId, () => {
+      return startExclusive(input.turn.threadId, async () => {
+        const resolvedConfiguration = await generations.resolveConfiguration(configuration, signal);
+        assertNotAborted(signal);
         const latestGeneration = generations.listLatestForTurns([turnId])[0];
 
         if (latestGeneration?.status !== "failed") {
@@ -191,7 +214,7 @@ export function createTurns(
         }
 
         const acceptedGeneration = database.transaction((transaction) =>
-          generations.acceptReplyInTransaction(transaction, turnId, model),
+          generations.acceptReplyInTransaction(transaction, turnId, resolvedConfiguration),
         );
         const acceptance = {
           userMessage: input.message,

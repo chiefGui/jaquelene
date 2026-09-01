@@ -6,12 +6,13 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
-import type { ModelSelection } from "#backend/provider/provider";
+import type { GenerationConfigurationSelection, ModelSelection } from "#backend/provider/provider";
+import type { ReasoningPreset } from "#backend/model/reasoning";
 import { createScenarios } from "#backend/scenario/scenarios";
 import { threadTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
 import { createCampaigns } from "./campaigns";
-import { campaignModelOverrideTable, campaignTable } from "./schema";
+import { campaignGenerationConfigurationOverrideTable, campaignTable } from "./schema";
 
 const directories: string[] = [];
 const databases: Database[] = [];
@@ -40,6 +41,16 @@ function modelSelection(id: string): ModelSelection {
     modelId: id,
     name: `Model ${id}`,
     brandId: "brand-a",
+  };
+}
+
+function generationConfiguration(
+  id: string,
+  reasoningPresetOverride?: ReasoningPreset,
+): GenerationConfigurationSelection {
+  return {
+    model: modelSelection(id),
+    ...(reasoningPresetOverride === undefined ? {} : { reasoningPresetOverride }),
   };
 }
 
@@ -77,9 +88,9 @@ describe("campaigns", () => {
     const firstConnection = openCampaigns(path, () => 200);
     const scenario = firstConnection.scenarios.create({ title: "Persistent campaign scenario" });
     const started = firstConnection.campaigns.start(scenario.id);
-    const configured = firstConnection.campaigns.setModelOverride(
+    const configured = firstConnection.campaigns.setGenerationConfigurationOverride(
       started.id,
-      modelSelection("persistent"),
+      generationConfiguration("persistent", "high"),
     );
 
     closeDatabase(firstConnection.database);
@@ -150,62 +161,71 @@ describe("campaigns", () => {
     });
   });
 
-  it("sets, replaces, and clears a campaign model override", () => {
+  it("sets, replaces, and clears a campaign generation configuration override", () => {
     const { campaigns, database, scenarios } = openCampaigns(createDatabasePath());
-    const campaign = campaigns.start(scenarios.create({ title: "Model override scenario" }).id);
-    const model = modelSelection("override");
-    const replacement = modelSelection("replacement");
+    const campaign = campaigns.start(
+      scenarios.create({ title: "Configuration override scenario" }).id,
+    );
+    const configuration = generationConfiguration("override", "high");
+    const replacement = generationConfiguration("replacement");
 
-    expect(campaigns.setModelOverride(campaign.id, model)).toEqual({
+    expect(campaigns.setGenerationConfigurationOverride(campaign.id, configuration)).toEqual({
       ...campaign,
-      modelOverride: model,
+      generationConfigurationOverride: configuration,
     });
-    expect(database.select().from(campaignModelOverrideTable).all()).toEqual([
-      { campaignId: campaign.id, ...model },
+    expect(database.select().from(campaignGenerationConfigurationOverrideTable).all()).toEqual([
+      { campaignId: campaign.id, ...configuration.model, reasoningPresetOverride: "high" },
     ]);
-    expect(campaigns.get(campaign.id)).toEqual({ ...campaign, modelOverride: model });
+    expect(campaigns.get(campaign.id)).toEqual({
+      ...campaign,
+      generationConfigurationOverride: configuration,
+    });
     expect(campaigns.listForScenario(campaign.scenarioId)).toEqual([
-      { ...campaign, modelOverride: model },
+      { ...campaign, generationConfigurationOverride: configuration },
     ]);
-    expect(campaigns.setModelOverride(campaign.id, replacement)).toEqual({
+    expect(campaigns.setGenerationConfigurationOverride(campaign.id, replacement)).toEqual({
       ...campaign,
-      modelOverride: replacement,
+      generationConfigurationOverride: replacement,
     });
-    expect(database.select().from(campaignModelOverrideTable).all()).toEqual([
-      { campaignId: campaign.id, ...replacement },
+    expect(database.select().from(campaignGenerationConfigurationOverrideTable).all()).toEqual([
+      { campaignId: campaign.id, ...replacement.model, reasoningPresetOverride: null },
     ]);
-    expect(campaigns.setModelOverride(campaign.id, null)).toEqual(campaign);
-    expect(database.select().from(campaignModelOverrideTable).all()).toEqual([]);
+    expect(campaigns.setGenerationConfigurationOverride(campaign.id, null)).toEqual(campaign);
+    expect(database.select().from(campaignGenerationConfigurationOverrideTable).all()).toEqual([]);
     expect(campaigns.get(campaign.id)).toEqual(campaign);
     expect(campaigns.listForScenario(campaign.scenarioId)).toEqual([campaign]);
   });
 
-  it("rejects an incomplete campaign model override", () => {
+  it("rejects an incomplete campaign generation configuration override", () => {
     const { campaigns, scenarios } = openCampaigns(createDatabasePath());
     const campaign = campaigns.start(
-      scenarios.create({ title: "Invalid model override scenario" }).id,
+      scenarios.create({ title: "Invalid configuration scenario" }).id,
     );
 
     expect(() =>
-      campaigns.setModelOverride(campaign.id, {
-        ...modelSelection("invalid"),
-        providerId: " ",
+      campaigns.setGenerationConfigurationOverride(campaign.id, {
+        model: { ...modelSelection("invalid"), providerId: " " },
       }),
     ).toThrow(TypeError);
     expect(campaigns.get(campaign.id)).toEqual(campaign);
   });
 
-  it("does not set a model override on an unknown campaign", () => {
+  it("does not set a generation configuration override on an unknown campaign", () => {
     const { campaigns } = openCampaigns(createDatabasePath());
 
-    expect(campaigns.setModelOverride(ids.campaign.create(), modelSelection("unknown"))).toBeNull();
+    expect(
+      campaigns.setGenerationConfigurationOverride(
+        ids.campaign.create(),
+        generationConfiguration("unknown"),
+      ),
+    ).toBeNull();
   });
 
-  it("rejects incomplete or blank stored campaign model overrides", () => {
+  it("rejects incomplete, blank, or invalid stored campaign configuration overrides", () => {
     const path = createDatabasePath();
     const { campaigns, database, scenarios } = openCampaigns(path);
     const campaign = campaigns.start(
-      scenarios.create({ title: "Partial model override scenario" }).id,
+      scenarios.create({ title: "Partial configuration scenario" }).id,
     );
     closeDatabase(database);
     const client = new DatabaseSync(path);
@@ -214,31 +234,38 @@ describe("campaigns", () => {
       expect(() =>
         client
           .prepare(
-            "INSERT INTO campaign_model_overrides (campaign_id, provider_id, model_id, name) VALUES (?, ?, ?, ?)",
+            "INSERT INTO campaign_generation_configuration_overrides (campaign_id, provider_id, model_id, name) VALUES (?, ?, ?, ?)",
           )
           .run(campaign.id, "provider-a", "model-a", "Model A"),
       ).toThrow();
       expect(() =>
         client
           .prepare(
-            "INSERT INTO campaign_model_overrides (campaign_id, provider_id, model_id, name, brand_id) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO campaign_generation_configuration_overrides (campaign_id, provider_id, model_id, name, brand_id) VALUES (?, ?, ?, ?, ?)",
           )
           .run(campaign.id, "provider-a", "model-a", " ", "brand-a"),
+      ).toThrow();
+      expect(() =>
+        client
+          .prepare(
+            "INSERT INTO campaign_generation_configuration_overrides (campaign_id, provider_id, model_id, name, brand_id, reasoning_preset_override) VALUES (?, ?, ?, ?, ?, ?)",
+          )
+          .run(campaign.id, "provider-a", "model-a", "Model A", "brand-a", "extreme"),
       ).toThrow();
     } finally {
       client.close();
     }
   });
 
-  it("deletes a model override with its owning campaign", () => {
+  it("deletes a generation configuration override with its owning campaign", () => {
     const { campaigns, database, scenarios } = openCampaigns(createDatabasePath());
     const campaign = campaigns.start(
-      scenarios.create({ title: "Owned model override scenario" }).id,
+      scenarios.create({ title: "Owned configuration scenario" }).id,
     );
-    campaigns.setModelOverride(campaign.id, modelSelection("owned"));
+    campaigns.setGenerationConfigurationOverride(campaign.id, generationConfiguration("owned"));
 
     database.delete(campaignTable).where(eq(campaignTable.id, campaign.id)).run();
 
-    expect(database.select().from(campaignModelOverrideTable).all()).toEqual([]);
+    expect(database.select().from(campaignGenerationConfigurationOverrideTable).all()).toEqual([]);
   });
 });

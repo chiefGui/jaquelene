@@ -1,5 +1,6 @@
 import { Cause, Context, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { createCampaigns, type CampaignEngine, type Campaigns } from "#backend/campaign/campaigns";
+import { createCampaignUsage, type CampaignUsageReader } from "#backend/campaign/usage";
 import { DatabaseService, getDatabaseStoragePaths } from "#backend/database/database";
 import type { Generations } from "#backend/generation/generations";
 import { createReplyPreparer } from "#backend/generation/reply-preparation";
@@ -47,6 +48,7 @@ export type BackendInspection = Readonly<{
 export type Backend = Readonly<{
   scenarios: Scenarios;
   campaigns: Campaigns;
+  campaignUsage: CampaignUsageReader;
   instructions: InstructionCatalog;
   threads: Threads;
   turns: Turns;
@@ -62,6 +64,7 @@ export type Backend = Readonly<{
 type BackendServices = Readonly<{
   scenarios: Scenarios;
   campaigns: CampaignEngine;
+  campaignUsage: CampaignUsageReader;
   instructions: InstructionRegistry;
   threads: ThreadEngine;
   turns: Turns;
@@ -86,6 +89,7 @@ function createBackendServiceLayer() {
         Effect.sync(() => {
           const scenarios = createScenarios(database);
           const campaigns = createCampaigns(database);
+          const campaignUsage = createCampaignUsage(database);
           const instructions = createInstructionRegistry([factoryRoleplay]);
           const threads = createThreads(database);
           const generationSubsystem = createGenerationSubsystem({
@@ -99,6 +103,7 @@ function createBackendServiceLayer() {
           return BackendService.of({
             scenarios,
             campaigns,
+            campaignUsage,
             instructions,
             threads,
             turns,
@@ -274,6 +279,12 @@ export async function createBackend(
       setGenerationPreferences(id, preferences) {
         assertOpen();
         return services.campaigns.setGenerationPreferences(id, preferences);
+      },
+    },
+    campaignUsage: {
+      get(id) {
+        assertOpen();
+        return services.campaignUsage.get(id);
       },
     },
     instructions: {

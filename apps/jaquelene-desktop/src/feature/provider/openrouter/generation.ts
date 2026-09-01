@@ -43,6 +43,7 @@ async function sendOpenRouterChat(
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      "X-OpenRouter-Metadata": "enabled",
       "X-OpenRouter-Title": "Jaquelene",
     },
     body: JSON.stringify(request),
@@ -104,6 +105,30 @@ function getResponseText(result: ChatResult) {
   throw new TypeError("OpenRouter returned no assistant text.");
 }
 
+const USD_NANOS = 1_000_000_000;
+
+function usdToNanos(amount: number) {
+  const nanos = Math.round(amount * USD_NANOS);
+
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isSafeInteger(nanos)) {
+    throw new TypeError("OpenRouter returned an invalid generation cost.");
+  }
+
+  return nanos;
+}
+
+function optionalCount(value: number | null | undefined) {
+  return value === null || value === undefined ? undefined : value;
+}
+
+function successfulUpstreamProvider(result: ChatResult) {
+  const attempts = result.openrouterMetadata?.attempts;
+  return (
+    attempts?.findLast(({ status }) => status >= 200 && status < 300)?.provider ??
+    attempts?.at(-1)?.provider
+  );
+}
+
 export function createOpenRouterGeneration(
   configuration: Pick<OpenRouterConfiguration, "withApiKey">,
   send: SendOpenRouterChat = sendOpenRouterChat,
@@ -125,18 +150,43 @@ export function createOpenRouterGeneration(
           signal,
         );
         const { choice, text } = getResponseText(result);
+        const upstreamProviderId = successfulUpstreamProvider(result);
+        const cacheRead = optionalCount(result.usage?.promptTokensDetails?.cachedTokens);
+        const cacheWrite = optionalCount(result.usage?.promptTokensDetails?.cacheWriteTokens);
+        const reasoningTokens = optionalCount(
+          result.usage?.completionTokensDetails?.reasoningTokens,
+        );
 
         return {
           text,
           providerGenerationId: result.id,
           resolvedModelId: result.model,
+          ...(upstreamProviderId ? { upstreamProviderId } : {}),
           ...(choice.finishReason ? { finishReason: choice.finishReason } : {}),
           ...(result.usage
             ? {
                 usage: {
-                  inputTokens: result.usage.promptTokens,
-                  outputTokens: result.usage.completionTokens,
-                  totalTokens: result.usage.totalTokens,
+                  tokens: {
+                    input: {
+                      total: result.usage.promptTokens,
+                      ...(cacheRead === undefined ? {} : { cacheRead }),
+                      ...(cacheWrite === undefined ? {} : { cacheWrite }),
+                    },
+                    output: {
+                      total: result.usage.completionTokens,
+                      ...(reasoningTokens === undefined ? {} : { reasoning: reasoningTokens }),
+                    },
+                    total: result.usage.totalTokens,
+                  },
+                  ...(result.usage.cost === null || result.usage.cost === undefined
+                    ? {}
+                    : {
+                        cost: {
+                          currency: "USD" as const,
+                          amountNanos: usdToNanos(result.usage.cost),
+                          source: "provider-reported" as const,
+                        },
+                      }),
                 },
               }
             : {}),

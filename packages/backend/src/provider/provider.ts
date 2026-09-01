@@ -42,10 +42,31 @@ export function requireModelSelection(selection: ModelSelection) {
   }
 }
 
+export type GenerationTokenUsage = Readonly<{
+  input: Readonly<{
+    total: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+  }>;
+  output: Readonly<{
+    total: number;
+    reasoning?: number;
+  }>;
+  total: number;
+}>;
+
+export const generationCostSources = ["provider-reported", "estimated"] as const;
+export type GenerationCostSource = (typeof generationCostSources)[number];
+
+export type GenerationCost = Readonly<{
+  currency: "USD";
+  amountNanos: number;
+  source: GenerationCostSource;
+}>;
+
 export type GenerationUsage = Readonly<{
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
+  tokens: GenerationTokenUsage;
+  cost?: GenerationCost;
 }>;
 
 export type ProviderGenerationRequest = Readonly<{
@@ -60,6 +81,7 @@ export type ProviderGenerationResult = Readonly<{
   text: string;
   providerGenerationId?: string;
   resolvedModelId?: string;
+  upstreamProviderId?: string;
   finishReason?: string;
   usage?: GenerationUsage;
 }>;

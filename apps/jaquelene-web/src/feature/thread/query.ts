@@ -14,6 +14,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { invalidateCampaignUsage } from "@/feature/campaign/usage-query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 import {
   THREAD_HISTORY_RETAINED_PAGE_LIMIT,
@@ -139,6 +140,12 @@ function reloadThread(queryClient: QueryClient, threadId: string) {
   return queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
 }
 
+function refreshCampaignUsage(queryClient: QueryClient) {
+  void invalidateCampaignUsage(queryClient).catch((cause: unknown) =>
+    reportError("campaign.usage.refresh", cause),
+  );
+}
+
 export function retainLoadedThreadMessages(
   queryClient: QueryClient,
   threadId: string,
@@ -187,6 +194,7 @@ export function usePendingTurnSubmission(threadId: string) {
 
 export function installThreadSettlementReconciliation(queryClient: QueryClient) {
   function applyEvent(threadId: string, update: ThreadTurnUpdate) {
+    refreshCampaignUsage(queryClient);
     try {
       void Promise.resolve(reconcileTurn(queryClient, threadId, update)).catch((cause: unknown) =>
         reportError("thread.turn.settlement", cause),
@@ -203,6 +211,7 @@ export function installThreadSettlementReconciliation(queryClient: QueryClient) 
     applyEvent(completion.userMessage.threadId, { type: "reply-completed", ...completion });
   });
   const stopSupersededListener = onReplySuperseded(({ threadId }) => {
+    refreshCampaignUsage(queryClient);
     try {
       void reloadThread(queryClient, threadId).catch((cause: unknown) =>
         reportError("thread.turn.settlement", cause),
@@ -233,6 +242,7 @@ export function useSubmitTurn(threadId: string) {
         configuration: copyGenerationConfiguration(configuration),
       }),
     onSuccess(submission) {
+      refreshCampaignUsage(queryClient);
       return reconcileTurn(queryClient, threadId, {
         type: "submission-accepted",
         ...submission,
@@ -259,6 +269,7 @@ export function useRetryTurn(threadId: string) {
       configuration: GenerationConfiguration;
     }) => retryTurn({ turnId, configuration: copyGenerationConfiguration(configuration) }),
     onSuccess(generation) {
+      refreshCampaignUsage(queryClient);
       return reconcileTurn(queryClient, threadId, { type: "retry-accepted", generation });
     },
     onError() {

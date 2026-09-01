@@ -214,12 +214,29 @@ describe("backend", () => {
       throw new Error("Expected the submitted reply to complete.");
     }
 
+    const campaignUsage = {
+      campaignId: campaign.id,
+      attempts: { provider: 1, preparing: 0, pending: 0, completed: 1, failed: 0 },
+      tokenCoverage: { reported: 0, unknown: 1 },
+      costCoverage: { reported: 0, unknown: 1 },
+      costs: [],
+      models: [
+        {
+          providerId: provider.descriptor.id,
+          requestedModelId: "maker/model",
+          attempts: 1,
+        },
+      ],
+    };
+    expect(first.campaignUsage.get(campaign.id)).toEqual(campaignUsage);
+
     const firstClose = first.close();
     expect(first.close()).toBe(firstClose);
     await firstClose;
 
     expect(() => first.scenarios.list()).toThrow("Backend is closed.");
     expect(() => first.instructions.listGroups()).toThrow("Backend is closed.");
+    expect(() => first.campaignUsage.get(campaign.id)).toThrow("Backend is closed.");
     await expect(first.storage.measureUsage()).rejects.toThrow("Backend is closed.");
     await expect(first.storage.deleteArea("content")).rejects.toThrow("Backend is closed.");
     await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(
@@ -239,6 +256,7 @@ describe("backend", () => {
 
     expect(reopened.scenarios.get(scenario.id)).toEqual(scenario);
     expect(reopened.campaigns.get(campaign.id)).toEqual(campaign);
+    expect(reopened.campaignUsage.get(campaign.id)).toEqual(campaignUsage);
     expect(
       reopened.turns.listForThread({ threadId: campaign.threadId, direction: "older" }),
     ).toEqual({

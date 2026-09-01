@@ -9,6 +9,7 @@ export type {
   CampaignGenerationPreferences,
   Campaigns,
 } from "#backend/campaign/campaigns";
+export type { CampaignUsage, CampaignUsageReader } from "#backend/campaign/usage";
 export {
   requireGenerationConfiguration,
   requireGenerationConfigurationSelection,
@@ -32,11 +33,15 @@ export {
   type ResolvedReasoning,
 } from "#backend/model/reasoning";
 export {
+  generationCostSources,
   requireModelReference,
   requireModelSelection,
   type ApiKeyProviderConfiguration,
   type ApiKeyProviderConfigurationSnapshot,
   type GenerationUsage,
+  type GenerationCost,
+  type GenerationCostSource,
+  type GenerationTokenUsage,
   type ModelReference,
   type ModelSelection,
   type ProviderAdapter,

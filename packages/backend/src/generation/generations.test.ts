@@ -128,7 +128,18 @@ describe("generations", () => {
       providerGenerationId: "provider-generation-1",
       resolvedModelId: "maker/resolved-model",
       finishReason: "stop",
-      usage: { inputTokens: 12, outputTokens: 5, totalTokens: 17 },
+      usage: {
+        tokens: {
+          input: { total: 12, cacheRead: 3 },
+          output: { total: 5, reasoning: 2 },
+          total: 17,
+        },
+        cost: {
+          currency: "USD" as const,
+          amountNanos: 12_345,
+          source: "provider-reported" as const,
+        },
+      },
     }));
     const provider = {
       id: "provider-a",
@@ -173,7 +184,7 @@ describe("generations", () => {
         sequence: 2,
         author: "assistant",
         content: "Assistant reply",
-        createdAt: 103,
+        createdAt: 104,
       },
       generation: {
         id: expect.stringMatching(/^generation_/),
@@ -185,13 +196,21 @@ describe("generations", () => {
         failureKind: null,
         providerGenerationId: "provider-generation-1",
         resolvedModelId: "maker/resolved-model",
+        upstreamProviderId: null,
         finishReason: "stop",
         inputTokens: 12,
+        cacheReadInputTokens: 3,
+        cacheWriteInputTokens: null,
         outputTokens: 5,
+        reasoningOutputTokens: 2,
         totalTokens: 17,
+        costCurrency: "USD",
+        costAmountNanos: 12_345,
+        costSource: "provider-reported",
         outputMessageId: expect.stringMatching(/^message_/),
         startedAt: 102,
-        finishedAt: 103,
+        providerStartedAt: 103,
+        finishedAt: 104,
       },
     });
     expect(result.generation.outputMessageId).toBe(result.message.id);
@@ -399,7 +418,9 @@ describe("generations", () => {
     completion.resolve({
       text: "Late reply",
       providerGenerationId: "late-provider-generation",
-      usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+      usage: {
+        tokens: { input: { total: 8 }, output: { total: 3 }, total: 11 },
+      },
     });
     const result = await pending;
 
@@ -566,7 +587,20 @@ describe("generations", () => {
       generate: vi
         .fn<TestGenerationProvider["generate"]>()
         .mockRejectedValueOnce(failure)
-        .mockResolvedValueOnce({ text: " \n\t " }),
+        .mockResolvedValueOnce({
+          text: " \n\t ",
+          providerGenerationId: "invalid-output-generation",
+          usage: {
+            tokens: { input: { total: 7 }, output: { total: 2 }, total: 9 },
+          },
+        })
+        .mockResolvedValueOnce({
+          text: "Invalid accounting",
+          providerGenerationId: "invalid-accounting-generation",
+          usage: {
+            tokens: { input: { total: 7 }, output: { total: 2 }, total: 1 },
+          },
+        }),
     };
     const { database, generations, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
@@ -584,10 +618,35 @@ describe("generations", () => {
         configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow(TypeError);
+    await expect(
+      generations.generateReply({
+        turnId: started.turn.id,
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
+      }),
+    ).rejects.toThrow("invalid total token count");
 
     expect(database.select().from(generationTable).all()).toEqual([
-      expect.objectContaining({ turnId: started.turn.id, failureKind: "provider" }),
-      expect.objectContaining({ turnId: started.turn.id, failureKind: "invalid-output" }),
+      expect.objectContaining({
+        turnId: started.turn.id,
+        failureKind: "provider",
+        providerStartedAt: expect.any(Number),
+      }),
+      expect.objectContaining({
+        turnId: started.turn.id,
+        failureKind: "invalid-output",
+        providerGenerationId: "invalid-output-generation",
+        inputTokens: 7,
+        outputTokens: 2,
+        totalTokens: 9,
+        providerStartedAt: expect.any(Number),
+      }),
+      expect.objectContaining({
+        turnId: started.turn.id,
+        failureKind: "invalid-output",
+        providerGenerationId: "invalid-accounting-generation",
+        inputTokens: null,
+        providerStartedAt: expect.any(Number),
+      }),
     ]);
     expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [started.message],
@@ -820,6 +879,41 @@ describe("generations", () => {
         })
         .run(),
     ).toThrow();
+    expect(() =>
+      database
+        .insert(generationTable)
+        .values({
+          id: ids.generation.create(),
+          turnId: second.turn.id,
+          providerId: provider.id,
+          modelId: "maker/model",
+          status: "failed",
+          failureKind: "preparation",
+          startedAt: 700,
+          providerStartedAt: 700,
+          finishedAt: 701,
+        })
+        .run(),
+    ).toThrow();
+    expect(() =>
+      database
+        .insert(generationTable)
+        .values({
+          id: ids.generation.create(),
+          turnId: second.turn.id,
+          providerId: provider.id,
+          modelId: "maker/model",
+          status: "failed",
+          failureKind: "provider",
+          costCurrency: "USD",
+          costAmountNanos: 1,
+          costSource: "provider-reported",
+          startedAt: 700,
+          providerStartedAt: 700,
+          finishedAt: 701,
+        })
+        .run(),
+    ).toThrow();
   });
 
   it("removes turns, messages, and generations with their owning thread", async () => {
@@ -903,6 +997,7 @@ describe("generations", () => {
         turnId: started.turn.id,
         status: "failed",
         failureKind: "interrupted",
+        providerStartedAt: null,
       }),
     );
   });
@@ -945,6 +1040,7 @@ describe("generations", () => {
         turnId: started.turn.id,
         status: "failed",
         failureKind: "preparation",
+        providerStartedAt: null,
       }),
     ]);
   });

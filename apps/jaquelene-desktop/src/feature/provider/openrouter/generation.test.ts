@@ -17,7 +17,14 @@ function chatResult(overrides: Partial<ChatResult> = {}): ChatResult {
     model: "maker/resolved-model",
     object: "chat.completion",
     systemFingerprint: null,
-    usage: { promptTokens: 10, completionTokens: 4, totalTokens: 14 },
+    usage: {
+      promptTokens: 10,
+      promptTokensDetails: { cachedTokens: 3, cacheWriteTokens: 2 },
+      completionTokens: 4,
+      completionTokensDetails: { reasoningTokens: 1 },
+      totalTokens: 14,
+      cost: 0.000_012_345,
+    },
     ...overrides,
   };
 }
@@ -42,6 +49,22 @@ function operationSignal() {
   return new AbortController().signal;
 }
 
+function routingMetadata(): NonNullable<ChatResult["openrouterMetadata"]> {
+  return {
+    attempt: 2,
+    attempts: [
+      { model: "maker/resolved-model", provider: "upstream-failed", status: 503 },
+      { model: "maker/resolved-model", provider: "upstream-selected", status: 200 },
+    ],
+    endpoints: { available: [], total: 0 },
+    isByok: false,
+    region: null,
+    requested: "maker/requested-model",
+    strategy: "fallback",
+    summary: "Selected the successful fallback.",
+  };
+}
+
 function connection(apiKey = "openrouter-key") {
   return {
     async withApiKey<Result>(use: (value: string) => Promise<Result>) {
@@ -54,15 +77,27 @@ describe("OpenRouter generation provider", () => {
   it("uses the connected credential and normalizes completion metadata", async () => {
     const signal = new AbortController().signal;
     const request = generationRequest();
-    const send = vi.fn(async () => chatResult());
+    const send = vi.fn(async () => chatResult({ openrouterMetadata: routingMetadata() }));
     const provider = createOpenRouterGeneration(connection(), send);
 
     await expect(provider.generate(request, signal)).resolves.toEqual({
       text: "OpenRouter reply",
       providerGenerationId: "openrouter-generation-1",
       resolvedModelId: "maker/resolved-model",
+      upstreamProviderId: "upstream-selected",
       finishReason: "stop",
-      usage: { inputTokens: 10, outputTokens: 4, totalTokens: 14 },
+      usage: {
+        tokens: {
+          input: { total: 10, cacheRead: 3, cacheWrite: 2 },
+          output: { total: 4, reasoning: 1 },
+          total: 14,
+        },
+        cost: {
+          currency: "USD",
+          amountNanos: 12_345,
+          source: "provider-reported",
+        },
+      },
     });
     expect(send).toHaveBeenCalledWith(
       "openrouter-key",

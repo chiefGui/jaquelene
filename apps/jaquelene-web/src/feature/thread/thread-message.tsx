@@ -8,6 +8,7 @@ import { Button, formatTimestamp } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { memo } from "react";
+import { Markdown } from "../markdown/markdown";
 import type { SubmitTurnVariables } from "./query";
 import type { ThreadViewState } from "./thread-view-state";
 
@@ -30,10 +31,6 @@ function replyStatusText(generation: TurnGeneration, retrying: boolean) {
   }
 }
 
-const ThreadMessageContent = memo(function ThreadMessageContent({ content }: { content: string }) {
-  return <p {...stylex.props(styles.content)}>{content}</p>;
-});
-
 export const ThreadMessageRow = memo(function ThreadMessageRow({
   message,
   fromUser,
@@ -55,7 +52,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
       {...stylex.props(styles.message, fromUser ? styles.userMessage : styles.assistantMessage)}
     >
       <div {...stylex.props(styles.bubble, fromUser ? styles.userBubble : styles.assistantBubble)}>
-        <ThreadMessageContent content={message.content} />
+        <Markdown content={message.content} />
       </div>
       <time
         dateTime={new Date(message.createdAt).toISOString()}
@@ -104,7 +101,7 @@ export const PendingThreadMessageRow = memo(function PendingThreadMessageRow({
   return (
     <article aria-label="You" {...stylex.props(styles.message, styles.userMessage)}>
       <div {...stylex.props(styles.bubble, styles.userBubble)}>
-        <ThreadMessageContent content={submission.content} />
+        <Markdown content={submission.content} />
       </div>
       <time
         dateTime={new Date(submission.submittedAt).toISOString()}
@@ -138,6 +135,8 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeBase,
     lineHeight: tokens.lineHeightBase,
     maxWidth: "82%",
+    minWidth: 0,
+    overflowWrap: "anywhere",
     paddingBlock: "0.625rem",
     paddingInline: "0.75rem",
   },
@@ -149,10 +148,6 @@ const styles = stylex.create({
     borderColor: tokens.surfaceRaisedBorder,
     borderStyle: "solid",
     borderWidth: 1,
-  },
-  content: {
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap",
   },
   timestamp: {
     color: tokens.muted,

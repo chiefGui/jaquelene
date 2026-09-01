@@ -14,14 +14,11 @@ import {
 import type { SubmitTurnVariables } from "./query";
 import { threadLayout } from "./thread-layout.stylex";
 import { PendingThreadMessageRow, ThreadMessageRow } from "./thread-message";
+import { estimateThreadTimelineItemSize } from "./thread-timeline-estimate";
 import type { ThreadViewState } from "./thread-view-state";
 
 const timelineGap = 16;
 const timelinePadding = 24;
-const estimatedCharactersPerLine = 32;
-const estimatedLineHeight = 20;
-const estimatedMessageChrome = 42;
-const estimatedReplyStateHeight = 22;
 
 type ThreadMessageView = ThreadViewState["messages"][number];
 type ThreadTimelineItem =
@@ -29,11 +26,13 @@ type ThreadTimelineItem =
       key: `message:${string}`;
       type: "message";
       value: ThreadMessageView;
+      estimatedSize: number;
     }>
   | Readonly<{
       key: `submission:${string}`;
       type: "submission";
       value: SubmitTurnVariables;
+      estimatedSize: number;
     }>;
 
 type ThreadTimelineSnapshot = Readonly<{
@@ -61,18 +60,6 @@ type ThreadTimelineProps = Readonly<{
   retryReply: (turnId: string) => Promise<void>;
 }>;
 
-function estimateTimelineItemSize(item: ThreadTimelineItem) {
-  const content = item.type === "message" ? item.value.message.content : item.value.content;
-  const lineCount = Math.max(1, Math.ceil(content.length / estimatedCharactersPerLine));
-  const hasReplyState = item.type === "submission" || item.value.reply !== null;
-
-  return (
-    lineCount * estimatedLineHeight +
-    estimatedMessageChrome +
-    (hasReplyState ? estimatedReplyStateHeight : 0)
-  );
-}
-
 export const ThreadTimeline = memo(function ThreadTimeline({
   view,
   pendingSubmission,
@@ -98,6 +85,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   const paddingStart = hasHistoryControls ? 0 : timelinePadding;
   const items = useMemo<ThreadTimelineItem[]>(() => {
     const messages: ThreadTimelineItem[] = view.messages.map((value) => ({
+      estimatedSize: estimateThreadTimelineItemSize(value.message.content, value.reply !== null),
       key: `message:${value.message.id}`,
       type: "message",
       value,
@@ -105,6 +93,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
 
     if (optimisticSubmission) {
       messages.push({
+        estimatedSize: estimateThreadTimelineItemSize(optimisticSubmission.content, true),
         key: `submission:${optimisticSubmission.clientId}`,
         type: "submission",
         value: optimisticSubmission,
@@ -115,10 +104,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   }, [optimisticSubmission, view.messages]);
   const hasItems = items.length > 0;
   const getItemKey = useCallback((index: number) => items[index]!.key, [items]);
-  const estimateSize = useCallback(
-    (index: number) => estimateTimelineItemSize(items[index]!),
-    [items],
-  );
+  const estimateSize = useCallback((index: number) => items[index]!.estimatedSize, [items]);
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLLIElement>({
     anchorTo: "end",
     count: items.length,

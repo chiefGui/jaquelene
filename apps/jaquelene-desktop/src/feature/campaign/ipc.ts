@@ -2,27 +2,25 @@ import { ids, type Campaign, type Campaigns } from "@jaquelene/backend";
 import {
   CampaignPreferences as CampaignPreferencesIpc,
   Campaigns as CampaignsIpc,
+  type CampaignGenerationPreferences as IpcCampaignGenerationPreferences,
   type Campaign as IpcCampaign,
-  type GenerationConfigurationSelection as IpcGenerationConfigurationSelection,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
 import { fromIpcReasoningPreset, toIpcReasoningPreset } from "@/feature/model/reasoning-preset";
 import type { CampaignPreferences } from "./preferences";
 
 function toIpcCampaign(campaign: Campaign): IpcCampaign {
-  const { generationConfigurationOverride: configuration, ...campaignSnapshot } = campaign;
+  const { generationPreferences: preferences, ...campaignSnapshot } = campaign;
   return {
     ...campaignSnapshot,
-    ...(configuration
+    ...(preferences
       ? {
-          generationConfigurationOverride: {
-            model: { ...configuration.model },
-            ...(configuration.reasoningPresetOverride === undefined
+          generationPreferences: {
+            ...(preferences.model ? { model: { ...preferences.model } } : {}),
+            ...(preferences.reasoningPreset === undefined
               ? {}
               : {
-                  reasoningPresetOverride: toIpcReasoningPreset(
-                    configuration.reasoningPresetOverride,
-                  ),
+                  reasoningPreset: toIpcReasoningPreset(preferences.reasoningPreset),
                 }),
           },
         }
@@ -30,13 +28,13 @@ function toIpcCampaign(campaign: Campaign): IpcCampaign {
   };
 }
 
-function fromIpcConfiguration(configuration: IpcGenerationConfigurationSelection) {
+function fromIpcPreferences(preferences: IpcCampaignGenerationPreferences) {
   return {
-    model: { ...configuration.model },
-    ...(configuration.reasoningPresetOverride === undefined
+    ...(preferences.model ? { model: { ...preferences.model } } : {}),
+    ...(preferences.reasoningPreset === undefined
       ? {}
       : {
-          reasoningPresetOverride: fromIpcReasoningPreset(configuration.reasoningPresetOverride),
+          reasoningPreset: fromIpcReasoningPreset(preferences.reasoningPreset),
         }),
   };
 }
@@ -53,10 +51,10 @@ export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
       const campaign = campaigns.get(ids.campaign.parse(id));
       return campaign ? toIpcCampaign(campaign) : null;
     },
-    setGenerationConfigurationOverride(id, configuration) {
-      const campaign = campaigns.setGenerationConfigurationOverride(
+    setGenerationPreferences(id, preferences) {
+      const campaign = campaigns.setGenerationPreferences(
         ids.campaign.parse(id),
-        configuration ? fromIpcConfiguration(configuration) : null,
+        preferences ? fromIpcPreferences(preferences) : null,
       );
       return campaign ? toIpcCampaign(campaign) : null;
     },

@@ -5,7 +5,7 @@ structure Campaign {
   scenarioId: string
   threadId: string
   startedAt: UnixTimeMilliseconds
-  generationConfigurationOverride?: GenerationConfigurationSelection
+  generationPreferences?: CampaignGenerationPreferences
 }
 
 [RendererAPI]
@@ -15,7 +15,7 @@ interface Campaigns {
   start(scenarioId: string) -> Campaign
   listForScenario(scenarioId: string) -> Campaign[]
   get(id: string) -> Campaign?
-  setGenerationConfigurationOverride(id: string, configuration: GenerationConfigurationSelection?) -> Campaign?
+  setGenerationPreferences(id: string, preferences: CampaignGenerationPreferences?) -> Campaign?
 }
 
 [RendererAPI]

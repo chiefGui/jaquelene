@@ -2,50 +2,62 @@ import { desc, eq, getTableColumns } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { ids, type CampaignId, type ScenarioId, type ThreadId } from "#backend/id";
 import {
-  requireGenerationConfigurationSelection,
-  type GenerationConfigurationSelection,
+  requireCampaignGenerationPreferences,
+  type CampaignGenerationPreferences,
 } from "#backend/provider/provider";
 import { insertThread } from "#backend/thread/threads";
-import { campaignGenerationConfigurationOverrideTable, campaignTable } from "./schema";
+import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
 
 export type Campaign = Readonly<{
   id: CampaignId;
   scenarioId: ScenarioId;
   threadId: ThreadId;
   startedAt: number;
-  generationConfigurationOverride?: GenerationConfigurationSelection;
+  generationPreferences?: CampaignGenerationPreferences;
 }>;
 
 type StoredCampaign = typeof campaignTable.$inferSelect & {
-  generationConfigurationOverride: Omit<
-    typeof campaignGenerationConfigurationOverrideTable.$inferSelect,
+  generationPreferences: Omit<
+    typeof campaignGenerationPreferencesTable.$inferSelect,
     "campaignId"
   > | null;
 };
 
 const campaignSelection = {
   ...getTableColumns(campaignTable),
-  generationConfigurationOverride: {
-    providerId: campaignGenerationConfigurationOverrideTable.providerId,
-    modelId: campaignGenerationConfigurationOverrideTable.modelId,
-    name: campaignGenerationConfigurationOverrideTable.name,
-    brandId: campaignGenerationConfigurationOverrideTable.brandId,
-    reasoningPresetOverride: campaignGenerationConfigurationOverrideTable.reasoningPresetOverride,
+  generationPreferences: {
+    providerId: campaignGenerationPreferencesTable.providerId,
+    modelId: campaignGenerationPreferencesTable.modelId,
+    name: campaignGenerationPreferencesTable.name,
+    brandId: campaignGenerationPreferencesTable.brandId,
+    reasoningPreset: campaignGenerationPreferencesTable.reasoningPreset,
   },
 };
 
-function toCampaign({ generationConfigurationOverride, ...campaign }: StoredCampaign): Campaign {
-  if (!generationConfigurationOverride) {
+function toCampaign({ generationPreferences, ...campaign }: StoredCampaign): Campaign {
+  if (!generationPreferences) {
     return campaign;
   }
 
-  const { reasoningPresetOverride, ...model } = generationConfigurationOverride;
+  const { providerId, modelId, name, brandId, reasoningPreset } = generationPreferences;
+  const model =
+    providerId !== null && modelId !== null && name !== null && brandId !== null
+      ? { providerId, modelId, name, brandId }
+      : undefined;
+
+  if (!model && (providerId !== null || modelId !== null || name !== null || brandId !== null)) {
+    throw new Error(`Campaign "${campaign.id}" has incomplete generation model preferences.`);
+  }
+
+  const preferences: CampaignGenerationPreferences = {
+    ...(model ? { model } : {}),
+    ...(reasoningPreset === null ? {} : { reasoningPreset }),
+  };
+  requireCampaignGenerationPreferences(preferences);
+
   return {
     ...campaign,
-    generationConfigurationOverride: {
-      model,
-      ...(reasoningPresetOverride === null ? {} : { reasoningPresetOverride }),
-    },
+    generationPreferences: preferences,
   };
 }
 
@@ -73,8 +85,8 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         .select(campaignSelection)
         .from(campaignTable)
         .leftJoin(
-          campaignGenerationConfigurationOverrideTable,
-          eq(campaignGenerationConfigurationOverrideTable.campaignId, campaignTable.id),
+          campaignGenerationPreferencesTable,
+          eq(campaignGenerationPreferencesTable.campaignId, campaignTable.id),
         )
         .where(eq(campaignTable.scenarioId, scenarioId))
         .orderBy(desc(campaignTable.startedAt), desc(campaignTable.id))
@@ -87,8 +99,8 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         .select(campaignSelection)
         .from(campaignTable)
         .leftJoin(
-          campaignGenerationConfigurationOverrideTable,
-          eq(campaignGenerationConfigurationOverrideTable.campaignId, campaignTable.id),
+          campaignGenerationPreferencesTable,
+          eq(campaignGenerationPreferencesTable.campaignId, campaignTable.id),
         )
         .where(eq(campaignTable.id, id))
         .get();
@@ -108,12 +120,9 @@ export function createCampaigns(database: Database, now: () => number = Date.now
       );
     },
 
-    setGenerationConfigurationOverride(
-      id: CampaignId,
-      configuration: GenerationConfigurationSelection | null,
-    ) {
-      if (configuration) {
-        requireGenerationConfigurationSelection(configuration);
+    setGenerationPreferences(id: CampaignId, preferences: CampaignGenerationPreferences | null) {
+      if (preferences) {
+        requireCampaignGenerationPreferences(preferences);
       }
 
       return database.transaction((transaction) => {
@@ -127,34 +136,38 @@ export function createCampaigns(database: Database, now: () => number = Date.now
           return null;
         }
 
-        if (configuration) {
+        if (preferences) {
+          const model = preferences.model;
           const values = {
-            ...configuration.model,
-            reasoningPresetOverride: configuration.reasoningPresetOverride ?? null,
+            providerId: model?.providerId ?? null,
+            modelId: model?.modelId ?? null,
+            name: model?.name ?? null,
+            brandId: model?.brandId ?? null,
+            reasoningPreset: preferences.reasoningPreset ?? null,
           };
           transaction
-            .insert(campaignGenerationConfigurationOverrideTable)
+            .insert(campaignGenerationPreferencesTable)
             .values({ campaignId: id, ...values })
             .onConflictDoUpdate({
-              target: campaignGenerationConfigurationOverrideTable.campaignId,
+              target: campaignGenerationPreferencesTable.campaignId,
               set: values,
             })
             .run();
 
           return {
             ...campaign,
-            generationConfigurationOverride: {
-              model: { ...configuration.model },
-              ...(configuration.reasoningPresetOverride === undefined
+            generationPreferences: {
+              ...(model ? { model: { ...model } } : {}),
+              ...(preferences.reasoningPreset === undefined
                 ? {}
-                : { reasoningPresetOverride: configuration.reasoningPresetOverride }),
+                : { reasoningPreset: preferences.reasoningPreset }),
             },
           };
         }
 
         transaction
-          .delete(campaignGenerationConfigurationOverrideTable)
-          .where(eq(campaignGenerationConfigurationOverrideTable.campaignId, id))
+          .delete(campaignGenerationPreferencesTable)
+          .where(eq(campaignGenerationPreferencesTable.campaignId, id))
           .run();
         return campaign;
       });

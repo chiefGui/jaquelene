@@ -271,9 +271,9 @@ export async function createBackend(
         assertOpen();
         return services.campaigns.get(id);
       },
-      setGenerationConfigurationOverride(id, configuration) {
+      setGenerationPreferences(id, preferences) {
         assertOpen();
-        return services.campaigns.setGenerationConfigurationOverride(id, configuration);
+        return services.campaigns.setGenerationPreferences(id, preferences);
       },
     },
     instructions: {

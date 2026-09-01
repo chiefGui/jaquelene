@@ -47,7 +47,7 @@ vi.mock("@jaquelene/ipc/main", () => ({
     XHigh: "xhigh",
     Max: "max",
   },
-  ReasoningPresetSource: { ModelDefault: "model-default", Override: "override" },
+  ReasoningPresetSource: { ModelDefault: "model-default", Selection: "selection" },
   ThreadMessageAuthor: { User: "user", Assistant: "assistant" },
   Threads: {
     for: () => ({
@@ -104,7 +104,7 @@ function createTurnState() {
     turnId,
     providerId: "openrouter",
     modelId: "maker/model",
-    reasoning: { preset: "high", source: "override" },
+    reasoning: { preset: "high", source: "selection" },
     status: "pending",
     failureKind: null,
     providerGenerationId: null,
@@ -215,7 +215,7 @@ describe("thread IPC", () => {
     const page = await ipc.threads.listMessages({ threadId: acceptance.userMessage.threadId });
     const configuration = {
       model: { providerId: "openrouter", modelId: "maker/model" },
-      reasoningPresetOverride: ReasoningPreset.High,
+      reasoningPreset: ReasoningPreset.High,
     };
     const submitted = await ipc.turns.submit({
       threadId: acceptance.userMessage.threadId,
@@ -246,7 +246,7 @@ describe("thread IPC", () => {
           modelId: "maker/model",
           reasoning: {
             preset: ReasoningPreset.High,
-            source: ReasoningPresetSource.Override,
+            source: ReasoningPresetSource.Selection,
           },
           status: "pending",
           startedAt: 101,
@@ -262,7 +262,7 @@ describe("thread IPC", () => {
       content: "Hello",
       configuration: {
         model: configuration.model,
-        reasoningPresetOverride: "high",
+        reasoningPreset: "high",
       },
     });
     expect(submitted).toEqual({

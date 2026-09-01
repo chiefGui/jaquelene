@@ -81,7 +81,7 @@ export const generationTable = sqliteTable(
         OR (${generation.reasoningPreset} IS NOT NULL
           AND ${generation.reasoningPresetSource} IS NOT NULL
           AND ${generation.reasoningPreset} IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')
-          AND ${generation.reasoningPresetSource} IN ('model-default', 'override'))`,
+          AND ${generation.reasoningPresetSource} IN ('model-default', 'selection'))`,
     ),
     check(
       "generations_status_valid",

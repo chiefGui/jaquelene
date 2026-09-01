@@ -1,7 +1,7 @@
 import {
+  type CampaignGenerationPreferences,
   Campaigns,
   type Campaign,
-  type GenerationConfigurationSelection,
 } from "@jaquelene/ipc/renderer";
 import {
   mutationOptions,
@@ -16,30 +16,28 @@ import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 const startCampaign = requireIpcMethod(Campaigns?.start);
 const listCampaignsForScenario = requireIpcMethod(Campaigns?.listForScenario);
 const getCampaign = requireIpcMethod(Campaigns?.get);
-const setCampaignGenerationConfigurationOverride = requireIpcMethod(
-  Campaigns?.setGenerationConfigurationOverride,
-);
+const setCampaignGenerationPreferences = requireIpcMethod(Campaigns?.setGenerationPreferences);
 export const campaignQueryKey = ["campaigns"] as const;
 
-function setCampaignGenerationConfigurationOverrideMutationKey(id: string) {
-  return [...campaignQueryKey, id, "set-generation-configuration-override"] as const;
+function setCampaignGenerationPreferencesMutationKey(id: string) {
+  return [...campaignQueryKey, id, "set-generation-preferences"] as const;
 }
 
-type SetCampaignGenerationConfigurationOverrideContext = {
-  sequence: ConfigurationMutationSequence;
+type SetCampaignGenerationPreferencesContext = {
+  sequence: PreferencesMutationSequence;
   version: number;
 };
 
-type ConfigurationMutationSequence = {
+type PreferencesMutationSequence = {
   confirmedCampaign: Campaign | null | undefined;
   initialized: boolean;
   latestVersion: number;
   pending: number;
 };
 
-const configurationMutationSequences = new WeakMap<
+const preferencesMutationSequences = new WeakMap<
   QueryClient,
-  Map<string, ConfigurationMutationSequence>
+  Map<string, PreferencesMutationSequence>
 >();
 
 export function campaignsForScenarioQuery(scenarioId: string) {
@@ -58,9 +56,9 @@ export function campaignQuery(id: string) {
   });
 }
 
-function withoutGenerationConfigurationOverride(campaign: Campaign): Campaign {
+function withoutGenerationPreferences(campaign: Campaign): Campaign {
   const inheritedCampaign = { ...campaign };
-  delete inheritedCampaign.generationConfigurationOverride;
+  delete inheritedCampaign.generationPreferences;
   return inheritedCampaign;
 }
 
@@ -73,12 +71,12 @@ function cacheCampaign(queryClient: QueryClient, campaign: Campaign) {
   );
 }
 
-function beginConfigurationMutation(queryClient: QueryClient, id: string) {
-  let sequences = configurationMutationSequences.get(queryClient);
+function beginPreferencesMutation(queryClient: QueryClient, id: string) {
+  let sequences = preferencesMutationSequences.get(queryClient);
 
   if (!sequences) {
     sequences = new Map();
-    configurationMutationSequences.set(queryClient, sequences);
+    preferencesMutationSequences.set(queryClient, sequences);
   }
 
   let sequence = sequences.get(id);
@@ -98,10 +96,10 @@ function beginConfigurationMutation(queryClient: QueryClient, id: string) {
   return { sequence, version: sequence.latestVersion };
 }
 
-function endConfigurationMutation(
+function endPreferencesMutation(
   queryClient: QueryClient,
   id: string,
-  context: SetCampaignGenerationConfigurationOverrideContext | undefined,
+  context: SetCampaignGenerationPreferencesContext | undefined,
 ) {
   if (!context) {
     return;
@@ -113,18 +111,18 @@ function endConfigurationMutation(
     return;
   }
 
-  const sequences = configurationMutationSequences.get(queryClient);
+  const sequences = preferencesMutationSequences.get(queryClient);
 
   if (sequences?.get(id) === context.sequence) {
     sequences.delete(id);
 
     if (sequences.size === 0) {
-      configurationMutationSequences.delete(queryClient);
+      preferencesMutationSequences.delete(queryClient);
     }
   }
 }
 
-export function setCampaignGenerationConfigurationOverrideMutationOptions(
+export function setCampaignGenerationPreferencesMutationOptions(
   queryClient: QueryClient,
   id: string,
 ) {
@@ -133,14 +131,14 @@ export function setCampaignGenerationConfigurationOverrideMutationOptions(
   return mutationOptions<
     Campaign,
     Error,
-    GenerationConfigurationSelection | null,
-    SetCampaignGenerationConfigurationOverrideContext
+    CampaignGenerationPreferences | null,
+    SetCampaignGenerationPreferencesContext
   >({
     ...ipcMutationOptions,
-    mutationKey: setCampaignGenerationConfigurationOverrideMutationKey(id),
-    scope: { id: `campaign:${id}:generation-configuration-override` },
-    async mutationFn(configuration) {
-      const campaign = await setCampaignGenerationConfigurationOverride(id, configuration);
+    mutationKey: setCampaignGenerationPreferencesMutationKey(id),
+    scope: { id: `campaign:${id}:generation-preferences` },
+    async mutationFn(preferences) {
+      const campaign = await setCampaignGenerationPreferences(id, preferences);
 
       if (!campaign) {
         throw new Error(`Campaign "${id}" is unavailable.`);
@@ -148,8 +146,8 @@ export function setCampaignGenerationConfigurationOverrideMutationOptions(
 
       return campaign;
     },
-    async onMutate(configuration) {
-      const context = beginConfigurationMutation(queryClient, id);
+    async onMutate(preferences) {
+      const context = beginPreferencesMutation(queryClient, id);
       await queryClient.cancelQueries({ queryKey: query.queryKey, exact: true });
       const previousCampaign = queryClient.getQueryData<Campaign | null>(query.queryKey);
 
@@ -166,24 +164,24 @@ export function setCampaignGenerationConfigurationOverrideMutationOptions(
         if (context.version === context.sequence.latestVersion) {
           cacheCampaign(
             queryClient,
-            configuration
+            preferences
               ? {
                   ...previousCampaign,
-                  generationConfigurationOverride: {
-                    model: { ...configuration.model },
-                    ...(configuration.reasoningPresetOverride === undefined
+                  generationPreferences: {
+                    ...(preferences.model ? { model: { ...preferences.model } } : {}),
+                    ...(preferences.reasoningPreset === undefined
                       ? {}
-                      : { reasoningPresetOverride: configuration.reasoningPresetOverride }),
+                      : { reasoningPreset: preferences.reasoningPreset }),
                   },
                 }
-              : withoutGenerationConfigurationOverride(previousCampaign),
+              : withoutGenerationPreferences(previousCampaign),
           );
         }
       }
 
       return context;
     },
-    onError(_error, _configuration, context) {
+    onError(_error, _preferences, context) {
       if (
         context &&
         context.version === context.sequence.latestVersion &&
@@ -192,28 +190,28 @@ export function setCampaignGenerationConfigurationOverrideMutationOptions(
         cacheCampaign(queryClient, context.sequence.confirmedCampaign);
       }
     },
-    onSuccess(campaign, _configuration, context) {
+    onSuccess(campaign, _preferences, context) {
       context.sequence.confirmedCampaign = campaign;
 
       if (context.version === context.sequence.latestVersion) {
         cacheCampaign(queryClient, campaign);
       }
     },
-    onSettled(_campaign, _error, _configuration, context) {
-      endConfigurationMutation(queryClient, id, context);
+    onSettled(_campaign, _error, _preferences, context) {
+      endPreferencesMutation(queryClient, id, context);
     },
   });
 }
 
-export function useSetCampaignGenerationConfigurationOverride(id: string) {
+export function useSetCampaignGenerationPreferences(id: string) {
   const queryClient = useQueryClient();
-  return useMutation(setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, id));
+  return useMutation(setCampaignGenerationPreferencesMutationOptions(queryClient, id));
 }
 
-export function useIsCampaignGenerationConfigurationOverridePending(id: string) {
+export function useIsCampaignGenerationPreferencesPending(id: string) {
   return (
     useIsMutating({
-      mutationKey: setCampaignGenerationConfigurationOverrideMutationKey(id),
+      mutationKey: setCampaignGenerationPreferencesMutationKey(id),
     }) > 0
   );
 }

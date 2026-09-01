@@ -64,10 +64,10 @@ export function ModelReasoningPicker({
           throw new TypeError(`Unknown model reasoning preset "${nextValue}".`);
         }
 
-        const nextOverride = preset === defaultPreset ? null : preset;
+        const nextPreference = preset === defaultPreset ? null : preset;
 
-        if (nextOverride !== value) {
-          onValueChange(nextOverride);
+        if (nextPreference !== value) {
+          onValueChange(nextPreference);
         }
       }}
     >

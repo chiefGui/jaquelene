@@ -1,3 +1,7 @@
+import type {
+  CampaignGenerationPreferences as ComposableCampaignGenerationPreferences,
+  GenerationConfiguration as ComposedGenerationConfiguration,
+} from "@jaquelene/domain";
 import type { GenerationId, ThreadId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import {
@@ -47,31 +51,50 @@ export function requireModelSelection(selection: ModelSelection) {
   }
 }
 
-export type GenerationConfiguration = Readonly<{
-  model: ModelReference;
-  reasoningPresetOverride?: ReasoningPreset;
-}>;
+export type GenerationConfiguration = ComposedGenerationConfiguration<
+  ModelReference,
+  ReasoningPreset
+>;
 
 export function requireGenerationConfiguration(configuration: GenerationConfiguration) {
   requireModelReference(configuration.model);
 
-  if (configuration.reasoningPresetOverride !== undefined) {
-    requireReasoningPreset(configuration.reasoningPresetOverride);
+  if (configuration.reasoningPreset !== undefined) {
+    requireReasoningPreset(configuration.reasoningPreset);
   }
 }
 
-export type GenerationConfigurationSelection = Readonly<{
-  model: ModelSelection;
-  reasoningPresetOverride?: ReasoningPreset;
-}>;
+export type GenerationConfigurationSelection = ComposedGenerationConfiguration<
+  ModelSelection,
+  ReasoningPreset
+>;
 
 export function requireGenerationConfigurationSelection(
   configuration: GenerationConfigurationSelection,
 ) {
   requireModelSelection(configuration.model);
 
-  if (configuration.reasoningPresetOverride !== undefined) {
-    requireReasoningPreset(configuration.reasoningPresetOverride);
+  if (configuration.reasoningPreset !== undefined) {
+    requireReasoningPreset(configuration.reasoningPreset);
+  }
+}
+
+export type CampaignGenerationPreferences = ComposableCampaignGenerationPreferences<
+  ModelSelection,
+  ReasoningPreset
+>;
+
+export function requireCampaignGenerationPreferences(preferences: CampaignGenerationPreferences) {
+  if (preferences.model === undefined && preferences.reasoningPreset === undefined) {
+    throw new TypeError("Campaign generation preferences must contain at least one preference.");
+  }
+
+  if (preferences.model !== undefined) {
+    requireModelSelection(preferences.model);
+  }
+
+  if (preferences.reasoningPreset !== undefined) {
+    requireReasoningPreset(preferences.reasoningPreset);
   }
 }
 

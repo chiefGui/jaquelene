@@ -22,12 +22,14 @@ export {
   type ResolvedReasoning,
 } from "#backend/model/reasoning";
 export {
+  requireCampaignGenerationPreferences,
   requireGenerationConfiguration,
   requireGenerationConfigurationSelection,
   requireModelReference,
   requireModelSelection,
   type ApiKeyProviderConfiguration,
   type ApiKeyProviderConfigurationSnapshot,
+  type CampaignGenerationPreferences,
   type GenerationConfiguration,
   type GenerationConfigurationSelection,
   type GenerationUsage,

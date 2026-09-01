@@ -512,14 +512,14 @@ export function createGenerations(
         providerId: requestedConfiguration.model.providerId,
         modelId: requestedConfiguration.model.modelId,
       },
-      ...(requestedConfiguration.reasoningPresetOverride === undefined
+      ...(requestedConfiguration.reasoningPreset === undefined
         ? {}
-        : { reasoningPresetOverride: requestedConfiguration.reasoningPresetOverride }),
+        : { reasoningPreset: requestedConfiguration.reasoningPreset }),
     };
     requireGenerationConfiguration(configuration);
     requireProvider(configuration.model);
     const model = await models.getModel(configuration.model, signal);
-    const reasoning = resolveReasoning(model.reasoning, configuration.reasoningPresetOverride);
+    const reasoning = resolveReasoning(model.reasoning, configuration.reasoningPreset);
 
     return {
       model: {

@@ -12,3 +12,12 @@ export {
   type ScenarioTitleErrorReason,
   type ScenarioTitleInput,
 } from "./scenario";
+export {
+  composeCampaignGenerationConfiguration,
+  setCampaignGenerationModel,
+  setCampaignGenerationReasoningPreset,
+  type CampaignGenerationPreferences,
+  type GenerationConfiguration,
+  type ModelIdentity,
+  type ModelReasoningOptions,
+} from "./generation-configuration";

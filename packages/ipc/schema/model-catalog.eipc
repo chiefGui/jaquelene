@@ -29,7 +29,7 @@ enum ReasoningPreset {
 
 enum ReasoningPresetSource {
   ModelDefault = "model-default"
-  Override = "override"
+  Selection = "selection"
 }
 
 structure ResolvedReasoning {
@@ -59,12 +59,17 @@ structure ModelSelection {
 
 structure GenerationConfiguration {
   model: ModelReference
-  reasoningPresetOverride?: ReasoningPreset
+  reasoningPreset?: ReasoningPreset
 }
 
 structure GenerationConfigurationSelection {
   model: ModelSelection
-  reasoningPresetOverride?: ReasoningPreset
+  reasoningPreset?: ReasoningPreset
+}
+
+structure CampaignGenerationPreferences {
+  model?: ModelSelection
+  reasoningPreset?: ReasoningPreset
 }
 
 subtype ModelCatalogRevision = number(

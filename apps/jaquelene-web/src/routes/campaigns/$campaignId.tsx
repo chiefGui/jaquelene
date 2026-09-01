@@ -1,3 +1,4 @@
+import { composeCampaignGenerationConfiguration } from "@jaquelene/domain";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -7,10 +8,7 @@ import {
   defaultCampaignModelQuery,
   useIsDefaultCampaignModelPending,
 } from "@/feature/campaign/preferences";
-import {
-  campaignQuery,
-  useIsCampaignGenerationConfigurationOverridePending,
-} from "@/feature/campaign/query";
+import { campaignQuery, useIsCampaignGenerationPreferencesPending } from "@/feature/campaign/query";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import { scenariosQuery } from "@/feature/scenario/query";
 import { ScenariosSidebar } from "@/feature/scenario/sidebar";
@@ -51,14 +49,15 @@ function CampaignRoute() {
   const { data: scenarios } = useSuspenseQuery(scenariosQuery);
   const { data: defaultModel } = useSuspenseQuery(defaultCampaignModelQuery);
   const defaultModelPending = useIsDefaultCampaignModelPending();
-  const configurationOverridePending =
-    useIsCampaignGenerationConfigurationOverridePending(campaignId);
+  const generationPreferencesPending = useIsCampaignGenerationPreferencesPending(campaignId);
   const scenario = campaign ? scenarios.find(({ id }) => id === campaign.scenarioId) : undefined;
-  const inheritsDefaultConfiguration = campaign?.generationConfigurationOverride === undefined;
-  const effectiveConfiguration =
-    campaign?.generationConfigurationOverride ?? (defaultModel ? { model: defaultModel } : null);
+  const effectiveConfiguration = composeCampaignGenerationConfiguration(
+    defaultModel,
+    campaign?.generationPreferences,
+  );
   const effectiveConfigurationPending =
-    configurationOverridePending || (inheritsDefaultConfiguration && defaultModelPending);
+    generationPreferencesPending ||
+    (campaign?.generationPreferences?.model === undefined && defaultModelPending);
 
   if (campaign && !scenario) {
     throw new Error(`Campaign "${campaign.id}" references an unavailable scenario.`);
@@ -106,6 +105,7 @@ function CampaignRoute() {
                 defaultModel={defaultModel}
                 configuration={effectiveConfiguration}
                 disabled={defaultModelPending}
+                preferences={campaign.generationPreferences}
               />
             }
           />

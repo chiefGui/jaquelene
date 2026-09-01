@@ -1,5 +1,6 @@
 import { composeCampaignGenerationConfiguration } from "@jaquelene/domain";
-import SidebarRight01Icon from "@hugeicons/core-free-icons/SidebarRight01Icon";
+import PanelRightCloseIcon from "@hugeicons/core-free-icons/PanelRightCloseIcon";
+import PanelRightOpenIcon from "@hugeicons/core-free-icons/PanelRightOpenIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { IconButton } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
@@ -14,7 +15,7 @@ import {
 } from "@/feature/campaign/preferences";
 import { campaignQuery, useIsCampaignGenerationPreferencesPending } from "@/feature/campaign/query";
 import { campaignUsageQuery } from "@/feature/campaign/usage-query";
-import { CampaignUsageSidebar } from "@/feature/campaign/usage-sidebar";
+import { CampaignDetailsSidebar } from "@/feature/campaign/details-sidebar";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import { scenariosQuery } from "@/feature/scenario/query";
 import { ScenariosSidebar } from "@/feature/scenario/sidebar";
@@ -109,9 +110,11 @@ function CampaignRoute() {
         {campaign ? (
           <SecondarySidebar.Trigger
             render={
-              <IconButton aria-label="Campaign details">
+              <IconButton
+                aria-label={detailsOpen ? "Close campaign details" : "Open campaign details"}
+              >
                 <HugeiconsIcon
-                  icon={SidebarRight01Icon}
+                  icon={detailsOpen ? PanelRightCloseIcon : PanelRightOpenIcon}
                   size={16}
                   color="currentColor"
                   strokeWidth={1.5}
@@ -150,7 +153,7 @@ function CampaignRoute() {
         )}
       </ContentPane.Viewport>
 
-      {usage ? <CampaignUsageSidebar usage={usage} /> : null}
+      {usage ? <CampaignDetailsSidebar usage={usage} /> : null}
     </SecondarySidebar.Root>
   );
 }

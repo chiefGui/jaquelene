@@ -11,7 +11,6 @@ import {
 import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { IconButton, type IconButtonProps } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps, ReactNode } from "react";
@@ -153,9 +152,6 @@ const styles = stylex.create({
     width: "clamp(18rem, 30vw, 22rem)",
   },
   header: {
-    borderBottomColor: tokens.border,
-    borderBottomStyle: "solid",
-    borderBottomWidth: 1,
     justifyContent: "space-between",
     paddingInlineStart: "1rem",
   },

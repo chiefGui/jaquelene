@@ -1215,7 +1215,7 @@
       "table": "provider_attempts"
     },
     {
-      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('provider', 'invalid-output', 'interrupted', 'storage')",
+      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('provider', 'interrupted')",
       "name": "provider_attempts_failure_kind_valid",
       "entityType": "checks",
       "table": "provider_attempts"

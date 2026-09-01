@@ -4,12 +4,7 @@ import type { CampaignId, GenerationId, ProviderAttemptId, ThreadId } from "#bac
 import { generationCostSources } from "#backend/provider/provider";
 
 export const providerAttemptStatuses = ["pending", "completed", "failed"] as const;
-export const providerAttemptFailureKinds = [
-  "provider",
-  "invalid-output",
-  "interrupted",
-  "storage",
-] as const;
+export const providerAttemptFailureKinds = ["provider", "interrupted"] as const;
 
 export const providerAttemptTable = sqliteTable(
   "provider_attempts",
@@ -65,7 +60,7 @@ export const providerAttemptTable = sqliteTable(
     ),
     check(
       "provider_attempts_failure_kind_valid",
-      sql`${attempt.failureKind} IS NULL OR ${attempt.failureKind} IN ('provider', 'invalid-output', 'interrupted', 'storage')`,
+      sql`${attempt.failureKind} IS NULL OR ${attempt.failureKind} IN ('provider', 'interrupted')`,
     ),
     check(
       "provider_attempts_provider_result_valid",

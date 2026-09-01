@@ -236,10 +236,21 @@ export function createGenerations(
             throw new TypeError("A preparation failure cannot own a provider attempt.");
           }
 
-          const attemptSettlement =
-            failureKind === "storage" && accounting
-              ? ({ status: "completed", finishedAt: completionTime } as const)
-              : ({ status: "failed", failureKind, finishedAt: completionTime } as const);
+          let attemptSettlement;
+
+          if (accounting) {
+            attemptSettlement = { status: "completed", finishedAt: completionTime } as const;
+          } else if (failureKind === "provider" || failureKind === "interrupted") {
+            attemptSettlement = {
+              status: "failed",
+              failureKind,
+              finishedAt: completionTime,
+            } as const;
+          } else {
+            throw new TypeError(
+              `Generation failure "${failureKind}" requires provider accounting.`,
+            );
+          }
           const settledAttempt = settleProviderAttempt(
             transaction,
             attempt.id,
@@ -408,10 +419,6 @@ export function createGenerations(
     }
 
     try {
-      if (signal?.aborted) {
-        throw interruptionCause(signal);
-      }
-
       providerResult = await waitForOperation(
         provider.generate(
           {

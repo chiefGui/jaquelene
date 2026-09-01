@@ -271,12 +271,7 @@ function UsageRoute() {
                 });
               }}
               trigger={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  tone="danger"
-                  disabled={overview.attempts.pending > 0}
-                >
+                <Button type="button" variant="ghost" tone="danger">
                   Clear
                 </Button>
               }

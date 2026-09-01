@@ -39,6 +39,7 @@ describe("database migrations", () => {
       }
 
       const generationId = "generation_01k46w4v06f7vs6qdqb8r78x8w";
+      const invalidOutputGenerationId = "generation_01k46w4v06f7vs6qdqb8r78x8x";
       client
         .prepare("INSERT INTO scenarios (id, title) VALUES (?, ?)")
         .run("scenario_01k46w4v06f7vs6qdqb8r78x8w", "The Long Night");
@@ -62,9 +63,8 @@ describe("database migrations", () => {
           "thread_01k46w4v06f7vs6qdqb8r78x8w",
           1_725_168_600_000,
         );
-      client
-        .prepare(
-          `INSERT INTO generations (
+      const insertGeneration = client.prepare(
+        `INSERT INTO generations (
             id, turn_id, provider_id, model_id, status, failure_kind,
             provider_generation_id, resolved_model_id, upstream_provider_id, finish_reason,
             input_tokens, cache_read_input_tokens, cache_write_input_tokens,
@@ -72,35 +72,61 @@ describe("database migrations", () => {
             cost_currency, cost_amount_nanos, cost_source,
             started_at, provider_started_at, finished_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          generationId,
-          "turn_01k46w4v06f7vs6qdqb8r78x8w",
-          "openrouter",
-          "requested/model",
-          "failed",
-          "provider",
-          "provider-response-id",
-          "resolved/model",
-          "upstream-provider",
-          "length",
-          120,
-          20,
-          5,
-          30,
-          10,
-          150,
-          "USD",
-          12_345,
-          "provider-reported",
-          1_725_168_600_000,
-          1_725_168_600_100,
-          1_725_168_600_500,
-        );
+      );
+      insertGeneration.run(
+        generationId,
+        "turn_01k46w4v06f7vs6qdqb8r78x8w",
+        "openrouter",
+        "requested/model",
+        "failed",
+        "provider",
+        "provider-response-id",
+        "resolved/model",
+        "upstream-provider",
+        "length",
+        120,
+        20,
+        5,
+        30,
+        10,
+        150,
+        "USD",
+        12_345,
+        "provider-reported",
+        1_725_168_600_000,
+        1_725_168_600_100,
+        1_725_168_600_500,
+      );
+      insertGeneration.run(
+        invalidOutputGenerationId,
+        "turn_01k46w4v06f7vs6qdqb8r78x8w",
+        "openrouter",
+        "requested/model",
+        "failed",
+        "invalid-output",
+        "invalid-output-response-id",
+        null,
+        null,
+        null,
+        7,
+        null,
+        null,
+        2,
+        null,
+        9,
+        null,
+        null,
+        null,
+        1_725_168_601_000,
+        1_725_168_601_100,
+        1_725_168_601_500,
+      );
 
       applyMigration(client, durableUsageMigration);
 
-      expect(client.prepare("SELECT * FROM provider_attempts").get()).toMatchObject({
+      expect(
+        client.prepare("SELECT * FROM provider_attempts WHERE generation_id = ?").get(generationId),
+      ).toMatchObject({
         id: "attempt_01k46w4v06f7vs6qdqb8r78x8w",
         generation_id: generationId,
         thread_id: "thread_01k46w4v06f7vs6qdqb8r78x8w",
@@ -124,6 +150,20 @@ describe("database migrations", () => {
         cost_source: "provider-reported",
         started_at: 1_725_168_600_100,
         finished_at: 1_725_168_600_500,
+      });
+      expect(
+        client
+          .prepare("SELECT * FROM provider_attempts WHERE generation_id = ?")
+          .get(invalidOutputGenerationId),
+      ).toMatchObject({
+        id: "attempt_01k46w4v06f7vs6qdqb8r78x8x",
+        generation_id: invalidOutputGenerationId,
+        status: "completed",
+        failure_kind: null,
+        provider_generation_id: "invalid-output-response-id",
+        input_tokens: 7,
+        output_tokens: 2,
+        total_tokens: 9,
       });
 
       const generationColumns = client

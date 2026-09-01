@@ -81,8 +81,7 @@ describe("campaign usage", () => {
           requestedModelId: "maker/model-a",
           resolvedModelId: "maker/model-a-v2",
           upstreamProviderId: "upstream-a",
-          status: "failed",
-          failureKind: "invalid-output",
+          status: "completed",
           inputTokens: 10,
           cacheReadInputTokens: 0,
           outputTokens: 4,
@@ -113,8 +112,7 @@ describe("campaign usage", () => {
           campaignId: campaign.id,
           providerId: "provider-b",
           requestedModelId: "model-b",
-          status: "failed",
-          failureKind: "invalid-output",
+          status: "completed",
           inputTokens: 20,
           outputTokens: 5,
           totalTokens: 25,
@@ -139,7 +137,7 @@ describe("campaign usage", () => {
 
     expect(usage.get(campaign.id)).toEqual({
       campaignId: campaign.id,
-      attempts: { provider: 4, preparing: 1, pending: 1, completed: 0, failed: 3 },
+      attempts: { provider: 4, preparing: 1, pending: 1, completed: 2, failed: 1 },
       tokenCoverage: { reported: 2, unknown: 1 },
       tokens: {
         input: 30,

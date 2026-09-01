@@ -658,16 +658,16 @@ describe("generations", () => {
     expect(database.select().from(providerAttemptTable).all()).toEqual([
       expect.objectContaining({ status: "failed", failureKind: "provider" }),
       expect.objectContaining({
-        status: "failed",
-        failureKind: "invalid-output",
+        status: "completed",
+        failureKind: null,
         providerGenerationId: "invalid-output-generation",
         inputTokens: 7,
         outputTokens: 2,
         totalTokens: 9,
       }),
       expect.objectContaining({
-        status: "failed",
-        failureKind: "invalid-output",
+        status: "completed",
+        failureKind: null,
         providerGenerationId: "invalid-accounting-generation",
         inputTokens: null,
       }),

@@ -28,7 +28,7 @@ CREATE TABLE `provider_attempts` (
         AND length(trim("provider_id")) > 0
         AND length(trim("requested_model_id")) > 0),
 	CONSTRAINT "provider_attempts_status_valid" CHECK("status" IN ('pending', 'completed', 'failed')),
-	CONSTRAINT "provider_attempts_failure_kind_valid" CHECK("failure_kind" IS NULL OR "failure_kind" IN ('provider', 'invalid-output', 'interrupted', 'storage')),
+	CONSTRAINT "provider_attempts_failure_kind_valid" CHECK("failure_kind" IS NULL OR "failure_kind" IN ('provider', 'interrupted')),
 	CONSTRAINT "provider_attempts_provider_result_valid" CHECK(("provider_generation_id" IS NULL OR length(trim("provider_generation_id")) > 0)
         AND ("resolved_model_id" IS NULL OR length(trim("resolved_model_id")) > 0)
         AND ("upstream_provider_id" IS NULL OR length(trim("upstream_provider_id")) > 0)
@@ -84,8 +84,13 @@ INSERT INTO `provider_attempts` (
 SELECT
 	'attempt_' || substr(`generations`.`id`, length('generation_') + 1),
 	`generations`.`id`, `turns`.`thread_id`, `campaigns`.`id`,
-	`generations`.`provider_id`, `generations`.`model_id`, `generations`.`status`,
-	`generations`.`failure_kind`, `generations`.`provider_generation_id`,
+	`generations`.`provider_id`, `generations`.`model_id`,
+	CASE WHEN `generations`.`status` = 'pending' THEN 'pending'
+		WHEN `generations`.`failure_kind` IN ('provider', 'interrupted') THEN 'failed'
+		ELSE 'completed' END,
+	CASE WHEN `generations`.`failure_kind` IN ('provider', 'interrupted')
+		THEN `generations`.`failure_kind` ELSE NULL END,
+	`generations`.`provider_generation_id`,
 	`generations`.`resolved_model_id`, `generations`.`upstream_provider_id`,
 	`generations`.`finish_reason`, `generations`.`input_tokens`,
 	`generations`.`cache_read_input_tokens`, `generations`.`cache_write_input_tokens`,

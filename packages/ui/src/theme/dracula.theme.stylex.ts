@@ -1,4 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
+import type { ThemePalette } from "../tokens.stylex";
 
 export const draculaPalette = stylex.defineConsts({
   // Surfaces
@@ -28,4 +29,4 @@ export const draculaPalette = stylex.defineConsts({
   composerGlowFirstBlend: "oklch(0.72 0.14 302)",
   composerGlowSecondBlend: "oklch(0.52 0.065 269)",
   composerGlowEnd: "oklch(0.78 0.085 213)",
-});
+} satisfies ThemePalette);

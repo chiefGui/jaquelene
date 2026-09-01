@@ -1,44 +1,19 @@
 import * as stylex from "@stylexjs/stylex";
 import { jaquelenePalette } from "./theme/jaquelene.theme.stylex";
 
-export const colors = stylex.defineVars({
-  // Surfaces
-  canvas: jaquelenePalette.canvas,
-  surface: jaquelenePalette.surface,
-  surfaceRaised: jaquelenePalette.surfaceRaised,
-  border: jaquelenePalette.border,
-  surfaceRaisedBorder: jaquelenePalette.surfaceRaisedBorder,
-  backdrop: jaquelenePalette.backdrop,
+export type ThemePalette = Readonly<Record<keyof typeof jaquelenePalette, string>>;
 
-  // Content and state
-  foreground: jaquelenePalette.foreground,
-  muted: jaquelenePalette.muted,
-  accent: jaquelenePalette.accent,
-  danger: jaquelenePalette.danger,
-  success: jaquelenePalette.success,
-  reasoning: jaquelenePalette.reasoning,
-
-  // Storage visualization
-  storageContent: jaquelenePalette.storageContent,
-  storageCache: jaquelenePalette.storageCache,
-  storageAppData: jaquelenePalette.storageAppData,
-  storageLogs: jaquelenePalette.storageLogs,
-
-  // Composer
-  composerGlowStart: jaquelenePalette.composerGlowStart,
-  composerGlowFirstBlend: jaquelenePalette.composerGlowFirstBlend,
-  composerGlowSecondBlend: jaquelenePalette.composerGlowSecondBlend,
-  composerGlowEnd: jaquelenePalette.composerGlowEnd,
-
-});
+export const colors = stylex.defineVars(jaquelenePalette);
 
 export const tokens = stylex.defineConsts({
-  // Control geometry and elevation
+  // Control geometry
   controlHeight: "2rem",
   radiusSmall: "0.25rem",
   radiusMedium: "0.5rem",
   radiusLarge: "0.625rem",
   radiusXLarge: "0.75rem",
+
+  // Elevation
   shadowLarge: "0 20px 25px -5px oklch(0 0 0 / 10%), 0 8px 10px -6px oklch(0 0 0 / 10%)",
   shadowXLarge: "0 25px 50px -12px oklch(0 0 0 / 25%)",
 

@@ -17,6 +17,7 @@ import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps, ReactNode } from "react";
 import { paneSurface } from "./pane-surface.stylex";
 import { useSecondarySidebarHostElement } from "./secondary-sidebar-host";
+import { shellChrome } from "./shell-chrome.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -96,7 +97,7 @@ function SecondarySidebarContent({
 }
 
 function SecondarySidebarHeader({ style, ...props }: StyleableProps<ComponentProps<"header">>) {
-  return <header {...props} {...stylex.props(styles.header, style)} />;
+  return <header {...props} {...stylex.props(shellChrome.header, styles.header, style)} />;
 }
 
 function SecondarySidebarViewport({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
@@ -152,13 +153,9 @@ const styles = stylex.create({
     width: "clamp(18rem, 30vw, 22rem)",
   },
   header: {
-    alignItems: "center",
     borderBottomColor: tokens.border,
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
-    display: "flex",
-    flexShrink: 0,
-    height: "3.5rem",
     justifyContent: "space-between",
     paddingInline: "1rem",
   },

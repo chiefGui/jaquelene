@@ -1,6 +1,12 @@
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { modelsListForUser } from "@openrouter/sdk/funcs/modelsListForUser.js";
-import type { ProviderModelsAdapter } from "@jaquelene/backend";
+import {
+  reasoningEfforts,
+  requireReasoningEffort,
+  type ModelReasoningCapability,
+  type ProviderModelsAdapter,
+  type ReasoningEffort,
+} from "@jaquelene/backend";
 import type { OpenRouterConfiguration } from "./connection";
 
 type OpenRouterCatalogModel = {
@@ -17,7 +23,9 @@ type OpenRouterCatalogModel = {
   };
   reasoning?:
     | {
+        defaultEffort?: unknown;
         mandatory: boolean;
+        supportedEfforts?: readonly unknown[] | null | undefined;
       }
     | undefined;
 };
@@ -106,6 +114,88 @@ function normalizeTokenPricing(
   return { inputUsdPerMillion, outputUsdPerMillion };
 }
 
+function normalizeReasoning(
+  id: string,
+  reasoning: OpenRouterCatalogModel["reasoning"],
+): ModelReasoningCapability | undefined {
+  if (!reasoning) {
+    return undefined;
+  }
+
+  const { defaultEffort: candidateDefaultEffort, mandatory, supportedEfforts } = reasoning;
+  let defaultEffort: ReasoningEffort | undefined;
+
+  if (candidateDefaultEffort !== undefined && candidateDefaultEffort !== null) {
+    if (typeof candidateDefaultEffort !== "string") {
+      throw new TypeError(`OpenRouter model "${id}" has an invalid default reasoning effort.`);
+    }
+
+    try {
+      requireReasoningEffort(candidateDefaultEffort);
+    } catch {
+      throw new TypeError(`OpenRouter model "${id}" has an unknown default reasoning effort.`);
+    }
+
+    defaultEffort = candidateDefaultEffort;
+  }
+
+  let normalizedSupportedEfforts: ReasoningEffort[] | undefined;
+
+  if (supportedEfforts === null) {
+    normalizedSupportedEfforts = reasoningEfforts.filter(
+      (effort) => !mandatory || effort !== "none",
+    );
+  } else if (supportedEfforts !== undefined) {
+    const uniqueEfforts = new Set<ReasoningEffort>();
+
+    for (const candidate of supportedEfforts) {
+      if (typeof candidate !== "string") {
+        throw new TypeError(`OpenRouter model "${id}" has an invalid supported reasoning effort.`);
+      }
+
+      try {
+        requireReasoningEffort(candidate);
+      } catch {
+        throw new TypeError(`OpenRouter model "${id}" has an unknown supported reasoning effort.`);
+      }
+
+      if (mandatory && candidate === "none") {
+        throw new TypeError(`OpenRouter model "${id}" cannot disable required reasoning.`);
+      }
+
+      if (uniqueEfforts.has(candidate)) {
+        throw new TypeError(`OpenRouter model "${id}" repeats a supported reasoning effort.`);
+      }
+
+      uniqueEfforts.add(candidate);
+    }
+
+    if (uniqueEfforts.size === 0) {
+      throw new TypeError(`OpenRouter model "${id}" exposes no supported reasoning efforts.`);
+    }
+
+    normalizedSupportedEfforts = [...uniqueEfforts];
+  }
+
+  if (mandatory && defaultEffort === "none") {
+    throw new TypeError(`OpenRouter model "${id}" cannot default required reasoning off.`);
+  }
+
+  if (
+    defaultEffort !== undefined &&
+    normalizedSupportedEfforts &&
+    !normalizedSupportedEfforts.includes(defaultEffort)
+  ) {
+    throw new TypeError(`OpenRouter model "${id}" has an unsupported default reasoning effort.`);
+  }
+
+  return {
+    required: mandatory,
+    ...(defaultEffort === undefined ? {} : { defaultEffort }),
+    ...(normalizedSupportedEfforts ? { supportedEfforts: normalizedSupportedEfforts } : {}),
+  };
+}
+
 function normalizeModel({ id, name, pricing, reasoning }: OpenRouterCatalogModel) {
   const separator = id.indexOf("/");
   const authorId =
@@ -137,12 +227,13 @@ function normalizeModel({ id, name, pricing, reasoning }: OpenRouterCatalogModel
   }
 
   const tokenPricing = normalizeTokenPricing(id, pricing);
+  const normalizedReasoning = normalizeReasoning(id, reasoning);
 
   return {
     brandId,
     id,
     name: displayName,
-    ...(reasoning ? { reasoning: { required: reasoning.mandatory } } : {}),
+    ...(normalizedReasoning ? { reasoning: normalizedReasoning } : {}),
     ...(tokenPricing ? { tokenPricing } : {}),
   };
 }

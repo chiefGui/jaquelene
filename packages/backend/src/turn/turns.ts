@@ -6,13 +6,13 @@ import type {
 } from "#backend/generation/generations";
 import type { Generation } from "#backend/generation/schema";
 import type { ThreadId, TurnId } from "#backend/id";
-import type { ModelReference } from "#backend/provider/provider";
+import type { GenerationConfiguration } from "#backend/provider/provider";
 import type { ThreadMessage } from "#backend/thread/schema";
 import type { ThreadEngine } from "#backend/thread/threads";
 
 type TurnGenerationEngine = Pick<
   GenerationEngine,
-  "acceptReplyInTransaction" | "listLatestForTurns" | "requireRegisteredModel"
+  "acceptReplyInTransaction" | "listLatestForTurns" | "requireRegisteredConfiguration"
 > & {
   scheduleAcceptedReply(
     accepted: AcceptedReplyGeneration,
@@ -30,13 +30,13 @@ export type ThreadActivityPage = ReturnType<TurnThreads["listMessages"]> & {
 export type SubmitTurnRequest = {
   threadId: ThreadId;
   content: string;
-  model: ModelReference;
+  configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
 
 export type RetryTurnRequest = {
   turnId: TurnId;
-  model: ModelReference;
+  configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
 
@@ -61,8 +61,16 @@ export type TurnOperation = {
   settlement: Promise<TurnSettlement>;
 };
 
-function copyModel({ providerId, modelId }: ModelReference): ModelReference {
-  return { providerId, modelId };
+function copyConfiguration(configuration: GenerationConfiguration): GenerationConfiguration {
+  return {
+    model: {
+      providerId: configuration.model.providerId,
+      modelId: configuration.model.modelId,
+    },
+    ...(configuration.reasoningEffort === undefined
+      ? {}
+      : { reasoningEffort: configuration.reasoningEffort }),
+  };
 }
 
 function assertNotAborted(signal: AbortSignal | undefined) {
@@ -145,9 +153,14 @@ export function createTurns(
       return { ...page, generations: generationsForPage };
     },
 
-    submit({ threadId, content, model: requestedModel, signal }: SubmitTurnRequest): TurnOperation {
-      const model = copyModel(requestedModel);
-      generations.requireRegisteredModel(model);
+    submit({
+      threadId,
+      content,
+      configuration: requestedConfiguration,
+      signal,
+    }: SubmitTurnRequest): TurnOperation {
+      const configuration = copyConfiguration(requestedConfiguration);
+      generations.requireRegisteredConfiguration(configuration);
       assertNotAborted(signal);
 
       return startExclusive(threadId, () => {
@@ -156,7 +169,7 @@ export function createTurns(
           const acceptedGeneration = generations.acceptReplyInTransaction(
             transaction,
             turn.id,
-            model,
+            configuration,
           );
           const acceptance = {
             userMessage: message,
@@ -173,9 +186,13 @@ export function createTurns(
       });
     },
 
-    retry({ turnId, model: requestedModel, signal }: RetryTurnRequest): TurnOperation {
-      const model = copyModel(requestedModel);
-      generations.requireRegisteredModel(model);
+    retry({
+      turnId,
+      configuration: requestedConfiguration,
+      signal,
+    }: RetryTurnRequest): TurnOperation {
+      const configuration = copyConfiguration(requestedConfiguration);
+      generations.requireRegisteredConfiguration(configuration);
       assertNotAborted(signal);
       const input = threads.getTurnInput(turnId);
 
@@ -191,7 +208,7 @@ export function createTurns(
         }
 
         const acceptedGeneration = database.transaction((transaction) =>
-          generations.acceptReplyInTransaction(transaction, turnId, model),
+          generations.acceptReplyInTransaction(transaction, turnId, configuration),
         );
         const acceptance = {
           userMessage: input.message,

@@ -186,7 +186,9 @@ describe("backend", () => {
     const submittedOperation = first.turns.submit({
       threadId: campaign.threadId,
       content: "Begin",
-      model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      configuration: {
+        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      },
     });
     const submitted = await submittedOperation.settlement;
 
@@ -209,7 +211,9 @@ describe("backend", () => {
       first.turns.submit({
         threadId: campaign.threadId,
         content: "Continue",
-        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+        configuration: {
+          model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+        },
       }),
     ).toThrow("Backend is closed.");
 
@@ -367,7 +371,9 @@ describe("backend", () => {
     const pending = backend.turns.submit({
       threadId: thread.id,
       content: "Hello",
-      model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      configuration: {
+        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      },
     });
     await providerStarted.promise;
 
@@ -409,7 +415,9 @@ describe("backend", () => {
     const pending = backend.turns.submit({
       threadId: thread.id,
       content: "Hello",
-      model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      configuration: {
+        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      },
     });
 
     const closing = backend.close();
@@ -483,7 +491,7 @@ describe("backend", () => {
     await expect(
       backend.generations.generateReply({
         turnId: ids.turn.create(),
-        model: { providerId: "provider-a", modelId: "maker/model" },
+        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
       }),
     ).rejects.toThrow("Backend is closed.");
     await closing;

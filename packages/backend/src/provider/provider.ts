@@ -20,8 +20,28 @@ export function requireModelReference(reference: ModelReference) {
   }
 }
 
+export const reasoningEfforts = [
+  "max",
+  "xhigh",
+  "high",
+  "medium",
+  "low",
+  "minimal",
+  "none",
+] as const;
+
+export type ReasoningEffort = (typeof reasoningEfforts)[number];
+
+export function requireReasoningEffort(effort: string): asserts effort is ReasoningEffort {
+  if (!(reasoningEfforts as readonly string[]).includes(effort)) {
+    throw new TypeError(`Unknown reasoning effort "${effort}".`);
+  }
+}
+
 export type ModelReasoningCapability = Readonly<{
   required: boolean;
+  defaultEffort?: ReasoningEffort;
+  supportedEfforts?: readonly ReasoningEffort[];
 }>;
 
 export type ProviderModel = Readonly<{
@@ -45,6 +65,34 @@ export function requireModelSelection(selection: ModelSelection) {
   }
 }
 
+export type GenerationConfiguration = Readonly<{
+  model: ModelReference;
+  reasoningEffort?: ReasoningEffort;
+}>;
+
+export function requireGenerationConfiguration(configuration: GenerationConfiguration) {
+  requireModelReference(configuration.model);
+
+  if (configuration.reasoningEffort !== undefined) {
+    requireReasoningEffort(configuration.reasoningEffort);
+  }
+}
+
+export type GenerationConfigurationSelection = Readonly<{
+  model: ModelSelection;
+  reasoningEffort?: ReasoningEffort;
+}>;
+
+export function requireGenerationConfigurationSelection(
+  configuration: GenerationConfigurationSelection,
+) {
+  requireModelSelection(configuration.model);
+
+  if (configuration.reasoningEffort !== undefined) {
+    requireReasoningEffort(configuration.reasoningEffort);
+  }
+}
+
 export type GenerationUsage = Readonly<{
   inputTokens: number;
   outputTokens: number;
@@ -56,6 +104,7 @@ export type ProviderGenerationRequest = Readonly<{
   threadId: ThreadId;
   modelId: string;
   input: ModelInput;
+  reasoningEffort?: ReasoningEffort;
 }>;
 
 export type ProviderGenerationResult = Readonly<{

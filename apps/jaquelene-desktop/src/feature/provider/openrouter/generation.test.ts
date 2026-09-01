@@ -82,6 +82,21 @@ describe("OpenRouter generation provider", () => {
     );
   });
 
+  it("sends an explicitly selected reasoning effort", async () => {
+    const signal = operationSignal();
+    const request = { ...generationRequest(), reasoningEffort: "high" as const };
+    const send = vi.fn(async () => chatResult());
+    const provider = createOpenRouterGeneration(connection(), send);
+
+    await provider.generate(request, signal);
+
+    expect(send).toHaveBeenCalledWith(
+      "openrouter-key",
+      expect.objectContaining({ reasoning: { effort: "high" } }),
+      signal,
+    );
+  });
+
   it("combines text content parts and falls back to refusal text", async () => {
     const sendParts = vi.fn(async () =>
       chatResult({

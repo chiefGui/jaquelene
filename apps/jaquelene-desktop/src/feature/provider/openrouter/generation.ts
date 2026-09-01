@@ -2,6 +2,7 @@ import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { chatSend } from "@openrouter/sdk/funcs/chatSend.js";
 import type { ChatMessages, ChatResult } from "@openrouter/sdk/models";
 import type { DialogueMessage, ModelInput, ProviderGenerationAdapter } from "@jaquelene/backend";
+import type { ReasoningEffort } from "@jaquelene/backend";
 import type { OpenRouterConfiguration } from "./connection";
 
 type SendOpenRouterChat = (
@@ -10,6 +11,7 @@ type SendOpenRouterChat = (
     model: string;
     messages: ChatMessages[];
     metadata: Record<string, string>;
+    reasoning?: { effort: ReasoningEffort };
     sessionId: string;
     stream: false;
   },
@@ -105,6 +107,9 @@ export function createOpenRouterGeneration(
             model: request.modelId,
             messages: toOpenRouterMessages(request.input),
             metadata: { jaquelene_generation_id: request.generationId },
+            ...(request.reasoningEffort === undefined
+              ? {}
+              : { reasoning: { effort: request.reasoningEffort } }),
             sessionId: request.threadId,
             stream: false,
           },

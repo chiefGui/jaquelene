@@ -1,6 +1,7 @@
 import type { Generation, TurnAcceptance, TurnSettlement, Turns } from "@jaquelene/backend";
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
+import { ReasoningEffort } from "@jaquelene/ipc/main";
 import type {
   CompletedReply as IpcCompletedReply,
   FailedReply as IpcFailedReply,
@@ -34,6 +35,15 @@ vi.mock("@jaquelene/ipc/main", () => ({
     Pending: "pending",
     Completed: "completed",
     Failed: "failed",
+  },
+  ReasoningEffort: {
+    Max: "max",
+    XHigh: "xhigh",
+    High: "high",
+    Medium: "medium",
+    Low: "low",
+    Minimal: "minimal",
+    None: "none",
   },
   ThreadMessageAuthor: { User: "user", Assistant: "assistant" },
   Threads: {
@@ -91,6 +101,7 @@ function createTurnState() {
     turnId,
     providerId: "openrouter",
     modelId: "maker/model",
+    reasoningEffort: "high",
     status: "pending",
     failureKind: null,
     providerGenerationId: null,
@@ -196,11 +207,14 @@ describe("thread IPC", () => {
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
     const ipc = requireImplementations();
     const page = await ipc.threads.listMessages({ threadId: acceptance.userMessage.threadId });
-    const model = { providerId: "openrouter", modelId: "maker/model" };
+    const configuration = {
+      model: { providerId: "openrouter", modelId: "maker/model" },
+      reasoningEffort: ReasoningEffort.High,
+    };
     const submitted = await ipc.turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model,
+      configuration,
     });
 
     expect(listForThread).toHaveBeenCalledWith({
@@ -224,6 +238,7 @@ describe("thread IPC", () => {
           turnId: acceptance.userMessage.turnId,
           providerId: "openrouter",
           modelId: "maker/model",
+          reasoningEffort: ReasoningEffort.High,
           status: "pending",
           startedAt: 101,
         },
@@ -234,7 +249,10 @@ describe("thread IPC", () => {
     expect(submit).toHaveBeenCalledWith({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model,
+      configuration: {
+        model: configuration.model,
+        reasoningEffort: "high",
+      },
     });
     expect(submitted).toEqual({
       userMessage: page.messages[0],
@@ -274,7 +292,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     await vi.waitFor(() => expect(implementations.dispatchReplySuperseded).toHaveBeenCalledOnce());
@@ -307,7 +325,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: failed.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
@@ -336,17 +354,19 @@ describe("thread IPC", () => {
       retry,
     };
     const report = vi.fn<ErrorReporter["report"]>();
-    const model = { providerId: "openrouter", modelId: "maker/model" };
+    const configuration = {
+      model: { providerId: "openrouter", modelId: "maker/model" },
+    };
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
     const accepted = await requireImplementations().turns.retry({
       turnId: failed.userMessage.turnId,
-      model,
+      configuration,
     });
 
     expect(retry).toHaveBeenCalledWith({
       turnId: failed.userMessage.turnId,
-      model,
+      configuration,
     });
     expect(accepted.status).toBe("pending");
     await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
@@ -369,7 +389,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
@@ -405,7 +425,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: interrupted.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     await vi.waitFor(() => expect(implementations.dispatchReplyFailed).toHaveBeenCalledOnce());
@@ -429,7 +449,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     expect(implementations.dispatchReplyFailed).not.toHaveBeenCalled();
@@ -456,7 +476,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
     stopSubmittingRenderer();
     messaging.expose(activeTarget());
@@ -483,7 +503,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
@@ -501,13 +521,15 @@ describe("thread IPC", () => {
     const backendTurns: Turns = { listForThread, submit, retry };
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     const ipc = requireImplementations();
-    const model = { providerId: "openrouter", modelId: "maker/model" };
+    const configuration = {
+      model: { providerId: "openrouter", modelId: "maker/model" },
+    };
 
     expect(() => ipc.threads.listMessages({ threadId: "invalid" })).toThrow(TypeError);
-    expect(() => ipc.turns.submit({ threadId: "invalid", content: "Hello", model })).toThrow(
-      TypeError,
-    );
-    expect(() => ipc.turns.retry({ turnId: "invalid", model })).toThrow(TypeError);
+    expect(() =>
+      ipc.turns.submit({ threadId: "invalid", content: "Hello", configuration }),
+    ).toThrow(TypeError);
+    expect(() => ipc.turns.retry({ turnId: "invalid", configuration })).toThrow(TypeError);
     expect(listForThread).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
     expect(retry).not.toHaveBeenCalled();

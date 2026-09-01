@@ -110,7 +110,10 @@ describe("generations", () => {
 
     const result = await generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/requested-model" },
+      configuration: {
+        model: { providerId: provider.id, modelId: "maker/requested-model" },
+        reasoningEffort: "high",
+      },
     });
 
     expect(generate).toHaveBeenCalledWith({
@@ -121,6 +124,7 @@ describe("generations", () => {
         instructions: [],
         dialogue: [{ messageId: started.message.id, role: "user", content: "Hello" }],
       },
+      reasoningEffort: "high",
     });
     expect(result).toEqual({
       activated: true,
@@ -139,6 +143,7 @@ describe("generations", () => {
         turnId: started.turn.id,
         providerId: provider.id,
         modelId: "maker/requested-model",
+        reasoningEffort: "high",
         status: "completed",
         failureKind: null,
         providerGenerationId: "provider-generation-1",
@@ -202,13 +207,13 @@ describe("generations", () => {
     const first = threads.startTurn(thread.id, "First user message");
     const firstReply = await generations.generateReply({
       turnId: first.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     const second = threads.startTurn(thread.id, "Second user message");
 
     await generations.generateReply({
       turnId: second.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
     expect(provider.generate).toHaveBeenLastCalledWith(
@@ -240,11 +245,11 @@ describe("generations", () => {
     const started = threads.startTurn(thread.id, "Hello");
     const first = await generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     const regenerated = await generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
     expect(regenerated.activated).toBe(true);
@@ -276,7 +281,7 @@ describe("generations", () => {
     const first = threads.startTurn(thread.id, "First user message");
     const pending = generations.generateReply({
       turnId: first.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledOnce());
     const second = threads.startTurn(thread.id, "Newer user message");
@@ -329,7 +334,7 @@ describe("generations", () => {
     const model = { providerId: provider.id, modelId: "maker/model" };
     const pending = generations.generateReply({
       turnId: first.turn.id,
-      model,
+      configuration: { model },
     });
     model.modelId = "mutated/model";
     const second = threads.startTurn(thread.id, "Newer user message");
@@ -374,7 +379,7 @@ describe("generations", () => {
     const started = threads.startTurn(thread.id, "Hello");
     const request = {
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     };
     const firstGeneration = generations.generateReply(request);
 
@@ -411,11 +416,11 @@ describe("generations", () => {
     const second = threads.startTurn(thread.id, "Second");
     const firstGeneration = generations.generateReply({
       turnId: first.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     const secondGeneration = generations.generateReply({
       turnId: second.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledTimes(2));
 
@@ -449,13 +454,13 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: started.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toBe(failure);
     await expect(
       generations.generateReply({
         turnId: started.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow(TypeError);
 
@@ -482,7 +487,7 @@ describe("generations", () => {
     const interruption = new Error("Generation interrupted by test.");
     const pending = generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       signal: controller.signal,
     });
     await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledOnce());
@@ -518,7 +523,7 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: started.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow();
 
@@ -552,7 +557,7 @@ describe("generations", () => {
     const first = threads.startTurn(firstThread.id, "First thread");
     await generations.generateReply({
       turnId: first.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
     const secondThread = threads.create();
@@ -561,7 +566,7 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: second.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow();
 
@@ -587,7 +592,7 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: second.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).resolves.toEqual(
       expect.objectContaining({
@@ -691,7 +696,7 @@ describe("generations", () => {
     const started = threads.startTurn(thread.id, "Hello");
     await generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
     expect(() =>
@@ -717,7 +722,9 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: started.turn.id,
-        model: { providerId: "missing-provider", modelId: "maker/model" },
+        configuration: {
+          model: { providerId: "missing-provider", modelId: "maker/model" },
+        },
       }),
     ).rejects.toThrow('Unknown generation provider "missing-provider".');
     expect(provider.generate).not.toHaveBeenCalled();
@@ -735,7 +742,7 @@ describe("generations", () => {
     const interruption = new Error("Reply preparation interrupted by test.");
     const pending = generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       signal: controller.signal,
     });
     await vi.waitFor(() =>
@@ -770,7 +777,7 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: missingTurnId,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow(`Turn "${missingTurnId}" does not exist.`);
 
@@ -790,7 +797,7 @@ describe("generations", () => {
     await expect(
       malformed.generateReply({
         turnId: started.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow("A prepared reply must end with its accepted user input.");
     expect(provider.generate).not.toHaveBeenCalled();

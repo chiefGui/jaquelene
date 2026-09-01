@@ -3,6 +3,7 @@ CREATE TABLE `generations` (
 	`turn_id` text NOT NULL,
 	`provider_id` text NOT NULL,
 	`model_id` text NOT NULL,
+	`reasoning_effort` text,
 	`status` text NOT NULL,
 	`failure_kind` text,
 	`provider_generation_id` text,
@@ -17,6 +18,7 @@ CREATE TABLE `generations` (
 	CONSTRAINT `fk_generations_turn_id_turns_id_fk` FOREIGN KEY (`turn_id`) REFERENCES `turns`(`id`) ON DELETE CASCADE,
 	CONSTRAINT `generations_output_message_fk` FOREIGN KEY (`turn_id`,`output_message_id`) REFERENCES `thread_messages`(`turn_id`,`id`),
 	CONSTRAINT "generations_model_reference_valid" CHECK(length(trim("provider_id")) > 0 AND length(trim("model_id")) > 0),
+	CONSTRAINT "generations_reasoning_effort_valid" CHECK("reasoning_effort" IS NULL OR "reasoning_effort" IN ('max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none')),
 	CONSTRAINT "generations_status_valid" CHECK("status" IN ('pending', 'completed', 'failed')),
 	CONSTRAINT "generations_failure_kind_valid" CHECK("failure_kind" IS NULL OR "failure_kind" IN ('preparation', 'provider', 'invalid-output', 'interrupted', 'storage')),
 	CONSTRAINT "generations_provider_result_valid" CHECK(("provider_generation_id" IS NULL OR length(trim("provider_generation_id")) > 0)

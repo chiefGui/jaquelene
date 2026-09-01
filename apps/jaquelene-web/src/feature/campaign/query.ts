@@ -1,4 +1,8 @@
-import { Campaigns, type Campaign, type ModelSelection } from "@jaquelene/ipc/renderer";
+import {
+  Campaigns,
+  type Campaign,
+  type GenerationConfigurationSelection,
+} from "@jaquelene/ipc/renderer";
 import {
   mutationOptions,
   queryOptions,
@@ -12,14 +16,16 @@ import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 const startCampaign = requireIpcMethod(Campaigns?.start);
 const listCampaignsForScenario = requireIpcMethod(Campaigns?.listForScenario);
 const getCampaign = requireIpcMethod(Campaigns?.get);
-const setCampaignModelOverride = requireIpcMethod(Campaigns?.setModelOverride);
+const setCampaignGenerationConfigurationOverride = requireIpcMethod(
+  Campaigns?.setGenerationConfigurationOverride,
+);
 export const campaignQueryKey = ["campaigns"] as const;
 
-function setCampaignModelOverrideMutationKey(id: string) {
-  return [...campaignQueryKey, id, "set-model-override"] as const;
+function setCampaignGenerationConfigurationOverrideMutationKey(id: string) {
+  return [...campaignQueryKey, id, "set-generation-configuration-override"] as const;
 }
 
-type SetCampaignModelOverrideContext = {
+type SetCampaignGenerationConfigurationOverrideContext = {
   previousCampaign: Campaign | null | undefined;
 };
 
@@ -39,9 +45,9 @@ export function campaignQuery(id: string) {
   });
 }
 
-function withoutModelOverride(campaign: Campaign): Campaign {
+function withoutGenerationConfigurationOverride(campaign: Campaign): Campaign {
   const inheritedCampaign = { ...campaign };
-  delete inheritedCampaign.modelOverride;
+  delete inheritedCampaign.generationConfigurationOverride;
   return inheritedCampaign;
 }
 
@@ -54,15 +60,23 @@ function cacheCampaign(queryClient: QueryClient, campaign: Campaign) {
   );
 }
 
-export function setCampaignModelOverrideMutationOptions(queryClient: QueryClient, id: string) {
+export function setCampaignGenerationConfigurationOverrideMutationOptions(
+  queryClient: QueryClient,
+  id: string,
+) {
   const query = campaignQuery(id);
 
-  return mutationOptions<Campaign, Error, ModelSelection | null, SetCampaignModelOverrideContext>({
+  return mutationOptions<
+    Campaign,
+    Error,
+    GenerationConfigurationSelection | null,
+    SetCampaignGenerationConfigurationOverrideContext
+  >({
     ...ipcMutationOptions,
-    mutationKey: setCampaignModelOverrideMutationKey(id),
-    scope: { id: `campaign:${id}:model-override` },
-    async mutationFn(model) {
-      const campaign = await setCampaignModelOverride(id, model);
+    mutationKey: setCampaignGenerationConfigurationOverrideMutationKey(id),
+    scope: { id: `campaign:${id}:generation-configuration-override` },
+    async mutationFn(configuration) {
+      const campaign = await setCampaignGenerationConfigurationOverride(id, configuration);
 
       if (!campaign) {
         throw new Error(`Campaign "${id}" is unavailable.`);
@@ -70,7 +84,7 @@ export function setCampaignModelOverrideMutationOptions(queryClient: QueryClient
 
       return campaign;
     },
-    async onMutate(model) {
+    async onMutate(configuration) {
       await queryClient.cancelQueries({ queryKey: query.queryKey, exact: true });
       const previousCampaign = queryClient.getQueryData<Campaign | null>(query.queryKey);
 
@@ -81,15 +95,23 @@ export function setCampaignModelOverrideMutationOptions(queryClient: QueryClient
         });
         cacheCampaign(
           queryClient,
-          model
-            ? { ...previousCampaign, modelOverride: { ...model } }
-            : withoutModelOverride(previousCampaign),
+          configuration
+            ? {
+                ...previousCampaign,
+                generationConfigurationOverride: {
+                  model: { ...configuration.model },
+                  ...(configuration.reasoningEffort === undefined
+                    ? {}
+                    : { reasoningEffort: configuration.reasoningEffort }),
+                },
+              }
+            : withoutGenerationConfigurationOverride(previousCampaign),
         );
       }
 
       return { previousCampaign };
     },
-    onError(_error, _model, context) {
+    onError(_error, _configuration, context) {
       if (context?.previousCampaign) {
         cacheCampaign(queryClient, context.previousCampaign);
       }
@@ -100,13 +122,17 @@ export function setCampaignModelOverrideMutationOptions(queryClient: QueryClient
   });
 }
 
-export function useSetCampaignModelOverride(id: string) {
+export function useSetCampaignGenerationConfigurationOverride(id: string) {
   const queryClient = useQueryClient();
-  return useMutation(setCampaignModelOverrideMutationOptions(queryClient, id));
+  return useMutation(setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, id));
 }
 
-export function useIsCampaignModelOverridePending(id: string) {
-  return useIsMutating({ mutationKey: setCampaignModelOverrideMutationKey(id) }) > 0;
+export function useIsCampaignGenerationConfigurationOverridePending(id: string) {
+  return (
+    useIsMutating({
+      mutationKey: setCampaignGenerationConfigurationOverrideMutationKey(id),
+    }) > 0
+  );
 }
 
 export function useStartCampaign() {

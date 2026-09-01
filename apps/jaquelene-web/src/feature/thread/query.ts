@@ -1,4 +1,4 @@
-import { Threads, Turns, type ModelReference } from "@jaquelene/ipc/renderer";
+import { Threads, Turns, type GenerationConfiguration } from "@jaquelene/ipc/renderer";
 import {
   type QueryClient,
   infiniteQueryOptions,
@@ -27,7 +27,7 @@ export type SubmitTurnVariables = {
   clientId: string;
   content: string;
   submittedAt: number;
-  model: ModelReference;
+  configuration: GenerationConfiguration;
 };
 
 export function threadMessagesQuery(threadId: string) {
@@ -52,8 +52,18 @@ function turnMutationKey(threadId: string) {
   return [...threadQueryKey, threadId, "turn"] as const;
 }
 
-function copyModelReference({ providerId, modelId }: ModelReference): ModelReference {
-  return { providerId, modelId };
+function copyGenerationConfiguration(
+  configuration: GenerationConfiguration,
+): GenerationConfiguration {
+  return {
+    model: {
+      providerId: configuration.model.providerId,
+      modelId: configuration.model.modelId,
+    },
+    ...(configuration.reasoningEffort === undefined
+      ? {}
+      : { reasoningEffort: configuration.reasoningEffort }),
+  };
 }
 
 function reconcileTurn(queryClient: QueryClient, threadId: string, update: ThreadTurnUpdate) {
@@ -144,8 +154,12 @@ export function useSubmitTurn(threadId: string) {
     ...ipcMutationOptions,
     mutationKey: [...turnMutationKey(threadId), "submit"],
     scope: turnMutationScope(threadId),
-    mutationFn: ({ content, model }: SubmitTurnVariables) =>
-      submitTurn({ threadId, content, model: copyModelReference(model) }),
+    mutationFn: ({ content, configuration }: SubmitTurnVariables) =>
+      submitTurn({
+        threadId,
+        content,
+        configuration: copyGenerationConfiguration(configuration),
+      }),
     onSuccess(submission) {
       return reconcileTurn(queryClient, threadId, {
         type: "submission-accepted",
@@ -165,8 +179,13 @@ export function useRetryTurn(threadId: string) {
     ...ipcMutationOptions,
     mutationKey: [...turnMutationKey(threadId), "retry"],
     scope: turnMutationScope(threadId),
-    mutationFn: ({ turnId, model }: { turnId: string; model: ModelReference }) =>
-      retryTurn({ turnId, model: copyModelReference(model) }),
+    mutationFn: ({
+      turnId,
+      configuration,
+    }: {
+      turnId: string;
+      configuration: GenerationConfiguration;
+    }) => retryTurn({ turnId, configuration: copyGenerationConfiguration(configuration) }),
     onSuccess(generation) {
       return reconcileTurn(queryClient, threadId, { type: "retry-accepted", generation });
     },

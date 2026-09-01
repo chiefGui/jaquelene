@@ -1,20 +1,36 @@
-import type { Campaign, ModelSelection } from "@jaquelene/ipc/renderer";
+import { ReasoningEffort } from "@jaquelene/ipc/renderer";
+import type {
+  Campaign,
+  GenerationConfigurationSelection,
+  ModelSelection,
+} from "@jaquelene/ipc/renderer";
 import { MutationObserver, QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const campaignsIpc = vi.hoisted(() => ({
   get: vi.fn(),
   listForScenario: vi.fn(),
-  setModelOverride: vi.fn(),
+  setGenerationConfigurationOverride: vi.fn(),
   start: vi.fn(),
 }));
 
-vi.mock("@jaquelene/ipc/renderer", () => ({ Campaigns: campaignsIpc }));
+vi.mock("@jaquelene/ipc/renderer", () => ({
+  Campaigns: campaignsIpc,
+  ReasoningEffort: {
+    Max: "max",
+    XHigh: "xhigh",
+    High: "high",
+    Medium: "medium",
+    Low: "low",
+    Minimal: "minimal",
+    None: "none",
+  },
+}));
 
 import {
   campaignQuery,
   campaignsForScenarioQuery,
-  setCampaignModelOverrideMutationOptions,
+  setCampaignGenerationConfigurationOverrideMutationOptions,
 } from "./query";
 
 function modelSelection(id: string): ModelSelection {
@@ -26,13 +42,23 @@ function modelSelection(id: string): ModelSelection {
   };
 }
 
-function campaign(modelOverride?: ModelSelection): Campaign {
+function generationConfiguration(
+  id: string,
+  reasoningEffort?: ReasoningEffort,
+): GenerationConfigurationSelection {
+  return {
+    model: modelSelection(id),
+    ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+  };
+}
+
+function campaign(generationConfigurationOverride?: GenerationConfigurationSelection): Campaign {
   return {
     id: "campaign-a",
     scenarioId: "scenario-a",
     threadId: "thread-a",
     startedAt: 100,
-    ...(modelOverride ? { modelOverride } : {}),
+    ...(generationConfigurationOverride ? { generationConfigurationOverride } : {}),
   };
 }
 
@@ -57,33 +83,39 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
-describe("campaign model override mutation", () => {
+describe("campaign generation configuration override mutation", () => {
   it("shows the override immediately and reconciles campaign caches", async () => {
     const queryClient = createQueryClient();
     const original = campaign();
-    const requestedModel = modelSelection("requested");
-    const saved = campaign({ ...requestedModel, name: "Saved model" });
+    const requestedConfiguration = generationConfiguration("requested", ReasoningEffort.High);
+    const saved = campaign({
+      ...requestedConfiguration,
+      model: { ...requestedConfiguration.model, name: "Saved model" },
+    });
     const save = deferred<Campaign>();
-    campaignsIpc.setModelOverride.mockReturnValue(save.promise);
+    campaignsIpc.setGenerationConfigurationOverride.mockReturnValue(save.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
     queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
     const mutation = new MutationObserver(
       queryClient,
-      setCampaignModelOverrideMutationOptions(queryClient, original.id),
+      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
     );
 
-    const result = mutation.mutate(requestedModel);
+    const result = mutation.mutate(requestedConfiguration);
 
     await vi.waitFor(() => {
       expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(
-        campaign(requestedModel),
+        campaign(requestedConfiguration),
       );
     });
 
     save.resolve(saved);
 
     await expect(result).resolves.toEqual(saved);
-    expect(campaignsIpc.setModelOverride).toHaveBeenCalledWith(original.id, requestedModel);
+    expect(campaignsIpc.setGenerationConfigurationOverride).toHaveBeenCalledWith(
+      original.id,
+      requestedConfiguration,
+    );
     expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(saved);
     expect(
       queryClient.getQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey),
@@ -92,14 +124,14 @@ describe("campaign model override mutation", () => {
 
   it("returns a campaign to the global default immediately", async () => {
     const queryClient = createQueryClient();
-    const original = campaign(modelSelection("override"));
+    const original = campaign(generationConfiguration("override", ReasoningEffort.Low));
     const inherited = campaign();
     const save = deferred<Campaign>();
-    campaignsIpc.setModelOverride.mockReturnValue(save.promise);
+    campaignsIpc.setGenerationConfigurationOverride.mockReturnValue(save.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
     const mutation = new MutationObserver(
       queryClient,
-      setCampaignModelOverrideMutationOptions(queryClient, original.id),
+      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
     );
 
     const result = mutation.mutate(null);
@@ -110,22 +142,24 @@ describe("campaign model override mutation", () => {
 
     save.resolve(inherited);
     await expect(result).resolves.toEqual(inherited);
-    expect(campaignsIpc.setModelOverride).toHaveBeenCalledWith(original.id, null);
+    expect(campaignsIpc.setGenerationConfigurationOverride).toHaveBeenCalledWith(original.id, null);
   });
 
   it("restores the previous campaign when saving fails", async () => {
     const queryClient = createQueryClient();
-    const original = campaign(modelSelection("original"));
+    const original = campaign(generationConfiguration("original", ReasoningEffort.Medium));
     const failure = new Error("Could not save the campaign model.");
-    campaignsIpc.setModelOverride.mockRejectedValue(failure);
+    campaignsIpc.setGenerationConfigurationOverride.mockRejectedValue(failure);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
     queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
     const mutation = new MutationObserver(
       queryClient,
-      setCampaignModelOverrideMutationOptions(queryClient, original.id),
+      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
     );
 
-    await expect(mutation.mutate(modelSelection("requested"))).rejects.toBe(failure);
+    await expect(
+      mutation.mutate(generationConfiguration("requested", ReasoningEffort.Minimal)),
+    ).rejects.toBe(failure);
 
     expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(original);
     expect(
@@ -135,13 +169,13 @@ describe("campaign model override mutation", () => {
 
   it("rejects an update when the campaign disappeared", async () => {
     const queryClient = createQueryClient();
-    campaignsIpc.setModelOverride.mockResolvedValue(null);
+    campaignsIpc.setGenerationConfigurationOverride.mockResolvedValue(null);
     const mutation = new MutationObserver(
       queryClient,
-      setCampaignModelOverrideMutationOptions(queryClient, "missing-campaign"),
+      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, "missing-campaign"),
     );
 
-    await expect(mutation.mutate(modelSelection("requested"))).rejects.toThrow(
+    await expect(mutation.mutate(generationConfiguration("requested"))).rejects.toThrow(
       'Campaign "missing-campaign" is unavailable.',
     );
   });

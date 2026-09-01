@@ -22,14 +22,18 @@ describe("OpenRouter model provider", () => {
         name: "Meta: Text model",
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
-        reasoning: { mandatory: false },
+        reasoning: {
+          mandatory: false,
+          defaultEffort: "medium",
+          supportedEfforts: ["high", "medium", "low", "none"],
+        },
       },
       {
         id: "new-lab/research-model",
         name: "New Lab: Research model",
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
-        reasoning: { mandatory: true },
+        reasoning: { mandatory: true, defaultEffort: null, supportedEfforts: null },
       },
       {
         id: "x-ai/grok-model",
@@ -59,14 +63,21 @@ describe("OpenRouter model provider", () => {
         id: "meta-llama/text-model",
         name: "Text model",
         brandId: "meta",
-        reasoning: { required: false },
+        reasoning: {
+          required: false,
+          defaultEffort: "medium",
+          supportedEfforts: ["high", "medium", "low", "none"],
+        },
         tokenPricing,
       },
       {
         id: "new-lab/research-model",
         name: "Research model",
         brandId: "new-lab",
-        reasoning: { required: true },
+        reasoning: {
+          required: true,
+          supportedEfforts: ["max", "xhigh", "high", "medium", "low", "minimal"],
+        },
         tokenPricing,
       },
       {
@@ -114,5 +125,35 @@ describe("OpenRouter model provider", () => {
     await expect(models.list(operationSignal())).rejects.toThrow(
       'OpenRouter model "author/invalid-price" has invalid pricing.',
     );
+  });
+
+  it.each([
+    [{ mandatory: true, supportedEfforts: ["high", "none"] }, "cannot disable required reasoning"],
+    [{ mandatory: true, defaultEffort: "none" }, "cannot default required reasoning off"],
+    [
+      { mandatory: false, defaultEffort: "high", supportedEfforts: ["medium", "low"] },
+      "unsupported default reasoning effort",
+    ],
+    [
+      { mandatory: false, supportedEfforts: ["high", "future"] },
+      "unknown supported reasoning effort",
+    ],
+  ])("rejects inconsistent reasoning metadata", async (reasoning, message) => {
+    const connection = {
+      async withApiKey<Result>(use: (value: string) => Promise<Result>) {
+        return use("openrouter-model-key");
+      },
+    };
+    const models = createOpenRouterModels(connection, async () => [
+      {
+        id: "author/invalid-reasoning",
+        name: "Invalid reasoning",
+        architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+        pricing: { prompt: "0.000001", completion: "0.000001" },
+        reasoning,
+      },
+    ]);
+
+    await expect(models.list(operationSignal())).rejects.toThrow(message);
   });
 });

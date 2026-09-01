@@ -14,7 +14,9 @@ import {
 import { ids, type MessageId, type TurnId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import {
+  requireGenerationConfiguration,
   requireModelReference,
+  type GenerationConfiguration,
   type GenerationUsage,
   type ModelReference,
   type ProviderGenerationResult,
@@ -25,7 +27,7 @@ import { generationTable, type Generation, type GenerationFailureKind } from "./
 
 export type GenerateReplyRequest = {
   turnId: TurnId;
-  model: ModelReference;
+  configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
 
@@ -322,13 +324,19 @@ export function createGenerations(
   function acceptReplyInTransaction(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
-    requestedModel: ModelReference,
+    requestedConfiguration: GenerationConfiguration,
   ): AcceptedReplyGeneration {
-    const model = {
-      providerId: requestedModel.providerId,
-      modelId: requestedModel.modelId,
+    const configuration = {
+      model: {
+        providerId: requestedConfiguration.model.providerId,
+        modelId: requestedConfiguration.model.modelId,
+      },
+      ...(requestedConfiguration.reasoningEffort === undefined
+        ? {}
+        : { reasoningEffort: requestedConfiguration.reasoningEffort }),
     };
-    requireProvider(model);
+    requireGenerationConfiguration(configuration);
+    requireProvider(configuration.model);
     const replyContext = requireReplyContext(transaction, turnId);
 
     const pendingGeneration = transaction
@@ -346,8 +354,9 @@ export function createGenerations(
       .values({
         id: ids.generation.create(),
         turnId,
-        providerId: model.providerId,
-        modelId: model.modelId,
+        providerId: configuration.model.providerId,
+        modelId: configuration.model.modelId,
+        reasoningEffort: configuration.reasoningEffort ?? null,
         status: "pending",
         startedAt: now(),
       })
@@ -402,6 +411,9 @@ export function createGenerations(
             threadId: anchor.threadId,
             modelId: generation.modelId,
             input,
+            ...(generation.reasoningEffort === null
+              ? {}
+              : { reasoningEffort: generation.reasoningEffort }),
           },
           signal,
         ),
@@ -457,7 +469,7 @@ export function createGenerations(
 
   async function executeReply({
     turnId,
-    model,
+    configuration,
     signal,
   }: GenerateReplyRequest): Promise<ReplyGenerationExecution> {
     if (signal?.aborted) {
@@ -465,13 +477,14 @@ export function createGenerations(
     }
 
     const accepted = database.transaction((transaction) =>
-      acceptReplyInTransaction(transaction, turnId, model),
+      acceptReplyInTransaction(transaction, turnId, configuration),
     );
     return executeAcceptedReply(accepted, signal);
   }
 
-  function requireRegisteredModel(model: ModelReference) {
-    requireProvider(model);
+  function requireRegisteredConfiguration(configuration: GenerationConfiguration) {
+    requireGenerationConfiguration(configuration);
+    requireProvider(configuration.model);
   }
 
   return {
@@ -493,7 +506,7 @@ export function createGenerations(
     executeAcceptedReply,
     executeReply,
     listLatestForTurns,
-    requireRegisteredModel,
+    requireRegisteredConfiguration,
     async generateReply(request: GenerateReplyRequest) {
       const execution = await executeReply(request);
 

@@ -15,8 +15,20 @@ structure ModelTokenPricing {
   outputUsdPerMillion: number
 }
 
+enum ReasoningEffort {
+  Max = "max"
+  XHigh = "xhigh"
+  High = "high"
+  Medium = "medium"
+  Low = "low"
+  Minimal = "minimal"
+  None = "none"
+}
+
 structure ModelReasoningCapability {
   required: boolean
+  defaultEffort?: ReasoningEffort
+  supportedEfforts?: ReasoningEffort[]
 }
 
 structure AvailableModel {
@@ -32,6 +44,16 @@ structure ModelSelection {
   modelId: string
   name: string
   brandId: string
+}
+
+structure GenerationConfiguration {
+  model: ModelReference
+  reasoningEffort?: ReasoningEffort
+}
+
+structure GenerationConfigurationSelection {
+  model: ModelSelection
+  reasoningEffort?: ReasoningEffort
 }
 
 subtype ModelCatalogRevision = number(

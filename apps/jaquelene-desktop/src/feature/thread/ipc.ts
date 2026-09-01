@@ -17,6 +17,7 @@ import {
   type ITurnsDispatcher,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
+import { fromIpcReasoningEffort, toIpcReasoningEffort } from "@/feature/model/reasoning-effort";
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
   switch (author) {
@@ -71,6 +72,9 @@ function toIpcGeneration(generation: Generation) {
     turnId: generation.turnId,
     providerId: generation.providerId,
     modelId: generation.modelId,
+    ...(generation.reasoningEffort === null
+      ? {}
+      : { reasoningEffort: toIpcReasoningEffort(generation.reasoningEffort) }),
     status: toIpcGenerationStatus(generation.status),
     ...(generation.failureKind
       ? { failureKind: toIpcGenerationFailureKind(generation.failureKind) }
@@ -229,7 +233,14 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
           const operation = turns.submit({
             threadId: ids.thread.parse(request.threadId),
             content: request.content,
-            model: { ...request.model },
+            configuration: {
+              model: { ...request.configuration.model },
+              ...(request.configuration.reasoningEffort === undefined
+                ? {}
+                : {
+                    reasoningEffort: fromIpcReasoningEffort(request.configuration.reasoningEffort),
+                  }),
+            },
           });
           observeSettlement("thread.turn.submit", operation.settlement);
           return toIpcSubmission(operation.acceptance);
@@ -237,7 +248,14 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
         retry(request) {
           const operation = turns.retry({
             turnId: ids.turn.parse(request.turnId),
-            model: { ...request.model },
+            configuration: {
+              model: { ...request.configuration.model },
+              ...(request.configuration.reasoningEffort === undefined
+                ? {}
+                : {
+                    reasoningEffort: fromIpcReasoningEffort(request.configuration.reasoningEffort),
+                  }),
+            },
           });
           observeSettlement("thread.turn.retry", operation.settlement);
           return toIpcGeneration(operation.acceptance.generation);

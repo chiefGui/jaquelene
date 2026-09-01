@@ -10,6 +10,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import type { GenerationId, MessageId, TurnId } from "#backend/id";
+import { reasoningEfforts } from "#backend/provider/provider";
 import { threadMessageTable, turnTable } from "#backend/thread/schema";
 
 export const generationStatuses = ["pending", "completed", "failed"] as const;
@@ -31,6 +32,7 @@ export const generationTable = sqliteTable(
       .references(() => turnTable.id, { onDelete: "cascade" }),
     providerId: text("provider_id").notNull(),
     modelId: text("model_id").notNull(),
+    reasoningEffort: text("reasoning_effort", { enum: reasoningEfforts }),
     status: text({ enum: generationStatuses }).notNull(),
     failureKind: text("failure_kind", { enum: generationFailureKinds }),
     providerGenerationId: text("provider_generation_id"),
@@ -66,6 +68,10 @@ export const generationTable = sqliteTable(
     check(
       "generations_model_reference_valid",
       sql`length(trim(${generation.providerId})) > 0 AND length(trim(${generation.modelId})) > 0`,
+    ),
+    check(
+      "generations_reasoning_effort_valid",
+      sql`${generation.reasoningEffort} IS NULL OR ${generation.reasoningEffort} IN ('max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none')`,
     ),
     check(
       "generations_status_valid",

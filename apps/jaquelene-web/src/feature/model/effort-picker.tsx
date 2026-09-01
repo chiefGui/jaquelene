@@ -4,7 +4,7 @@ import { ReasoningEffort, type ModelReasoningCapability } from "@jaquelene/ipc/r
 import { Select } from "@jaquelene/ui/select";
 import * as stylex from "@stylexjs/stylex";
 
-const defaultValue = "model-default";
+const resetValue = "model-settings";
 
 const effortLabels: Readonly<Record<ReasoningEffort, string>> = {
   [ReasoningEffort.Max]: "Max",
@@ -28,23 +28,26 @@ export function ModelEffortPicker({
   value: ReasoningEffort | null;
 }) {
   const efforts = capability?.supportedEfforts ?? [];
+  const defaultEffort = capability?.defaultEffort;
 
   if (efforts.length === 0 && value === null) {
     return null;
   }
 
-  const selectedValue = value ?? defaultValue;
-  const selectedLabel = value === null ? "Default" : effortLabels[value];
-  const defaultLabel = capability?.defaultEffort
-    ? `Model default · ${effortLabels[capability.defaultEffort]}`
-    : "Model default";
+  const selectedEffort = value ?? defaultEffort;
+
+  if (selectedEffort === undefined) {
+    return null;
+  }
+
+  const selectedLabel = effortLabels[selectedEffort];
   const valueUnavailable = value !== null && !efforts.includes(value);
 
   return (
     <Select.Root
-      selectedValue={selectedValue}
+      selectedValue={selectedEffort}
       setSelectedValue={(nextValue) => {
-        if (nextValue === defaultValue) {
+        if (nextValue === resetValue) {
           if (value !== null) {
             onValueChange(null);
           }
@@ -57,8 +60,10 @@ export function ModelEffortPicker({
           throw new TypeError(`Unknown model reasoning effort "${nextValue}".`);
         }
 
-        if (effort !== value) {
-          onValueChange(effort);
+        const nextOverride = effort === defaultEffort ? null : effort;
+
+        if (nextOverride !== value) {
+          onValueChange(nextOverride);
         }
       }}
     >
@@ -83,10 +88,12 @@ export function ModelEffortPicker({
           </Select.Item>
         ) : null}
 
-        <Select.Item value={defaultValue}>
-          <Select.ItemText>{defaultLabel}</Select.ItemText>
-          <Select.Indicator />
-        </Select.Item>
+        {valueUnavailable && defaultEffort === undefined ? (
+          <Select.Item value={resetValue}>
+            <Select.ItemText>Use model settings</Select.ItemText>
+            <Select.Indicator />
+          </Select.Item>
+        ) : null}
 
         {efforts.map((effort) => (
           <Select.Item key={effort} value={effort}>

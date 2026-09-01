@@ -51,7 +51,7 @@ const styles = stylex.create({
     borderBottomColor: tokens.border,
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
-    paddingInline: "0.75rem",
+    paddingInlineStart: "0.75rem",
   },
   viewport: {
     flex: 1,

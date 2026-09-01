@@ -157,7 +157,7 @@ const styles = stylex.create({
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
     justifyContent: "space-between",
-    paddingInline: "1rem",
+    paddingInlineStart: "1rem",
   },
   viewport: {
     flex: 1,

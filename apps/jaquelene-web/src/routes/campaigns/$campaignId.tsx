@@ -1,5 +1,5 @@
 import { composeCampaignGenerationConfiguration } from "@jaquelene/domain";
-import Chart01Icon from "@hugeicons/core-free-icons/Chart01Icon";
+import SidebarRight01Icon from "@hugeicons/core-free-icons/SidebarRight01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { IconButton } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
@@ -111,7 +111,7 @@ function CampaignRoute() {
             render={
               <IconButton aria-label="Campaign details">
                 <HugeiconsIcon
-                  icon={Chart01Icon}
+                  icon={SidebarRight01Icon}
                   size={16}
                   color="currentColor"
                   strokeWidth={1.5}

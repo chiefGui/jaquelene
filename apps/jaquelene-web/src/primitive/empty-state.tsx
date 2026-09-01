@@ -59,7 +59,6 @@ const styles = stylex.create({
   title: {
     color: tokens.foreground,
     fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
     textBox: "trim-both text",
   },

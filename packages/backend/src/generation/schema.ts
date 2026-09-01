@@ -10,7 +10,12 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import type { GenerationId, MessageId, TurnId } from "#backend/id";
-import { reasoningPresets, reasoningPresetSources } from "#backend/model/reasoning";
+import {
+  reasoningPresets,
+  reasoningPresetSources,
+  requireResolvedReasoning,
+  type ResolvedReasoning,
+} from "#backend/model/reasoning";
 import { threadMessageTable, turnTable } from "#backend/thread/schema";
 
 export const generationStatuses = ["pending", "completed", "failed"] as const;
@@ -125,5 +130,30 @@ export const generationTable = sqliteTable(
   ],
 );
 
-export type Generation = typeof generationTable.$inferSelect;
+export type StoredGeneration = typeof generationTable.$inferSelect;
+export type Generation = Omit<StoredGeneration, "reasoningPreset" | "reasoningPresetSource"> & {
+  reasoning?: ResolvedReasoning;
+};
 export type GenerationFailureKind = (typeof generationFailureKinds)[number];
+
+export function toGeneration({
+  reasoningPreset,
+  reasoningPresetSource,
+  ...generation
+}: StoredGeneration): Generation {
+  if (reasoningPreset === null && reasoningPresetSource === null) {
+    return generation;
+  }
+
+  if (reasoningPreset === null || reasoningPresetSource === null) {
+    throw new TypeError(`Generation "${generation.id}" has incomplete reasoning metadata.`);
+  }
+
+  return {
+    ...generation,
+    reasoning: requireResolvedReasoning({
+      preset: reasoningPreset,
+      source: reasoningPresetSource,
+    }),
+  };
+}

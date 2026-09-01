@@ -71,27 +71,19 @@ function toIpcMessage(message: ThreadMessage) {
 }
 
 function toIpcGeneration(generation: Generation) {
-  const reasoning = (() => {
-    if (generation.reasoningPreset === null && generation.reasoningPresetSource === null) {
-      return {};
-    }
-
-    if (generation.reasoningPreset === null || generation.reasoningPresetSource === null) {
-      throw new TypeError(`Generation "${generation.id}" has incomplete reasoning metadata.`);
-    }
-
-    return {
-      reasoningPreset: toIpcReasoningPreset(generation.reasoningPreset),
-      reasoningPresetSource: toIpcReasoningPresetSource(generation.reasoningPresetSource),
-    };
-  })();
-
   return {
     id: generation.id,
     turnId: generation.turnId,
     providerId: generation.providerId,
     modelId: generation.modelId,
-    ...reasoning,
+    ...(generation.reasoning
+      ? {
+          reasoning: {
+            preset: toIpcReasoningPreset(generation.reasoning.preset),
+            source: toIpcReasoningPresetSource(generation.reasoning.source),
+          },
+        }
+      : {}),
     status: toIpcGenerationStatus(generation.status),
     ...(generation.failureKind
       ? { failureKind: toIpcGenerationFailureKind(generation.failureKind) }

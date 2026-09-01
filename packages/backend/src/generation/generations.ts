@@ -29,7 +29,13 @@ import {
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import { requireReplyInput, type ReplyAnchor, type ReplyPreparer } from "./reply-preparation";
-import { generationTable, type Generation, type GenerationFailureKind } from "./schema";
+import {
+  generationTable,
+  toGeneration,
+  type Generation,
+  type GenerationFailureKind,
+  type StoredGeneration,
+} from "./schema";
 
 export type GenerateReplyRequest = {
   turnId: TurnId;
@@ -240,7 +246,7 @@ export function createGenerations(
     cause: unknown,
     output?: NormalizedProviderResult,
   ): ReplyGenerationExecution {
-    let failedGeneration: Generation | undefined;
+    let failedGeneration: StoredGeneration | undefined;
 
     try {
       failedGeneration = database
@@ -286,7 +292,7 @@ export function createGenerations(
       }
     }
 
-    return { outcome: "failed", generation: failedGeneration, cause };
+    return { outcome: "failed", generation: toGeneration(failedGeneration), cause };
   }
 
   function listLatestForTurns(turnIds: readonly TurnId[]) {
@@ -297,7 +303,7 @@ export function createGenerations(
     }
 
     const newerGeneration = alias(generationTable, "newer_generation");
-    const generations = database
+    const storedGenerations = database
       .select()
       .from(generationTable)
       .where(
@@ -324,7 +330,10 @@ export function createGenerations(
       )
       .all();
     const generationByTurn = new Map(
-      generations.map((generation) => [generation.turnId, generation]),
+      storedGenerations.map((storedGeneration) => {
+        const generation = toGeneration(storedGeneration);
+        return [generation.turnId, generation];
+      }),
     );
 
     return uniqueTurnIds.flatMap((turnId) => {
@@ -360,7 +369,7 @@ export function createGenerations(
       throw new RangeError(`Turn "${turnId}" already has a pending generation.`);
     }
 
-    const generation = transaction
+    const storedGeneration = transaction
       .insert(generationTable)
       .values({
         id: ids.generation.create(),
@@ -375,10 +384,11 @@ export function createGenerations(
       .returning()
       .get();
 
-    if (!generation) {
+    if (!storedGeneration) {
       throw new Error(`Could not create a generation for turn "${turnId}".`);
     }
 
+    const generation = toGeneration(storedGeneration);
     return { generation, ...replyContext };
   }
 
@@ -423,14 +433,7 @@ export function createGenerations(
             threadId: anchor.threadId,
             modelId: generation.modelId,
             input,
-            ...(generation.reasoningPreset === null || generation.reasoningPresetSource === null
-              ? {}
-              : {
-                  reasoning: {
-                    preset: generation.reasoningPreset,
-                    source: generation.reasoningPresetSource,
-                  },
-                }),
+            ...(generation.reasoning ? { reasoning: generation.reasoning } : {}),
           },
           signal,
         ),
@@ -459,7 +462,7 @@ export function createGenerations(
           content: output.text,
           createdAt: completionTime,
         });
-        const completedGeneration = transaction
+        const storedCompletedGeneration = transaction
           .update(generationTable)
           .set({
             status: "completed",
@@ -471,11 +474,11 @@ export function createGenerations(
           .returning()
           .get();
 
-        if (!completedGeneration) {
+        if (!storedCompletedGeneration) {
           throw new Error(`Generation "${generation.id}" is no longer pending.`);
         }
 
-        return { generation: completedGeneration, message, activated };
+        return { generation: toGeneration(storedCompletedGeneration), message, activated };
       });
 
       return { outcome: "completed", ...result };

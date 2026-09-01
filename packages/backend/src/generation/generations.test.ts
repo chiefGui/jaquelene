@@ -170,8 +170,7 @@ describe("generations", () => {
         turnId: started.turn.id,
         providerId: provider.id,
         modelId: "maker/requested-model",
-        reasoningPreset: "high",
-        reasoningPresetSource: "override",
+        reasoning: { preset: "high", source: "override" },
         status: "completed",
         failureKind: null,
         providerGenerationId: "provider-generation-1",
@@ -186,7 +185,14 @@ describe("generations", () => {
       },
     });
     expect(result.generation.outputMessageId).toBe(result.message.id);
-    expect(database.select().from(generationTable).get()).toEqual(result.generation);
+    expect(database.select().from(generationTable).get()).toEqual(
+      expect.objectContaining({
+        id: result.generation.id,
+        reasoningPreset: "high",
+        reasoningPresetSource: "override",
+        status: "completed",
+      }),
+    );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message, result.message],
       pageSize: THREAD_MESSAGE_PAGE_SIZE,
@@ -219,8 +225,7 @@ describe("generations", () => {
     );
     expect(result.generation).toEqual(
       expect.objectContaining({
-        reasoningPreset: "medium",
-        reasoningPresetSource: "model-default",
+        reasoning: { preset: "medium", source: "model-default" },
       }),
     );
   });

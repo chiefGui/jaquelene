@@ -126,10 +126,9 @@ describe("turns", () => {
         status: "pending",
         providerId: "provider-a",
         modelId: "maker/model",
-        reasoningPreset: null,
-        reasoningPresetSource: null,
       }),
     });
+    expect(operation.acceptance.generation).not.toHaveProperty("reasoning");
     expect(turns.listForThread({ threadId: thread.id })).toEqual({
       messages: [operation.acceptance.userMessage],
       generations: [operation.acceptance.generation],

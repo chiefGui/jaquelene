@@ -59,8 +59,7 @@ structure TurnGeneration {
   turnId: string
   providerId: string
   modelId: string
-  reasoningPreset?: ReasoningPreset
-  reasoningPresetSource?: ReasoningPresetSource
+  reasoning?: ResolvedReasoning
   status: GenerationStatus
   failureKind?: GenerationFailureKind
   outputMessageId?: string

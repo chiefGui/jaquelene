@@ -32,6 +32,11 @@ enum ReasoningPresetSource {
   Override = "override"
 }
 
+structure ResolvedReasoning {
+  preset: ReasoningPreset
+  source: ReasoningPresetSource
+}
+
 structure ModelReasoningCapability {
   defaultPreset: ReasoningPreset
   supportedPresets: ReasoningPreset[]

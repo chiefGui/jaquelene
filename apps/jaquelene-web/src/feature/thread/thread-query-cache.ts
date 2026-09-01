@@ -7,7 +7,10 @@ import {
 } from "@jaquelene/ipc/renderer";
 import type { InfiniteData } from "@tanstack/react-query";
 
-export type ThreadQueryData = InfiniteData<ThreadMessagePage>;
+export type ThreadHistoryPageParam =
+  | Readonly<{ kind: "latest" }>
+  | Readonly<{ kind: "cursor"; direction: "older" | "newer"; cursor: string }>;
+export type ThreadQueryData = InfiniteData<ThreadMessagePage, ThreadHistoryPageParam>;
 export type ThreadTurnUpdate =
   | Readonly<{
       type: "submission-accepted" | "reply-failed";
@@ -35,8 +38,13 @@ const CURRENT = { outcome: "current" } as const;
 const HISTORICAL = { outcome: "historical" } as const;
 const RELOAD = { outcome: "reload" } as const;
 const textEncoder = new TextEncoder();
+const contentByteMeasurements = new WeakMap<
+  ThreadMessage,
+  Readonly<{ content: string; bytes: number }>
+>();
 export const THREAD_HISTORY_RETAINED_PAGE_LIMIT = 3;
 export const THREAD_HISTORY_RETAINED_CONTENT_BYTE_BUDGET = 256 * 1024;
+export const latestThreadHistoryPageParam: ThreadHistoryPageParam = { kind: "latest" };
 
 type ThreadPageContract = Readonly<{
   messageCountLimit: number;
@@ -44,15 +52,15 @@ type ThreadPageContract = Readonly<{
   contentByteBudget: number;
 }>;
 
-function messageContentBytes(message: ThreadMessage, measurements: Map<ThreadMessage, number>) {
-  const measured = measurements.get(message);
+function messageContentBytes(message: ThreadMessage) {
+  const measurement = contentByteMeasurements.get(message);
 
-  if (measured !== undefined) {
-    return measured;
+  if (measurement?.content === message.content) {
+    return measurement.bytes;
   }
 
   const bytes = textEncoder.encode(message.content).byteLength;
-  measurements.set(message, bytes);
+  contentByteMeasurements.set(message, { content: message.content, bytes });
   return bytes;
 }
 
@@ -64,32 +72,42 @@ function hasSamePageContract(page: ThreadMessagePage, contract: ThreadPageContra
   );
 }
 
-function isValidPage(
-  page: ThreadMessagePage,
-  contract: ThreadPageContract,
-  measurements: Map<ThreadMessage, number>,
-) {
+function isValidPage(page: ThreadMessagePage, contract: ThreadPageContract) {
   if (!hasSamePageContract(page, contract) || page.messages.length > contract.messageCountLimit) {
     return false;
   }
 
   let actualContentBytes = 0;
-  let anchorContentBytes = 0;
 
   for (const message of page.messages) {
     if (message.content.length > contract.messageMaxCodeUnits) {
       return false;
     }
 
-    anchorContentBytes = messageContentBytes(message, measurements);
-    actualContentBytes += anchorContentBytes;
+    actualContentBytes += messageContentBytes(message);
   }
 
   return (
-    (page.messages.length > 0 || page.nextCursor === undefined) &&
+    (page.messages.length > 0 ||
+      (page.olderCursor === undefined && page.newerCursor === undefined)) &&
     page.contentBytes === actualContentBytes &&
-    actualContentBytes <= Math.max(contract.contentByteBudget, anchorContentBytes)
+    (actualContentBytes <= contract.contentByteBudget || page.messages.length === 1)
   );
+}
+
+function pageParamMatchesPage(
+  page: ThreadMessagePage,
+  pageParam: ThreadHistoryPageParam,
+  index: number,
+) {
+  switch (pageParam.kind) {
+    case "latest":
+      return index === 0 && page.newerCursor === undefined;
+    case "cursor":
+      return pageParam.direction === "older"
+        ? pageParam.cursor === page.messages.at(-1)?.id
+        : pageParam.cursor === page.messages[0]?.id;
+  }
 }
 
 function loadedMessages(data: ThreadQueryData, threadId: string, contract: ThreadPageContract) {
@@ -97,22 +115,26 @@ function loadedMessages(data: ThreadQueryData, threadId: string, contract: Threa
     return null;
   }
 
-  const measurements = new Map<ThreadMessage, number>();
-
   for (let index = 0; index < data.pages.length; index += 1) {
     const page = data.pages[index];
 
-    if (!page || !isValidPage(page, contract, measurements)) {
+    if (!page || !isValidPage(page, contract)) {
       return null;
     }
 
-    if (index > 0 && data.pageParams[index] !== page.messages.at(-1)?.id) {
+    const pageParam = data.pageParams[index];
+
+    if (!pageParam || !pageParamMatchesPage(page, pageParam, index)) {
       return null;
     }
 
-    const nextPage = data.pages[index + 1];
+    const olderPage = data.pages[index + 1];
 
-    if (nextPage && page.nextCursor !== nextPage.messages.at(-1)?.id) {
+    if (
+      olderPage &&
+      (page.olderCursor !== olderPage.messages.at(-1)?.id ||
+        olderPage.newerCursor !== page.messages[0]?.id)
+    ) {
       return null;
     }
   }
@@ -141,23 +163,42 @@ function loadedMessages(data: ThreadQueryData, threadId: string, contract: Threa
     previousSequence = message.sequence;
   }
 
-  return { measurements, messageIndexById, messages };
+  return { messageIndexById, messages };
+}
+
+export function requireValidThreadHistory(data: ThreadQueryData, threadId: string) {
+  const firstPage = data.pages[0];
+
+  if (!firstPage) {
+    throw new TypeError("A thread message query must contain a page.");
+  }
+
+  const contract: ThreadPageContract = {
+    messageCountLimit: firstPage.messageCountLimit,
+    messageMaxCodeUnits: firstPage.messageMaxCodeUnits,
+    contentByteBudget: firstPage.contentByteBudget,
+  };
+
+  if (!loadedMessages(data, threadId, contract)) {
+    throw new TypeError("Thread message history is inconsistent.");
+  }
+
+  return data;
 }
 
 function partitionMessages(
   messages: readonly ThreadMessage[],
   { messageCountLimit, contentByteBudget }: ThreadPageContract,
-  measurements: Map<ThreadMessage, number>,
 ) {
   const partitions: Array<Readonly<{ messages: ThreadMessage[]; contentBytes: number }>> = [];
   let end = messages.length;
 
   while (end > 0) {
     let start = end - 1;
-    let contentBytes = messageContentBytes(messages[start]!, measurements);
+    let contentBytes = messageContentBytes(messages[start]!);
 
     while (start > 0 && end - start < messageCountLimit) {
-      const candidateBytes = messageContentBytes(messages[start - 1]!, measurements);
+      const candidateBytes = messageContentBytes(messages[start - 1]!);
 
       if (contentBytes + candidateBytes > contentByteBudget) {
         break;
@@ -178,20 +219,22 @@ function rebuildPages(
   messages: readonly ThreadMessage[],
   generations: readonly TurnGeneration[],
   contract: ThreadPageContract,
-  oldestNextCursor: string | undefined,
-  measurements: Map<ThreadMessage, number>,
+  oldestCursor: string | undefined,
 ): ThreadQueryData {
-  const partitions = partitionMessages(messages, contract, measurements);
+  const partitions = partitionMessages(messages, contract);
   const pages = partitions.map(({ messages: pageMessages, contentBytes }, index) => {
-    const nextPartition = partitions[index + 1];
-    const nextCursor = nextPartition?.messages.at(-1)?.id ?? oldestNextCursor;
+    const newerPartition = partitions[index - 1];
+    const olderPartition = partitions[index + 1];
+    const newerCursor = newerPartition?.messages[0]?.id;
+    const olderCursor = olderPartition?.messages.at(-1)?.id ?? oldestCursor;
 
     return {
       messages: pageMessages,
       generations: selectGenerations(pageMessages, generations),
       ...contract,
       contentBytes,
-      ...(nextCursor ? { nextCursor } : {}),
+      ...(olderCursor ? { olderCursor } : {}),
+      ...(newerCursor ? { newerCursor } : {}),
     } satisfies ThreadMessagePage;
   });
 
@@ -201,22 +244,30 @@ function rebuildPages(
       generations: [],
       ...contract,
       contentBytes: 0,
-      ...(oldestNextCursor ? { nextCursor: oldestNextCursor } : {}),
+      ...(oldestCursor ? { olderCursor: oldestCursor } : {}),
     });
   }
 
   return {
     pages,
-    pageParams: pages.map((page, index) => (index === 0 ? "" : (page.messages.at(-1)?.id ?? ""))),
+    pageParams: pages.map((page, index): ThreadHistoryPageParam =>
+      index === 0
+        ? latestThreadHistoryPageParam
+        : {
+            kind: "cursor",
+            direction: "older",
+            cursor: page.messages.at(-1)!.id,
+          },
+    ),
   };
 }
 
 export function isLatestThreadHistory(data: ThreadQueryData) {
-  return data.pageParams[0] === "";
+  return data.pageParams[0]?.kind === "latest";
 }
 
 export function createLatestThreadHistory(page: ThreadMessagePage): ThreadQueryData {
-  return { pages: [page], pageParams: [""] };
+  return { pages: [page], pageParams: [latestThreadHistoryPageParam] };
 }
 
 export function retainThreadHistory(
@@ -328,7 +379,7 @@ export function reconcileThreadTurn(
     return RELOAD;
   }
 
-  if (data.pageParams[0] !== "") {
+  if (!isLatestThreadHistory(data)) {
     return HISTORICAL;
   }
 
@@ -427,8 +478,7 @@ export function reconcileThreadTurn(
         messages,
         [...generationByTurn.values()],
         contract,
-        data.pages.at(-1)?.nextCursor,
-        loaded.measurements,
+        data.pages.at(-1)?.olderCursor,
       ),
       "newest",
     ),

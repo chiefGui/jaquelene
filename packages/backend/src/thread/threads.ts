@@ -6,6 +6,7 @@ import {
   threadTable,
   turnTable,
   type ThreadMessage,
+  type ThreadMessageRecord,
   type Turn,
 } from "./schema";
 
@@ -15,7 +16,8 @@ export const THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET = 128 * 1024;
 
 type ListThreadMessagesRequest = {
   threadId: ThreadId;
-  before?: string;
+  direction: "older" | "newer";
+  cursor?: string;
 };
 
 type AppendAssistantMessageRequest = {
@@ -27,12 +29,12 @@ type AppendAssistantMessageRequest = {
   createdAt: number;
 };
 
-type MessagePathRow = ThreadMessage & {
+type MessagePathRow = ThreadMessageRecord & {
   cumulativeContentBytes: number;
   depth: number;
 };
 
-type ListMessageAncestryOptions = Readonly<{
+type ListMessagePathOptions = Readonly<{
   maximumCount?: number;
   contentByteBudget?: number;
 }>;
@@ -46,6 +48,17 @@ const turnSelection = {
   id: turnTable.id,
   threadId: turnTable.threadId,
   createdAt: turnTable.createdAt,
+} as const;
+
+const threadMessageSelection = {
+  id: threadMessageTable.id,
+  threadId: threadMessageTable.threadId,
+  turnId: threadMessageTable.turnId,
+  parentMessageId: threadMessageTable.parentMessageId,
+  sequence: threadMessageTable.sequence,
+  author: threadMessageTable.author,
+  content: threadMessageTable.content,
+  createdAt: threadMessageTable.createdAt,
 } as const;
 
 export function requireThreadMessageContent(content: string) {
@@ -62,7 +75,7 @@ export function requireThreadMessageContent(content: string) {
   return content;
 }
 
-function decodeBeforeCursor(cursor: string | undefined) {
+function decodeMessageCursor(cursor: string | undefined) {
   if (cursor === undefined) {
     return undefined;
   }
@@ -82,24 +95,40 @@ function turnNotFound(id: TurnId) {
   return new RangeError(`Turn "${id}" does not exist.`);
 }
 
-function listMessageAncestry(
+function listMessagePath(
   database: Pick<Database, "all">,
   threadId: ThreadId,
   anchorMessageId: MessageId,
-  { maximumCount, contentByteBudget }: ListMessageAncestryOptions = {},
+  direction: "older" | "newer",
+  { maximumCount, contentByteBudget }: ListMessagePathOptions = {},
 ) {
   const countLimit = maximumCount === undefined ? sql`1` : sql`path.depth < ${maximumCount - 1}`;
-  const anchorContentBytes = contentByteBudget === undefined ? sql`0` : sql`octet_length(content)`;
+  const anchorContentBytes =
+    contentByteBudget === undefined ? sql`0` : sql`octet_length(anchor.content)`;
   const cumulativeContentBytes =
     contentByteBudget === undefined
       ? sql`0`
-      : sql`path.cumulative_content_bytes + octet_length(parent.content)`;
+      : sql`path.cumulative_content_bytes + octet_length(next.content)`;
   const byteLimit =
     contentByteBudget === undefined
       ? sql`1`
       : sql`
           ${cumulativeContentBytes} <= ${contentByteBudget}
         `;
+  const pathJoin =
+    direction === "older"
+      ? sql`next.id = path.parent_message_id AND next.thread_id = path.thread_id`
+      : sql`next.id = path.active_child_message_id AND next.thread_id = path.thread_id`;
+  const anchorIsValid =
+    direction === "older"
+      ? sql`1`
+      : sql`EXISTS (
+          SELECT 1
+          FROM thread_messages AS parent
+          WHERE parent.thread_id = anchor.thread_id
+            AND parent.id = anchor.parent_message_id
+            AND parent.active_child_message_id = anchor.id
+        )`;
 
   const rows = database.all<MessagePathRow>(sql`
     WITH RECURSIVE message_path (
@@ -107,6 +136,7 @@ function listMessageAncestry(
       thread_id,
       turn_id,
       parent_message_id,
+      active_child_message_id,
       sequence,
       author,
       content,
@@ -115,36 +145,39 @@ function listMessageAncestry(
       depth
     ) AS (
       SELECT
-        id,
-        thread_id,
-        turn_id,
-        parent_message_id,
-        sequence,
-        author,
-        content,
-        created_at,
+        anchor.id,
+        anchor.thread_id,
+        anchor.turn_id,
+        anchor.parent_message_id,
+        anchor.active_child_message_id,
+        anchor.sequence,
+        anchor.author,
+        anchor.content,
+        anchor.created_at,
         ${anchorContentBytes},
         0
-      FROM thread_messages
-      WHERE id = ${anchorMessageId} AND thread_id = ${threadId}
+      FROM thread_messages AS anchor
+      WHERE anchor.id = ${anchorMessageId}
+        AND anchor.thread_id = ${threadId}
+        AND ${anchorIsValid}
 
       UNION ALL
 
       SELECT
-        parent.id,
-        parent.thread_id,
-        parent.turn_id,
-        parent.parent_message_id,
-        parent.sequence,
-        parent.author,
-        parent.content,
-        parent.created_at,
+        next.id,
+        next.thread_id,
+        next.turn_id,
+        next.parent_message_id,
+        next.active_child_message_id,
+        next.sequence,
+        next.author,
+        next.content,
+        next.created_at,
         ${cumulativeContentBytes},
         path.depth + 1
-      FROM thread_messages AS parent
+      FROM thread_messages AS next
       INNER JOIN message_path AS path
-        ON parent.id = path.parent_message_id
-        AND parent.thread_id = path.thread_id
+        ON ${pathJoin}
       WHERE ${countLimit} AND ${byteLimit}
     )
     SELECT
@@ -152,6 +185,7 @@ function listMessageAncestry(
       thread_id AS "threadId",
       turn_id AS "turnId",
       parent_message_id AS "parentMessageId",
+      active_child_message_id AS "activeChildMessageId",
       sequence,
       author,
       content,
@@ -163,11 +197,18 @@ function listMessageAncestry(
   `);
 
   return {
-    messages: rows.map(
-      ({ cumulativeContentBytes: _cumulativeContentBytes, depth: _depth, ...message }) => message,
+    records: rows.map(
+      ({ cumulativeContentBytes: _contentBytes, depth: _depth, ...record }) => record,
     ),
     contentBytes: rows.at(-1)?.cumulativeContentBytes ?? 0,
   };
+}
+
+function toThreadMessage({
+  activeChildMessageId: _activeChildMessageId,
+  ...message
+}: ThreadMessageRecord) {
+  return message;
 }
 
 function allocateMessageSequence(database: Pick<Database, "update">, threadId: ThreadId) {
@@ -188,25 +229,62 @@ function allocateMessageSequence(database: Pick<Database, "update">, threadId: T
   return allocation;
 }
 
-function moveActiveHead(
+function activateMessage(
   database: Pick<Database, "update">,
   threadId: ThreadId,
   expectedMessageId: MessageId | null,
-  messageId: MessageId,
+  message: Pick<ThreadMessage, "id" | "parentMessageId">,
 ) {
+  if ((message.parentMessageId === null) !== (expectedMessageId === null)) {
+    return false;
+  }
+
   const expectedHead =
     expectedMessageId === null
       ? isNull(threadTable.activeMessageId)
       : eq(threadTable.activeMessageId, expectedMessageId);
+  const movedHead = database
+    .update(threadTable)
+    .set({ activeMessageId: message.id })
+    .where(and(eq(threadTable.id, threadId), expectedHead))
+    .returning({ id: threadTable.id })
+    .get();
 
-  return Boolean(
-    database
-      .update(threadTable)
-      .set({ activeMessageId: messageId })
-      .where(and(eq(threadTable.id, threadId), expectedHead))
-      .returning({ id: threadTable.id })
-      .get(),
-  );
+  if (!movedHead) {
+    return false;
+  }
+
+  if (message.parentMessageId === null) {
+    return true;
+  }
+
+  if (expectedMessageId === null) {
+    throw new Error(`Thread "${threadId}" has an invalid active message path.`);
+  }
+
+  const expectedChild =
+    expectedMessageId === message.parentMessageId
+      ? isNull(threadMessageTable.activeChildMessageId)
+      : eq(threadMessageTable.activeChildMessageId, expectedMessageId);
+
+  const selectedChild = database
+    .update(threadMessageTable)
+    .set({ activeChildMessageId: message.id })
+    .where(
+      and(
+        eq(threadMessageTable.threadId, threadId),
+        eq(threadMessageTable.id, message.parentMessageId),
+        expectedChild,
+      ),
+    )
+    .returning({ id: threadMessageTable.id })
+    .get();
+
+  if (!selectedChild) {
+    throw new Error(`Thread "${threadId}" has an invalid active message path.`);
+  }
+
+  return true;
 }
 
 export function insertThread(database: Pick<Database, "insert">, createdAt: number) {
@@ -251,19 +329,21 @@ export function appendAssistantMessageInTransaction(
   }
 
   const allocation = allocateMessageSequence(database, threadId);
-  const message = {
+  const record: ThreadMessageRecord = {
     id: ids.message.create(),
     threadId,
     turnId,
     parentMessageId,
+    activeChildMessageId: null,
     sequence: allocation.sequence,
     author: "assistant" as const,
     content,
     createdAt,
   };
 
-  database.insert(threadMessageTable).values(message).run();
-  const activated = moveActiveHead(database, threadId, activateIfMessageId, message.id);
+  database.insert(threadMessageTable).values(record).run();
+  const message = toThreadMessage(record);
+  const activated = activateMessage(database, threadId, activateIfMessageId, message);
 
   return { message, activated };
 }
@@ -282,21 +362,23 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       threadId,
       createdAt,
     };
-    const message: ThreadMessage = {
+    const record: ThreadMessageRecord = {
       id: ids.message.create(),
       threadId,
       turnId: turn.id,
       parentMessageId: allocation.activeMessageId,
+      activeChildMessageId: null,
       sequence: allocation.sequence,
       author: "user",
       content,
       createdAt,
     };
+    const message = toThreadMessage(record);
 
     transaction.insert(turnTable).values(turn).run();
-    transaction.insert(threadMessageTable).values(message).run();
+    transaction.insert(threadMessageTable).values(record).run();
 
-    if (!moveActiveHead(transaction, threadId, allocation.activeMessageId, message.id)) {
+    if (!activateMessage(transaction, threadId, allocation.activeMessageId, message)) {
       throw new Error(`Thread "${threadId}" changed while its turn was being created.`);
     }
 
@@ -324,7 +406,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       }
 
       const message = database
-        .select()
+        .select(threadMessageSelection)
         .from(threadMessageTable)
         .where(and(eq(threadMessageTable.turnId, id), eq(threadMessageTable.author, "user")))
         .get();
@@ -368,11 +450,9 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       }
 
       const inputMessageId = context.inputMessageId;
-      const messages = listMessageAncestry(
-        database,
-        context.threadId,
-        inputMessageId,
-      ).messages.reverse();
+      const messages = listMessagePath(database, context.threadId, inputMessageId, "older")
+        .records.reverse()
+        .map(toThreadMessage);
 
       if (messages.at(-1)?.id !== inputMessageId) {
         throw new Error(`Turn "${turnId}" has an invalid message ancestry.`);
@@ -381,8 +461,17 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       return { turnId: context.turnId, threadId: context.threadId, inputMessageId, messages };
     },
 
-    listMessages({ threadId, before }: ListThreadMessagesRequest) {
-      const cursorMessageId = decodeBeforeCursor(before);
+    listMessages({ threadId, direction, cursor }: ListThreadMessagesRequest) {
+      if (direction !== "older" && direction !== "newer") {
+        throw new TypeError("Thread message direction is invalid.");
+      }
+
+      const cursorMessageId = decodeMessageCursor(cursor);
+
+      if (direction === "newer" && cursorMessageId === undefined) {
+        throw new TypeError("A cursor is required when listing newer thread messages.");
+      }
+
       const thread = database
         .select({ activeMessageId: threadTable.activeMessageId })
         .from(threadTable)
@@ -405,25 +494,29 @@ export function createThreads(database: Database, now: () => number = Date.now) 
         };
       }
 
-      const page = listMessageAncestry(database, threadId, anchorMessageId, {
+      const page = listMessagePath(database, threadId, anchorMessageId, direction, {
         maximumCount: THREAD_MESSAGE_PAGE_MAX_COUNT,
         contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
       });
 
-      if (page.messages.length === 0) {
+      if (page.records.length === 0) {
         throw new TypeError("Thread message cursor is invalid.");
       }
 
-      const oldestMessage = page.messages.at(-1);
-      const nextCursor = oldestMessage?.parentMessageId ?? undefined;
+      const chronologicalRecords = direction === "older" ? page.records.toReversed() : page.records;
+      const oldestMessage = chronologicalRecords[0];
+      const newestMessage = chronologicalRecords.at(-1);
+      const olderCursor = oldestMessage?.parentMessageId ?? undefined;
+      const newerCursor = newestMessage?.activeChildMessageId ?? undefined;
 
       return {
-        messages: page.messages.reverse(),
+        messages: chronologicalRecords.map(toThreadMessage),
         messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
         messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
         contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
         contentBytes: page.contentBytes,
-        ...(nextCursor ? { nextCursor } : {}),
+        ...(olderCursor ? { olderCursor } : {}),
+        ...(newerCursor ? { newerCursor } : {}),
       };
     },
   };

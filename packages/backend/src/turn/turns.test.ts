@@ -139,7 +139,7 @@ describe("turns", () => {
       }),
     });
     expect(operation.acceptance.generation).not.toHaveProperty("reasoning");
-    expect(turns.listForThread({ threadId: thread.id })).toEqual({
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [operation.acceptance.userMessage],
       generations: [operation.acceptance.generation],
       ...threadPageMetadata([operation.acceptance.userMessage]),
@@ -164,7 +164,7 @@ describe("turns", () => {
       }),
       assistantActivated: true,
     });
-    expect(turns.listForThread({ threadId: thread.id })).toEqual({
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [operation.acceptance.userMessage, settlement.assistantMessage],
       generations: [settlement.generation],
       ...threadPageMetadata([operation.acceptance.userMessage, settlement.assistantMessage]),
@@ -266,7 +266,9 @@ describe("turns", () => {
     await expect(second.settlement).resolves.toEqual(
       expect.objectContaining({ outcome: "completed", assistantActivated: true }),
     );
-    expect(turns.listForThread({ threadId: thread.id }).messages).toHaveLength(4);
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toHaveLength(
+      4,
+    );
   });
 
   it("rolls back a user turn when pending generation acceptance fails", async () => {
@@ -292,7 +294,7 @@ describe("turns", () => {
         configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
       }),
     ).rejects.toBe(acceptanceFailure);
-    expect(turns.listForThread({ threadId: thread.id })).toEqual({
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [],
       generations: [],
       ...threadPageMetadata([]),
@@ -334,7 +336,7 @@ describe("turns", () => {
     await expect(
       turns.submit({ threadId: ids.thread.create(), content: "Hello", configuration }),
     ).rejects.toThrow(RangeError);
-    expect(turns.listForThread({ threadId: thread.id }).messages).toEqual([]);
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toEqual([]);
     expect(generate).not.toHaveBeenCalled();
   });
 });

@@ -239,7 +239,9 @@ describe("backend", () => {
 
     expect(reopened.scenarios.get(scenario.id)).toEqual(scenario);
     expect(reopened.campaigns.get(campaign.id)).toEqual(campaign);
-    expect(reopened.turns.listForThread({ threadId: campaign.threadId })).toEqual({
+    expect(
+      reopened.turns.listForThread({ threadId: campaign.threadId, direction: "older" }),
+    ).toEqual({
       messages: [submitted.userMessage, submitted.assistantMessage],
       generations: [submitted.generation],
       ...threadPageMetadata([submitted.userMessage, submitted.assistantMessage]),
@@ -447,7 +449,7 @@ describe("backend", () => {
     );
     const reopened = await createBackend(backendOptions(databasePath));
 
-    expect(reopened.turns.listForThread({ threadId: thread.id })).toEqual({
+    expect(reopened.turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [interrupted.userMessage],
       generations: [interrupted.generation],
       ...threadPageMetadata([interrupted.userMessage]),

@@ -203,7 +203,7 @@ describe("generations", () => {
         status: "completed",
       }),
     );
-    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [started.message, result.message],
       ...threadPageMetadata([started.message, result.message]),
     });
@@ -361,12 +361,24 @@ describe("generations", () => {
         },
       }),
     );
-    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [started.message, regenerated.message],
       ...threadPageMetadata([started.message, regenerated.message]),
     });
-    expect(database.select().from(threadMessageTable).all()).toEqual(
-      expect.arrayContaining([started.message, first.message, regenerated.message]),
+    expect(
+      database
+        .select({
+          id: threadMessageTable.id,
+          activeChildMessageId: threadMessageTable.activeChildMessageId,
+        })
+        .from(threadMessageTable)
+        .all(),
+    ).toEqual(
+      expect.arrayContaining([
+        { id: started.message.id, activeChildMessageId: regenerated.message.id },
+        { id: first.message.id, activeChildMessageId: null },
+        { id: regenerated.message.id, activeChildMessageId: null },
+      ]),
     );
     expect(database.select().from(generationTable).all()).toHaveLength(2);
   });
@@ -399,12 +411,24 @@ describe("generations", () => {
         outputMessageId: result.message.id,
       }),
     );
-    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [first.message, second.message],
       ...threadPageMetadata([first.message, second.message]),
     });
-    expect(database.select().from(threadMessageTable).all()).toEqual(
-      expect.arrayContaining([first.message, second.message, result.message]),
+    expect(
+      database
+        .select({
+          id: threadMessageTable.id,
+          activeChildMessageId: threadMessageTable.activeChildMessageId,
+        })
+        .from(threadMessageTable)
+        .all(),
+    ).toEqual(
+      expect.arrayContaining([
+        { id: first.message.id, activeChildMessageId: second.message.id },
+        { id: second.message.id, activeChildMessageId: null },
+        { id: result.message.id, activeChildMessageId: null },
+      ]),
     );
   });
 
@@ -463,7 +487,7 @@ describe("generations", () => {
     expect(provider.generate).toHaveBeenCalledWith(
       expect.objectContaining({ modelId: "maker/model" }),
     );
-    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [first.message, second.message],
       ...threadPageMetadata([first.message, second.message]),
     });
@@ -529,7 +553,7 @@ describe("generations", () => {
 
     expect(secondResult.activated).toBe(true);
     expect(firstResult.activated).toBe(false);
-    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [first.message, second.message, secondResult.message],
       ...threadPageMetadata([first.message, second.message, secondResult.message]),
     });
@@ -565,7 +589,7 @@ describe("generations", () => {
       expect.objectContaining({ turnId: started.turn.id, failureKind: "provider" }),
       expect.objectContaining({ turnId: started.turn.id, failureKind: "invalid-output" }),
     ]);
-    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [started.message],
       ...threadPageMetadata([started.message]),
     });
@@ -594,7 +618,7 @@ describe("generations", () => {
     expect(database.select().from(generationTable).get()).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
     );
-    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [started.message],
       ...threadPageMetadata([started.message]),
     });
@@ -625,7 +649,7 @@ describe("generations", () => {
     expect(database.select().from(generationTable).get()).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "storage" }),
     );
-    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [started.message],
       ...threadPageMetadata([started.message]),
     });
@@ -677,7 +701,7 @@ describe("generations", () => {
         providerGenerationId: null,
       }),
     );
-    expect(threads.listMessages({ threadId: secondThread.id })).toEqual({
+    expect(threads.listMessages({ threadId: secondThread.id, direction: "older" })).toEqual({
       messages: [second.message],
       ...threadPageMetadata([second.message]),
     });

@@ -1,7 +1,11 @@
 import type { Generation, TurnAcceptance, TurnSettlement, Turns } from "@jaquelene/backend";
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
-import { ReasoningPreset, ReasoningPresetSource } from "@jaquelene/ipc/main";
+import {
+  ReasoningPreset,
+  ReasoningPresetSource,
+  ThreadMessagePageDirection,
+} from "@jaquelene/ipc/main";
 import type {
   CompletedReply as IpcCompletedReply,
   FailedReply as IpcFailedReply,
@@ -49,6 +53,7 @@ vi.mock("@jaquelene/ipc/main", () => ({
   },
   ReasoningPresetSource: { ModelDefault: "model-default", Selection: "selection" },
   ThreadMessageAuthor: { User: "user", Assistant: "assistant" },
+  ThreadMessagePageDirection: { Older: "older", Newer: "newer" },
   Threads: {
     for: () => ({
       setImplementation(implementation: IThreadsImpl) {
@@ -190,6 +195,26 @@ beforeEach(() => {
 });
 
 describe("thread IPC", () => {
+  it("maps forward history navigation into the backend contract", async () => {
+    const threadId = ids.thread.create();
+    const cursor = ids.message.create();
+    const listForThread = vi.fn<Turns["listForThread"]>(emptyPage);
+    const backendTurns: Turns = {
+      listForThread,
+      submit: vi.fn(),
+      retry: vi.fn(),
+    };
+
+    exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
+    await requireImplementations().threads.listMessages({
+      threadId,
+      direction: ThreadMessagePageDirection.Newer,
+      cursor,
+    });
+
+    expect(listForThread).toHaveBeenCalledWith({ threadId, direction: "newer", cursor });
+  });
+
   it("returns pending acceptance and dispatches committed settlement separately", async () => {
     const { acceptance, completed } = createTurnState();
     let settle!: (settlement: TurnSettlement) => void;
@@ -212,7 +237,10 @@ describe("thread IPC", () => {
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
     const ipc = requireImplementations();
-    const page = await ipc.threads.listMessages({ threadId: acceptance.userMessage.threadId });
+    const page = await ipc.threads.listMessages({
+      threadId: acceptance.userMessage.threadId,
+      direction: ThreadMessagePageDirection.Older,
+    });
     const configuration = {
       model: { providerId: "openrouter", modelId: "maker/model" },
       reasoningPreset: ReasoningPreset.High,
@@ -225,6 +253,7 @@ describe("thread IPC", () => {
 
     expect(listForThread).toHaveBeenCalledWith({
       threadId: acceptance.userMessage.threadId,
+      direction: "older",
     });
     expect(page).toEqual({
       messages: [
@@ -536,7 +565,12 @@ describe("thread IPC", () => {
       model: { providerId: "openrouter", modelId: "maker/model" },
     };
 
-    expect(() => ipc.threads.listMessages({ threadId: "invalid" })).toThrow(TypeError);
+    expect(() =>
+      ipc.threads.listMessages({
+        threadId: "invalid",
+        direction: ThreadMessagePageDirection.Older,
+      }),
+    ).toThrow(TypeError);
     await expect(
       ipc.turns.submit({ threadId: "invalid", content: "Hello", configuration }),
     ).rejects.toThrow(TypeError);

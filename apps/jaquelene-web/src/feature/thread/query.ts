@@ -1,4 +1,10 @@
-import { Threads, Turns, type GenerationConfiguration } from "@jaquelene/ipc/renderer";
+import {
+  ThreadMessagePageDirection,
+  Threads,
+  Turns,
+  type GenerationConfiguration,
+  type ThreadMessagePageRequest,
+} from "@jaquelene/ipc/renderer";
 import {
   type QueryClient,
   infiniteQueryOptions,
@@ -13,8 +19,11 @@ import {
   THREAD_HISTORY_RETAINED_PAGE_LIMIT,
   createLatestThreadHistory,
   isLatestThreadHistory,
+  latestThreadHistoryPageParam,
   reconcileThreadTurn,
+  requireValidThreadHistory,
   retainThreadHistory,
+  type ThreadHistoryPageParam,
   type ThreadQueryData,
   type ThreadTurnUpdate,
 } from "./thread-query-cache";
@@ -34,18 +43,40 @@ export type SubmitTurnVariables = {
   configuration: GenerationConfiguration;
 };
 
+function toThreadMessagePageRequest(
+  threadId: string,
+  pageParam: ThreadHistoryPageParam,
+): ThreadMessagePageRequest {
+  if (pageParam.kind === "latest") {
+    return { threadId, direction: ThreadMessagePageDirection.Older };
+  }
+
+  return {
+    threadId,
+    direction:
+      pageParam.direction === "older"
+        ? ThreadMessagePageDirection.Older
+        : ThreadMessagePageDirection.Newer,
+    cursor: pageParam.cursor,
+  };
+}
+
 export function threadMessagesQuery(threadId: string) {
   return infiniteQueryOptions({
     ...ipcQueryOptions,
     queryKey: [...threadQueryKey, threadId, "messages"],
-    initialPageParam: "",
+    initialPageParam: latestThreadHistoryPageParam,
     maxPages: THREAD_HISTORY_RETAINED_PAGE_LIMIT,
-    queryFn: ({ pageParam }) =>
-      listThreadMessages({
-        threadId,
-        ...(pageParam ? { before: pageParam } : {}),
-      }),
-    getNextPageParam: (page) => page.nextCursor,
+    queryFn: ({ pageParam }) => listThreadMessages(toThreadMessagePageRequest(threadId, pageParam)),
+    getNextPageParam: (page) =>
+      page.olderCursor
+        ? ({ kind: "cursor", direction: "older", cursor: page.olderCursor } as const)
+        : undefined,
+    getPreviousPageParam: (page) =>
+      page.newerCursor
+        ? ({ kind: "cursor", direction: "newer", cursor: page.newerCursor } as const)
+        : undefined,
+    select: (data) => requireValidThreadHistory(data, threadId),
   });
 }
 
@@ -108,11 +139,15 @@ function reloadThread(queryClient: QueryClient, threadId: string) {
   return queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
 }
 
-export function retainLoadedOlderThreadMessages(queryClient: QueryClient, threadId: string) {
+export function retainLoadedThreadMessages(
+  queryClient: QueryClient,
+  threadId: string,
+  direction: "older" | "newer",
+) {
   const queryKey = threadMessagesQuery(threadId).queryKey;
 
   queryClient.setQueryData<ThreadQueryData>(queryKey, (current) =>
-    current ? retainThreadHistory(current, "oldest") : current,
+    current ? retainThreadHistory(current, direction === "older" ? "oldest" : "newest") : current,
   );
 }
 
@@ -123,7 +158,7 @@ export function useReturnToLatestThreadMessages(threadId: string) {
   return useMutation({
     ...ipcMutationOptions,
     mutationKey: [...threadQueryKey, threadId, "return-to-latest"],
-    mutationFn: () => listThreadMessages({ threadId }),
+    mutationFn: () => listThreadMessages({ threadId, direction: ThreadMessagePageDirection.Older }),
     onSuccess(page) {
       queryClient.setQueryData<ThreadQueryData>(queryKey, createLatestThreadHistory(page));
     },

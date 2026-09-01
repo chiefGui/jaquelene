@@ -40,6 +40,11 @@ enum ThreadMessageAuthor {
   Assistant = "assistant"
 }
 
+enum ThreadMessagePageDirection {
+  Older = "older"
+  Newer = "newer"
+}
+
 enum GenerationStatus {
   Pending = "pending"
   Completed = "completed"
@@ -79,7 +84,8 @@ structure TurnGeneration {
 
 structure ThreadMessagePageRequest {
   threadId: string
-  before?: ThreadMessageCursor
+  direction: ThreadMessagePageDirection
+  cursor?: ThreadMessageCursor
 }
 
 structure ThreadMessagePage {
@@ -89,7 +95,8 @@ structure ThreadMessagePage {
   messageMaxCodeUnits: ThreadMessageMaxCodeUnits
   contentByteBudget: ThreadMessageContentByteBudget
   contentBytes: ThreadMessageContentByteCount
-  nextCursor?: ThreadMessageCursor
+  olderCursor?: ThreadMessageCursor
+  newerCursor?: ThreadMessageCursor
 }
 
 structure SubmitTurnRequest {

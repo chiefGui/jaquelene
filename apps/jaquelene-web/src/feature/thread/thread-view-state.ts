@@ -28,7 +28,7 @@ export type ThreadViewState = Readonly<{
   messages: ThreadMessageView[];
   latestMessageId: string | null;
   replyPending: boolean;
-  messageContentMaxLength: number;
+  messageMaxCodeUnits: number;
 }>;
 
 type ThreadViewStateInput = Readonly<{
@@ -93,6 +93,6 @@ export function deriveThreadViewState({
     replyPending:
       latestMessage?.author === ThreadMessageAuthor.User &&
       generationByTurn.get(latestMessage.turnId)?.status === GenerationStatus.Pending,
-    messageContentMaxLength: newestPage.messageContentMaxLength,
+    messageMaxCodeUnits: newestPage.messageMaxCodeUnits,
   };
 }

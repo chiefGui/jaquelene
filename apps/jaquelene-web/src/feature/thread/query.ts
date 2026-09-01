@@ -10,7 +10,11 @@ import {
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 import {
+  THREAD_HISTORY_RETAINED_PAGE_LIMIT,
+  createLatestThreadHistory,
+  isLatestThreadHistory,
   reconcileThreadTurn,
+  retainThreadHistory,
   type ThreadQueryData,
   type ThreadTurnUpdate,
 } from "./thread-query-cache";
@@ -35,6 +39,7 @@ export function threadMessagesQuery(threadId: string) {
     ...ipcQueryOptions,
     queryKey: [...threadQueryKey, threadId, "messages"],
     initialPageParam: "",
+    maxPages: THREAD_HISTORY_RETAINED_PAGE_LIMIT,
     queryFn: ({ pageParam }) =>
       listThreadMessages({
         threadId,
@@ -81,6 +86,7 @@ function reconcileTurn(queryClient: QueryClient, threadId: string, update: Threa
       queryClient.setQueryData(query.queryKey, reconciliation.data);
       return;
     case "current":
+    case "historical":
       return;
     case "reload":
       reportError(
@@ -92,8 +98,36 @@ function reconcileTurn(queryClient: QueryClient, threadId: string, update: Threa
 }
 
 function reloadThread(queryClient: QueryClient, threadId: string) {
+  const query = threadMessagesQuery(threadId);
+  const current = queryClient.getQueryData<ThreadQueryData>(query.queryKey);
+
+  if (current && !isLatestThreadHistory(current)) {
+    return Promise.resolve();
+  }
+
+  return queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
+}
+
+export function retainLoadedOlderThreadMessages(queryClient: QueryClient, threadId: string) {
   const queryKey = threadMessagesQuery(threadId).queryKey;
-  return queryClient.invalidateQueries({ queryKey, exact: true });
+
+  queryClient.setQueryData<ThreadQueryData>(queryKey, (current) =>
+    current ? retainThreadHistory(current, "oldest") : current,
+  );
+}
+
+export function useReturnToLatestThreadMessages(threadId: string) {
+  const queryClient = useQueryClient();
+  const queryKey = threadMessagesQuery(threadId).queryKey;
+
+  return useMutation({
+    ...ipcMutationOptions,
+    mutationKey: [...threadQueryKey, threadId, "return-to-latest"],
+    mutationFn: () => listThreadMessages({ threadId }),
+    onSuccess(page) {
+      queryClient.setQueryData<ThreadQueryData>(queryKey, createLatestThreadHistory(page));
+    },
+  });
 }
 
 export function useIsTurnOperationPending(threadId: string) {

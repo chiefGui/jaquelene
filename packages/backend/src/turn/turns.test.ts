@@ -16,14 +16,24 @@ import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
 import { createInstructionRegistry } from "#backend/instruction/registry";
 import {
   createThreads,
-  THREAD_MESSAGE_CONTENT_MAX_LENGTH,
-  THREAD_MESSAGE_PAGE_SIZE,
+  THREAD_MESSAGE_MAX_CODE_UNITS,
+  THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+  THREAD_MESSAGE_PAGE_MAX_COUNT,
 } from "#backend/thread/threads";
 import { createTurns } from "./turns";
 
 const directories: string[] = [];
 const databases: Database[] = [];
 const closeSupervisors: Array<() => Promise<void>> = [];
+
+function threadPageMetadata(messages: readonly { content: string }[]) {
+  return {
+    messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+    messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+    contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+    contentBytes: messages.reduce((total, { content }) => total + Buffer.byteLength(content), 0),
+  };
+}
 
 type TestGenerate = (
   request: ProviderGenerationRequest & { signal?: AbortSignal },
@@ -132,8 +142,7 @@ describe("turns", () => {
     expect(turns.listForThread({ threadId: thread.id })).toEqual({
       messages: [operation.acceptance.userMessage],
       generations: [operation.acceptance.generation],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([operation.acceptance.userMessage]),
     });
 
     await vi.waitFor(() => expect(generate).toHaveBeenCalledOnce());
@@ -158,8 +167,7 @@ describe("turns", () => {
     expect(turns.listForThread({ threadId: thread.id })).toEqual({
       messages: [operation.acceptance.userMessage, settlement.assistantMessage],
       generations: [settlement.generation],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([operation.acceptance.userMessage, settlement.assistantMessage]),
     });
   });
 
@@ -287,8 +295,7 @@ describe("turns", () => {
     expect(turns.listForThread({ threadId: thread.id })).toEqual({
       messages: [],
       generations: [],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([]),
     });
     expect(generate).not.toHaveBeenCalled();
   });

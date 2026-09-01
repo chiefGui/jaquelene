@@ -8,7 +8,7 @@ import {
 import { Button, formatTimestamp } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import {
   memo,
   useCallback,
@@ -25,13 +25,16 @@ import {
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { Composer } from "@/feature/composer/composer";
 import {
+  retainLoadedOlderThreadMessages,
   threadMessagesQuery,
   useIsTurnOperationPending,
   usePendingTurnSubmission,
+  useReturnToLatestThreadMessages,
   useRetryTurn,
   useSubmitTurn,
   type SubmitTurnVariables,
 } from "./query";
+import { isLatestThreadHistory } from "./thread-query-cache";
 import { deriveThreadViewState, type ThreadViewState } from "./thread-view-state";
 
 type RetryStatus = "pending" | "failed" | null;
@@ -85,8 +88,9 @@ type ThreadTimelineProps = Readonly<{
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   isFetchNextPageError: boolean;
-  operationPending: boolean;
-  loadOlder: () => Promise<unknown>;
+  historyNavigationPending: boolean;
+  retryPending: boolean;
+  loadOlder: () => Promise<void>;
   retryReply: (turnId: string) => Promise<void>;
 }>;
 
@@ -100,7 +104,8 @@ const ThreadTimeline = memo(function ThreadTimeline({
   hasNextPage,
   isFetchingNextPage,
   isFetchNextPageError,
-  operationPending,
+  historyNavigationPending,
+  retryPending,
   loadOlder,
   retryReply,
 }: ThreadTimelineProps) {
@@ -195,7 +200,7 @@ const ThreadTimeline = memo(function ThreadTimeline({
           <Button
             type="button"
             variant="ghost"
-            disabled={isFetchingNextPage}
+            disabled={isFetchingNextPage || historyNavigationPending}
             onClick={() => void loadOlderMessages()}
           >
             {isFetchingNextPage ? "Loading…" : "Load older messages"}
@@ -255,7 +260,7 @@ const ThreadTimeline = memo(function ThreadTimeline({
                         type="button"
                         variant="ghost"
                         style={styles.retryButton}
-                        disabled={operationPending}
+                        disabled={retryPending}
                         onClick={() => void retryReply(message.turnId)}
                       >
                         Retry
@@ -299,12 +304,40 @@ const ThreadTimeline = memo(function ThreadTimeline({
   );
 });
 
+type ThreadHistoryReturnProps = Readonly<{
+  error: boolean;
+  pending: boolean;
+  returnToLatest: () => Promise<void>;
+}>;
+
+const ThreadHistoryReturn = memo(function ThreadHistoryReturn({
+  error,
+  pending,
+  returnToLatest,
+}: ThreadHistoryReturnProps) {
+  return (
+    <div {...stylex.props(styles.composerShell)}>
+      <div {...stylex.props(styles.historyReturn)}>
+        <p {...stylex.props(styles.historyDescription)}>Viewing older messages.</p>
+        <Button type="button" disabled={pending} onClick={() => void returnToLatest()}>
+          {pending ? "Returning…" : "Return to latest"}
+        </Button>
+      </div>
+      {error ? (
+        <p role="alert" {...stylex.props(styles.historyError)}>
+          Could not return to the latest messages.
+        </p>
+      ) : null}
+    </div>
+  );
+});
+
 type ThreadComposerProps = Readonly<{
   threadId: string;
   configuration: GenerationConfigurationSelection | null;
   configurationPending: boolean;
   operationPending: boolean;
-  messageContentMaxLength: number;
+  messageMaxCodeUnits: number;
   composerControls: ReactNode;
   viewport: RefObject<HTMLElement | null>;
   pinnedToEnd: RefObject<boolean>;
@@ -315,7 +348,7 @@ const ThreadComposer = memo(function ThreadComposer({
   configuration,
   configurationPending,
   operationPending,
-  messageContentMaxLength,
+  messageMaxCodeUnits,
   composerControls,
   viewport,
   pinnedToEnd,
@@ -398,7 +431,7 @@ const ThreadComposer = memo(function ThreadComposer({
         <Composer.Input
           id={composerInputId}
           value={draft}
-          maxLength={messageContentMaxLength}
+          maxLength={messageMaxCodeUnits}
           aria-describedby={sendError ? sendErrorId : undefined}
           onChange={(event) => {
             draftRevision.current += 1;
@@ -437,7 +470,10 @@ export function ThreadView({
   configurationPending: boolean;
   composerControls: ReactNode;
 }) {
+  const queryClient = useQueryClient();
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
+  const returnToLatestMutation = useReturnToLatestThreadMessages(threadId);
+  const returnToLatestMessages = returnToLatestMutation.mutateAsync;
   const retryTurnMutation = useRetryTurn(threadId);
   const retryTurn = retryTurnMutation.mutateAsync;
   const resetRetry = retryTurnMutation.reset;
@@ -452,21 +488,28 @@ export function ThreadView({
     : retryTurnMutation.isError
       ? "failed"
       : null;
+  const historical = !isLatestThreadHistory(messagesQuery.data);
   const threadView = useMemo(
     () =>
       deriveThreadViewState({
         pages: messagesQuery.data.pages,
         retryActivity:
           retryTurnId && retryStatus ? { turnId: retryTurnId, status: retryStatus } : null,
-        hasModel: configuration !== null,
+        hasModel: configuration !== null && !historical,
       }),
-    [configuration, messagesQuery.data.pages, retryStatus, retryTurnId],
+    [configuration, historical, messagesQuery.data.pages, retryStatus, retryTurnId],
   );
-  const operationPending = turnOperationPending || threadView.replyPending;
+  const operationPending = turnOperationPending || (!historical && threadView.replyPending);
 
   const retryReply = useCallback(
     async (turnId: string) => {
-      if (operationPending || !configuration || configurationPending || acceptingRetry.current) {
+      if (
+        historical ||
+        operationPending ||
+        !configuration ||
+        configurationPending ||
+        acceptingRetry.current
+      ) {
         return;
       }
 
@@ -484,10 +527,26 @@ export function ThreadView({
         acceptingRetry.current = false;
       }
     },
-    [configuration, configurationPending, operationPending, resetRetry, retryTurn],
+    [configuration, configurationPending, historical, operationPending, resetRetry, retryTurn],
   );
 
-  const loadOlder = useCallback(() => messagesQuery.fetchNextPage(), [messagesQuery.fetchNextPage]);
+  const loadOlder = useCallback(async () => {
+    await messagesQuery.fetchNextPage();
+    retainLoadedOlderThreadMessages(queryClient, threadId);
+  }, [messagesQuery.fetchNextPage, queryClient, threadId]);
+  const returnToLatest = useCallback(async () => {
+    const wasPinnedToEnd = pinnedToEnd.current;
+    pinnedToEnd.current = true;
+
+    try {
+      await returnToLatestMessages();
+    } catch (cause) {
+      pinnedToEnd.current = wasPinnedToEnd;
+      reportError("thread.messages.return-to-latest", cause);
+    }
+  }, [returnToLatestMessages]);
+  const retryPending = operationPending || configurationPending || returnToLatestMutation.isPending;
+  const historyNavigationPending = operationPending || returnToLatestMutation.isPending;
 
   return (
     <section
@@ -501,29 +560,38 @@ export function ThreadView({
       <ThreadTimeline
         key={`timeline:${threadId}`}
         view={threadView}
-        pendingSubmission={pendingSubmission}
+        pendingSubmission={historical ? null : pendingSubmission}
         viewport={viewport}
         pinnedToEnd={pinnedToEnd}
-        modelAvailable={configuration !== null}
+        modelAvailable={configuration !== null && !historical}
         retryStatus={retryStatus}
         hasNextPage={messagesQuery.hasNextPage}
         isFetchingNextPage={messagesQuery.isFetchingNextPage}
         isFetchNextPageError={messagesQuery.isFetchNextPageError}
-        operationPending={operationPending || configurationPending}
+        historyNavigationPending={historyNavigationPending}
+        retryPending={retryPending}
         loadOlder={loadOlder}
         retryReply={retryReply}
       />
-      <ThreadComposer
-        key={`composer:${threadId}`}
-        threadId={threadId}
-        configuration={configuration}
-        configurationPending={configurationPending}
-        operationPending={operationPending}
-        messageContentMaxLength={threadView.messageContentMaxLength}
-        composerControls={composerControls}
-        viewport={viewport}
-        pinnedToEnd={pinnedToEnd}
-      />
+      {historical ? (
+        <ThreadHistoryReturn
+          error={returnToLatestMutation.isError}
+          pending={returnToLatestMutation.isPending}
+          returnToLatest={returnToLatest}
+        />
+      ) : (
+        <ThreadComposer
+          key={`composer:${threadId}`}
+          threadId={threadId}
+          configuration={configuration}
+          configurationPending={configurationPending}
+          operationPending={operationPending}
+          messageMaxCodeUnits={threadView.messageMaxCodeUnits}
+          composerControls={composerControls}
+          viewport={viewport}
+          pinnedToEnd={pinnedToEnd}
+        />
+      )}
     </section>
   );
 }
@@ -648,5 +716,28 @@ const styles = stylex.create({
     position: "sticky",
     width: "100%",
     zIndex: 1,
+  },
+  historyReturn: {
+    alignItems: "center",
+    backgroundColor: tokens.surfaceRaised,
+    borderColor: tokens.surfaceRaisedBorder,
+    borderRadius: tokens.radiusLarge,
+    borderStyle: "solid",
+    borderWidth: 1,
+    display: "flex",
+    gap: "1rem",
+    justifyContent: "space-between",
+    padding: "0.75rem",
+  },
+  historyDescription: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+  },
+  historyError: {
+    color: tokens.danger,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    marginTop: "0.375rem",
   },
 });

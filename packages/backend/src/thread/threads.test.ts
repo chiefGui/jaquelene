@@ -8,8 +8,9 @@ import { threadMessageTable, turnTable } from "./schema";
 import {
   appendAssistantMessageInTransaction,
   createThreads,
-  THREAD_MESSAGE_CONTENT_MAX_LENGTH,
-  THREAD_MESSAGE_PAGE_SIZE,
+  THREAD_MESSAGE_MAX_CODE_UNITS,
+  THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+  THREAD_MESSAGE_PAGE_MAX_COUNT,
 } from "./threads";
 
 const directories: string[] = [];
@@ -42,6 +43,19 @@ afterEach(() => {
 });
 
 describe("threads", () => {
+  it("returns the bounded page contract for a thread without messages", () => {
+    const { threads } = openThreads(createDatabasePath(), () => 50);
+    const thread = threads.create();
+
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [],
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 0,
+    });
+  });
+
   it("creates a campaign-agnostic thread and retrieves it by identity", () => {
     const { threads } = openThreads(createDatabasePath(), () => 100);
     const thread = threads.create();
@@ -84,8 +98,10 @@ describe("threads", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [first.message, second.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 31,
     });
   });
 
@@ -125,23 +141,25 @@ describe("threads", () => {
     });
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [first.message, firstReply.message, second.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 48,
     });
   });
 
   it("pages backward through one branch with an opaque message cursor", () => {
     const { threads } = openThreads(createDatabasePath(), () => 400);
     const thread = threads.create();
-    const turns = Array.from({ length: THREAD_MESSAGE_PAGE_SIZE + 2 }, (_, index) =>
+    const turns = Array.from({ length: THREAD_MESSAGE_PAGE_MAX_COUNT + 2 }, (_, index) =>
       threads.startTurn(thread.id, `Message ${index + 1}`),
     );
 
     const newestPage = threads.listMessages({ threadId: thread.id });
 
-    expect(newestPage.messages).toHaveLength(THREAD_MESSAGE_PAGE_SIZE);
+    expect(newestPage.messages).toHaveLength(THREAD_MESSAGE_PAGE_MAX_COUNT);
     expect(newestPage.messages[0]?.sequence).toBe(3);
-    expect(newestPage.messages.at(-1)?.sequence).toBe(THREAD_MESSAGE_PAGE_SIZE + 2);
+    expect(newestPage.messages.at(-1)?.sequence).toBe(THREAD_MESSAGE_PAGE_MAX_COUNT + 2);
     expect(newestPage.nextCursor).toBe(turns[1]?.message.id);
 
     if (!newestPage.nextCursor) {
@@ -150,8 +168,58 @@ describe("threads", () => {
 
     expect(threads.listMessages({ threadId: thread.id, before: newestPage.nextCursor })).toEqual({
       messages: [turns[0]?.message, turns[1]?.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 18,
+    });
+  });
+
+  it("bounds a page by UTF-8 content bytes without splitting its anchor", () => {
+    const { threads } = openThreads(createDatabasePath(), () => 450);
+    const thread = threads.create();
+    const excluded = threads.startTurn(thread.id, "Older message");
+    const multibyte = threads.startTurn(thread.id, "é".repeat(32_768));
+    const newest = threads.startTurn(thread.id, "x".repeat(65_536));
+
+    const newestPage = threads.listMessages({ threadId: thread.id });
+
+    expect(newestPage).toEqual({
+      messages: [multibyte.message, newest.message],
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      nextCursor: excluded.message.id,
+    });
+
+    if (!newestPage.nextCursor) {
+      throw new Error("Expected another page of thread messages.");
+    }
+
+    expect(threads.listMessages({ threadId: thread.id, before: newestPage.nextCursor })).toEqual({
+      messages: [excluded.message],
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 13,
+    });
+  });
+
+  it("returns an oversized anchor alone and reports its actual UTF-8 weight", () => {
+    const { threads } = openThreads(createDatabasePath(), () => 475);
+    const thread = threads.create();
+    const parent = threads.startTurn(thread.id, "Parent message");
+    const oversized = threads.startTurn(thread.id, "😀".repeat(50_000));
+
+    expect(oversized.message.content).toHaveLength(THREAD_MESSAGE_MAX_CODE_UNITS);
+    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+      messages: [oversized.message],
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 200_000,
+      nextCursor: parent.message.id,
     });
   });
 
@@ -173,8 +241,10 @@ describe("threads", () => {
     });
     expect(secondConnection.threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 18,
     });
   });
 
@@ -287,7 +357,7 @@ describe("threads", () => {
 
     expect(() => threads.startTurn(thread.id, " \n\t ")).toThrow(TypeError);
     expect(() =>
-      threads.startTurn(thread.id, "x".repeat(THREAD_MESSAGE_CONTENT_MAX_LENGTH + 1)),
+      threads.startTurn(thread.id, "x".repeat(THREAD_MESSAGE_MAX_CODE_UNITS + 1)),
     ).toThrow(RangeError);
     expect(() => threads.startTurn(missingThreadId, "Hello")).toThrow(
       `Thread "${missingThreadId}" does not exist.`,

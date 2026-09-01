@@ -11,16 +11,6 @@ type UiFontDefinition = {
 };
 
 const styles = stylex.create({
-  document: {
-    accentColor: tokens.accent,
-    backgroundColor: tokens.canvas,
-    colorScheme: "dark",
-    scrollbarColor: `color-mix(in oklch, ${tokens.muted} 65%, transparent) transparent`,
-    "::selection": {
-      backgroundColor: `color-mix(in oklch, ${tokens.accent} 35%, transparent)`,
-      color: tokens.foreground,
-    },
-  },
   geist: {
     fontFamily: tokens.fontGeist,
   },
@@ -51,7 +41,7 @@ export const uiFonts = {
 } as const satisfies Record<UiFont, UiFontDefinition>;
 
 export function useApplyUiFont(font: UiFont) {
-  const { className } = stylex.props(styles.document, uiFonts[font].style);
+  const { className } = stylex.props(uiFonts[font].style);
 
   useLayoutEffect(() => {
     const root = document.documentElement;

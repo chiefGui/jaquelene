@@ -1,6 +1,7 @@
 import { Item } from "@jaquelene/ui";
 import { Select } from "@jaquelene/ui/select";
 import { tokens } from "@jaquelene/ui/theme.stylex";
+import { Radio, RadioGroup, useRadioStore } from "@ariakit/react/radio";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -12,8 +13,10 @@ import {
   useSetInterfaceScale,
   useSetMotion,
   useSetUiFont,
+  useSetUiTheme,
 } from "@/feature/appearance/user-interface/query";
 import { interfaceScales } from "@/feature/appearance/user-interface/scale";
+import { uiThemes } from "@/feature/appearance/user-interface/theme";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
@@ -105,11 +108,88 @@ function PreferenceSelectItem<Value extends string>({
   );
 }
 
+type ThemePreferenceItemProps = {
+  disabled: boolean;
+  error: string | null;
+  onValueChange: (value: (typeof uiThemes)[keyof typeof uiThemes]["value"]) => void;
+  value: (typeof uiThemes)[keyof typeof uiThemes]["value"];
+};
+
+function ThemePreferenceItem({ disabled, error, onValueChange, value }: ThemePreferenceItemProps) {
+  const errorId = useId();
+  const labelId = useId();
+  const options = Object.values(uiThemes);
+  const store = useRadioStore({
+    value,
+    setValue(nextValue) {
+      const nextTheme = options.find((option) => option.value === nextValue);
+
+      if (!nextTheme) {
+        throw new TypeError(`Unknown UI theme "${nextValue}".`);
+      }
+
+      if (nextTheme.value !== value) {
+        onValueChange(nextTheme.value);
+      }
+    },
+  });
+
+  return (
+    <Item.Root>
+      <Item.Content>
+        <Item.Label id={labelId}>Theme</Item.Label>
+        {error ? (
+          <Item.Description id={errorId} role="alert" style={styles.error}>
+            {error}
+          </Item.Description>
+        ) : null}
+      </Item.Content>
+
+      <Item.Value>
+        <RadioGroup
+          store={store}
+          aria-labelledby={labelId}
+          aria-describedby={error ? errorId : undefined}
+          disabled={disabled}
+          {...stylex.props(styles.themeGroup)}
+        >
+          {options.map((option) => {
+            const selected = option.value === value;
+
+            return (
+              <Radio
+                key={option.value}
+                store={store}
+                value={option.value}
+                render={<button type="button" />}
+                {...stylex.props(styles.themeOption)}
+              >
+                <span
+                  aria-hidden="true"
+                  {...stylex.props(
+                    styles.themeOrb,
+                    option.style,
+                    selected && styles.themeOrbSelected,
+                  )}
+                />
+                <span {...stylex.props(styles.themeLabel, selected && styles.themeLabelSelected)}>
+                  {option.label}
+                </span>
+              </Radio>
+            );
+          })}
+        </RadioGroup>
+      </Item.Value>
+    </Item.Root>
+  );
+}
+
 function AppearanceRoute() {
   const { data: preferences } = useSuspenseQuery(userInterfacePreferencesQuery);
   const setInterfaceScale = useSetInterfaceScale();
   const setMotion = useSetMotion();
   const setUiFont = useSetUiFont();
+  const setUiTheme = useSetUiTheme();
 
   return (
     <>
@@ -130,6 +210,13 @@ function AppearanceRoute() {
             <Item.Heading id="user-interface-heading">User Interface</Item.Heading>
 
             <Item.Group>
+              <ThemePreferenceItem
+                disabled={setUiTheme.isPending}
+                error={setUiTheme.isError ? "Couldn't save the theme." : null}
+                onValueChange={setUiTheme.mutate}
+                value={preferences.theme}
+              />
+
               <PreferenceSelectItem
                 disabled={setUiFont.isPending}
                 error={setUiFont.isError ? "Couldn't save the font." : null}
@@ -170,5 +257,62 @@ const styles = stylex.create({
   },
   select: {
     minWidth: "8rem",
+  },
+  themeGroup: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.75rem",
+  },
+  themeOption: {
+    alignItems: "center",
+    borderRadius: tokens.radiusMedium,
+    color: tokens.muted,
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    minWidth: "3.5rem",
+    opacity: {
+      default: 1,
+      ":disabled": 0.5,
+    },
+    outlineColor: {
+      default: null,
+      ":is([data-focus-visible])": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
+    },
+    outlineOffset: {
+      default: null,
+      ":is([data-focus-visible])": 2,
+    },
+    outlineStyle: {
+      default: "none",
+      ":is([data-focus-visible])": "solid",
+    },
+    outlineWidth: {
+      default: null,
+      ":is([data-focus-visible])": 1,
+    },
+    padding: "0.25rem",
+  },
+  themeOrb: {
+    backgroundColor: tokens.canvas,
+    backgroundImage: `conic-gradient(from 215deg, ${tokens.canvas} 0 42%, ${tokens.surfaceRaised} 42% 67%, ${tokens.accent} 67% 84%, ${tokens.foreground} 84%)`,
+    borderColor: tokens.surfaceRaisedBorder,
+    borderRadius: "50%",
+    borderStyle: "solid",
+    borderWidth: 1,
+    height: "2.5rem",
+    width: "2.5rem",
+  },
+  themeOrbSelected: {
+    boxShadow: `0 0 0 2px ${tokens.canvas}, 0 0 0 4px ${tokens.accent}`,
+  },
+  themeLabel: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    textBox: "trim-both text",
+  },
+  themeLabelSelected: {
+    color: tokens.foreground,
   },
 });

@@ -25,11 +25,17 @@ import {
 import type { Models } from "#backend/provider/model-catalog";
 import {
   requireModelReference,
-  type GenerationUsage,
   type ModelReference,
   type ProviderGenerationResult,
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
+import { normalizeProviderAccounting, type ProviderAccounting } from "#backend/usage/accounting";
+import {
+  createProviderAttempts,
+  settleProviderAttempt,
+  type ProviderAttempts,
+} from "#backend/usage/provider-attempts";
+import { providerAttemptTable, type ProviderAttempt } from "#backend/usage/schema";
 import { requireReplyInput, type ReplyAnchor, type ReplyPreparer } from "./reply-preparation";
 import {
   generationTable,
@@ -63,15 +69,8 @@ export type ReplyGenerationExecution =
       cause: unknown;
     };
 
-type NormalizedProviderAccounting = {
-  providerGenerationId: string | null;
-  resolvedModelId: string | null;
-  upstreamProviderId: string | null;
-  finishReason: string | null;
-  usage: GenerationUsage | null;
-};
-
-type NormalizedProviderResult = NormalizedProviderAccounting & {
+type NormalizedProviderResult = {
+  accounting: ProviderAccounting;
   text: string;
 };
 
@@ -141,177 +140,11 @@ function waitForOperation<Result>(operation: Promise<Result>, signal?: AbortSign
   });
 }
 
-function requireOptionalText(value: string | undefined, field: string) {
-  if (value === undefined) {
-    return null;
-  }
-
-  if (!value.trim()) {
-    throw new TypeError(`A generation provider returned an empty ${field}.`);
-  }
-
-  return value;
-}
-
-function requireTokenCount(value: number, field: string) {
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new TypeError(`A generation provider returned an invalid ${field}.`);
-  }
-
-  return value;
-}
-
-function normalizeProviderMetadata(
-  result: ProviderGenerationResult,
-): Omit<NormalizedProviderAccounting, "usage"> {
-  return {
-    providerGenerationId: requireOptionalText(result.providerGenerationId, "generation identity"),
-    resolvedModelId: requireOptionalText(result.resolvedModelId, "resolved model identity"),
-    upstreamProviderId: requireOptionalText(
-      result.upstreamProviderId,
-      "upstream provider identity",
-    ),
-    finishReason: requireOptionalText(result.finishReason, "finish reason"),
-  };
-}
-
-function normalizeProviderUsage(result: ProviderGenerationResult): GenerationUsage | null {
-  if (!result.usage) {
-    return null;
-  }
-
-  const usage: GenerationUsage = {
-    tokens: {
-      input: {
-        total: requireTokenCount(result.usage.tokens.input.total, "input token count"),
-        ...(result.usage.tokens.input.cacheRead === undefined
-          ? {}
-          : {
-              cacheRead: requireTokenCount(
-                result.usage.tokens.input.cacheRead,
-                "cache-read input token count",
-              ),
-            }),
-        ...(result.usage.tokens.input.cacheWrite === undefined
-          ? {}
-          : {
-              cacheWrite: requireTokenCount(
-                result.usage.tokens.input.cacheWrite,
-                "cache-write input token count",
-              ),
-            }),
-      },
-      output: {
-        total: requireTokenCount(result.usage.tokens.output.total, "output token count"),
-        ...(result.usage.tokens.output.reasoning === undefined
-          ? {}
-          : {
-              reasoning: requireTokenCount(
-                result.usage.tokens.output.reasoning,
-                "reasoning output token count",
-              ),
-            }),
-      },
-      total: requireTokenCount(result.usage.tokens.total, "total token count"),
-    },
-    ...(result.usage.cost
-      ? {
-          cost: {
-            currency: result.usage.cost.currency,
-            amountNanos: requireTokenCount(result.usage.cost.amountNanos, "cost amount in nanos"),
-            source: result.usage.cost.source,
-          },
-        }
-      : {}),
-  };
-  const { input, output } = usage.tokens;
-
-  if (input.cacheRead !== undefined && input.cacheRead > input.total) {
-    throw new TypeError("A generation provider returned cache-read tokens above input tokens.");
-  }
-
-  if (input.cacheWrite !== undefined && input.cacheWrite > input.total) {
-    throw new TypeError("A generation provider returned cache-write tokens above input tokens.");
-  }
-
-  if (output.reasoning !== undefined && output.reasoning > output.total) {
-    throw new TypeError("A generation provider returned reasoning tokens above output tokens.");
-  }
-
-  if (usage.tokens.total < input.total || usage.tokens.total < output.total) {
-    throw new TypeError("A generation provider returned an invalid total token count.");
-  }
-
-  if (
-    usage.cost &&
-    (usage.cost.currency !== "USD" ||
-      (usage.cost.source !== "provider-reported" && usage.cost.source !== "estimated"))
-  ) {
-    throw new TypeError("A generation provider returned unsupported cost metadata.");
-  }
-
-  return usage;
-}
-
-function normalizeProviderAccounting(result: ProviderGenerationResult) {
-  const causes: unknown[] = [];
-  let metadata: Omit<NormalizedProviderAccounting, "usage"> = {
-    providerGenerationId: null,
-    resolvedModelId: null,
-    upstreamProviderId: null,
-    finishReason: null,
-  };
-  let usage: GenerationUsage | null = null;
-
-  try {
-    metadata = normalizeProviderMetadata(result);
-  } catch (cause) {
-    causes.push(cause);
-  }
-
-  try {
-    usage = normalizeProviderUsage(result);
-  } catch (cause) {
-    causes.push(cause);
-  }
-
-  const accounting = { ...metadata, usage } satisfies NormalizedProviderAccounting;
-
-  return causes.length === 0
-    ? { outcome: "valid" as const, accounting }
-    : {
-        outcome: "invalid" as const,
-        accounting,
-        cause:
-          causes.length === 1
-            ? causes[0]
-            : new AggregateError(causes, "A generation provider returned invalid accounting."),
-      };
-}
-
 function normalizeProviderResult(
   result: ProviderGenerationResult,
-  accounting: NormalizedProviderAccounting,
+  accounting: ProviderAccounting,
 ): NormalizedProviderResult {
-  return { ...accounting, text: requireThreadMessageContent(result.text) };
-}
-
-function providerResultFields(output: NormalizedProviderAccounting) {
-  return {
-    providerGenerationId: output.providerGenerationId,
-    resolvedModelId: output.resolvedModelId,
-    upstreamProviderId: output.upstreamProviderId,
-    finishReason: output.finishReason,
-    inputTokens: output.usage?.tokens.input.total ?? null,
-    cacheReadInputTokens: output.usage?.tokens.input.cacheRead ?? null,
-    cacheWriteInputTokens: output.usage?.tokens.input.cacheWrite ?? null,
-    outputTokens: output.usage?.tokens.output.total ?? null,
-    reasoningOutputTokens: output.usage?.tokens.output.reasoning ?? null,
-    totalTokens: output.usage?.tokens.total ?? null,
-    costCurrency: output.usage?.cost?.currency ?? null,
-    costAmountNanos: output.usage?.cost?.amountNanos ?? null,
-    costSource: output.usage?.cost?.source ?? null,
-  };
+  return { accounting, text: requireThreadMessageContent(result.text) };
 }
 
 export function createGenerations(
@@ -320,6 +153,7 @@ export function createGenerations(
   models: Pick<Models, "getModel">,
   providers: ProviderGenerationRouter,
   now: () => number = Date.now,
+  attempts: ProviderAttempts = createProviderAttempts(database, () => undefined),
 ) {
   function requireProvider(model: ModelReference) {
     requireModelReference(model);
@@ -332,8 +166,8 @@ export function createGenerations(
 
     return provider;
   }
-  function finishedAt(generation: Pick<Generation, "startedAt" | "providerStartedAt">) {
-    return Math.max(generation.startedAt, generation.providerStartedAt ?? 0, now());
+  function finishedAt(generation: Pick<Generation, "startedAt">, attempt?: ProviderAttempt) {
+    return Math.max(generation.startedAt, attempt?.startedAt ?? 0, now());
   }
 
   function requireReplyContext(source: Pick<Database, "select">, turnId: TurnId) {
@@ -371,24 +205,55 @@ export function createGenerations(
   }
 
   function recordFailure(
-    generation: Pick<Generation, "id" | "startedAt" | "providerStartedAt">,
+    generation: Pick<Generation, "id" | "startedAt">,
     failureKind: GenerationFailureKind,
     cause: unknown,
-    output?: NormalizedProviderAccounting,
+    attempt?: ProviderAttempt,
+    accounting?: ProviderAccounting,
   ): ReplyGenerationExecution {
-    let failedGeneration: StoredGeneration | undefined;
+    let failedGeneration: StoredGeneration;
 
     try {
-      failedGeneration = database
-        .update(generationTable)
-        .set({
-          status: "failed",
-          failureKind,
-          finishedAt: finishedAt(generation),
-        })
-        .where(and(eq(generationTable.id, generation.id), eq(generationTable.status, "pending")))
-        .returning()
-        .get();
+      failedGeneration = database.transaction((transaction) => {
+        const completionTime = finishedAt(generation, attempt);
+        const storedGeneration = transaction
+          .update(generationTable)
+          .set({
+            status: "failed",
+            failureKind,
+            finishedAt: completionTime,
+          })
+          .where(and(eq(generationTable.id, generation.id), eq(generationTable.status, "pending")))
+          .returning()
+          .get();
+
+        if (!storedGeneration) {
+          throw new Error(`Generation "${generation.id}" is no longer pending.`);
+        }
+
+        if (attempt) {
+          if (failureKind === "preparation") {
+            throw new TypeError("A preparation failure cannot own a provider attempt.");
+          }
+
+          const attemptSettlement =
+            failureKind === "storage" && accounting
+              ? ({ status: "completed", finishedAt: completionTime } as const)
+              : ({ status: "failed", failureKind, finishedAt: completionTime } as const);
+          const settledAttempt = settleProviderAttempt(
+            transaction,
+            attempt.id,
+            attemptSettlement,
+            accounting,
+          );
+
+          if (!settledAttempt) {
+            throw new Error(`Provider attempt "${attempt.id}" is no longer pending.`);
+          }
+        }
+
+        return storedGeneration;
+      });
     } catch (failure) {
       throw new AggregateError(
         [cause, failure],
@@ -396,30 +261,8 @@ export function createGenerations(
       );
     }
 
-    if (!failedGeneration) {
-      throw cause;
-    }
-
-    if (output) {
-      try {
-        const recordedGeneration = database
-          .update(generationTable)
-          .set(providerResultFields(output))
-          .where(and(eq(generationTable.id, generation.id), eq(generationTable.status, "failed")))
-          .returning()
-          .get();
-
-        if (!recordedGeneration) {
-          throw new Error(`Generation "${generation.id}" is no longer failed.`);
-        }
-
-        failedGeneration = recordedGeneration;
-      } catch (failure) {
-        throw new AggregateError(
-          [cause, failure],
-          `Generation "${generation.id}" failed, but its provider result could not be recorded.`,
-        );
-      }
+    if (attempt) {
+      attempts.changed();
     }
 
     return { outcome: "failed", generation: toGeneration(failedGeneration), cause };
@@ -550,21 +393,16 @@ export function createGenerations(
     }
 
     let providerResult: ProviderGenerationResult;
-    let dispatchedGeneration: Generation;
+    let attempt: ProviderAttempt;
 
     try {
-      const storedDispatchedGeneration = database
-        .update(generationTable)
-        .set({ providerStartedAt: Math.max(generation.startedAt, now()) })
-        .where(and(eq(generationTable.id, generation.id), eq(generationTable.status, "pending")))
-        .returning()
-        .get();
-
-      if (!storedDispatchedGeneration) {
-        throw new Error(`Generation "${generation.id}" is no longer pending.`);
-      }
-
-      dispatchedGeneration = toGeneration(storedDispatchedGeneration);
+      attempt = attempts.start({
+        generationId: generation.id,
+        threadId: anchor.threadId,
+        providerId: generation.providerId,
+        requestedModelId: generation.modelId,
+        startedAt: Math.max(generation.startedAt, now()),
+      });
     } catch (cause) {
       return recordFailure(generation, "storage", cause);
     }
@@ -589,9 +427,10 @@ export function createGenerations(
       );
     } catch (cause) {
       return recordFailure(
-        dispatchedGeneration,
+        generation,
         signal?.aborted ? "interrupted" : "provider",
         cause,
+        attempt,
       );
     }
 
@@ -599,9 +438,10 @@ export function createGenerations(
 
     if (normalizedAccounting.outcome === "invalid") {
       return recordFailure(
-        dispatchedGeneration,
+        generation,
         "invalid-output",
         normalizedAccounting.cause,
+        attempt,
         normalizedAccounting.accounting,
       );
     }
@@ -612,12 +452,12 @@ export function createGenerations(
     try {
       output = normalizeProviderResult(providerResult, accounting);
     } catch (cause) {
-      return recordFailure(dispatchedGeneration, "invalid-output", cause, accounting);
+      return recordFailure(generation, "invalid-output", cause, attempt, accounting);
     }
 
     try {
       const result = database.transaction((transaction) => {
-        const completionTime = finishedAt(dispatchedGeneration);
+        const completionTime = finishedAt(generation, attempt);
         const { message, activated } = appendAssistantMessageInTransaction(transaction, {
           threadId: anchor.threadId,
           turnId: generation.turnId,
@@ -630,7 +470,6 @@ export function createGenerations(
           .update(generationTable)
           .set({
             status: "completed",
-            ...providerResultFields(output),
             outputMessageId: message.id,
             finishedAt: completionTime,
           })
@@ -642,12 +481,24 @@ export function createGenerations(
           throw new Error(`Generation "${generation.id}" is no longer pending.`);
         }
 
+        const settledAttempt = settleProviderAttempt(
+          transaction,
+          attempt.id,
+          { status: "completed", finishedAt: completionTime },
+          output.accounting,
+        );
+
+        if (!settledAttempt) {
+          throw new Error(`Provider attempt "${attempt.id}" is no longer pending.`);
+        }
+
         return { generation: toGeneration(storedCompletedGeneration), message, activated };
       });
 
+      attempts.changed();
       return { outcome: "completed", ...result };
     } catch (cause) {
-      return recordFailure(dispatchedGeneration, "storage", cause, output);
+      return recordFailure(generation, "storage", cause, attempt, output.accounting);
     }
   }
 
@@ -698,15 +549,31 @@ export function createGenerations(
     recoverInterrupted() {
       const recoveryTime = now();
 
-      database
-        .update(generationTable)
-        .set({
-          status: "failed",
-          failureKind: "interrupted",
-          finishedAt: sql`max(${generationTable.startedAt}, coalesce(${generationTable.providerStartedAt}, 0), ${recoveryTime})`,
-        })
-        .where(eq(generationTable.status, "pending"))
-        .run();
+      const recoveredAttempts = database.transaction((transaction) => {
+        const attemptResult = transaction
+          .update(providerAttemptTable)
+          .set({
+            status: "failed",
+            failureKind: "interrupted",
+            finishedAt: sql`max(${providerAttemptTable.startedAt}, ${recoveryTime})`,
+          })
+          .where(eq(providerAttemptTable.status, "pending"))
+          .run();
+        transaction
+          .update(generationTable)
+          .set({
+            status: "failed",
+            failureKind: "interrupted",
+            finishedAt: sql`max(${generationTable.startedAt}, ${recoveryTime})`,
+          })
+          .where(eq(generationTable.status, "pending"))
+          .run();
+        return attemptResult.changes;
+      });
+
+      if (recoveredAttempts > 0) {
+        attempts.changed();
+      }
     },
 
     acceptReplyInTransaction,

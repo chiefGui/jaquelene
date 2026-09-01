@@ -4,7 +4,7 @@ import { ipcQueryOptions, requireIpcMethod } from "@/ipc";
 
 const getCampaignUsage = requireIpcMethod(CampaignUsage?.get);
 
-export const campaignUsageQueryKey = ["campaign-usage"] as const;
+export const campaignUsageQueryKey = ["usage", "campaign"] as const;
 
 export function campaignUsageQuery(id: string) {
   return queryOptions({

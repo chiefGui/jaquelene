@@ -1,7 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
@@ -17,6 +16,7 @@ import { createScenarios } from "#backend/scenario/scenarios";
 import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
 import { createInstructionRegistry } from "#backend/instruction/registry";
 import { threadMessageTable } from "#backend/thread/schema";
+import { providerAttemptTable } from "#backend/usage/schema";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
@@ -194,22 +194,8 @@ describe("generations", () => {
         reasoning: { preset: "high", source: "selection" },
         status: "completed",
         failureKind: null,
-        providerGenerationId: "provider-generation-1",
-        resolvedModelId: "maker/resolved-model",
-        upstreamProviderId: null,
-        finishReason: "stop",
-        inputTokens: 12,
-        cacheReadInputTokens: 3,
-        cacheWriteInputTokens: null,
-        outputTokens: 5,
-        reasoningOutputTokens: 2,
-        totalTokens: 17,
-        costCurrency: "USD",
-        costAmountNanos: 12_345,
-        costSource: "provider-reported",
         outputMessageId: expect.stringMatching(/^message_/),
         startedAt: 102,
-        providerStartedAt: 103,
         finishedAt: 104,
       },
     });
@@ -220,6 +206,29 @@ describe("generations", () => {
         reasoningPreset: "high",
         reasoningPresetSource: "selection",
         status: "completed",
+      }),
+    );
+    expect(database.select().from(providerAttemptTable).get()).toEqual(
+      expect.objectContaining({
+        id: expect.stringMatching(/^attempt_/),
+        generationId: result.generation.id,
+        threadId: thread.id,
+        providerId: provider.id,
+        requestedModelId: "maker/requested-model",
+        providerGenerationId: "provider-generation-1",
+        resolvedModelId: "maker/resolved-model",
+        finishReason: "stop",
+        inputTokens: 12,
+        cacheReadInputTokens: 3,
+        outputTokens: 5,
+        reasoningOutputTokens: 2,
+        totalTokens: 17,
+        costCurrency: "USD",
+        costAmountNanos: 12_345,
+        costSource: "provider-reported",
+        status: "completed",
+        startedAt: 103,
+        finishedAt: 104,
       }),
     );
     expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
@@ -428,8 +437,15 @@ describe("generations", () => {
     expect(result.generation).toEqual(
       expect.objectContaining({
         status: "completed",
-        providerGenerationId: "late-provider-generation",
         outputMessageId: result.message.id,
+      }),
+    );
+    expect(database.select().from(providerAttemptTable).get()).toEqual(
+      expect.objectContaining({
+        generationId: result.generation.id,
+        providerGenerationId: "late-provider-generation",
+        totalTokens: 11,
+        status: "completed",
       }),
     );
     expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
@@ -629,23 +645,31 @@ describe("generations", () => {
       expect.objectContaining({
         turnId: started.turn.id,
         failureKind: "provider",
-        providerStartedAt: expect.any(Number),
       }),
       expect.objectContaining({
         turnId: started.turn.id,
+        failureKind: "invalid-output",
+      }),
+      expect.objectContaining({
+        turnId: started.turn.id,
+        failureKind: "invalid-output",
+      }),
+    ]);
+    expect(database.select().from(providerAttemptTable).all()).toEqual([
+      expect.objectContaining({ status: "failed", failureKind: "provider" }),
+      expect.objectContaining({
+        status: "failed",
         failureKind: "invalid-output",
         providerGenerationId: "invalid-output-generation",
         inputTokens: 7,
         outputTokens: 2,
         totalTokens: 9,
-        providerStartedAt: expect.any(Number),
       }),
       expect.objectContaining({
-        turnId: started.turn.id,
+        status: "failed",
         failureKind: "invalid-output",
         providerGenerationId: "invalid-accounting-generation",
         inputTokens: null,
-        providerStartedAt: expect.any(Number),
       }),
     ]);
     expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
@@ -675,6 +699,9 @@ describe("generations", () => {
 
     await expect(pending).rejects.toBe(interruption);
     expect(database.select().from(generationTable).get()).toEqual(
+      expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
+    );
+    expect(database.select().from(providerAttemptTable).get()).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
     );
     expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
@@ -708,6 +735,9 @@ describe("generations", () => {
     expect(database.select().from(generationTable).get()).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "storage" }),
     );
+    expect(database.select().from(providerAttemptTable).get()).toEqual(
+      expect.objectContaining({ status: "completed", failureKind: null }),
+    );
     expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [started.message],
       ...threadPageMetadata([started.message]),
@@ -715,8 +745,8 @@ describe("generations", () => {
     expect(threads.startTurn(thread.id, "After failure").message.sequence).toBe(2);
   });
 
-  it("releases a turn when failed provider metadata cannot be stored", async () => {
-    const providerGenerationIds = ["shared-generation", "shared-generation", "retry-generation"];
+  it("treats provider identities as metadata rather than local uniqueness", async () => {
+    const providerGenerationIds = ["shared-generation", "shared-generation"];
     const provider = {
       id: "provider-a",
       generate: vi.fn(async () => {
@@ -740,41 +770,23 @@ describe("generations", () => {
     const secondThread = threads.create();
     const second = threads.startTurn(secondThread.id, "Second thread");
 
-    await expect(
-      generations.generateReply({
-        turnId: second.turn.id,
-        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
-      }),
-    ).rejects.toThrow();
-
-    expect(
-      database
-        .select()
-        .from(generationTable)
-        .where(eq(generationTable.turnId, second.turn.id))
-        .get(),
-    ).toEqual(
-      expect.objectContaining({
-        status: "failed",
-        failureKind: "storage",
-        providerGenerationId: null,
-      }),
-    );
-    expect(threads.listMessages({ threadId: secondThread.id, direction: "older" })).toEqual({
-      messages: [second.message],
-      ...threadPageMetadata([second.message]),
+    const secondResult = await generations.generateReply({
+      turnId: second.turn.id,
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
-    await expect(
-      generations.generateReply({
-        turnId: second.turn.id,
-        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
-      }),
-    ).resolves.toEqual(
-      expect.objectContaining({
-        message: expect.objectContaining({ sequence: 2, content: "Reply" }),
-      }),
-    );
+    expect(secondResult.generation.status).toBe("completed");
+    expect(threads.listMessages({ threadId: secondThread.id, direction: "older" })).toEqual({
+      messages: [second.message, secondResult.message],
+      ...threadPageMetadata([second.message, secondResult.message]),
+    });
+    const storedAttempts = database.select().from(providerAttemptTable).all();
+    expect(storedAttempts).toHaveLength(2);
+    expect(new Set(storedAttempts.map(({ id }) => id)).size).toBe(2);
+    expect(storedAttempts.map(({ providerGenerationId }) => providerGenerationId)).toEqual([
+      "shared-generation",
+      "shared-generation",
+    ]);
   });
 
   it("recovers pending attempts left by an interrupted process", () => {
@@ -783,13 +795,26 @@ describe("generations", () => {
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
 
+    const generationId = ids.generation.create();
     database
       .insert(generationTable)
       .values({
-        id: ids.generation.create(),
+        id: generationId,
         turnId: started.turn.id,
         providerId: provider.id,
         modelId: "maker/model",
+        status: "pending",
+        startedAt: 600,
+      })
+      .run();
+    database
+      .insert(providerAttemptTable)
+      .values({
+        id: ids.providerAttempt.create(),
+        generationId,
+        threadId: thread.id,
+        providerId: provider.id,
+        requestedModelId: "maker/model",
         status: "pending",
         startedAt: 600,
       })
@@ -798,6 +823,14 @@ describe("generations", () => {
     generations.recoverInterrupted();
 
     expect(database.select().from(generationTable).get()).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        failureKind: "interrupted",
+        startedAt: 600,
+        finishedAt: 600,
+      }),
+    );
+    expect(database.select().from(providerAttemptTable).get()).toEqual(
       expect.objectContaining({
         status: "failed",
         failureKind: "interrupted",
@@ -863,60 +896,9 @@ describe("generations", () => {
         })
         .run(),
     ).toThrow();
-    expect(() =>
-      database
-        .insert(generationTable)
-        .values({
-          id: ids.generation.create(),
-          turnId: second.turn.id,
-          providerId: provider.id,
-          modelId: "maker/model",
-          status: "failed",
-          failureKind: "provider",
-          inputTokens: 1,
-          startedAt: 700,
-          finishedAt: 701,
-        })
-        .run(),
-    ).toThrow();
-    expect(() =>
-      database
-        .insert(generationTable)
-        .values({
-          id: ids.generation.create(),
-          turnId: second.turn.id,
-          providerId: provider.id,
-          modelId: "maker/model",
-          status: "failed",
-          failureKind: "preparation",
-          startedAt: 700,
-          providerStartedAt: 700,
-          finishedAt: 701,
-        })
-        .run(),
-    ).toThrow();
-    expect(() =>
-      database
-        .insert(generationTable)
-        .values({
-          id: ids.generation.create(),
-          turnId: second.turn.id,
-          providerId: provider.id,
-          modelId: "maker/model",
-          status: "failed",
-          failureKind: "provider",
-          costCurrency: "USD",
-          costAmountNanos: 1,
-          costSource: "provider-reported",
-          startedAt: 700,
-          providerStartedAt: 700,
-          finishedAt: 701,
-        })
-        .run(),
-    ).toThrow();
   });
 
-  it("removes turns, messages, and generations with their owning thread", async () => {
+  it("removes thread content while retaining its provider usage", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { database, generations, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
@@ -925,12 +907,14 @@ describe("generations", () => {
       turnId: started.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
+    const attempt = database.select().from(providerAttemptTable).get();
 
     expect(() =>
       database.$client.prepare("DELETE FROM threads WHERE id = ?").run(thread.id),
     ).not.toThrow();
     expect(database.select().from(generationTable).all()).toEqual([]);
     expect(database.select().from(threadMessageTable).all()).toEqual([]);
+    expect(database.select().from(providerAttemptTable).all()).toEqual([attempt]);
     expect(threads.get(thread.id)).toBeNull();
   });
 
@@ -997,7 +981,6 @@ describe("generations", () => {
         turnId: started.turn.id,
         status: "failed",
         failureKind: "interrupted",
-        providerStartedAt: null,
       }),
     );
   });
@@ -1040,7 +1023,6 @@ describe("generations", () => {
         turnId: started.turn.id,
         status: "failed",
         failureKind: "preparation",
-        providerStartedAt: null,
       }),
     ]);
   });

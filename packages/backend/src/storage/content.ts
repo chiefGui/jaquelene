@@ -5,6 +5,7 @@ import { generationTable } from "#backend/generation/schema";
 import { scenarioTable } from "#backend/scenario/schema";
 import { StorageCategory, type StorageArea } from "#backend/storage/storage";
 import { threadTable } from "#backend/thread/schema";
+import { providerAttemptTable } from "#backend/usage/schema";
 
 function deleteContent(database: Database) {
   database.transaction((transaction) => {
@@ -18,6 +19,17 @@ function deleteContent(database: Database) {
       throw new Error("Content cannot be deleted while a reply is being generated.");
     }
 
+    const pendingAttempt = transaction
+      .select({ id: providerAttemptTable.id })
+      .from(providerAttemptTable)
+      .where(eq(providerAttemptTable.status, "pending"))
+      .get();
+
+    if (pendingAttempt) {
+      throw new Error("Content cannot be deleted while a provider attempt is active.");
+    }
+
+    transaction.delete(providerAttemptTable).run();
     transaction.delete(campaignTable).run();
     transaction.delete(generationTable).run();
     transaction.delete(threadTable).run();

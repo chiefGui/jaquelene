@@ -59,7 +59,7 @@ export const generationCostSources = ["provider-reported", "estimated"] as const
 export type GenerationCostSource = (typeof generationCostSources)[number];
 
 export type GenerationCost = Readonly<{
-  currency: "USD";
+  currency: string;
   amountNanos: number;
   source: GenerationCostSource;
 }>;

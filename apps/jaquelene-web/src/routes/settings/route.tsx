@@ -1,6 +1,7 @@
 import AiFile01Icon from "@hugeicons/core-free-icons/AiFile01Icon";
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import ConnectIcon from "@hugeicons/core-free-icons/ConnectIcon";
+import ChartHistogramIcon from "@hugeicons/core-free-icons/ChartHistogramIcon";
 import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
 import PaletteIcon from "@hugeicons/core-free-icons/PaletteIcon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
@@ -48,6 +49,13 @@ function SettingsSidebar() {
             label: "Instructions",
             replace: true,
             to: "/settings/instructions",
+          },
+          {
+            id: "usage",
+            icon: ChartHistogramIcon,
+            label: "Usage",
+            replace: true,
+            to: "/settings/usage",
           },
           {
             id: "storage",

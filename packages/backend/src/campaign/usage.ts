@@ -1,9 +1,10 @@
-import { and, count, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, ne, notExists, sql } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import type { CampaignId } from "#backend/id";
-import type { GenerationCostSource } from "#backend/provider/provider";
 import { turnTable } from "#backend/thread/schema";
+import { providerAttemptTable } from "#backend/usage/schema";
+import type { CostUsage, TokenUsage, UsageCoverage } from "#backend/usage/types";
 import { campaignTable } from "./schema";
 
 export type CampaignUsage = Readonly<{
@@ -15,28 +16,10 @@ export type CampaignUsage = Readonly<{
     completed: number;
     failed: number;
   }>;
-  tokenCoverage: Readonly<{
-    reported: number;
-    unknown: number;
-  }>;
-  tokens?: Readonly<{
-    input: number;
-    output: number;
-    total: number;
-    cacheReadInput?: number;
-    cacheWriteInput?: number;
-    reasoningOutput?: number;
-  }>;
-  costCoverage: Readonly<{
-    reported: number;
-    unknown: number;
-  }>;
-  costs: readonly Readonly<{
-    currency: "USD";
-    source: GenerationCostSource;
-    amountNanos: number;
-    attempts: number;
-  }>[];
+  tokenCoverage: UsageCoverage;
+  tokens?: TokenUsage;
+  costCoverage: UsageCoverage;
+  costs: readonly CostUsage[];
   models: readonly Readonly<{
     providerId: string;
     requestedModelId: string;
@@ -57,41 +40,62 @@ function requireCount(value: unknown, field: string) {
 export function createCampaignUsage(database: Database) {
   return {
     get(campaignId: CampaignId): CampaignUsage | null {
-      const dispatched = sql`${generationTable.providerStartedAt} IS NOT NULL`;
-      const settled = sql`${dispatched} AND ${generationTable.status} <> 'pending'`;
-      const reportedTokens = sql`${settled} AND ${generationTable.inputTokens} IS NOT NULL`;
-      const reportedCost = sql`${settled} AND ${generationTable.costAmountNanos} IS NOT NULL`;
-      const aggregate = database
-        .select({
-          campaignId: campaignTable.id,
-          providerAttempts: sql<number>`sum(CASE WHEN ${dispatched} THEN 1 ELSE 0 END)`,
-          preparingAttempts: sql<number>`sum(CASE WHEN ${generationTable.status} = 'pending' AND ${generationTable.providerStartedAt} IS NULL THEN 1 ELSE 0 END)`,
-          pendingAttempts: sql<number>`sum(CASE WHEN ${dispatched} AND ${generationTable.status} = 'pending' THEN 1 ELSE 0 END)`,
-          completedAttempts: sql<number>`sum(CASE WHEN ${dispatched} AND ${generationTable.status} = 'completed' THEN 1 ELSE 0 END)`,
-          failedAttempts: sql<number>`sum(CASE WHEN ${dispatched} AND ${generationTable.status} = 'failed' THEN 1 ELSE 0 END)`,
-          reportedTokenAttempts: sql<number>`sum(CASE WHEN ${reportedTokens} THEN 1 ELSE 0 END)`,
-          unknownTokenAttempts: sql<number>`sum(CASE WHEN ${settled} AND ${generationTable.inputTokens} IS NULL THEN 1 ELSE 0 END)`,
-          inputTokens: sql<number>`coalesce(sum(CASE WHEN ${reportedTokens} THEN ${generationTable.inputTokens} ELSE 0 END), 0)`,
-          outputTokens: sql<number>`coalesce(sum(CASE WHEN ${reportedTokens} THEN ${generationTable.outputTokens} ELSE 0 END), 0)`,
-          totalTokens: sql<number>`coalesce(sum(CASE WHEN ${reportedTokens} THEN ${generationTable.totalTokens} ELSE 0 END), 0)`,
-          cacheReadInputTokens: sql<number>`coalesce(sum(CASE WHEN ${settled} THEN ${generationTable.cacheReadInputTokens} ELSE 0 END), 0)`,
-          cacheReadReports: sql<number>`sum(CASE WHEN ${settled} AND ${generationTable.cacheReadInputTokens} IS NOT NULL THEN 1 ELSE 0 END)`,
-          cacheWriteInputTokens: sql<number>`coalesce(sum(CASE WHEN ${settled} THEN ${generationTable.cacheWriteInputTokens} ELSE 0 END), 0)`,
-          cacheWriteReports: sql<number>`sum(CASE WHEN ${settled} AND ${generationTable.cacheWriteInputTokens} IS NOT NULL THEN 1 ELSE 0 END)`,
-          reasoningOutputTokens: sql<number>`coalesce(sum(CASE WHEN ${settled} THEN ${generationTable.reasoningOutputTokens} ELSE 0 END), 0)`,
-          reasoningReports: sql<number>`sum(CASE WHEN ${settled} AND ${generationTable.reasoningOutputTokens} IS NOT NULL THEN 1 ELSE 0 END)`,
-          reportedCostAttempts: sql<number>`sum(CASE WHEN ${reportedCost} THEN 1 ELSE 0 END)`,
-          unknownCostAttempts: sql<number>`sum(CASE WHEN ${settled} AND ${generationTable.costAmountNanos} IS NULL THEN 1 ELSE 0 END)`,
-        })
+      const campaign = database
+        .select({ id: campaignTable.id, threadId: campaignTable.threadId })
         .from(campaignTable)
-        .leftJoin(turnTable, eq(turnTable.threadId, campaignTable.threadId))
-        .leftJoin(generationTable, eq(generationTable.turnId, turnTable.id))
         .where(eq(campaignTable.id, campaignId))
-        .groupBy(campaignTable.id)
         .get();
 
-      if (!aggregate) {
+      if (!campaign) {
         return null;
+      }
+
+      const preparing = database
+        .select({ attempts: count() })
+        .from(generationTable)
+        .innerJoin(turnTable, eq(turnTable.id, generationTable.turnId))
+        .where(
+          and(
+            eq(turnTable.threadId, campaign.threadId),
+            eq(generationTable.status, "pending"),
+            notExists(
+              database
+                .select({ id: providerAttemptTable.id })
+                .from(providerAttemptTable)
+                .where(eq(providerAttemptTable.generationId, generationTable.id)),
+            ),
+          ),
+        )
+        .get();
+      const settled = sql`${providerAttemptTable.status} <> 'pending'`;
+      const reportedTokens = sql`${settled} AND ${providerAttemptTable.totalTokens} IS NOT NULL`;
+      const reportedCost = sql`${settled} AND ${providerAttemptTable.costAmountNanos} IS NOT NULL`;
+      const aggregate = database
+        .select({
+          providerAttempts: count(),
+          pendingAttempts: sql<number>`coalesce(sum(CASE WHEN ${providerAttemptTable.status} = 'pending' THEN 1 ELSE 0 END), 0)`,
+          completedAttempts: sql<number>`coalesce(sum(CASE WHEN ${providerAttemptTable.status} = 'completed' THEN 1 ELSE 0 END), 0)`,
+          failedAttempts: sql<number>`coalesce(sum(CASE WHEN ${providerAttemptTable.status} = 'failed' THEN 1 ELSE 0 END), 0)`,
+          reportedTokenAttempts: sql<number>`coalesce(sum(CASE WHEN ${reportedTokens} THEN 1 ELSE 0 END), 0)`,
+          unknownTokenAttempts: sql<number>`coalesce(sum(CASE WHEN ${settled} AND ${providerAttemptTable.totalTokens} IS NULL THEN 1 ELSE 0 END), 0)`,
+          inputTokens: sql<number>`coalesce(sum(CASE WHEN ${reportedTokens} THEN ${providerAttemptTable.inputTokens} ELSE 0 END), 0)`,
+          outputTokens: sql<number>`coalesce(sum(CASE WHEN ${reportedTokens} THEN ${providerAttemptTable.outputTokens} ELSE 0 END), 0)`,
+          totalTokens: sql<number>`coalesce(sum(CASE WHEN ${reportedTokens} THEN ${providerAttemptTable.totalTokens} ELSE 0 END), 0)`,
+          cacheReadInputTokens: sql<number>`coalesce(sum(CASE WHEN ${settled} THEN ${providerAttemptTable.cacheReadInputTokens} ELSE 0 END), 0)`,
+          cacheReadReports: sql<number>`coalesce(sum(CASE WHEN ${settled} AND ${providerAttemptTable.cacheReadInputTokens} IS NOT NULL THEN 1 ELSE 0 END), 0)`,
+          cacheWriteInputTokens: sql<number>`coalesce(sum(CASE WHEN ${settled} THEN ${providerAttemptTable.cacheWriteInputTokens} ELSE 0 END), 0)`,
+          cacheWriteReports: sql<number>`coalesce(sum(CASE WHEN ${settled} AND ${providerAttemptTable.cacheWriteInputTokens} IS NOT NULL THEN 1 ELSE 0 END), 0)`,
+          reasoningOutputTokens: sql<number>`coalesce(sum(CASE WHEN ${settled} THEN ${providerAttemptTable.reasoningOutputTokens} ELSE 0 END), 0)`,
+          reasoningReports: sql<number>`coalesce(sum(CASE WHEN ${settled} AND ${providerAttemptTable.reasoningOutputTokens} IS NOT NULL THEN 1 ELSE 0 END), 0)`,
+          reportedCostAttempts: sql<number>`coalesce(sum(CASE WHEN ${reportedCost} THEN 1 ELSE 0 END), 0)`,
+          unknownCostAttempts: sql<number>`coalesce(sum(CASE WHEN ${settled} AND ${providerAttemptTable.costAmountNanos} IS NULL THEN 1 ELSE 0 END), 0)`,
+        })
+        .from(providerAttemptTable)
+        .where(eq(providerAttemptTable.campaignId, campaignId))
+        .get();
+
+      if (!aggregate || !preparing) {
+        throw new Error(`Campaign "${campaignId}" usage could not be aggregated.`);
       }
 
       const reportedTokenAttempts = requireCount(
@@ -100,35 +104,36 @@ export function createCampaignUsage(database: Database) {
       );
       const costs = database
         .select({
-          currency: generationTable.costCurrency,
-          source: generationTable.costSource,
-          amountNanos: sql<number>`sum(${generationTable.costAmountNanos})`,
+          currency: providerAttemptTable.costCurrency,
+          source: providerAttemptTable.costSource,
+          amountNanos: sql<number>`sum(${providerAttemptTable.costAmountNanos})`,
           attempts: count(),
         })
-        .from(campaignTable)
-        .innerJoin(turnTable, eq(turnTable.threadId, campaignTable.threadId))
-        .innerJoin(generationTable, eq(generationTable.turnId, turnTable.id))
+        .from(providerAttemptTable)
         .where(
           and(
-            eq(campaignTable.id, campaignId),
-            isNotNull(generationTable.providerStartedAt),
-            ne(generationTable.status, "pending"),
-            isNotNull(generationTable.costAmountNanos),
+            eq(providerAttemptTable.campaignId, campaignId),
+            ne(providerAttemptTable.status, "pending"),
+            isNotNull(providerAttemptTable.costAmountNanos),
           ),
         )
-        .groupBy(generationTable.costCurrency, generationTable.costSource)
+        .groupBy(providerAttemptTable.costCurrency, providerAttemptTable.costSource)
         .orderBy(
-          sql`CASE ${generationTable.costSource} WHEN 'provider-reported' THEN 0 ELSE 1 END`,
-          generationTable.costCurrency,
+          sql`CASE ${providerAttemptTable.costSource} WHEN 'provider-reported' THEN 0 ELSE 1 END`,
+          providerAttemptTable.costCurrency,
         )
         .all()
         .map(({ currency, source, amountNanos, attempts }) => {
-          if (currency !== "USD" || (source !== "provider-reported" && source !== "estimated")) {
+          if (
+            currency === null ||
+            !/^[A-Z]{3}$/.test(currency) ||
+            (source !== "provider-reported" && source !== "estimated")
+          ) {
             throw new TypeError("Campaign usage encountered unsupported cost metadata.");
           }
 
           return {
-            currency: "USD" as const,
+            currency,
             source,
             amountNanos: requireCount(amountNanos, "cost amount"),
             attempts: requireCount(attempts, "cost attempt count"),
@@ -136,28 +141,26 @@ export function createCampaignUsage(database: Database) {
         });
       const models = database
         .select({
-          providerId: generationTable.providerId,
-          requestedModelId: generationTable.modelId,
-          resolvedModelId: generationTable.resolvedModelId,
-          upstreamProviderId: generationTable.upstreamProviderId,
+          providerId: providerAttemptTable.providerId,
+          requestedModelId: providerAttemptTable.requestedModelId,
+          resolvedModelId: providerAttemptTable.resolvedModelId,
+          upstreamProviderId: providerAttemptTable.upstreamProviderId,
           attempts: count(),
         })
-        .from(campaignTable)
-        .innerJoin(turnTable, eq(turnTable.threadId, campaignTable.threadId))
-        .innerJoin(generationTable, eq(generationTable.turnId, turnTable.id))
-        .where(and(eq(campaignTable.id, campaignId), isNotNull(generationTable.providerStartedAt)))
+        .from(providerAttemptTable)
+        .where(eq(providerAttemptTable.campaignId, campaignId))
         .groupBy(
-          generationTable.providerId,
-          generationTable.modelId,
-          generationTable.resolvedModelId,
-          generationTable.upstreamProviderId,
+          providerAttemptTable.providerId,
+          providerAttemptTable.requestedModelId,
+          providerAttemptTable.resolvedModelId,
+          providerAttemptTable.upstreamProviderId,
         )
         .orderBy(
           desc(count()),
-          generationTable.providerId,
-          generationTable.modelId,
-          generationTable.resolvedModelId,
-          generationTable.upstreamProviderId,
+          providerAttemptTable.providerId,
+          providerAttemptTable.requestedModelId,
+          providerAttemptTable.resolvedModelId,
+          providerAttemptTable.upstreamProviderId,
         )
         .all()
         .map(({ resolvedModelId, upstreamProviderId, attempts, ...model }) => ({
@@ -168,10 +171,10 @@ export function createCampaignUsage(database: Database) {
         }));
 
       return {
-        campaignId: aggregate.campaignId,
+        campaignId,
         attempts: {
           provider: requireCount(aggregate.providerAttempts, "provider attempt count"),
-          preparing: requireCount(aggregate.preparingAttempts, "preparing attempt count"),
+          preparing: requireCount(preparing.attempts, "preparing attempt count"),
           pending: requireCount(aggregate.pendingAttempts, "pending attempt count"),
           completed: requireCount(aggregate.completedAttempts, "completed attempt count"),
           failed: requireCount(aggregate.failedAttempts, "failed attempt count"),

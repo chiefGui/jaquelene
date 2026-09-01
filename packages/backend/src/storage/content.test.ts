@@ -11,6 +11,7 @@ import { createScenarios } from "#backend/scenario/scenarios";
 import { scenarioTable } from "#backend/scenario/schema";
 import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
+import { providerAttemptTable } from "#backend/usage/schema";
 import { createContentStorageArea } from "./content";
 
 const databases: Database[] = [];
@@ -40,12 +41,27 @@ describe("content storage area", () => {
     const { database, path } = createTestDatabase();
     const scenario = createScenarios(database).create({ title: "The Long Night" });
     const campaign = createCampaigns(database).start(scenario.id);
-    createThreads(database).startTurn(campaign.threadId, "Begin the story.");
+    const { turn } = createThreads(database).startTurn(campaign.threadId, "Begin the story.");
+    database
+      .insert(providerAttemptTable)
+      .values({
+        id: ids.providerAttempt.create(),
+        generationId: ids.generation.create(),
+        threadId: campaign.threadId,
+        campaignId: campaign.id,
+        providerId: "provider-a",
+        requestedModelId: "model-a",
+        status: "completed",
+        startedAt: turn.createdAt,
+        finishedAt: turn.createdAt,
+      })
+      .run();
     const area = createContentStorageArea(database, path);
 
     await area.delete();
 
     expect(database.select().from(generationTable).all()).toEqual([]);
+    expect(database.select().from(providerAttemptTable).all()).toEqual([]);
     expect(database.select().from(campaignTable).all()).toEqual([]);
     expect(database.select().from(threadMessageTable).all()).toEqual([]);
     expect(database.select().from(turnTable).all()).toEqual([]);
@@ -81,11 +97,50 @@ describe("content storage area", () => {
     expect(database.select().from(generationTable).all()).toHaveLength(1);
   });
 
+  it("preserves content while an orphaned provider attempt is active", () => {
+    const { database, path } = createTestDatabase();
+    const scenario = createScenarios(database).create({ title: "The Long Night" });
+    const campaign = createCampaigns(database).start(scenario.id);
+    createThreads(database).startTurn(campaign.threadId, "Begin the story.");
+    database
+      .insert(providerAttemptTable)
+      .values({
+        id: ids.providerAttempt.create(),
+        generationId: ids.generation.create(),
+        threadId: campaign.threadId,
+        campaignId: campaign.id,
+        providerId: "provider-a",
+        requestedModelId: "model-a",
+        status: "pending",
+        startedAt: 0,
+      })
+      .run();
+    const area = createContentStorageArea(database, path);
+
+    expect(() => area.delete()).toThrow("provider attempt is active");
+    expect(database.select().from(providerAttemptTable).all()).toHaveLength(1);
+    expect(database.select().from(campaignTable).all()).toHaveLength(1);
+  });
+
   it("rolls back every content deletion when an owner operation fails", () => {
     const { database, path } = createTestDatabase();
     const scenario = createScenarios(database).create({ title: "The Long Night" });
     const campaign = createCampaigns(database).start(scenario.id);
     createThreads(database).startTurn(campaign.threadId, "Begin the story.");
+    database
+      .insert(providerAttemptTable)
+      .values({
+        id: ids.providerAttempt.create(),
+        generationId: ids.generation.create(),
+        threadId: campaign.threadId,
+        campaignId: campaign.id,
+        providerId: "provider-a",
+        requestedModelId: "model-a",
+        status: "completed",
+        startedAt: 0,
+        finishedAt: 1,
+      })
+      .run();
     database.$client.exec(`
       CREATE TRIGGER reject_thread_delete
       BEFORE DELETE ON threads
@@ -101,5 +156,6 @@ describe("content storage area", () => {
     expect(database.select().from(threadTable).all()).toHaveLength(1);
     expect(database.select().from(turnTable).all()).toHaveLength(1);
     expect(database.select().from(threadMessageTable).all()).toHaveLength(1);
+    expect(database.select().from(providerAttemptTable).all()).toHaveLength(1);
   });
 });

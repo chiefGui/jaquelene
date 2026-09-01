@@ -1,0 +1,92 @@
+module jaquelene
+
+subtype UsageCount = number(
+  minValue: 0
+  maxValue: 9007199254740991
+)
+
+enum UsagePeriod {
+  Last7Days = "last-7-days"
+  Last30Days = "last-30-days"
+  Last90Days = "last-90-days"
+  AllTime = "all-time"
+}
+
+enum UsageBucketGranularity {
+  Day = "day"
+  Week = "week"
+  Month = "month"
+  Quarter = "quarter"
+  Year = "year"
+}
+
+enum UsageCostSource {
+  ProviderReported = "provider-reported"
+  Estimated = "estimated"
+}
+
+structure UsageAttempts {
+  provider: UsageCount
+  pending: UsageCount
+  completed: UsageCount
+  failed: UsageCount
+}
+
+structure UsageCoverage {
+  reported: UsageCount
+  unknown: UsageCount
+}
+
+structure UsageTokens {
+  input: UsageCount
+  output: UsageCount
+  total: UsageCount
+  cacheReadInput?: UsageCount
+  cacheWriteInput?: UsageCount
+  reasoningOutput?: UsageCount
+}
+
+structure UsageCost {
+  currency: string
+  source: UsageCostSource
+  amountNanos: UsageCount
+  attempts: UsageCount
+}
+
+structure UsageBucket {
+  startsAt: UnixTimeMilliseconds
+  endsAt: UnixTimeMilliseconds
+  attempts: UsageAttempts
+  tokenCoverage: UsageCoverage
+  tokens?: UsageTokens
+  costCoverage: UsageCoverage
+  costs: UsageCost[]
+}
+
+structure UsageOverview {
+  period: UsagePeriod
+  granularity: UsageBucketGranularity
+  startsAt: UnixTimeMilliseconds
+  endsAt: UnixTimeMilliseconds
+  attempts: UsageAttempts
+  tokenCoverage: UsageCoverage
+  tokens?: UsageTokens
+  costCoverage: UsageCoverage
+  costs: UsageCost[]
+  buckets: UsageBucket[]
+}
+
+structure UsageClearResult {
+  deletedAttempts: UsageCount
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Usage {
+  getOverview(period: UsagePeriod) -> UsageOverview
+  clear() -> UsageClearResult
+
+  [Event]
+  Changed()
+}

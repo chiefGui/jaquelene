@@ -18,11 +18,6 @@ subtype CampaignUsageCount = number(
   maxValue: 9007199254740991
 )
 
-enum CampaignCostSource {
-  ProviderReported = "provider-reported"
-  Estimated = "estimated"
-}
-
 structure CampaignUsageAttempts {
   provider: CampaignUsageCount
   preparing: CampaignUsageCount
@@ -47,7 +42,7 @@ structure CampaignTokenUsage {
 
 structure CampaignCostUsage {
   currency: string
-  source: CampaignCostSource
+  source: UsageCostSource
   amountNanos: CampaignUsageCount
   attempts: CampaignUsageCount
 }

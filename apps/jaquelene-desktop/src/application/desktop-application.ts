@@ -156,6 +156,7 @@ export function launchDesktopApplication({
             preferences,
             providers: backend.providers,
             storage: backend.storage,
+            usage: backend.usage,
           }),
         ),
         (windowManager) => Effect.promise(() => windowManager[Symbol.asyncDispose]()),

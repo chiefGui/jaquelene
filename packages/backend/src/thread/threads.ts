@@ -93,7 +93,7 @@ function listMessageAncestry(
     contentByteBudget === undefined
       ? sql`1`
       : sql`
-          path.cumulative_content_bytes + length(CAST(parent.content AS BLOB)) <=
+          path.cumulative_content_bytes + octet_length(parent.content) <=
           ${contentByteBudget}
         `;
 
@@ -119,7 +119,7 @@ function listMessageAncestry(
         author,
         content,
         created_at,
-        length(CAST(content AS BLOB)),
+        octet_length(content),
         0
       FROM thread_messages
       WHERE id = ${anchorMessageId} AND thread_id = ${threadId}
@@ -135,7 +135,7 @@ function listMessageAncestry(
         parent.author,
         parent.content,
         parent.created_at,
-        path.cumulative_content_bytes + length(CAST(parent.content AS BLOB)),
+        path.cumulative_content_bytes + octet_length(parent.content),
         path.depth + 1
       FROM thread_messages AS parent
       INNER JOIN message_path AS path

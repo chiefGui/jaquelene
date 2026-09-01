@@ -117,24 +117,31 @@ function loadedMessages(data: ThreadQueryData, threadId: string, contract: Threa
     }
   }
 
-  const messages = data.pages.toReversed().flatMap((page) => page.messages);
-  const messageIds = new Set<string>();
+  const messages: ThreadMessage[] = [];
+
+  for (let index = data.pages.length - 1; index >= 0; index -= 1) {
+    messages.push(...data.pages[index]!.messages);
+  }
+
+  const messageIndexById = new Map<string, number>();
   let previousSequence = 0;
 
-  for (const message of messages) {
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index]!;
+
     if (
       message.threadId !== threadId ||
-      messageIds.has(message.id) ||
+      messageIndexById.has(message.id) ||
       message.sequence <= previousSequence
     ) {
       return null;
     }
 
-    messageIds.add(message.id);
+    messageIndexById.set(message.id, index);
     previousSequence = message.sequence;
   }
 
-  return { measurements, messages };
+  return { measurements, messageIndexById, messages };
 }
 
 function partitionMessages(
@@ -341,10 +348,17 @@ export function reconcileThreadTurn(
   }
 
   const messages = [...loaded.messages];
+  const messageIndexById = loaded.messageIndexById;
 
-  const currentGeneration = data.pages
-    .flatMap((page) => page.generations)
-    .find(({ turnId }) => turnId === update.generation.turnId);
+  const generationByTurn = new Map<string, TurnGeneration>();
+
+  for (const page of data.pages) {
+    for (const generation of page.generations) {
+      generationByTurn.set(generation.turnId, generation);
+    }
+  }
+
+  const currentGeneration = generationByTurn.get(update.generation.turnId);
 
   if (
     currentGeneration &&
@@ -368,7 +382,7 @@ export function reconcileThreadTurn(
     return RELOAD;
   }
 
-  const userIndex = messages.findIndex(({ id }) => id === userMessage.id);
+  const userIndex = messageIndexById.get(userMessage.id) ?? -1;
   const latestMessage = messages.at(-1);
 
   if (
@@ -388,9 +402,10 @@ export function reconcileThreadTurn(
   }
 
   function upsertMessage(message: ThreadMessage) {
-    const index = messages.findIndex(({ id }) => id === message.id);
+    const index = messageIndexById.get(message.id);
 
-    if (index === -1) {
+    if (index === undefined) {
+      messageIndexById.set(message.id, messages.length);
       messages.push(message);
     } else {
       messages[index] = message;
@@ -401,13 +416,6 @@ export function reconcileThreadTurn(
 
   if (isReplyCompletion(update)) {
     upsertMessage(update.assistantMessage);
-  }
-
-  messages.sort((left, right) => left.sequence - right.sequence);
-  const generationByTurn = new Map<string, TurnGeneration>();
-
-  for (const generation of data.pages.flatMap((page) => page.generations)) {
-    generationByTurn.set(generation.turnId, generation);
   }
 
   generationByTurn.set(update.generation.turnId, update.generation);

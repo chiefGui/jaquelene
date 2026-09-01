@@ -73,8 +73,9 @@ type ThreadTimelineProps = Readonly<{
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   isFetchNextPageError: boolean;
-  operationPending: boolean;
-  loadOlder: () => Promise<unknown>;
+  historyNavigationPending: boolean;
+  retryPending: boolean;
+  loadOlder: () => Promise<void>;
   retryReply: (turnId: string) => Promise<void>;
 }>;
 
@@ -88,7 +89,8 @@ const ThreadTimeline = memo(function ThreadTimeline({
   hasNextPage,
   isFetchingNextPage,
   isFetchNextPageError,
-  operationPending,
+  historyNavigationPending,
+  retryPending,
   loadOlder,
   retryReply,
 }: ThreadTimelineProps) {
@@ -183,7 +185,7 @@ const ThreadTimeline = memo(function ThreadTimeline({
           <Button
             type="button"
             variant="ghost"
-            disabled={isFetchingNextPage || operationPending}
+            disabled={isFetchingNextPage || historyNavigationPending}
             onClick={() => void loadOlderMessages()}
           >
             {isFetchingNextPage ? "Loading…" : "Load older messages"}
@@ -243,7 +245,7 @@ const ThreadTimeline = memo(function ThreadTimeline({
                         type="button"
                         variant="ghost"
                         style={styles.retryButton}
-                        disabled={operationPending}
+                        disabled={retryPending}
                         onClick={() => void retryReply(message.turnId)}
                       >
                         Retry
@@ -522,7 +524,8 @@ export function ThreadView({
       reportError("thread.messages.return-to-latest", cause);
     }
   }, [returnToLatestMessages]);
-  const interactionPending = operationPending || modelPending || returnToLatestMutation.isPending;
+  const retryPending = operationPending || modelPending || returnToLatestMutation.isPending;
+  const historyNavigationPending = operationPending || returnToLatestMutation.isPending;
 
   return (
     <section
@@ -544,7 +547,8 @@ export function ThreadView({
         hasNextPage={messagesQuery.hasNextPage}
         isFetchingNextPage={messagesQuery.isFetchingNextPage}
         isFetchNextPageError={messagesQuery.isFetchNextPageError}
-        operationPending={interactionPending}
+        historyNavigationPending={historyNavigationPending}
+        retryPending={retryPending}
         loadOlder={loadOlder}
         retryReply={retryReply}
       />

@@ -17,6 +17,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
+import { elevation } from "../elevation.stylex";
 import { tokens } from "../theme.stylex";
 import { Popover } from "./popover";
 
@@ -189,7 +190,7 @@ const styles = stylex.create({
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowXLarge,
+    boxShadow: elevation.xLarge,
     color: tokens.foreground,
     display: "flex",
     flexDirection: "column",

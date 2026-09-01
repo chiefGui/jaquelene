@@ -11,6 +11,7 @@ import {
 import { useStoreState } from "@ariakit/react/store";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
+import { elevation } from "../elevation.stylex";
 import { tokens } from "../theme.stylex";
 import { Popover } from "./popover";
 
@@ -64,7 +65,7 @@ const styles = stylex.create({
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowLarge,
+    boxShadow: elevation.large,
     color: tokens.foreground,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,

@@ -12,6 +12,7 @@ import { useStoreState } from "@ariakit/react/store";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import * as m from "motion/react-m";
+import { elevation } from "../elevation.stylex";
 import { tokens } from "../theme.stylex";
 import { MotionPresence, overlayTransition } from "./motion";
 
@@ -93,7 +94,7 @@ const styles = stylex.create({
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowXLarge,
+    boxShadow: elevation.xLarge,
     color: tokens.foreground,
     height: "fit-content",
     inset: 0,

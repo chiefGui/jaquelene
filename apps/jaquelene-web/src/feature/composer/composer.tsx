@@ -2,6 +2,7 @@ import ArrowUp02Icon from "@hugeicons/core-free-icons/ArrowUp02Icon";
 import Loading02Icon from "@hugeicons/core-free-icons/Loading02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, type ButtonProps } from "@jaquelene/ui";
+import { elevation } from "@jaquelene/ui/elevation.stylex";
 import { useReducedMotion } from "@jaquelene/ui/motion";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
@@ -134,7 +135,7 @@ const styles = stylex.create({
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowLarge,
+    boxShadow: elevation.large,
     display: "flex",
     flexDirection: "column",
     isolation: "isolate",

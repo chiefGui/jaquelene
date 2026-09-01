@@ -15,6 +15,7 @@ import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import StarIcon from "@hugeicons/core-free-icons/StarIcon";
 import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { elevation } from "@jaquelene/ui/elevation.stylex";
 import {
   ReasoningPreset,
   type AvailableModel,
@@ -1180,7 +1181,7 @@ const styles = stylex.create({
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowXLarge,
+    boxShadow: elevation.xLarge,
     color: tokens.foreground,
     height: "26rem",
     maxWidth: "calc(100vw - 2rem)",

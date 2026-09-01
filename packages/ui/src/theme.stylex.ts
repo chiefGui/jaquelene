@@ -27,8 +27,6 @@ export const tokens = stylex.defineVars({
   radiusMedium: "0.5rem",
   radiusSmall: "0.25rem",
   radiusXLarge: "0.75rem",
-  shadowLarge: "0 20px 25px -5px oklch(0 0 0 / 10%), 0 8px 10px -6px oklch(0 0 0 / 10%)",
-  shadowXLarge: "0 25px 50px -12px oklch(0 0 0 / 25%)",
 
   fontGeist: '"Geist Variable", ui-sans-serif, system-ui, sans-serif',
   fontInter: '"Inter Variable", ui-sans-serif, system-ui, sans-serif',

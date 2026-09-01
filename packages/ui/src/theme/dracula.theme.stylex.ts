@@ -14,8 +14,6 @@ export const draculaTheme = stylex.createTheme(tokens, {
   foreground: "oklch(0.86 0.008 107)",
   muted: "oklch(0.63 0.012 280)",
   reasoning: "oklch(0.7 0.16 347)",
-  shadowLarge: "0 20px 25px -5px oklch(0 0 0 / 32%), 0 8px 10px -6px oklch(0 0 0 / 36%)",
-  shadowXLarge: "0 25px 50px -12px oklch(0 0 0 / 52%)",
   storageAppData: "oklch(0.78 0.085 213)",
   storageCache: "oklch(0.63 0.06 270)",
   storageContent: "oklch(0.7 0.13 302)",

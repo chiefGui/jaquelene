@@ -36,36 +36,38 @@ function scrollToEnd(viewport: HTMLElement) {
   viewport.scrollTop = viewport.scrollHeight;
 }
 
-type ThreadDockProps = Readonly<{
+type ThreadFooterProps = Readonly<{
   children: ReactNode;
-  onSizeChange: (height: number) => void;
+  onHeightChange: (height: number) => void;
 }>;
 
-function ThreadDock({ children, onSizeChange }: ThreadDockProps) {
-  const dock = useRef<HTMLDivElement>(null);
+function ThreadFooter({ children, onHeightChange }: ThreadFooterProps) {
+  const footer = useRef<HTMLElement>(null);
 
   useLayoutEffect(() => {
-    const element = dock.current;
+    const element = footer.current;
 
     if (!element) {
       return;
     }
 
-    const synchronizeSize = () => {
-      onSizeChange(Math.ceil(element.getBoundingClientRect().height));
+    const updateHeight = (height: number) => {
+      onHeightChange(Math.ceil(height));
     };
 
-    synchronizeSize();
-    const resizeObserver = new ResizeObserver(synchronizeSize);
+    updateHeight(element.offsetHeight);
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      updateHeight(entry?.borderBoxSize[0]?.blockSize ?? element.offsetHeight);
+    });
     resizeObserver.observe(element);
 
     return () => resizeObserver.disconnect();
-  }, [onSizeChange]);
+  }, [onHeightChange]);
 
   return (
-    <div ref={dock} {...stylex.props(styles.composerShell)}>
+    <footer ref={footer} {...stylex.props(styles.footer)}>
       {children}
-    </div>
+    </footer>
   );
 }
 
@@ -222,7 +224,7 @@ export function ThreadView({
   const pendingSubmission = usePendingTurnSubmission(threadId);
   const viewport = useRef<HTMLDivElement>(null);
   const pinnedToEnd = useRef(true);
-  const [timelineEndInset, setTimelineEndInset] = useState(0);
+  const [timelineBottomInset, setTimelineBottomInset] = useState(0);
   const retryTurnId = retryTurnMutation.variables?.turnId;
   const retryStatus: RetryStatus = retryTurnMutation.isPending
     ? "pending"
@@ -289,7 +291,7 @@ export function ThreadView({
     if (element && pinnedToEnd.current) {
       scrollToEnd(element);
     }
-  }, [timelineEndInset]);
+  }, [timelineBottomInset]);
 
   return (
     <section aria-label="Thread" {...stylex.props(styles.root)}>
@@ -297,7 +299,7 @@ export function ThreadView({
         key={`timeline:${threadId}`}
         view={threadView}
         pendingSubmission={historical ? null : pendingSubmission}
-        endInset={timelineEndInset}
+        bottomInset={timelineBottomInset}
         viewport={viewport}
         pinnedToEnd={pinnedToEnd}
         hasNextPage={messagesQuery.hasNextPage}
@@ -308,7 +310,7 @@ export function ThreadView({
         loadOlder={loadOlder}
         retryReply={retryReply}
       />
-      <ThreadDock onSizeChange={setTimelineEndInset}>
+      <ThreadFooter onHeightChange={setTimelineBottomInset}>
         {historical ? (
           <ThreadHistoryReturn
             error={returnToLatestMutation.isError}
@@ -326,7 +328,7 @@ export function ThreadView({
             composerControls={composerControls}
           />
         )}
-      </ThreadDock>
+      </ThreadFooter>
     </section>
   );
 }
@@ -340,7 +342,7 @@ const styles = stylex.create({
     overflow: "hidden",
     position: "relative",
   },
-  composerShell: {
+  footer: {
     bottom: 0,
     left: 0,
     marginInline: "auto",

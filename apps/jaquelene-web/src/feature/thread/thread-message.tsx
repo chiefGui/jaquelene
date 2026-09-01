@@ -50,13 +50,13 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   retryReply: (turnId: string) => Promise<void>;
 }>) {
   return (
-    <>
-      <article
-        aria-label={fromUser ? "You" : "Assistant"}
-        {...stylex.props(styles.bubble, fromUser ? styles.userBubble : styles.assistantBubble)}
-      >
+    <article
+      aria-label={fromUser ? "You" : "Assistant"}
+      {...stylex.props(styles.message, fromUser ? styles.userMessage : styles.assistantMessage)}
+    >
+      <div {...stylex.props(styles.bubble, fromUser ? styles.userBubble : styles.assistantBubble)}>
         <ThreadMessageContent content={message.content} />
-      </article>
+      </div>
       <time
         dateTime={new Date(message.createdAt).toISOString()}
         {...stylex.props(styles.timestamp)}
@@ -92,7 +92,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
           ) : null}
         </div>
       ) : null}
-    </>
+    </article>
   );
 });
 
@@ -102,10 +102,10 @@ export const PendingThreadMessageRow = memo(function PendingThreadMessageRow({
   submission: SubmitTurnVariables;
 }>) {
   return (
-    <>
-      <article aria-label="You" {...stylex.props(styles.bubble, styles.userBubble)}>
+    <article aria-label="You" {...stylex.props(styles.message, styles.userMessage)}>
+      <div {...stylex.props(styles.bubble, styles.userBubble)}>
         <ThreadMessageContent content={submission.content} />
-      </article>
+      </div>
       <time
         dateTime={new Date(submission.submittedAt).toISOString()}
         {...stylex.props(styles.timestamp)}
@@ -117,11 +117,22 @@ export const PendingThreadMessageRow = memo(function PendingThreadMessageRow({
           Sending…
         </p>
       </div>
-    </>
+    </article>
   );
 });
 
 const styles = stylex.create({
+  message: {
+    display: "flex",
+    flexDirection: "column",
+    width: "100%",
+  },
+  userMessage: {
+    alignItems: "flex-end",
+  },
+  assistantMessage: {
+    alignItems: "flex-start",
+  },
   bubble: {
     borderRadius: tokens.radiusLarge,
     fontSize: tokens.fontSizeBase,

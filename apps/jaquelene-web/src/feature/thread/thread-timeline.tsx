@@ -45,7 +45,7 @@ type ThreadTimelineSnapshot = Readonly<{
 type ThreadTimelineProps = Readonly<{
   view: ThreadViewState;
   pendingSubmission: SubmitTurnVariables | null;
-  endInset: number;
+  bottomInset: number;
   viewport: RefObject<HTMLDivElement | null>;
   pinnedToEnd: RefObject<boolean>;
   hasNextPage: boolean;
@@ -57,11 +57,7 @@ type ThreadTimelineProps = Readonly<{
   retryReply: (turnId: string) => Promise<void>;
 }>;
 
-function estimateTimelineItemSize(item: ThreadTimelineItem | undefined) {
-  if (!item) {
-    return estimatedLineHeight + estimatedMessageChrome;
-  }
-
+function estimateTimelineItemSize(item: ThreadTimelineItem) {
   const content = item.type === "message" ? item.value.message.content : item.value.content;
   const lineCount = Math.max(1, Math.ceil(content.length / estimatedCharactersPerLine));
   const hasReplyState = item.type === "submission" || item.value.reply !== null;
@@ -80,7 +76,7 @@ function isScrolledToEnd(viewport: HTMLElement) {
 export const ThreadTimeline = memo(function ThreadTimeline({
   view,
   pendingSubmission,
-  endInset,
+  bottomInset,
   viewport,
   pinnedToEnd,
   hasNextPage,
@@ -118,9 +114,9 @@ export const ThreadTimeline = memo(function ThreadTimeline({
     return messages;
   }, [optimisticSubmission, view.messages]);
   const hasItems = items.length > 0;
-  const getItemKey = useCallback((index: number) => items[index]?.key ?? index, [items]);
+  const getItemKey = useCallback((index: number) => items[index]!.key, [items]);
   const estimateSize = useCallback(
-    (index: number) => estimateTimelineItemSize(items[index]),
+    (index: number) => estimateTimelineItemSize(items[index]!),
     [items],
   );
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLLIElement>({
@@ -132,7 +128,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
     getItemKey,
     getScrollElement: () => viewport.current,
     overscan: 2,
-    paddingEnd: timelinePadding + endInset,
+    paddingEnd: timelinePadding + bottomInset,
     paddingStart,
     scrollMargin: scrollMargin ?? 0,
     useFlushSync: false,
@@ -283,13 +279,9 @@ export const ThreadTimeline = memo(function ThreadTimeline({
             <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
           </div>
         ) : (
-          <ol ref={setMessageList} {...stylex.props(styles.messageList)}>
+          <ol aria-label="Messages" ref={setMessageList} {...stylex.props(styles.messageList)}>
             {virtualizer.getVirtualItems().map((virtualItem) => {
-              const item = items[virtualItem.index];
-
-              if (!item) {
-                return null;
-              }
+              const item = items[virtualItem.index]!;
 
               if (item.type === "submission") {
                 return (
@@ -299,7 +291,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                     data-index={virtualItem.index}
                     aria-posinset={virtualItem.index + 1}
                     aria-setsize={items.length}
-                    {...stylex.props(styles.virtualItem, styles.message, styles.userMessage)}
+                    {...stylex.props(styles.virtualItem)}
                   >
                     <PendingThreadMessageRow submission={item.value} />
                   </li>
@@ -315,11 +307,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                   data-index={virtualItem.index}
                   aria-posinset={virtualItem.index + 1}
                   aria-setsize={items.length}
-                  {...stylex.props(
-                    styles.virtualItem,
-                    styles.message,
-                    fromUser ? styles.userMessage : styles.assistantMessage,
-                  )}
+                  {...stylex.props(styles.virtualItem)}
                 >
                   <ThreadMessageRow
                     message={message}
@@ -398,15 +386,5 @@ const styles = stylex.create({
     position: "absolute",
     top: 0,
     width: "100%",
-  },
-  message: {
-    display: "flex",
-    flexDirection: "column",
-  },
-  userMessage: {
-    alignItems: "flex-end",
-  },
-  assistantMessage: {
-    alignItems: "flex-start",
   },
 });

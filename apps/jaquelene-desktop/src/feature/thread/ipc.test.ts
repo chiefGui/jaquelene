@@ -24,7 +24,7 @@ const implementations = vi.hoisted(() => ({
 
 vi.mock("@jaquelene/ipc/main", () => ({
   GenerationFailureKind: {
-    Prompt: "prompt",
+    Preparation: "preparation",
     Provider: "provider",
     InvalidOutput: "invalid-output",
     Interrupted: "interrupted",
@@ -286,7 +286,7 @@ describe("thread IPC", () => {
   });
 
   it.each([
-    ["prompt", "prompt compilation"],
+    ["preparation", "reply preparation"],
     ["invalid-output", "provider output validation"],
     ["storage", "reply storage"],
   ] as const)("reports durable %s failures after acceptance", async (failureKind, stage) => {
@@ -320,8 +320,8 @@ describe("thread IPC", () => {
   });
 
   it("labels unexpected retry failures as retry operations", async () => {
-    const cause = new Error("Prompt compilation failed");
-    const failed = failedSettlement("prompt", cause);
+    const cause = new Error("Reply preparation failed");
+    const failed = failedSettlement("preparation", cause);
     const acceptance: TurnAcceptance = {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },

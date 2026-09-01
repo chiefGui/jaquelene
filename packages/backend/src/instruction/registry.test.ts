@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { ids } from "#backend/id";
 import { factoryRoleplay } from "./factory/roleplay";
-import { createInstructionRegistry, resolveInstruction, type InstructionSource } from "./registry";
+import { createInstructionRegistry, type InstructionSource } from "./registry";
 
 describe("instruction registry", () => {
   it("lists the factory default instruction for inspection", () => {
@@ -76,18 +76,5 @@ describe("instruction registry", () => {
       { sourceKey: "global", content: "global content" },
       { sourceKey: "scenario", content: "scenario content" },
     ]);
-  });
-
-  it("resolves the reusable instruction primitive into model input", () => {
-    expect(
-      resolveInstruction({
-        key: "roleplay.custom",
-        name: "Custom",
-        content: "Custom roleplay behavior.",
-      }),
-    ).toEqual({
-      sourceKey: "roleplay.custom",
-      content: "Custom roleplay behavior.",
-    });
   });
 });

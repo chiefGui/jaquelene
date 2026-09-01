@@ -43,7 +43,7 @@ function copyGroup(group: InstructionGroup): InstructionGroup {
   };
 }
 
-export function resolveInstruction(instruction: Instruction): ResolvedInstruction {
+function resolveInstruction(instruction: Instruction): ResolvedInstruction {
   return {
     sourceKey: instruction.key,
     content: instruction.content,

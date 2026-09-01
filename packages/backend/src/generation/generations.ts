@@ -385,7 +385,7 @@ export function createGenerations(
         anchor,
       );
     } catch (cause) {
-      return recordFailure(generation, signal?.aborted ? "interrupted" : "prompt", cause);
+      return recordFailure(generation, signal?.aborted ? "interrupted" : "preparation", cause);
     }
 
     let providerResult: ProviderGenerationResult;

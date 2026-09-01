@@ -40,8 +40,8 @@ function toIpcGenerationStatus(status: Generation["status"]) {
 
 function toIpcGenerationFailureKind(failureKind: GenerationFailureKind) {
   switch (failureKind) {
-    case "prompt":
-      return IpcGenerationFailureKind.Prompt;
+    case "preparation":
+      return IpcGenerationFailureKind.Preparation;
     case "provider":
       return IpcGenerationFailureKind.Provider;
     case "invalid-output":
@@ -90,8 +90,8 @@ function toIpcSubmission(acceptance: TurnAcceptance) {
 
 function unexpectedFailureStage(failureKind: Generation["failureKind"]) {
   switch (failureKind) {
-    case "prompt":
-      return "prompt compilation";
+    case "preparation":
+      return "reply preparation";
     case "invalid-output":
       return "provider output validation";
     case "storage":

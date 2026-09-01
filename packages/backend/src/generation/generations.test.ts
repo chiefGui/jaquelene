@@ -334,11 +334,13 @@ describe("generations", () => {
     model.modelId = "mutated/model";
     const second = threads.startTurn(thread.id, "Newer user message");
 
-    const acceptedAnchor = anchors[0];
-
-    if (!acceptedAnchor) {
-      throw new Error("Expected reply preparation to receive an accepted anchor.");
-    }
+    expect(anchors).toEqual([
+      {
+        turnId: first.turn.id,
+        threadId: thread.id,
+        inputMessageId: first.message.id,
+      },
+    ]);
 
     preparedInput.resolve({
       instructions: [],
@@ -796,7 +798,7 @@ describe("generations", () => {
       expect.objectContaining({
         turnId: started.turn.id,
         status: "failed",
-        failureKind: "prompt",
+        failureKind: "preparation",
       }),
     ]);
   });

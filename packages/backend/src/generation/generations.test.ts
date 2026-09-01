@@ -18,8 +18,9 @@ import { createInstructionRegistry } from "#backend/instruction/registry";
 import { threadMessageTable } from "#backend/thread/schema";
 import {
   createThreads,
-  THREAD_MESSAGE_CONTENT_MAX_LENGTH,
-  THREAD_MESSAGE_PAGE_SIZE,
+  THREAD_MESSAGE_MAX_CODE_UNITS,
+  THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+  THREAD_MESSAGE_PAGE_MAX_COUNT,
 } from "#backend/thread/threads";
 import { createGenerations } from "./generations";
 import { createReplyPreparer, type ReplyAnchor } from "./reply-preparation";
@@ -27,6 +28,15 @@ import { generationTable } from "./schema";
 
 const directories: string[] = [];
 const databases: Database[] = [];
+
+function threadPageMetadata(messages: readonly { content: string }[]) {
+  return {
+    messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+    messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+    contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+    contentBytes: messages.reduce((total, { content }) => total + Buffer.byteLength(content), 0),
+  };
+}
 
 function createDatabasePath() {
   const directory = mkdtempSync(join(tmpdir(), "jaquelene-generations-"));
@@ -156,8 +166,7 @@ describe("generations", () => {
     expect(database.select().from(generationTable).get()).toEqual(result.generation);
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message, result.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([started.message, result.message]),
     });
   });
 
@@ -259,8 +268,7 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message, regenerated.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([started.message, regenerated.message]),
     });
     expect(database.select().from(threadMessageTable).all()).toEqual(
       expect.arrayContaining([started.message, first.message, regenerated.message]),
@@ -298,8 +306,7 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [first.message, second.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([first.message, second.message]),
     });
     expect(database.select().from(threadMessageTable).all()).toEqual(
       expect.arrayContaining([first.message, second.message, result.message]),
@@ -361,8 +368,7 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [first.message, second.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([first.message, second.message]),
     });
   });
 
@@ -428,8 +434,7 @@ describe("generations", () => {
     expect(firstResult.activated).toBe(false);
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [first.message, second.message, secondResult.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([first.message, second.message, secondResult.message]),
     });
   });
 
@@ -465,8 +470,7 @@ describe("generations", () => {
     ]);
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([started.message]),
     });
   });
 
@@ -495,8 +499,7 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([started.message]),
     });
   });
 
@@ -527,8 +530,7 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([started.message]),
     });
     expect(threads.startTurn(thread.id, "After failure").message.sequence).toBe(2);
   });
@@ -580,8 +582,7 @@ describe("generations", () => {
     );
     expect(threads.listMessages({ threadId: secondThread.id })).toEqual({
       messages: [second.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([second.message]),
     });
 
     await expect(

@@ -56,8 +56,10 @@ function page(status: GenerationStatus): ThreadMessagePage {
         startedAt: 1,
       },
     ],
-    pageSize: 50,
-    messageContentMaxLength: 100_000,
+    messageCountLimit: 50,
+    messageMaxCodeUnits: 100_000,
+    contentByteBudget: 128 * 1024,
+    contentBytes: status === GenerationStatus.Completed ? 7 : 5,
   };
 }
 

@@ -9,8 +9,9 @@ import {
   type Turn,
 } from "./schema";
 
-export const THREAD_MESSAGE_CONTENT_MAX_LENGTH = 100_000;
-export const THREAD_MESSAGE_PAGE_SIZE = 50;
+export const THREAD_MESSAGE_MAX_CODE_UNITS = 100_000;
+export const THREAD_MESSAGE_PAGE_MAX_COUNT = 50;
+export const THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET = 128 * 1024;
 
 type ListThreadMessagesRequest = {
   threadId: ThreadId;
@@ -26,7 +27,15 @@ type AppendAssistantMessageRequest = {
   createdAt: number;
 };
 
-type MessagePathRow = ThreadMessage & { depth: number };
+type MessagePathRow = ThreadMessage & {
+  cumulativeContentBytes: number;
+  depth: number;
+};
+
+type ListMessageAncestryOptions = Readonly<{
+  maximumCount?: number;
+  contentByteBudget?: number;
+}>;
 
 const threadSelection = {
   id: threadTable.id,
@@ -40,9 +49,9 @@ const turnSelection = {
 } as const;
 
 export function requireThreadMessageContent(content: string) {
-  if (content.length > THREAD_MESSAGE_CONTENT_MAX_LENGTH) {
+  if (content.length > THREAD_MESSAGE_MAX_CODE_UNITS) {
     throw new RangeError(
-      `Thread message content cannot exceed ${THREAD_MESSAGE_CONTENT_MAX_LENGTH} characters.`,
+      `Thread message content cannot exceed ${THREAD_MESSAGE_MAX_CODE_UNITS} UTF-16 code units.`,
     );
   }
 
@@ -77,10 +86,20 @@ function listMessageAncestry(
   database: Pick<Database, "all">,
   threadId: ThreadId,
   anchorMessageId: MessageId,
-  maximumRows?: number,
+  { maximumCount, contentByteBudget }: ListMessageAncestryOptions = {},
 ) {
-  const recursionLimit = maximumRows === undefined ? sql`1` : sql`path.depth < ${maximumRows - 1}`;
-  const resultLimit = maximumRows === undefined ? sql`` : sql`LIMIT ${maximumRows}`;
+  const countLimit = maximumCount === undefined ? sql`1` : sql`path.depth < ${maximumCount - 1}`;
+  const anchorContentBytes = contentByteBudget === undefined ? sql`0` : sql`octet_length(content)`;
+  const cumulativeContentBytes =
+    contentByteBudget === undefined
+      ? sql`0`
+      : sql`path.cumulative_content_bytes + octet_length(parent.content)`;
+  const byteLimit =
+    contentByteBudget === undefined
+      ? sql`1`
+      : sql`
+          ${cumulativeContentBytes} <= ${contentByteBudget}
+        `;
 
   const rows = database.all<MessagePathRow>(sql`
     WITH RECURSIVE message_path (
@@ -92,6 +111,7 @@ function listMessageAncestry(
       author,
       content,
       created_at,
+      cumulative_content_bytes,
       depth
     ) AS (
       SELECT
@@ -103,6 +123,7 @@ function listMessageAncestry(
         author,
         content,
         created_at,
+        ${anchorContentBytes},
         0
       FROM thread_messages
       WHERE id = ${anchorMessageId} AND thread_id = ${threadId}
@@ -118,12 +139,13 @@ function listMessageAncestry(
         parent.author,
         parent.content,
         parent.created_at,
+        ${cumulativeContentBytes},
         path.depth + 1
       FROM thread_messages AS parent
       INNER JOIN message_path AS path
         ON parent.id = path.parent_message_id
         AND parent.thread_id = path.thread_id
-      WHERE ${recursionLimit}
+      WHERE ${countLimit} AND ${byteLimit}
     )
     SELECT
       id,
@@ -134,13 +156,18 @@ function listMessageAncestry(
       author,
       content,
       created_at AS "createdAt",
+      cumulative_content_bytes AS "cumulativeContentBytes",
       depth
     FROM message_path
     ORDER BY depth ASC
-    ${resultLimit}
   `);
 
-  return rows.map(({ depth: _depth, ...message }) => message);
+  return {
+    messages: rows.map(
+      ({ cumulativeContentBytes: _cumulativeContentBytes, depth: _depth, ...message }) => message,
+    ),
+    contentBytes: rows.at(-1)?.cumulativeContentBytes ?? 0,
+  };
 }
 
 function allocateMessageSequence(database: Pick<Database, "update">, threadId: ThreadId) {
@@ -341,7 +368,11 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       }
 
       const inputMessageId = context.inputMessageId;
-      const messages = listMessageAncestry(database, context.threadId, inputMessageId).reverse();
+      const messages = listMessageAncestry(
+        database,
+        context.threadId,
+        inputMessageId,
+      ).messages.reverse();
 
       if (messages.at(-1)?.id !== inputMessageId) {
         throw new Error(`Turn "${turnId}" has an invalid message ancestry.`);
@@ -367,31 +398,32 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       if (!anchorMessageId) {
         return {
           messages: [],
-          pageSize: THREAD_MESSAGE_PAGE_SIZE,
-          messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+          messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+          messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+          contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+          contentBytes: 0,
         };
       }
 
-      const newestFirst = listMessageAncestry(
-        database,
-        threadId,
-        anchorMessageId,
-        THREAD_MESSAGE_PAGE_SIZE + 1,
-      );
+      const page = listMessageAncestry(database, threadId, anchorMessageId, {
+        maximumCount: THREAD_MESSAGE_PAGE_MAX_COUNT,
+        contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      });
 
-      if (newestFirst.length === 0) {
+      if (page.messages.length === 0) {
         throw new TypeError("Thread message cursor is invalid.");
       }
 
-      const hasMore = newestFirst.length > THREAD_MESSAGE_PAGE_SIZE;
-      const messages = newestFirst.slice(0, THREAD_MESSAGE_PAGE_SIZE).reverse();
-      const nextMessage = newestFirst[THREAD_MESSAGE_PAGE_SIZE];
+      const oldestMessage = page.messages.at(-1);
+      const nextCursor = oldestMessage?.parentMessageId ?? undefined;
 
       return {
-        messages,
-        pageSize: THREAD_MESSAGE_PAGE_SIZE,
-        messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
-        ...(hasMore && nextMessage ? { nextCursor: nextMessage.id } : {}),
+        messages: page.messages.reverse(),
+        messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+        messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+        contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+        contentBytes: page.contentBytes,
+        ...(nextCursor ? { nextCursor } : {}),
       };
     },
   };

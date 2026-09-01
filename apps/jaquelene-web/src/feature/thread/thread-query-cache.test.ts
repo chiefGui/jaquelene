@@ -5,17 +5,50 @@ import {
   type CompletedReply,
   type FailedReply,
   type ThreadMessage,
+  type ThreadMessagePage,
   type TurnGeneration,
   type TurnSubmission,
 } from "@jaquelene/ipc/renderer";
 import { describe, expect, it } from "vite-plus/test";
 import {
+  createLatestThreadHistory,
+  isLatestThreadHistory,
   reconcileThreadTurn,
+  retainThreadHistory,
   type ThreadQueryData,
   type ThreadTurnUpdate,
 } from "./thread-query-cache";
 
 const threadId = "thread-test";
+const defaultContentByteBudget = 128 * 1024;
+const textEncoder = new TextEncoder();
+
+function page(
+  messages: ThreadMessage[],
+  generations: TurnGeneration[],
+  {
+    contentByteBudget = defaultContentByteBudget,
+    messageCountLimit = 50,
+    nextCursor,
+  }: Readonly<{
+    contentByteBudget?: number;
+    messageCountLimit?: number;
+    nextCursor?: string;
+  }> = {},
+): ThreadMessagePage {
+  return {
+    messages,
+    generations,
+    messageCountLimit,
+    messageMaxCodeUnits: 100_000,
+    contentByteBudget,
+    contentBytes: messages.reduce(
+      (total, { content }) => total + textEncoder.encode(content).byteLength,
+      0,
+    ),
+    ...(nextCursor ? { nextCursor } : {}),
+  };
+}
 
 function pendingTurn(sequence: number): TurnSubmission {
   const turnId = `turn-${sequence}`;
@@ -100,12 +133,9 @@ describe("thread query cache", () => {
     const second = failedTurn(2);
     const data: ThreadQueryData = {
       pages: [
-        {
-          messages: [first.userMessage, second.userMessage],
-          generations: [first.generation, second.generation],
-          pageSize: 2,
-          messageContentMaxLength: 100_000,
-        },
+        page([first.userMessage, second.userMessage], [first.generation, second.generation], {
+          messageCountLimit: 2,
+        }),
       ],
       pageParams: [""],
     };
@@ -119,23 +149,48 @@ describe("thread query cache", () => {
       [2, 3],
       [1],
     ]);
-    expect(updated.pages.map(({ pageSize }) => pageSize)).toEqual([2, 2]);
+    expect(updated.pages.map(({ messageCountLimit }) => messageCountLimit)).toEqual([2, 2]);
     expect(updated.pages[0]?.generations).toContainEqual(
       expect.objectContaining({ turnId: "turn-3", status: GenerationStatus.Pending }),
     );
+  });
+
+  it("repartitions settlement updates by the server content-byte budget", () => {
+    const first = failedTurn(1);
+    const second = failedTurn(2);
+    const third = pendingTurn(3);
+    first.userMessage.content = "11111";
+    second.userMessage.content = "22222";
+    third.userMessage.content = "333333";
+    const data: ThreadQueryData = {
+      pages: [
+        page([first.userMessage, second.userMessage], [first.generation, second.generation], {
+          contentByteBudget: 10,
+        }),
+      ],
+      pageParams: [""],
+    };
+
+    const updated = requireUpdated(data, { type: "submission-accepted", ...third });
+
+    expect(updated.pages.map(({ messages }) => messages.map(({ sequence }) => sequence))).toEqual([
+      [3],
+      [1, 2],
+    ]);
+    expect(updated.pages.map(({ contentBytes }) => contentBytes)).toEqual([6, 10]);
+    expect(updated.pages.every(({ contentByteBudget }) => contentByteBudget === 10)).toBe(true);
+    expect(updated.pageParams).toEqual(["", second.userMessage.id]);
   });
 
   it("keeps loaded history in server-sized pages as turns settle", () => {
     const initialTurns = Array.from({ length: 50 }, (_, index) => failedTurn(index + 1));
     const initial: ThreadQueryData = {
       pages: [
-        {
-          messages: initialTurns.map(({ userMessage }) => userMessage),
-          generations: initialTurns.map(({ generation }) => generation),
-          pageSize: 50,
-          messageContentMaxLength: 100_000,
-          nextCursor: "older-message",
-        },
+        page(
+          initialTurns.map(({ userMessage }) => userMessage),
+          initialTurns.map(({ generation }) => generation),
+          { nextCursor: "older-message" },
+        ),
       ],
       pageParams: [""],
     };
@@ -145,15 +200,89 @@ describe("thread query cache", () => {
       current = requireUpdated(current, { type: "reply-failed", ...failedTurn(sequence) });
     }
 
-    expect(current.pages.map(({ messages }) => messages.length)).toEqual([50, 1, 50]);
+    expect(current.pages.map(({ messages }) => messages.length)).toEqual([50, 50, 1]);
     expect(
       current.pages
         .toReversed()
         .flatMap(({ messages }) => messages.map(({ sequence }) => sequence)),
     ).toEqual(Array.from({ length: 101 }, (_, index) => index + 1));
     expect(current.pages.at(-1)?.nextCursor).toBe("older-message");
-    expect(current.pageParams).toEqual(["", "message-51", "message-50"]);
+    expect(current.pageParams).toEqual(["", "message-51", "message-1"]);
     expect(initial.pages[0]?.messages).toHaveLength(50);
+  });
+
+  it("retains a contiguous window within the client content-byte budget", () => {
+    const turns = Array.from({ length: 4 }, (_, index) => {
+      const turn = failedTurn(index + 1);
+      turn.userMessage.content = String(index + 1).repeat(100_000);
+      return turn;
+    });
+    const data: ThreadQueryData = {
+      pages: turns.toReversed().map(({ userMessage, generation }, index, pages) => {
+        const nextPage = pages[index + 1];
+
+        return page(
+          [userMessage],
+          [generation],
+          nextPage ? { nextCursor: nextPage.userMessage.id } : {},
+        );
+      }),
+      pageParams: ["", "message-3", "message-2", "message-1"],
+    };
+
+    const newest = retainThreadHistory(data, "newest");
+    const oldest = retainThreadHistory(data, "oldest");
+
+    expect(newest.pages.map(({ messages }) => messages[0]?.sequence)).toEqual([4, 3]);
+    expect(newest.pageParams).toEqual(["", "message-3"]);
+    expect(isLatestThreadHistory(newest)).toBe(true);
+    expect(oldest.pages.map(({ messages }) => messages[0]?.sequence)).toEqual([2, 1]);
+    expect(oldest.pageParams).toEqual(["message-2", "message-1"]);
+    expect(isLatestThreadHistory(oldest)).toBe(false);
+  });
+
+  it("retains at most three pages at the requested history edge", () => {
+    const turns = Array.from({ length: 4 }, (_, index) => failedTurn(index + 1));
+    const data: ThreadQueryData = {
+      pages: turns.toReversed().map(({ userMessage, generation }, index, pages) => {
+        const nextPage = pages[index + 1];
+
+        return page(
+          [userMessage],
+          [generation],
+          nextPage ? { nextCursor: nextPage.userMessage.id } : {},
+        );
+      }),
+      pageParams: ["", "message-3", "message-2", "message-1"],
+    };
+
+    const newest = retainThreadHistory(data, "newest");
+    const oldest = retainThreadHistory(data, "oldest");
+
+    expect(newest.pages.map(({ messages }) => messages[0]?.sequence)).toEqual([4, 3, 2]);
+    expect(newest.pageParams).toEqual(["", "message-3", "message-2"]);
+    expect(oldest.pages.map(({ messages }) => messages[0]?.sequence)).toEqual([3, 2, 1]);
+    expect(oldest.pageParams).toEqual(["message-3", "message-2", "message-1"]);
+  });
+
+  it("retains a required page alone when that page exceeds the history budget", () => {
+    const newest = failedTurn(2);
+    newest.userMessage.content = "漢".repeat(100_000);
+    const older = failedTurn(1);
+    const data: ThreadQueryData = {
+      pages: [
+        page([newest.userMessage], [newest.generation], {
+          nextCursor: older.userMessage.id,
+        }),
+        page([older.userMessage], [older.generation]),
+      ],
+      pageParams: ["", older.userMessage.id],
+    };
+
+    const retained = retainThreadHistory(data, "newest");
+
+    expect(retained.pages).toEqual([data.pages[0]]);
+    expect(retained.pages[0]?.contentBytes).toBe(300_000);
   });
 
   it("advances a failed latest turn through pending retry and completion", () => {
@@ -167,14 +296,7 @@ describe("thread query cache", () => {
     };
     const completed = completedTurn(retryAcceptance, 2);
     const data: ThreadQueryData = {
-      pages: [
-        {
-          messages: [failed.userMessage],
-          generations: [failed.generation],
-          pageSize: 50,
-          messageContentMaxLength: 100_000,
-        },
-      ],
+      pages: [page([failed.userMessage], [failed.generation])],
       pageParams: [""],
     };
 
@@ -185,14 +307,7 @@ describe("thread query cache", () => {
 
     expect(pending.pages[0]?.generations).toEqual([retryAcceptance.generation]);
     expect(requireUpdated(pending, { type: "reply-completed", ...completed })).toEqual({
-      pages: [
-        {
-          messages: [failed.userMessage, completed.assistantMessage],
-          generations: [completed.generation],
-          pageSize: 50,
-          messageContentMaxLength: 100_000,
-        },
-      ],
+      pages: [page([failed.userMessage, completed.assistantMessage], [completed.generation])],
       pageParams: [""],
     });
   });
@@ -201,7 +316,7 @@ describe("thread query cache", () => {
     const acceptance = pendingTurn(1);
     const completed = completedTurn(acceptance, 2);
     const empty: ThreadQueryData = {
-      pages: [{ messages: [], generations: [], pageSize: 50, messageContentMaxLength: 100_000 }],
+      pages: [page([], [])],
       pageParams: [""],
     };
     const settled = requireUpdated(empty, { type: "reply-completed", ...completed });
@@ -217,19 +332,11 @@ describe("thread query cache", () => {
     const second = failedTurn(2);
     const data: ThreadQueryData = {
       pages: [
-        {
-          messages: [second.userMessage],
-          generations: [second.generation],
-          pageSize: 1,
-          messageContentMaxLength: 100_000,
+        page([second.userMessage], [second.generation], {
+          messageCountLimit: 1,
           nextCursor: first.userMessage.id,
-        },
-        {
-          messages: [first.userMessage],
-          generations: [first.generation],
-          pageSize: 1,
-          messageContentMaxLength: 100_000,
-        },
+        }),
+        page([first.userMessage], [first.generation], { messageCountLimit: 1 }),
       ],
       pageParams: ["", first.userMessage.id],
     };
@@ -246,14 +353,7 @@ describe("thread query cache", () => {
     const first = failedTurn(1);
     const second = failedTurn(2);
     const data: ThreadQueryData = {
-      pages: [
-        {
-          messages: [first.userMessage, second.userMessage],
-          generations: [first.generation, second.generation],
-          pageSize: 50,
-          messageContentMaxLength: 100_000,
-        },
-      ],
+      pages: [page([first.userMessage, second.userMessage], [first.generation, second.generation])],
       pageParams: [""],
     };
     const generation = { ...pendingTurn(3).generation, turnId: first.userMessage.turnId };
@@ -263,12 +363,59 @@ describe("thread query cache", () => {
     });
   });
 
+  it("requests authoritative reconciliation for a cache that violates the page contract", () => {
+    const first = failedTurn(1);
+    const invalidPage = page([first.userMessage], [first.generation]);
+    const data: ThreadQueryData = {
+      pages: [{ ...invalidPage, contentBytes: invalidPage.contentBytes + 1 }],
+      pageParams: [""],
+    };
+
+    expect(
+      reconcileThreadTurn(data, threadId, {
+        type: "submission-accepted",
+        ...pendingTurn(2),
+      }),
+    ).toEqual({ outcome: "reload" });
+  });
+
+  it("leaves a bounded historical window unchanged when live updates arrive", () => {
+    const historical = failedTurn(1);
+    const data: ThreadQueryData = {
+      pages: [page([historical.userMessage], [historical.generation])],
+      pageParams: [historical.userMessage.id],
+    };
+
+    expect(
+      reconcileThreadTurn(data, threadId, {
+        type: "submission-accepted",
+        ...pendingTurn(2),
+      }),
+    ).toEqual({ outcome: "historical" });
+    expect(
+      reconcileThreadTurn(data, "a-different-thread", {
+        type: "submission-accepted",
+        ...pendingTurn(2),
+      }),
+    ).toEqual({ outcome: "historical" });
+  });
+
+  it("creates an explicit latest window from an authoritative page", () => {
+    const latest = failedTurn(1);
+    const latestPage = page([latest.userMessage], [latest.generation]);
+
+    expect(createLatestThreadHistory(latestPage)).toEqual({
+      pages: [latestPage],
+      pageParams: [""],
+    });
+  });
+
   it("requests authoritative reconciliation for inconsistent turn updates", () => {
     const acceptance = pendingTurn(1);
     const completion = completedTurn(acceptance, 2);
     const failure = failedTurn(1);
     const data: ThreadQueryData = {
-      pages: [{ messages: [], generations: [], pageSize: 50, messageContentMaxLength: 100_000 }],
+      pages: [page([], [])],
       pageParams: [""],
     };
     const inconsistentUpdates: ThreadTurnUpdate[] = [

@@ -4,6 +4,7 @@ import { formatCount, formatUsd } from "./format-number";
 describe("formatCount", () => {
   it.each([
     [0, "0"],
+    [-0, "0"],
     [1_083, "1,083"],
     [1_000_000, "1,000,000"],
   ])("formats %i as %s", (value, expected) => {
@@ -18,6 +19,7 @@ describe("formatCount", () => {
 describe("formatUsd", () => {
   it.each([
     [0, "$0"],
+    [-0, "$0"],
     [0.000_053, "$0.000053"],
     [1_234.56, "$1,234.56"],
   ])("formats %s USD as %s", (value, expected) => {

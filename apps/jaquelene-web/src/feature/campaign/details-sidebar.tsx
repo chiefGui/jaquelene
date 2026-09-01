@@ -31,7 +31,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   return (
     <p {...stylex.props(styles.metric)}>
       <span {...stylex.props(styles.value)}>{value}</span>
-      <span {...stylex.props(styles.label)}>{label}</span>
+      <span {...stylex.props(styles.label)}>{` ${label}`}</span>
     </p>
   );
 }
@@ -56,9 +56,7 @@ export function CampaignDetailsSidebar({ usage }: { usage: CampaignUsageSnapshot
   return (
     <SecondarySidebar.Content aria-labelledby={headingId}>
       <SecondarySidebar.Header>
-        <SecondarySidebar.Heading id={headingId} {...stylex.props(styles.heading)}>
-          Campaign details
-        </SecondarySidebar.Heading>
+        <SecondarySidebar.Heading id={headingId}>Campaign details</SecondarySidebar.Heading>
         <SecondarySidebar.Close aria-label="Close campaign details" />
       </SecondarySidebar.Header>
 
@@ -73,21 +71,12 @@ export function CampaignDetailsSidebar({ usage }: { usage: CampaignUsageSnapshot
 }
 
 const styles = stylex.create({
-  heading: {
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 600,
-    lineHeight: tokens.lineHeightSmall,
-  },
   body: {
     display: "grid",
     gap: "0.75rem",
-    padding: "1rem",
   },
   metric: {
-    alignItems: "baseline",
-    display: "flex",
     fontSize: tokens.fontSizeSmall,
-    gap: "0.25rem",
     lineHeight: tokens.lineHeightSmall,
   },
   value: {

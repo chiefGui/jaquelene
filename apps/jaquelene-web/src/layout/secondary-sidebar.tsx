@@ -11,6 +11,7 @@ import {
 import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { IconButton, type IconButtonProps } from "@jaquelene/ui";
+import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps, ReactNode } from "react";
@@ -63,7 +64,8 @@ function SecondarySidebarRoot(props: SecondarySidebarRootProps) {
 }
 
 function SecondarySidebarContent({
-  "aria-label": ariaLabel = "Secondary sidebar",
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
   style,
   ...props
 }: SecondarySidebarContentProps) {
@@ -82,7 +84,8 @@ function SecondarySidebarContent({
     <AriakitDialog
       {...props}
       store={dialog}
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? (ariaLabelledBy ? undefined : "Secondary sidebar")}
+      aria-labelledby={ariaLabelledBy}
       modal={false}
       portal
       portalElement={element}
@@ -97,6 +100,13 @@ function SecondarySidebarContent({
 
 function SecondarySidebarHeader({ style, ...props }: StyleableProps<ComponentProps<"header">>) {
   return <header {...props} {...stylex.props(shellChrome.header, styles.header, style)} />;
+}
+
+function SecondarySidebarHeading({
+  style,
+  ...props
+}: StyleableProps<ComponentProps<typeof DialogHeading>>) {
+  return <DialogHeading {...props} {...stylex.props(styles.heading, style)} />;
 }
 
 function SecondarySidebarViewport({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
@@ -133,7 +143,7 @@ export const SecondarySidebar = {
   Trigger: DialogDisclosure,
   Content: SecondarySidebarContent,
   Header: SecondarySidebarHeader,
-  Heading: DialogHeading,
+  Heading: SecondarySidebarHeading,
   Description: DialogDescription,
   Viewport: SecondarySidebarViewport,
   Body: SecondarySidebarBody,
@@ -154,6 +164,11 @@ const styles = stylex.create({
   header: {
     justifyContent: "space-between",
     paddingInlineStart: "1rem",
+  },
+  heading: {
+    fontSize: tokens.fontSizeSmall,
+    fontWeight: 600,
+    lineHeight: tokens.lineHeightSmall,
   },
   viewport: {
     flex: 1,

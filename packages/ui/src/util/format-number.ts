@@ -5,12 +5,16 @@ const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
 });
 
+function normalizeNegativeZero(value: number) {
+  return Object.is(value, -0) ? 0 : value;
+}
+
 export function formatCount(value: number) {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new RangeError("Count must be a non-negative safe integer.");
   }
 
-  return countFormatter.format(value);
+  return countFormatter.format(normalizeNegativeZero(value));
 }
 
 export function formatUsd(value: number) {
@@ -18,5 +22,5 @@ export function formatUsd(value: number) {
     throw new RangeError("USD amount must be finite and non-negative.");
   }
 
-  return usdFormatter.format(value);
+  return usdFormatter.format(normalizeNegativeZero(value));
 }

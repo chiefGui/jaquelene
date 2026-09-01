@@ -43,7 +43,14 @@ export function createUsageHistory(database: Database) {
           throw new Error("Usage history cannot be cleared while a provider attempt is active.");
         }
 
-        return transaction.delete(providerAttemptTable).run().changes;
+        const changes = transaction.delete(providerAttemptTable).run().changes;
+        const count = Number(changes);
+
+        if (!Number.isSafeInteger(count)) {
+          throw new RangeError("Deleted usage count exceeds the supported amount.");
+        }
+
+        return count;
       });
 
       if (deletedAttempts > 0) {

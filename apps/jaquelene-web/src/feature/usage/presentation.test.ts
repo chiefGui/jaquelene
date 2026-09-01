@@ -1,3 +1,4 @@
+import { UsageCostSource } from "@jaquelene/ipc/renderer";
 import { describe, expect, it } from "vite-plus/test";
 import { summarizeCosts } from "./presentation";
 
@@ -7,11 +8,16 @@ describe("usage cost presentation", () => {
       summarizeCosts([
         {
           currency: "USD",
-          source: "provider-reported",
+          source: UsageCostSource.ProviderReported,
           amountNanos: 10,
           attempts: 1,
         },
-        { currency: "USD", source: "estimated", amountNanos: 5, attempts: 1 },
+        {
+          currency: "USD",
+          source: UsageCostSource.Estimated,
+          amountNanos: 5,
+          attempts: 1,
+        },
       ]),
     ).toEqual({
       kind: "single-currency",
@@ -26,13 +32,13 @@ describe("usage cost presentation", () => {
       summarizeCosts([
         {
           currency: "USD",
-          source: "provider-reported",
+          source: UsageCostSource.ProviderReported,
           amountNanos: 10,
           attempts: 1,
         },
         {
           currency: "EUR",
-          source: "provider-reported",
+          source: UsageCostSource.ProviderReported,
           amountNanos: 5,
           attempts: 1,
         },

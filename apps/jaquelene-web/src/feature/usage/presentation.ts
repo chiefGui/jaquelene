@@ -1,4 +1,4 @@
-import type { UsageCost } from "@jaquelene/ipc/renderer";
+import { UsageCostSource, type UsageCost } from "@jaquelene/ipc/renderer";
 
 export type CostSummary =
   | Readonly<{ kind: "none" }>
@@ -26,7 +26,7 @@ export function summarizeCosts(costs: readonly UsageCost[]): CostSummary {
     }
 
     amounts.set(cost.currency, total);
-    estimated ||= cost.source === "estimated";
+    estimated ||= cost.source === UsageCostSource.Estimated;
   }
 
   if (amounts.size === 0) {
@@ -37,6 +37,12 @@ export function summarizeCosts(costs: readonly UsageCost[]): CostSummary {
     return { kind: "multiple-currencies", currencies: [...amounts.keys()].sort() };
   }
 
-  const [[currency, amountNanos]] = amounts;
+  const entry = amounts.entries().next();
+
+  if (entry.done) {
+    throw new Error("Expected a usage cost summary.");
+  }
+
+  const [currency, amountNanos] = entry.value;
   return { kind: "single-currency", currency, amountNanos, estimated };
 }

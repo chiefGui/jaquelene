@@ -18,4 +18,5 @@ export { Ping, type PingProps } from "./primitive/ping";
 export { Skeleton, type SkeletonProps } from "./primitive/skeleton";
 export { Switch, type SwitchProps } from "./primitive/switch";
 export { formatBytes } from "./util/format-bytes";
+export { formatCount, formatUsd } from "./util/format-number";
 export { formatTimestamp } from "./util/format-timestamp";

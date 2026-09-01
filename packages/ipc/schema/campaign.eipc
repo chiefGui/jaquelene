@@ -13,6 +13,63 @@ structure Campaign {
   generationPreferences?: CampaignGenerationPreferences
 }
 
+subtype CampaignUsageCount = number(
+  minValue: 0
+  maxValue: 9007199254740991
+)
+
+enum CampaignCostSource {
+  ProviderReported = "provider-reported"
+  Estimated = "estimated"
+}
+
+structure CampaignUsageAttempts {
+  provider: CampaignUsageCount
+  preparing: CampaignUsageCount
+  pending: CampaignUsageCount
+  completed: CampaignUsageCount
+  failed: CampaignUsageCount
+}
+
+structure CampaignUsageCoverage {
+  reported: CampaignUsageCount
+  unknown: CampaignUsageCount
+}
+
+structure CampaignTokenUsage {
+  input: CampaignUsageCount
+  output: CampaignUsageCount
+  total: CampaignUsageCount
+  cacheReadInput?: CampaignUsageCount
+  cacheWriteInput?: CampaignUsageCount
+  reasoningOutput?: CampaignUsageCount
+}
+
+structure CampaignCostUsage {
+  currency: string
+  source: CampaignCostSource
+  amountNanos: CampaignUsageCount
+  attempts: CampaignUsageCount
+}
+
+structure CampaignModelUsage {
+  providerId: string
+  requestedModelId: string
+  resolvedModelId?: string
+  upstreamProviderId?: string
+  attempts: CampaignUsageCount
+}
+
+structure CampaignUsageSnapshot {
+  campaignId: string
+  attempts: CampaignUsageAttempts
+  tokenCoverage: CampaignUsageCoverage
+  tokens?: CampaignTokenUsage
+  costCoverage: CampaignUsageCoverage
+  costs: CampaignCostUsage[]
+  models: CampaignModelUsage[]
+}
+
 [RendererAPI]
 [Validator=TrustedRenderer]
 [ContextBridge]
@@ -21,6 +78,13 @@ interface Campaigns {
   listForScenario(scenarioId: string) -> Campaign[]
   get(id: string) -> Campaign?
   setGenerationPreferences(id: string, preferences: CampaignGenerationPreferences?) -> Campaign?
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface CampaignUsage {
+  get(id: string) -> CampaignUsageSnapshot?
 }
 
 [RendererAPI]

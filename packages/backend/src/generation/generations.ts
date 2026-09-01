@@ -63,12 +63,16 @@ export type ReplyGenerationExecution =
       cause: unknown;
     };
 
-type NormalizedProviderResult = {
-  text: string;
+type NormalizedProviderAccounting = {
   providerGenerationId: string | null;
   resolvedModelId: string | null;
+  upstreamProviderId: string | null;
   finishReason: string | null;
   usage: GenerationUsage | null;
+};
+
+type NormalizedProviderResult = NormalizedProviderAccounting & {
+  text: string;
 };
 
 export type AcceptedReplyGeneration = Readonly<{
@@ -157,32 +161,156 @@ function requireTokenCount(value: number, field: string) {
   return value;
 }
 
-function normalizeProviderResult(result: ProviderGenerationResult): NormalizedProviderResult {
-  const usage = result.usage
-    ? {
-        inputTokens: requireTokenCount(result.usage.inputTokens, "input token count"),
-        outputTokens: requireTokenCount(result.usage.outputTokens, "output token count"),
-        totalTokens: requireTokenCount(result.usage.totalTokens, "total token count"),
-      }
-    : null;
-
+function normalizeProviderMetadata(
+  result: ProviderGenerationResult,
+): Omit<NormalizedProviderAccounting, "usage"> {
   return {
-    text: requireThreadMessageContent(result.text),
     providerGenerationId: requireOptionalText(result.providerGenerationId, "generation identity"),
     resolvedModelId: requireOptionalText(result.resolvedModelId, "resolved model identity"),
+    upstreamProviderId: requireOptionalText(
+      result.upstreamProviderId,
+      "upstream provider identity",
+    ),
     finishReason: requireOptionalText(result.finishReason, "finish reason"),
-    usage,
   };
 }
 
-function providerResultFields(output: NormalizedProviderResult) {
+function normalizeProviderUsage(result: ProviderGenerationResult): GenerationUsage | null {
+  if (!result.usage) {
+    return null;
+  }
+
+  const usage: GenerationUsage = {
+    tokens: {
+      input: {
+        total: requireTokenCount(result.usage.tokens.input.total, "input token count"),
+        ...(result.usage.tokens.input.cacheRead === undefined
+          ? {}
+          : {
+              cacheRead: requireTokenCount(
+                result.usage.tokens.input.cacheRead,
+                "cache-read input token count",
+              ),
+            }),
+        ...(result.usage.tokens.input.cacheWrite === undefined
+          ? {}
+          : {
+              cacheWrite: requireTokenCount(
+                result.usage.tokens.input.cacheWrite,
+                "cache-write input token count",
+              ),
+            }),
+      },
+      output: {
+        total: requireTokenCount(result.usage.tokens.output.total, "output token count"),
+        ...(result.usage.tokens.output.reasoning === undefined
+          ? {}
+          : {
+              reasoning: requireTokenCount(
+                result.usage.tokens.output.reasoning,
+                "reasoning output token count",
+              ),
+            }),
+      },
+      total: requireTokenCount(result.usage.tokens.total, "total token count"),
+    },
+    ...(result.usage.cost
+      ? {
+          cost: {
+            currency: result.usage.cost.currency,
+            amountNanos: requireTokenCount(result.usage.cost.amountNanos, "cost amount in nanos"),
+            source: result.usage.cost.source,
+          },
+        }
+      : {}),
+  };
+  const { input, output } = usage.tokens;
+
+  if (input.cacheRead !== undefined && input.cacheRead > input.total) {
+    throw new TypeError("A generation provider returned cache-read tokens above input tokens.");
+  }
+
+  if (input.cacheWrite !== undefined && input.cacheWrite > input.total) {
+    throw new TypeError("A generation provider returned cache-write tokens above input tokens.");
+  }
+
+  if (output.reasoning !== undefined && output.reasoning > output.total) {
+    throw new TypeError("A generation provider returned reasoning tokens above output tokens.");
+  }
+
+  if (usage.tokens.total < input.total || usage.tokens.total < output.total) {
+    throw new TypeError("A generation provider returned an invalid total token count.");
+  }
+
+  if (
+    usage.cost &&
+    (usage.cost.currency !== "USD" ||
+      (usage.cost.source !== "provider-reported" && usage.cost.source !== "estimated"))
+  ) {
+    throw new TypeError("A generation provider returned unsupported cost metadata.");
+  }
+
+  return usage;
+}
+
+function normalizeProviderAccounting(result: ProviderGenerationResult) {
+  const causes: unknown[] = [];
+  let metadata: Omit<NormalizedProviderAccounting, "usage"> = {
+    providerGenerationId: null,
+    resolvedModelId: null,
+    upstreamProviderId: null,
+    finishReason: null,
+  };
+  let usage: GenerationUsage | null = null;
+
+  try {
+    metadata = normalizeProviderMetadata(result);
+  } catch (cause) {
+    causes.push(cause);
+  }
+
+  try {
+    usage = normalizeProviderUsage(result);
+  } catch (cause) {
+    causes.push(cause);
+  }
+
+  const accounting = { ...metadata, usage } satisfies NormalizedProviderAccounting;
+
+  return causes.length === 0
+    ? { outcome: "valid" as const, accounting }
+    : {
+        outcome: "invalid" as const,
+        accounting,
+        cause:
+          causes.length === 1
+            ? causes[0]
+            : new AggregateError(causes, "A generation provider returned invalid accounting."),
+      };
+}
+
+function normalizeProviderResult(
+  result: ProviderGenerationResult,
+  accounting: NormalizedProviderAccounting,
+): NormalizedProviderResult {
+  return { ...accounting, text: requireThreadMessageContent(result.text) };
+}
+
+function providerResultFields(output: NormalizedProviderAccounting) {
   return {
     providerGenerationId: output.providerGenerationId,
     resolvedModelId: output.resolvedModelId,
+    upstreamProviderId: output.upstreamProviderId,
     finishReason: output.finishReason,
-    inputTokens: output.usage?.inputTokens ?? null,
-    outputTokens: output.usage?.outputTokens ?? null,
-    totalTokens: output.usage?.totalTokens ?? null,
+    inputTokens: output.usage?.tokens.input.total ?? null,
+    cacheReadInputTokens: output.usage?.tokens.input.cacheRead ?? null,
+    cacheWriteInputTokens: output.usage?.tokens.input.cacheWrite ?? null,
+    outputTokens: output.usage?.tokens.output.total ?? null,
+    reasoningOutputTokens: output.usage?.tokens.output.reasoning ?? null,
+    totalTokens: output.usage?.tokens.total ?? null,
+    costCurrency: output.usage?.cost?.currency ?? null,
+    costAmountNanos: output.usage?.cost?.amountNanos ?? null,
+    costSource: output.usage?.cost?.source ?? null,
   };
 }
 
@@ -204,8 +332,8 @@ export function createGenerations(
 
     return provider;
   }
-  function finishedAt(generation: Pick<Generation, "startedAt">) {
-    return Math.max(generation.startedAt, now());
+  function finishedAt(generation: Pick<Generation, "startedAt" | "providerStartedAt">) {
+    return Math.max(generation.startedAt, generation.providerStartedAt ?? 0, now());
   }
 
   function requireReplyContext(source: Pick<Database, "select">, turnId: TurnId) {
@@ -243,10 +371,10 @@ export function createGenerations(
   }
 
   function recordFailure(
-    generation: Pick<Generation, "id" | "startedAt">,
+    generation: Pick<Generation, "id" | "startedAt" | "providerStartedAt">,
     failureKind: GenerationFailureKind,
     cause: unknown,
-    output?: NormalizedProviderResult,
+    output?: NormalizedProviderAccounting,
   ): ReplyGenerationExecution {
     let failedGeneration: StoredGeneration | undefined;
 
@@ -422,6 +550,24 @@ export function createGenerations(
     }
 
     let providerResult: ProviderGenerationResult;
+    let dispatchedGeneration: Generation;
+
+    try {
+      const storedDispatchedGeneration = database
+        .update(generationTable)
+        .set({ providerStartedAt: Math.max(generation.startedAt, now()) })
+        .where(and(eq(generationTable.id, generation.id), eq(generationTable.status, "pending")))
+        .returning()
+        .get();
+
+      if (!storedDispatchedGeneration) {
+        throw new Error(`Generation "${generation.id}" is no longer pending.`);
+      }
+
+      dispatchedGeneration = toGeneration(storedDispatchedGeneration);
+    } catch (cause) {
+      return recordFailure(generation, "storage", cause);
+    }
 
     try {
       if (signal?.aborted) {
@@ -442,20 +588,36 @@ export function createGenerations(
         signal,
       );
     } catch (cause) {
-      return recordFailure(generation, signal?.aborted ? "interrupted" : "provider", cause);
+      return recordFailure(
+        dispatchedGeneration,
+        signal?.aborted ? "interrupted" : "provider",
+        cause,
+      );
     }
+
+    const normalizedAccounting = normalizeProviderAccounting(providerResult);
+
+    if (normalizedAccounting.outcome === "invalid") {
+      return recordFailure(
+        dispatchedGeneration,
+        "invalid-output",
+        normalizedAccounting.cause,
+        normalizedAccounting.accounting,
+      );
+    }
+    const { accounting } = normalizedAccounting;
 
     let output: NormalizedProviderResult;
 
     try {
-      output = normalizeProviderResult(providerResult);
+      output = normalizeProviderResult(providerResult, accounting);
     } catch (cause) {
-      return recordFailure(generation, "invalid-output", cause);
+      return recordFailure(dispatchedGeneration, "invalid-output", cause, accounting);
     }
 
     try {
       const result = database.transaction((transaction) => {
-        const completionTime = finishedAt(generation);
+        const completionTime = finishedAt(dispatchedGeneration);
         const { message, activated } = appendAssistantMessageInTransaction(transaction, {
           threadId: anchor.threadId,
           turnId: generation.turnId,
@@ -485,7 +647,7 @@ export function createGenerations(
 
       return { outcome: "completed", ...result };
     } catch (cause) {
-      return recordFailure(generation, "storage", cause, output);
+      return recordFailure(dispatchedGeneration, "storage", cause, output);
     }
   }
 
@@ -541,7 +703,7 @@ export function createGenerations(
         .set({
           status: "failed",
           failureKind: "interrupted",
-          finishedAt: sql`max(${generationTable.startedAt}, ${recoveryTime})`,
+          finishedAt: sql`max(${generationTable.startedAt}, coalesce(${generationTable.providerStartedAt}, 0), ${recoveryTime})`,
         })
         .where(eq(generationTable.status, "pending"))
         .run();

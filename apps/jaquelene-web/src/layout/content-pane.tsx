@@ -51,7 +51,7 @@ const styles = stylex.create({
     borderBottomColor: `color-mix(in srgb, ${tokens.border} 55%, transparent)`,
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
-    paddingInline: "0.75rem",
+    paddingInlineStart: "0.75rem",
   },
   viewport: {
     flex: 1,

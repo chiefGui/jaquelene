@@ -1,5 +1,6 @@
 import type {
   Campaigns,
+  CampaignUsageReader,
   InstructionCatalog,
   Providers,
   Scenarios,
@@ -14,7 +15,11 @@ import type { ApplicationDiagnostics } from "../diagnostics/diagnostics";
 import { exposeDiagnostics, exposeDiagnosticsPreferences } from "../diagnostics/ipc";
 import { exposeUserInterfacePreferences } from "../feature/appearance/user-interface/ipc";
 import { createInterfaceScaleWebPreferences } from "../feature/appearance/user-interface/zoom";
-import { exposeCampaignPreferences, exposeCampaigns } from "../feature/campaign/ipc";
+import {
+  exposeCampaignPreferences,
+  exposeCampaigns,
+  exposeCampaignUsage,
+} from "../feature/campaign/ipc";
 import type { ModelCatalog } from "../feature/model/catalog";
 import { exposeModelCatalog } from "../feature/model/catalog-ipc";
 import type { FavoriteModels } from "../feature/model/favorite-models";
@@ -97,6 +102,7 @@ export function createMainWindowManager({
   localState,
   scenarios,
   campaigns,
+  campaignUsage,
   instructions,
   turns,
   modelCatalog,
@@ -110,6 +116,7 @@ export function createMainWindowManager({
   localState: LocalState;
   scenarios: Scenarios;
   campaigns: Campaigns;
+  campaignUsage: CampaignUsageReader;
   instructions: InstructionCatalog;
   turns: Turns;
   modelCatalog: ModelCatalog;
@@ -202,6 +209,7 @@ export function createMainWindowManager({
       exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
       exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
       exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);
+      exposeCampaignUsage(browserWindow.webContents.mainFrame, campaignUsage);
       addFinalizer(scope, threadMessaging.expose(browserWindow.webContents.mainFrame));
       exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);
       addFinalizer(scope, exposeModelCatalog(browserWindow.webContents, modelCatalog));

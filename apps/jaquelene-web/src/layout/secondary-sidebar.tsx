@@ -64,7 +64,8 @@ function SecondarySidebarRoot(props: SecondarySidebarRootProps) {
 }
 
 function SecondarySidebarContent({
-  "aria-label": ariaLabel = "Secondary sidebar",
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
   style,
   ...props
 }: SecondarySidebarContentProps) {
@@ -83,7 +84,8 @@ function SecondarySidebarContent({
     <AriakitDialog
       {...props}
       store={dialog}
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? (ariaLabelledBy ? undefined : "Secondary sidebar")}
+      aria-labelledby={ariaLabelledBy}
       modal={false}
       portal
       portalElement={element}
@@ -98,6 +100,13 @@ function SecondarySidebarContent({
 
 function SecondarySidebarHeader({ style, ...props }: StyleableProps<ComponentProps<"header">>) {
   return <header {...props} {...stylex.props(shellChrome.header, styles.header, style)} />;
+}
+
+function SecondarySidebarHeading({
+  style,
+  ...props
+}: StyleableProps<ComponentProps<typeof DialogHeading>>) {
+  return <DialogHeading {...props} {...stylex.props(styles.heading, style)} />;
 }
 
 function SecondarySidebarViewport({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
@@ -134,7 +143,7 @@ export const SecondarySidebar = {
   Trigger: DialogDisclosure,
   Content: SecondarySidebarContent,
   Header: SecondarySidebarHeader,
-  Heading: DialogHeading,
+  Heading: SecondarySidebarHeading,
   Description: DialogDescription,
   Viewport: SecondarySidebarViewport,
   Body: SecondarySidebarBody,
@@ -153,11 +162,13 @@ const styles = stylex.create({
     width: "clamp(18rem, 30vw, 22rem)",
   },
   header: {
-    borderBottomColor: tokens.border,
-    borderBottomStyle: "solid",
-    borderBottomWidth: 1,
     justifyContent: "space-between",
-    paddingInline: "1rem",
+    paddingInlineStart: "1rem",
+  },
+  heading: {
+    fontSize: tokens.fontSizeSmall,
+    fontWeight: 600,
+    lineHeight: tokens.lineHeightSmall,
   },
   viewport: {
     flex: 1,

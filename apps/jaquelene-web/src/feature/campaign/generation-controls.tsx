@@ -7,6 +7,7 @@ import type {
   CampaignGenerationPreferences,
   GenerationConfigurationSelection,
   ModelSelection,
+  ModelReasoningCapability,
   ReasoningPreset,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
@@ -30,7 +31,10 @@ function ModelReasoningControl({
   busy: boolean;
   configuration: GenerationConfigurationSelection;
   disabled: boolean;
-  onValueChange: (value: ReasoningPreset | null) => void;
+  onValueChange: (
+    value: ReasoningPreset | null,
+    capability: ModelReasoningCapability | undefined,
+  ) => void;
 }) {
   const models = useQuery(modelsForProviderQuery(configuration.model.providerId));
   const selectedModel = useMemo(
@@ -45,7 +49,7 @@ function ModelReasoningControl({
       busy={busy}
       disabled={disabled}
       value={configuration.reasoningPreset ?? null}
-      onValueChange={onValueChange}
+      onValueChange={(value) => onValueChange(value, capability)}
     />
   );
 }
@@ -86,13 +90,12 @@ export function CampaignGenerationControls({
     );
   }
 
-  function updateReasoning(reasoningPreset: ReasoningPreset | null) {
-    if (!configuration) {
-      return;
-    }
-
+  function updateReasoning(
+    reasoningPreset: ReasoningPreset | null,
+    capability: ModelReasoningCapability | undefined,
+  ) {
     updatePreferences(
-      setCampaignGenerationReasoningPreset(preferences, reasoningPreset ?? undefined),
+      setCampaignGenerationReasoningPreset(preferences, reasoningPreset ?? undefined, capability),
     );
   }
 

@@ -1,12 +1,30 @@
+import type { CampaignGenerationPreferences as ComposableCampaignGenerationPreferences } from "@jaquelene/domain";
 import { desc, eq, getTableColumns } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { ids, type CampaignId, type ScenarioId, type ThreadId } from "#backend/id";
-import {
-  requireCampaignGenerationPreferences,
-  type CampaignGenerationPreferences,
-} from "#backend/provider/provider";
+import { requireReasoningPreset, type ReasoningPreset } from "#backend/model/reasoning";
+import { requireModelSelection, type ModelSelection } from "#backend/provider/provider";
 import { insertThread } from "#backend/thread/threads";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
+
+export type CampaignGenerationPreferences = ComposableCampaignGenerationPreferences<
+  ModelSelection,
+  ReasoningPreset
+>;
+
+function requireCampaignGenerationPreferences(preferences: CampaignGenerationPreferences) {
+  if (preferences.model === undefined && preferences.reasoningPreset === undefined) {
+    throw new TypeError("Campaign generation preferences must contain at least one preference.");
+  }
+
+  if (preferences.model !== undefined) {
+    requireModelSelection(preferences.model);
+  }
+
+  if (preferences.reasoningPreset !== undefined) {
+    requireReasoningPreset(preferences.reasoningPreset);
+  }
+}
 
 export type Campaign = Readonly<{
   id: CampaignId;

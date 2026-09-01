@@ -65,12 +65,14 @@ describe("campaign generation configuration", () => {
       setCampaignGenerationReasoningPreset<Model, ReasoningPreset>(
         { model: selectedModel },
         "high",
+        reasoning,
       ),
     ).toEqual({ model: selectedModel, reasoningPreset: "high" });
     expect(
       setCampaignGenerationReasoningPreset<Model, ReasoningPreset>(
         { model: selectedModel, reasoningPreset: "high" },
         undefined,
+        reasoning,
       ),
     ).toEqual({ model: selectedModel });
   });
@@ -116,10 +118,32 @@ describe("campaign generation configuration", () => {
 
   it("removes empty campaign preferences", () => {
     expect(
-      setCampaignGenerationReasoningPreset<Model, ReasoningPreset>(undefined, undefined),
+      setCampaignGenerationReasoningPreset<Model, ReasoningPreset>(undefined, undefined, undefined),
     ).toBeUndefined();
     expect(
       setCampaignGenerationModel(undefined, model("default"), model("default"), undefined),
     ).toBeUndefined();
+  });
+
+  it("does not persist the model default and rejects an unsupported reasoning choice", () => {
+    const reasoning = {
+      defaultPreset: "medium" as const,
+      supportedPresets: ["high", "medium", "low"] as const,
+    };
+
+    expect(
+      setCampaignGenerationReasoningPreset<Model, ReasoningPreset>(
+        { reasoningPreset: "high" },
+        "medium",
+        reasoning,
+      ),
+    ).toBeUndefined();
+    expect(() =>
+      setCampaignGenerationReasoningPreset<Model, ReasoningPreset>(
+        { reasoningPreset: "high" },
+        "off",
+        reasoning,
+      ),
+    ).toThrow(RangeError);
   });
 });

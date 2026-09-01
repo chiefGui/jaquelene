@@ -1,5 +1,10 @@
 module jaquelene
 
+structure CampaignGenerationPreferences {
+  model?: ModelSelection
+  reasoningPreset?: ReasoningPreset
+}
+
 structure Campaign {
   id: string
   scenarioId: string

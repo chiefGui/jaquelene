@@ -7,11 +7,11 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
 import type { ReasoningPreset } from "#backend/model/reasoning";
-import type { CampaignGenerationPreferences, ModelSelection } from "#backend/provider/provider";
+import type { ModelSelection } from "#backend/provider/provider";
 import { createScenarios } from "#backend/scenario/scenarios";
 import { threadTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
-import { createCampaigns } from "./campaigns";
+import { createCampaigns, type CampaignGenerationPreferences } from "./campaigns";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
 
 const directories: string[] = [];

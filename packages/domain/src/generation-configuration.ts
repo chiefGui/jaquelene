@@ -36,6 +36,21 @@ function campaignPreferences<Model, ReasoningPreset>(
   };
 }
 
+function supportedReasoningPreference<ReasoningPreset>(
+  reasoningPreset: ReasoningPreset | undefined,
+  reasoning: ModelReasoningOptions<ReasoningPreset> | undefined,
+) {
+  if (
+    reasoningPreset === undefined ||
+    reasoning?.defaultPreset === reasoningPreset ||
+    !reasoning?.supportedPresets.includes(reasoningPreset)
+  ) {
+    return undefined;
+  }
+
+  return reasoningPreset;
+}
+
 export function composeCampaignGenerationConfiguration<
   Model extends ModelIdentity,
   ReasoningPreset,
@@ -64,13 +79,7 @@ export function setCampaignGenerationModel<Model extends ModelIdentity, Reasonin
   reasoning: ModelReasoningOptions<ReasoningPreset> | undefined,
 ): CampaignGenerationPreferences<Model, ReasoningPreset> | undefined {
   const modelPreference = defaultModel && sameModel(model, defaultModel) ? undefined : model;
-  const currentReasoningPreset = preferences?.reasoningPreset;
-  const reasoningPreset =
-    currentReasoningPreset !== undefined &&
-    reasoning?.defaultPreset !== currentReasoningPreset &&
-    reasoning?.supportedPresets.includes(currentReasoningPreset)
-      ? currentReasoningPreset
-      : undefined;
+  const reasoningPreset = supportedReasoningPreference(preferences?.reasoningPreset, reasoning);
 
   return campaignPreferences(modelPreference, reasoningPreset);
 }
@@ -78,6 +87,14 @@ export function setCampaignGenerationModel<Model extends ModelIdentity, Reasonin
 export function setCampaignGenerationReasoningPreset<Model, ReasoningPreset>(
   preferences: CampaignGenerationPreferences<Model, ReasoningPreset> | undefined,
   reasoningPreset: ReasoningPreset | undefined,
+  reasoning: ModelReasoningOptions<ReasoningPreset> | undefined,
 ): CampaignGenerationPreferences<Model, ReasoningPreset> | undefined {
-  return campaignPreferences(preferences?.model, reasoningPreset);
+  if (reasoningPreset !== undefined && !reasoning?.supportedPresets.includes(reasoningPreset)) {
+    throw new RangeError("The selected model does not support this reasoning preset.");
+  }
+
+  return campaignPreferences(
+    preferences?.model,
+    supportedReasoningPreference(reasoningPreset, reasoning),
+  );
 }

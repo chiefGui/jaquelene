@@ -2,6 +2,10 @@ import { and, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "#backend/database/database";
 import {
+  requireGenerationConfiguration,
+  type GenerationConfiguration,
+} from "#backend/generation/configuration";
+import {
   appendAssistantMessageInTransaction,
   requireThreadMessageContent,
 } from "#backend/thread/threads";
@@ -20,9 +24,7 @@ import {
 } from "#backend/model/reasoning";
 import type { Models } from "#backend/provider/model-catalog";
 import {
-  requireGenerationConfiguration,
   requireModelReference,
-  type GenerationConfiguration,
   type GenerationUsage,
   type ModelReference,
   type ProviderGenerationResult,

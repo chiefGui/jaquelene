@@ -4,7 +4,17 @@ export type {
   ResourceCacheFailure,
   ResourceCacheInspection,
 } from "#backend/resource-cache/resource-cache";
-export type { Campaign, Campaigns } from "#backend/campaign/campaigns";
+export type {
+  Campaign,
+  CampaignGenerationPreferences,
+  Campaigns,
+} from "#backend/campaign/campaigns";
+export {
+  requireGenerationConfiguration,
+  requireGenerationConfigurationSelection,
+  type GenerationConfiguration,
+  type GenerationConfigurationSelection,
+} from "#backend/generation/configuration";
 export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
 export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
 export {
@@ -22,16 +32,10 @@ export {
   type ResolvedReasoning,
 } from "#backend/model/reasoning";
 export {
-  requireCampaignGenerationPreferences,
-  requireGenerationConfiguration,
-  requireGenerationConfigurationSelection,
   requireModelReference,
   requireModelSelection,
   type ApiKeyProviderConfiguration,
   type ApiKeyProviderConfigurationSnapshot,
-  type CampaignGenerationPreferences,
-  type GenerationConfiguration,
-  type GenerationConfigurationSelection,
   type GenerationUsage,
   type ModelReference,
   type ModelSelection,

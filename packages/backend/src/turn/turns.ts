@@ -1,4 +1,5 @@
 import type { Database } from "#backend/database/database";
+import type { GenerationConfiguration } from "#backend/generation/configuration";
 import type {
   AcceptedReplyGeneration,
   GenerationEngine,
@@ -6,7 +7,6 @@ import type {
 } from "#backend/generation/generations";
 import type { Generation } from "#backend/generation/schema";
 import type { ThreadId, TurnId } from "#backend/id";
-import type { GenerationConfiguration } from "#backend/provider/provider";
 import type { ThreadMessage } from "#backend/thread/schema";
 import { requireThreadMessageContent, type ThreadEngine } from "#backend/thread/threads";
 

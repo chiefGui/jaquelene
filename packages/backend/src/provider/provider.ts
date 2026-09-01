@@ -1,15 +1,6 @@
-import type {
-  CampaignGenerationPreferences as ComposableCampaignGenerationPreferences,
-  GenerationConfiguration as ComposedGenerationConfiguration,
-} from "@jaquelene/domain";
 import type { GenerationId, ThreadId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
-import {
-  requireReasoningPreset,
-  type ModelReasoningCapability,
-  type ReasoningPreset,
-  type ResolvedReasoning,
-} from "#backend/model/reasoning";
+import type { ModelReasoningCapability, ResolvedReasoning } from "#backend/model/reasoning";
 
 export type ProviderId = string;
 
@@ -48,53 +39,6 @@ export function requireModelSelection(selection: ModelSelection) {
 
   if (!selection.name.trim() || !selection.brandId.trim()) {
     throw new TypeError("A model selection requires display metadata.");
-  }
-}
-
-export type GenerationConfiguration = ComposedGenerationConfiguration<
-  ModelReference,
-  ReasoningPreset
->;
-
-export function requireGenerationConfiguration(configuration: GenerationConfiguration) {
-  requireModelReference(configuration.model);
-
-  if (configuration.reasoningPreset !== undefined) {
-    requireReasoningPreset(configuration.reasoningPreset);
-  }
-}
-
-export type GenerationConfigurationSelection = ComposedGenerationConfiguration<
-  ModelSelection,
-  ReasoningPreset
->;
-
-export function requireGenerationConfigurationSelection(
-  configuration: GenerationConfigurationSelection,
-) {
-  requireModelSelection(configuration.model);
-
-  if (configuration.reasoningPreset !== undefined) {
-    requireReasoningPreset(configuration.reasoningPreset);
-  }
-}
-
-export type CampaignGenerationPreferences = ComposableCampaignGenerationPreferences<
-  ModelSelection,
-  ReasoningPreset
->;
-
-export function requireCampaignGenerationPreferences(preferences: CampaignGenerationPreferences) {
-  if (preferences.model === undefined && preferences.reasoningPreset === undefined) {
-    throw new TypeError("Campaign generation preferences must contain at least one preference.");
-  }
-
-  if (preferences.model !== undefined) {
-    requireModelSelection(preferences.model);
-  }
-
-  if (preferences.reasoningPreset !== undefined) {
-    requireReasoningPreset(preferences.reasoningPreset);
   }
 }
 

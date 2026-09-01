@@ -57,21 +57,6 @@ structure ModelSelection {
   brandId: string
 }
 
-structure GenerationConfiguration {
-  model: ModelReference
-  reasoningPreset?: ReasoningPreset
-}
-
-structure GenerationConfigurationSelection {
-  model: ModelSelection
-  reasoningPreset?: ReasoningPreset
-}
-
-structure CampaignGenerationPreferences {
-  model?: ModelSelection
-  reasoningPreset?: ReasoningPreset
-}
-
 subtype ModelCatalogRevision = number(
   minValue: 0
   maxValue: 9007199254740991

@@ -1,6 +1,5 @@
 import {
   Form as AriakitForm,
-  FormDescription,
   FormError,
   FormInput,
   FormLabel,
@@ -9,7 +8,6 @@ import {
 } from "@ariakit/react/form";
 import { useStoreState } from "@ariakit/react/store";
 import {
-  SCENARIO_TITLE_MAX_LENGTH,
   SCENARIO_TITLE_MAX_UTF16_LENGTH,
   createScenarioInputSchema,
   type CreateScenarioInput,
@@ -136,9 +134,6 @@ function NewScenarioRoute() {
               <FormLabel name={form.names.title} render={<Field.Label />}>
                 Title
               </FormLabel>
-              <FormDescription name={form.names.title} render={<Field.Description />}>
-                Up to {SCENARIO_TITLE_MAX_LENGTH} characters.
-              </FormDescription>
               <Field.Control>
                 <FormInput
                   name={form.names.title}

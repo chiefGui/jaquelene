@@ -1,5 +1,11 @@
 import { UsagePeriod, type UsageOverview } from "@jaquelene/ipc/renderer";
-import { Button, formatCompactCount, formatCurrencyNanos } from "@jaquelene/ui";
+import {
+  Button,
+  Item,
+  formatCompactCount,
+  formatCompactCurrencyNanos,
+  formatCurrencyNanos,
+} from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { Select } from "@jaquelene/ui/select";
 import { tokens } from "@jaquelene/ui/theme.stylex";
@@ -40,7 +46,7 @@ function presentCost(overview: UsageOverview) {
   if (cost.kind === "single-currency") {
     const estimate = cost.estimated ? "~" : "";
     const incomplete = overview.costCoverage.unknown > 0 ? "+" : "";
-    return `${estimate}${formatCurrencyNanos(cost.amountNanos, cost.currency)}${incomplete}`;
+    return `${estimate}${formatCompactCurrencyNanos(cost.amountNanos, cost.currency)}${incomplete}`;
   }
 
   if (cost.kind === "multiple-currencies") {
@@ -241,41 +247,45 @@ function UsageRoute() {
           </section>
 
           <section aria-labelledby="usage-history-heading" {...stylex.props(styles.history)}>
-            <div>
-              <h2 id="usage-history-heading" {...stylex.props(styles.historyHeading)}>
-                Usage history
-              </h2>
-              <p {...stylex.props(styles.historyDescription)}>
-                Clear totals without deleting campaigns or conversations.
-              </p>
-            </div>
+            <Item.Group>
+              <Item.Root>
+                <Item.Content>
+                  <Item.Label id="usage-history-heading" render={<h2 />}>
+                    Usage history
+                  </Item.Label>
+                  <Item.Description>
+                    Clear totals without deleting campaigns or conversations.
+                  </Item.Description>
+                </Item.Content>
 
-            <ConfirmDialog
-              open={clearOpen}
-              setOpen={(open) => {
-                if (!clearHistory.isPending) {
-                  setClearOpen(open);
-                  if (open) {
-                    clearHistory.reset();
+                <ConfirmDialog
+                  open={clearOpen}
+                  setOpen={(open) => {
+                    if (!clearHistory.isPending) {
+                      setClearOpen(open);
+                      if (open) {
+                        clearHistory.reset();
+                      }
+                    }
+                  }}
+                  heading="Clear usage history?"
+                  description="Campaigns and conversations will remain, but usage totals and history will be permanently removed."
+                  confirmLabel="Clear"
+                  pending={clearHistory.isPending}
+                  error={clearHistory.isError ? "Couldn’t clear usage history." : undefined}
+                  onConfirm={() => {
+                    clearHistory.mutate(undefined, {
+                      onSuccess: () => setClearOpen(false),
+                    });
+                  }}
+                  trigger={
+                    <Button type="button" variant="ghost" tone="danger">
+                      Clear
+                    </Button>
                   }
-                }
-              }}
-              heading="Clear usage history?"
-              description="Campaigns and conversations will remain, but usage totals and history will be permanently removed."
-              confirmLabel="Clear"
-              pending={clearHistory.isPending}
-              error={clearHistory.isError ? "Couldn’t clear usage history." : undefined}
-              onConfirm={() => {
-                clearHistory.mutate(undefined, {
-                  onSuccess: () => setClearOpen(false),
-                });
-              }}
-              trigger={
-                <Button type="button" variant="ghost" tone="danger">
-                  Clear
-                </Button>
-              }
-            />
+                />
+              </Item.Root>
+            </Item.Group>
           </section>
         </ContentPane.Body>
       </ContentPane.Viewport>
@@ -334,22 +344,6 @@ const styles = stylex.create({
     marginTop: "0.75rem",
   },
   history: {
-    alignItems: "center",
-    display: "flex",
-    gap: "2rem",
-    justifyContent: "space-between",
     marginTop: "4rem",
-  },
-  historyHeading: {
-    color: tokens.foreground,
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
-    lineHeight: tokens.lineHeightSmall,
-  },
-  historyDescription: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.25rem",
   },
 });

@@ -20,6 +20,8 @@ export { Switch, type SwitchProps } from "./primitive/switch";
 export { formatBytes } from "./util/format-bytes";
 export {
   formatCompactCount,
+  formatCompactCurrency,
+  formatCompactCurrencyNanos,
   formatCount,
   formatCurrency,
   formatCurrencyNanos,

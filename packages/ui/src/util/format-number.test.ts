@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   formatCompactCount,
+  formatCompactCurrencyNanos,
   formatCount,
   formatCurrencyNanos,
   formatUsd,
@@ -68,5 +69,24 @@ describe("formatCurrencyNanos", () => {
 
   it.each(["usd", "US", "USDD"])('rejects the invalid currency "%s"', (currency) => {
     expect(() => formatCurrencyNanos(1, currency)).toThrow(RangeError);
+  });
+});
+
+describe("formatCompactCurrencyNanos", () => {
+  it.each([
+    [0, "$0"],
+    [53_000, "$0.000053"],
+    [1_234_560_000_000, "$1.23K"],
+    [1_000_000_000_000_000, "$1M"],
+  ])("formats %i nanos as %s", (value, expected) => {
+    expect(formatCompactCurrencyNanos(value, "USD")).toBe(expected);
+  });
+
+  it.each([-1, 1.5, Number.MAX_SAFE_INTEGER + 1])("rejects invalid nanos %s", (value) => {
+    expect(() => formatCompactCurrencyNanos(value, "USD")).toThrow(RangeError);
+  });
+
+  it("rejects a non-canonical currency", () => {
+    expect(() => formatCompactCurrencyNanos(1, "usd")).toThrow(RangeError);
   });
 });

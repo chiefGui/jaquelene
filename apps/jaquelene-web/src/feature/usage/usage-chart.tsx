@@ -62,7 +62,7 @@ function presentBucketValue(bucket: UsageBucket, metric: UsageMetric) {
 
 function chartEmptyMessage(overview: UsageOverview, metric: UsageMetric) {
   if (overview.attempts.provider === 0) {
-    return "No usage in this period.";
+    return "No usage in this period";
   }
 
   const coverage = metric === "tokens" ? overview.tokenCoverage : overview.costCoverage;
@@ -213,7 +213,10 @@ const styles = stylex.create({
   },
   barButton: {
     alignItems: "flex-end",
-    backgroundColor: "transparent",
+    backgroundColor: {
+      default: "transparent",
+      ":hover": `color-mix(in oklab, ${tokens.accent} 8%, transparent)`,
+    },
     borderRadius: tokens.radiusSmall,
     display: "flex",
     minWidth: 0,

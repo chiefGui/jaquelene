@@ -9,6 +9,7 @@ import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interfa
 import { CampaignContinuationLink } from "@/feature/campaign/continuation-link";
 import { ContentPane } from "./content-pane";
 import { SecondarySidebarHost, SecondarySidebarHostProvider } from "./secondary-sidebar-host";
+import { shellMetrics } from "./shell-chrome.stylex";
 import { StatusBar } from "./status-bar";
 
 export function AppShell() {
@@ -48,7 +49,7 @@ const styles = stylex.create({
     display: "grid",
     fontSize: tokens.fontSizeSmall,
     gridTemplateColumns: "14rem minmax(0, 1fr)",
-    gridTemplateRows: "minmax(0, 1fr) 2.25rem",
+    gridTemplateRows: `minmax(0, 1fr) ${shellMetrics.statusBarHeight}`,
     height: "100dvh",
     lineHeight: tokens.lineHeightSmall,
     minHeight: 0,
@@ -58,8 +59,8 @@ const styles = stylex.create({
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr) auto",
     gridTemplateRows: "minmax(0, 1fr)",
-    marginRight: "0.5rem",
-    marginTop: "0.5rem",
+    marginRight: shellMetrics.edgeInset,
+    marginTop: shellMetrics.edgeInset,
     minHeight: 0,
     minWidth: 0,
   },

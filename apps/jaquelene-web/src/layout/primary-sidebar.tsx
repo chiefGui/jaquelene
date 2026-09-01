@@ -14,6 +14,7 @@ import {
 } from "@tanstack/react-router";
 import type { ComponentType, ReactNode } from "react";
 import type { FileRoutesByTo } from "@/routeTree.gen";
+import { shellMetrics } from "./shell-chrome.stylex";
 
 type PrimarySidebarDestination = {
   [Path in keyof FileRoutesByTo]: ToOptions<RegisteredRouter, string, Path> & { to: Path };
@@ -164,16 +165,17 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
+    paddingBlockStart: shellMetrics.statusBarHeight,
   },
   edge: {
     flexShrink: 0,
-    padding: "0.5rem",
+    padding: shellMetrics.edgeInset,
   },
   navigation: {
     flex: 1,
     minHeight: 0,
     overflowY: "auto",
-    paddingInline: "0.5rem",
+    paddingInline: shellMetrics.edgeInset,
   },
   list: {
     display: "flex",

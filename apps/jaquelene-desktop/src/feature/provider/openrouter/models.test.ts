@@ -44,6 +44,18 @@ describe("OpenRouter model provider", () => {
         reasoning: { mandatory: false, defaultEnabled: false },
       },
       {
+        id: "openai/provider-managed-effort",
+        name: "OpenAI: Provider Managed Effort",
+        architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+        pricing,
+        reasoning: {
+          mandatory: false,
+          defaultEnabled: true,
+          defaultEffort: "none",
+          supportedEfforts: ["high", "medium", "low", "none"],
+        },
+      },
+      {
         id: "inclusion/binary-on",
         name: "Inclusion: Binary On",
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
@@ -99,6 +111,16 @@ describe("OpenRouter model provider", () => {
         name: "Binary Off",
         brandId: "google",
         reasoning: { defaultPreset: "off", supportedPresets: ["on", "off"] },
+        tokenPricing,
+      },
+      {
+        id: "openai/provider-managed-effort",
+        name: "Provider Managed Effort",
+        brandId: "openai",
+        reasoning: {
+          defaultPreset: "automatic",
+          supportedPresets: ["automatic", "high", "medium", "low", "off"],
+        },
         tokenPricing,
       },
       {
@@ -160,7 +182,6 @@ describe("OpenRouter model provider", () => {
       { mandatory: true, supportedEfforts: ["high", "none"] },
       'requires reasoning and cannot support "none"',
     ],
-    [{ mandatory: true, defaultEffort: "none" }, 'requires reasoning and cannot default to "none"'],
     [
       { mandatory: false, defaultEffort: "high", supportedEfforts: ["medium", "low"] },
       "default effort that is not supported",

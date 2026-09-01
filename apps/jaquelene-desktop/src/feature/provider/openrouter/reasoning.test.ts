@@ -54,6 +54,31 @@ describe("OpenRouter reasoning", () => {
       },
     ],
     [
+      'provider-managed enabled default reported with effort "none"',
+      {
+        mandatory: false,
+        defaultEnabled: true,
+        defaultEffort: "none",
+        supportedEfforts: ["high", "medium", "low", "none"],
+      },
+      {
+        defaultPreset: "automatic",
+        supportedPresets: ["automatic", "high", "medium", "low", "off"],
+      },
+    ],
+    [
+      'mandatory provider-managed default reported with effort "none"',
+      {
+        mandatory: true,
+        defaultEffort: "none",
+        supportedEfforts: ["high", "medium", "low"],
+      },
+      {
+        defaultPreset: "automatic",
+        supportedPresets: ["automatic", "high", "medium", "low"],
+      },
+    ],
+    [
       "fixed mandatory reasoning",
       { mandatory: true },
       { defaultPreset: "on", supportedPresets: ["on"] },
@@ -70,11 +95,6 @@ describe("OpenRouter reasoning", () => {
     [
       { mandatory: true, defaultEnabled: false },
       "cannot require reasoning while disabling it by default",
-    ],
-    [{ mandatory: true, defaultEffort: "none" }, 'requires reasoning and cannot default to "none"'],
-    [
-      { mandatory: false, defaultEnabled: true, defaultEffort: "none" },
-      'cannot enable reasoning while defaulting its effort to "none"',
     ],
     [
       { mandatory: false, defaultEffort: "high", supportedEfforts: ["medium", "low"] },

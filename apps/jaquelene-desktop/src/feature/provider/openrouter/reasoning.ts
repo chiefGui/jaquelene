@@ -31,15 +31,11 @@ function requireOptionalBoolean(
   return value;
 }
 
-function toPreset(
+function requireReasoningEffort(
   candidate: unknown,
   field: "default" | "supported",
   modelId: string,
-): ReasoningEffort | "off" {
-  if (candidate === "none") {
-    return "off";
-  }
-
+): ReasoningEffort {
   if (
     typeof candidate === "string" &&
     (reasoningEfforts as readonly string[]).includes(candidate)
@@ -79,22 +75,13 @@ export function normalizeOpenRouterReasoning(
   }
 
   const reportedDefaultEffort = metadata.defaultEffort;
+  // OpenRouter uses a default "none" to mean no effort argument, not disabled reasoning.
   const reportedDefaultPreset =
-    reportedDefaultEffort === undefined || reportedDefaultEffort === null
+    reportedDefaultEffort === undefined ||
+    reportedDefaultEffort === null ||
+    reportedDefaultEffort === "none"
       ? undefined
-      : toPreset(reportedDefaultEffort, "default", modelId);
-
-  if (mandatory && reportedDefaultPreset === "off") {
-    throw new TypeError(
-      `OpenRouter model "${modelId}" requires reasoning and cannot default to "none".`,
-    );
-  }
-
-  if (defaultEnabled === true && reportedDefaultPreset === "off") {
-    throw new TypeError(
-      `OpenRouter model "${modelId}" cannot enable reasoning while defaulting its effort to "none".`,
-    );
-  }
+      : requireReasoningEffort(reportedDefaultEffort, "default", modelId);
 
   const reportedSupportedEfforts = metadata.supportedEfforts;
 
@@ -107,11 +94,7 @@ export function normalizeOpenRouterReasoning(
     }
 
     const defaultPreset =
-      defaultEnabled === true
-        ? "on"
-        : defaultEnabled === false || reportedDefaultPreset === "off"
-          ? "off"
-          : "automatic";
+      defaultEnabled === true ? "on" : defaultEnabled === false ? "off" : "automatic";
     return requireModelReasoningCapability(
       {
         defaultPreset,
@@ -136,7 +119,7 @@ export function normalizeOpenRouterReasoning(
   }
 
   const supportedPresets: ReasoningPreset[] = supportedEfforts.map((effort) =>
-    toPreset(effort, "supported", modelId),
+    effort === "none" ? "off" : requireReasoningEffort(effort, "supported", modelId),
   );
 
   if (mandatory && supportedPresets.includes("off")) {
@@ -157,7 +140,7 @@ export function normalizeOpenRouterReasoning(
 
   let defaultPreset: ReasoningPreset;
 
-  if (!mandatory && (defaultEnabled === false || reportedDefaultPreset === "off")) {
+  if (!mandatory && defaultEnabled === false) {
     defaultPreset = "off";
   } else if (!mandatory && defaultEnabled === undefined) {
     defaultPreset = "automatic";

@@ -1,26 +1,12 @@
 import type { CampaignUsageSnapshot } from "@jaquelene/ipc/renderer";
+import { formatCount, formatUsd } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId } from "react";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
 
-const integerFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-const usdFormat = new Intl.NumberFormat(undefined, {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-const preciseUsdFormat = new Intl.NumberFormat(undefined, {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 6,
-});
-
 function formatUsdNanos(amountNanos: number) {
-  const amount = amountNanos / 1_000_000_000;
-  return (amount > 0 && amount < 0.01 ? preciseUsdFormat : usdFormat).format(amount);
+  return formatUsd(amountNanos / 1_000_000_000);
 }
 
 function totalCostNanos(costs: CampaignUsageSnapshot["costs"]) {
@@ -55,7 +41,7 @@ export function CampaignDetailsSidebar({ usage }: { usage: CampaignUsageSnapshot
   const activeAttempts = usage.attempts.preparing + usage.attempts.pending;
   const hasActivity = usage.attempts.provider > 0 || activeAttempts > 0;
   const tokensValue = usage.tokens
-    ? `${integerFormat.format(usage.tokens.total)}${usage.tokenCoverage.unknown > 0 ? "+" : ""}`
+    ? `${formatCount(usage.tokens.total)}${usage.tokenCoverage.unknown > 0 ? "+" : ""}`
     : hasActivity
       ? "—"
       : "0";
@@ -100,19 +86,14 @@ const styles = stylex.create({
   metric: {
     alignItems: "baseline",
     display: "flex",
+    fontSize: tokens.fontSizeSmall,
     gap: "0.25rem",
+    lineHeight: tokens.lineHeightSmall,
   },
   value: {
     color: tokens.foreground,
-    fontSize: tokens.fontSizeLarge,
-    fontVariantNumeric: "tabular-nums",
-    fontWeight: 550,
-    letterSpacing: "-0.025em",
-    lineHeight: tokens.lineHeightLarge,
   },
   label: {
     color: tokens.muted,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
   },
 });

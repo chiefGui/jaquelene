@@ -153,8 +153,10 @@ function emptyPage() {
   return {
     messages: [],
     generations: [],
-    pageSize: 50,
-    messageContentMaxLength: 100_000,
+    messageCountLimit: 50,
+    messageMaxCodeUnits: 100_000,
+    contentByteBudget: 128 * 1024,
+    contentBytes: 0,
   };
 }
 
@@ -184,6 +186,7 @@ describe("thread IPC", () => {
       ...emptyPage(),
       messages: [acceptance.userMessage],
       generations: [acceptance.generation],
+      contentBytes: 5,
     }));
     const submit = vi.fn<Turns["submit"]>(() => ({ acceptance, settlement }));
     const backendTurns: Turns = {
@@ -228,8 +231,10 @@ describe("thread IPC", () => {
           startedAt: 101,
         },
       ],
-      pageSize: 50,
-      messageContentMaxLength: 100_000,
+      messageCountLimit: 50,
+      messageMaxCodeUnits: 100_000,
+      contentByteBudget: 128 * 1024,
+      contentBytes: 5,
     });
     expect(submit).toHaveBeenCalledWith({
       threadId: acceptance.userMessage.threadId,

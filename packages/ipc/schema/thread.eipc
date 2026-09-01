@@ -15,12 +15,22 @@ subtype ThreadMessageSequence = number(
   maxValue: 9007199254740991
 )
 
-subtype ThreadMessagePageSize = number(
+subtype ThreadMessageCountLimit = number(
   minValue: 1
   maxValue: 9007199254740991
 )
 
-subtype ThreadMessageContentMaxLength = number(
+subtype ThreadMessageMaxCodeUnits = number(
+  minValue: 1
+  maxValue: 9007199254740991
+)
+
+subtype ThreadMessageContentByteCount = number(
+  minValue: 0
+  maxValue: 9007199254740991
+)
+
+subtype ThreadMessageContentByteBudget = number(
   minValue: 1
   maxValue: 9007199254740991
 )
@@ -74,8 +84,10 @@ structure ThreadMessagePageRequest {
 structure ThreadMessagePage {
   messages: ThreadMessage[]
   generations: TurnGeneration[]
-  pageSize: ThreadMessagePageSize
-  messageContentMaxLength: ThreadMessageContentMaxLength
+  messageCountLimit: ThreadMessageCountLimit
+  messageMaxCodeUnits: ThreadMessageMaxCodeUnits
+  contentByteBudget: ThreadMessageContentByteBudget
+  contentBytes: ThreadMessageContentByteCount
   nextCursor?: ThreadMessageCursor
 }
 

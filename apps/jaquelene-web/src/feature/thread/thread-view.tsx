@@ -7,7 +7,7 @@ import {
 import { Button, formatTimestamp } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import {
   memo,
   useCallback,
@@ -24,13 +24,16 @@ import {
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { Composer } from "@/feature/composer/composer";
 import {
+  retainLoadedOlderThreadMessages,
   threadMessagesQuery,
   useIsTurnOperationPending,
   usePendingTurnSubmission,
+  useReturnToLatestThreadMessages,
   useRetryTurn,
   useSubmitTurn,
   type SubmitTurnVariables,
 } from "./query";
+import { isLatestThreadHistory } from "./thread-query-cache";
 import { deriveThreadViewState, type ThreadViewState } from "./thread-view-state";
 
 type RetryStatus = "pending" | "failed" | null;
@@ -180,7 +183,7 @@ const ThreadTimeline = memo(function ThreadTimeline({
           <Button
             type="button"
             variant="ghost"
-            disabled={isFetchingNextPage}
+            disabled={isFetchingNextPage || operationPending}
             onClick={() => void loadOlderMessages()}
           >
             {isFetchingNextPage ? "Loading…" : "Load older messages"}
@@ -284,12 +287,40 @@ const ThreadTimeline = memo(function ThreadTimeline({
   );
 });
 
+type ThreadHistoryReturnProps = Readonly<{
+  error: boolean;
+  pending: boolean;
+  returnToLatest: () => Promise<void>;
+}>;
+
+const ThreadHistoryReturn = memo(function ThreadHistoryReturn({
+  error,
+  pending,
+  returnToLatest,
+}: ThreadHistoryReturnProps) {
+  return (
+    <div {...stylex.props(styles.composerShell)}>
+      <div {...stylex.props(styles.historyReturn)}>
+        <p {...stylex.props(styles.historyDescription)}>Viewing older messages.</p>
+        <Button type="button" disabled={pending} onClick={() => void returnToLatest()}>
+          {pending ? "Returning…" : "Return to latest"}
+        </Button>
+      </div>
+      {error ? (
+        <p role="alert" {...stylex.props(styles.historyError)}>
+          Could not return to the latest messages.
+        </p>
+      ) : null}
+    </div>
+  );
+});
+
 type ThreadComposerProps = Readonly<{
   threadId: string;
   model: ModelReference | null;
   modelPending: boolean;
   operationPending: boolean;
-  messageContentMaxLength: number;
+  messageMaxCodeUnits: number;
   composerControls: ReactNode;
   viewport: RefObject<HTMLElement | null>;
   pinnedToEnd: RefObject<boolean>;
@@ -300,7 +331,7 @@ const ThreadComposer = memo(function ThreadComposer({
   model,
   modelPending,
   operationPending,
-  messageContentMaxLength,
+  messageMaxCodeUnits,
   composerControls,
   viewport,
   pinnedToEnd,
@@ -383,7 +414,7 @@ const ThreadComposer = memo(function ThreadComposer({
         <Composer.Input
           id={composerInputId}
           value={draft}
-          maxLength={messageContentMaxLength}
+          maxLength={messageMaxCodeUnits}
           aria-describedby={sendError ? sendErrorId : undefined}
           onChange={(event) => {
             draftRevision.current += 1;
@@ -422,7 +453,10 @@ export function ThreadView({
   modelPending: boolean;
   composerControls: ReactNode;
 }) {
+  const queryClient = useQueryClient();
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
+  const returnToLatestMutation = useReturnToLatestThreadMessages(threadId);
+  const returnToLatestMessages = returnToLatestMutation.mutateAsync;
   const retryTurnMutation = useRetryTurn(threadId);
   const retryTurn = retryTurnMutation.mutateAsync;
   const resetRetry = retryTurnMutation.reset;
@@ -437,21 +471,22 @@ export function ThreadView({
     : retryTurnMutation.isError
       ? "failed"
       : null;
+  const historical = !isLatestThreadHistory(messagesQuery.data);
   const threadView = useMemo(
     () =>
       deriveThreadViewState({
         pages: messagesQuery.data.pages,
         retryActivity:
           retryTurnId && retryStatus ? { turnId: retryTurnId, status: retryStatus } : null,
-        hasModel: model !== null,
+        hasModel: model !== null && !historical,
       }),
-    [messagesQuery.data.pages, model, retryStatus, retryTurnId],
+    [historical, messagesQuery.data.pages, model, retryStatus, retryTurnId],
   );
   const operationPending = turnOperationPending || threadView.replyPending;
 
   const retryReply = useCallback(
     async (turnId: string) => {
-      if (operationPending || !model || modelPending || acceptingRetry.current) {
+      if (historical || operationPending || !model || modelPending || acceptingRetry.current) {
         return;
       }
 
@@ -469,10 +504,25 @@ export function ThreadView({
         acceptingRetry.current = false;
       }
     },
-    [model, modelPending, operationPending, resetRetry, retryTurn],
+    [historical, model, modelPending, operationPending, resetRetry, retryTurn],
   );
 
-  const loadOlder = useCallback(() => messagesQuery.fetchNextPage(), [messagesQuery.fetchNextPage]);
+  const loadOlder = useCallback(async () => {
+    await messagesQuery.fetchNextPage();
+    retainLoadedOlderThreadMessages(queryClient, threadId);
+  }, [messagesQuery.fetchNextPage, queryClient, threadId]);
+  const returnToLatest = useCallback(async () => {
+    const wasPinnedToEnd = pinnedToEnd.current;
+    pinnedToEnd.current = true;
+
+    try {
+      await returnToLatestMessages();
+    } catch (cause) {
+      pinnedToEnd.current = wasPinnedToEnd;
+      reportError("thread.messages.return-to-latest", cause);
+    }
+  }, [returnToLatestMessages]);
+  const interactionPending = operationPending || modelPending || returnToLatestMutation.isPending;
 
   return (
     <section
@@ -486,29 +536,37 @@ export function ThreadView({
       <ThreadTimeline
         key={`timeline:${threadId}`}
         view={threadView}
-        pendingSubmission={pendingSubmission}
+        pendingSubmission={historical ? null : pendingSubmission}
         viewport={viewport}
         pinnedToEnd={pinnedToEnd}
-        modelAvailable={model !== null}
+        modelAvailable={model !== null && !historical}
         retryStatus={retryStatus}
         hasNextPage={messagesQuery.hasNextPage}
         isFetchingNextPage={messagesQuery.isFetchingNextPage}
         isFetchNextPageError={messagesQuery.isFetchNextPageError}
-        operationPending={operationPending || modelPending}
+        operationPending={interactionPending}
         loadOlder={loadOlder}
         retryReply={retryReply}
       />
-      <ThreadComposer
-        key={`composer:${threadId}`}
-        threadId={threadId}
-        model={model}
-        modelPending={modelPending}
-        operationPending={operationPending}
-        messageContentMaxLength={threadView.messageContentMaxLength}
-        composerControls={composerControls}
-        viewport={viewport}
-        pinnedToEnd={pinnedToEnd}
-      />
+      {historical ? (
+        <ThreadHistoryReturn
+          error={returnToLatestMutation.isError}
+          pending={returnToLatestMutation.isPending}
+          returnToLatest={returnToLatest}
+        />
+      ) : (
+        <ThreadComposer
+          key={`composer:${threadId}`}
+          threadId={threadId}
+          model={model}
+          modelPending={modelPending}
+          operationPending={operationPending}
+          messageMaxCodeUnits={threadView.messageMaxCodeUnits}
+          composerControls={composerControls}
+          viewport={viewport}
+          pinnedToEnd={pinnedToEnd}
+        />
+      )}
     </section>
   );
 }
@@ -633,5 +691,28 @@ const styles = stylex.create({
     position: "sticky",
     width: "100%",
     zIndex: 1,
+  },
+  historyReturn: {
+    alignItems: "center",
+    backgroundColor: tokens.surfaceRaised,
+    borderColor: tokens.surfaceRaisedBorder,
+    borderRadius: tokens.radiusLarge,
+    borderStyle: "solid",
+    borderWidth: 1,
+    display: "flex",
+    gap: "1rem",
+    justifyContent: "space-between",
+    padding: "0.75rem",
+  },
+  historyDescription: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+  },
+  historyError: {
+    color: tokens.danger,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    marginTop: "0.375rem",
   },
 });

@@ -15,12 +15,22 @@ import { StorageCategory } from "#backend/storage/storage";
 import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
 import {
   createThreads,
-  THREAD_MESSAGE_CONTENT_MAX_LENGTH,
-  THREAD_MESSAGE_PAGE_SIZE,
+  THREAD_MESSAGE_MAX_CODE_UNITS,
+  THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+  THREAD_MESSAGE_PAGE_MAX_COUNT,
 } from "#backend/thread/threads";
 import { createBackend, type BackendOptions } from "./backend";
 
 const directories: string[] = [];
+
+function threadPageMetadata(messages: readonly { content: string }[]) {
+  return {
+    messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+    messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+    contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+    contentBytes: messages.reduce((total, { content }) => total + Buffer.byteLength(content), 0),
+  };
+}
 
 function createDatabasePath() {
   const directory = mkdtempSync(join(tmpdir(), "jaquelene-backend-"));
@@ -220,8 +230,7 @@ describe("backend", () => {
     expect(reopened.turns.listForThread({ threadId: campaign.threadId })).toEqual({
       messages: [submitted.userMessage, submitted.assistantMessage],
       generations: [submitted.generation],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([submitted.userMessage, submitted.assistantMessage]),
     });
     await reopened.close();
   });
@@ -425,8 +434,7 @@ describe("backend", () => {
     expect(reopened.turns.listForThread({ threadId: thread.id })).toEqual({
       messages: [interrupted.userMessage],
       generations: [interrupted.generation],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([interrupted.userMessage]),
     });
     await reopened.close();
   });

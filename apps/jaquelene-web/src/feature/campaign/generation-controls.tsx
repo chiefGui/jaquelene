@@ -1,7 +1,8 @@
 import type {
+  AvailableModel,
   GenerationConfigurationSelection,
   ModelSelection,
-  ReasoningEffort,
+  ReasoningPreset,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
@@ -11,22 +12,22 @@ import { Link } from "@tanstack/react-router";
 import { useId, useMemo } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { modelsForProviderQuery } from "@/feature/model/catalog-query";
-import { ModelEffortPicker } from "@/feature/model/effort-picker";
 import { ModelPicker } from "@/feature/model/picker";
+import { ModelReasoningPicker } from "@/feature/model/reasoning-picker";
 import { useSetCampaignGenerationConfigurationOverride } from "./query";
 
 function sameModel(left: ModelSelection, right: ModelSelection) {
   return left.providerId === right.providerId && left.modelId === right.modelId;
 }
 
-function ModelEffortControl({
+function ModelReasoningControl({
   configuration,
   disabled,
   onValueChange,
 }: {
   configuration: GenerationConfigurationSelection;
   disabled: boolean;
-  onValueChange: (value: ReasoningEffort | null) => void;
+  onValueChange: (value: ReasoningPreset | null) => void;
 }) {
   const models = useQuery(modelsForProviderQuery(configuration.model.providerId));
   const selectedModel = useMemo(
@@ -35,15 +36,11 @@ function ModelEffortControl({
   );
   const capability = selectedModel?.reasoning;
 
-  if (!capability?.supportedEfforts?.length && configuration.reasoningEffort === undefined) {
-    return null;
-  }
-
   return (
-    <ModelEffortPicker
+    <ModelReasoningPicker
       capability={capability}
       disabled={disabled}
-      value={configuration.reasoningEffort ?? null}
+      value={configuration.reasoningPresetOverride ?? null}
       onValueChange={onValueChange}
     />
   );
@@ -70,7 +67,7 @@ export function CampaignGenerationControls({
     }
 
     const matchesDefault =
-      nextConfiguration.reasoningEffort === undefined &&
+      nextConfiguration.reasoningPresetOverride === undefined &&
       defaultModel !== null &&
       sameModel(defaultModel, nextConfiguration.model);
 
@@ -82,18 +79,26 @@ export function CampaignGenerationControls({
     });
   }
 
-  function updateModel(model: ModelSelection) {
-    updateConfiguration({ model });
+  function updateModel(model: ModelSelection, availableModel: AvailableModel) {
+    const reasoningPresetOverride = configuration?.reasoningPresetOverride;
+    const preserveReasoningOverride =
+      reasoningPresetOverride !== undefined &&
+      availableModel.reasoning?.defaultPreset !== reasoningPresetOverride &&
+      availableModel.reasoning?.supportedPresets.includes(reasoningPresetOverride);
+    updateConfiguration({
+      model,
+      ...(preserveReasoningOverride ? { reasoningPresetOverride } : {}),
+    });
   }
 
-  function updateEffort(reasoningEffort: ReasoningEffort | null) {
+  function updateReasoning(reasoningPresetOverride: ReasoningPreset | null) {
     if (!configuration) {
       return;
     }
 
     updateConfiguration({
       model: { ...configuration.model },
-      ...(reasoningEffort === null ? {} : { reasoningEffort }),
+      ...(reasoningPresetOverride === null ? {} : { reasoningPresetOverride }),
     });
   }
 
@@ -124,10 +129,10 @@ export function CampaignGenerationControls({
       </ModelPicker.Root>
 
       {configuration ? (
-        <ModelEffortControl
+        <ModelReasoningControl
           configuration={configuration}
           disabled={updatePending}
-          onValueChange={updateEffort}
+          onValueChange={updateReasoning}
         />
       ) : null}
 

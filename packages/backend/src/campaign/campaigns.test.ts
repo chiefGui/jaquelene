@@ -6,11 +6,8 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
-import type {
-  GenerationConfigurationSelection,
-  ModelSelection,
-  ReasoningEffort,
-} from "#backend/provider/provider";
+import type { GenerationConfigurationSelection, ModelSelection } from "#backend/provider/provider";
+import type { ReasoningPreset } from "#backend/model/reasoning";
 import { createScenarios } from "#backend/scenario/scenarios";
 import { threadTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
@@ -49,11 +46,11 @@ function modelSelection(id: string): ModelSelection {
 
 function generationConfiguration(
   id: string,
-  reasoningEffort?: ReasoningEffort,
+  reasoningPresetOverride?: ReasoningPreset,
 ): GenerationConfigurationSelection {
   return {
     model: modelSelection(id),
-    ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+    ...(reasoningPresetOverride === undefined ? {} : { reasoningPresetOverride }),
   };
 }
 
@@ -175,7 +172,7 @@ describe("campaigns", () => {
       generationConfigurationOverride: configuration,
     });
     expect(database.select().from(campaignGenerationConfigurationOverrideTable).all()).toEqual([
-      { campaignId: campaign.id, ...configuration.model, reasoningEffort: "high" },
+      { campaignId: campaign.id, ...configuration.model, reasoningPresetOverride: "high" },
     ]);
     expect(campaigns.get(campaign.id)).toEqual({
       ...campaign,
@@ -189,7 +186,7 @@ describe("campaigns", () => {
       generationConfigurationOverride: replacement,
     });
     expect(database.select().from(campaignGenerationConfigurationOverrideTable).all()).toEqual([
-      { campaignId: campaign.id, ...replacement.model, reasoningEffort: null },
+      { campaignId: campaign.id, ...replacement.model, reasoningPresetOverride: null },
     ]);
     expect(campaigns.setGenerationConfigurationOverride(campaign.id, null)).toEqual(campaign);
     expect(database.select().from(campaignGenerationConfigurationOverrideTable).all()).toEqual([]);
@@ -245,7 +242,7 @@ describe("campaigns", () => {
       expect(() =>
         client
           .prepare(
-            "INSERT INTO campaign_generation_configuration_overrides (campaign_id, provider_id, model_id, name, brand_id, reasoning_effort) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO campaign_generation_configuration_overrides (campaign_id, provider_id, model_id, name, brand_id, reasoning_preset_override) VALUES (?, ?, ?, ?, ?, ?)",
           )
           .run(campaign.id, "provider-a", "model-a", "Model A", "brand-a", "extreme"),
       ).toThrow();

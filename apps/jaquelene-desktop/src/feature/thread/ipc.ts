@@ -17,7 +17,11 @@ import {
   type ITurnsDispatcher,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
-import { fromIpcReasoningEffort, toIpcReasoningEffort } from "@/feature/model/reasoning-effort";
+import {
+  fromIpcReasoningPreset,
+  toIpcReasoningPreset,
+  toIpcReasoningPresetSource,
+} from "@/feature/model/reasoning-preset";
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
   switch (author) {
@@ -67,14 +71,27 @@ function toIpcMessage(message: ThreadMessage) {
 }
 
 function toIpcGeneration(generation: Generation) {
+  const reasoning = (() => {
+    if (generation.reasoningPreset === null && generation.reasoningPresetSource === null) {
+      return {};
+    }
+
+    if (generation.reasoningPreset === null || generation.reasoningPresetSource === null) {
+      throw new TypeError(`Generation "${generation.id}" has incomplete reasoning metadata.`);
+    }
+
+    return {
+      reasoningPreset: toIpcReasoningPreset(generation.reasoningPreset),
+      reasoningPresetSource: toIpcReasoningPresetSource(generation.reasoningPresetSource),
+    };
+  })();
+
   return {
     id: generation.id,
     turnId: generation.turnId,
     providerId: generation.providerId,
     modelId: generation.modelId,
-    ...(generation.reasoningEffort === null
-      ? {}
-      : { reasoningEffort: toIpcReasoningEffort(generation.reasoningEffort) }),
+    ...reasoning,
     status: toIpcGenerationStatus(generation.status),
     ...(generation.failureKind
       ? { failureKind: toIpcGenerationFailureKind(generation.failureKind) }
@@ -229,31 +246,35 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
       });
 
       const dispatcher = TurnsIpc.for(target).setImplementation({
-        submit(request) {
-          const operation = turns.submit({
+        async submit(request) {
+          const operation = await turns.submit({
             threadId: ids.thread.parse(request.threadId),
             content: request.content,
             configuration: {
               model: { ...request.configuration.model },
-              ...(request.configuration.reasoningEffort === undefined
+              ...(request.configuration.reasoningPresetOverride === undefined
                 ? {}
                 : {
-                    reasoningEffort: fromIpcReasoningEffort(request.configuration.reasoningEffort),
+                    reasoningPresetOverride: fromIpcReasoningPreset(
+                      request.configuration.reasoningPresetOverride,
+                    ),
                   }),
             },
           });
           observeSettlement("thread.turn.submit", operation.settlement);
           return toIpcSubmission(operation.acceptance);
         },
-        retry(request) {
-          const operation = turns.retry({
+        async retry(request) {
+          const operation = await turns.retry({
             turnId: ids.turn.parse(request.turnId),
             configuration: {
               model: { ...request.configuration.model },
-              ...(request.configuration.reasoningEffort === undefined
+              ...(request.configuration.reasoningPresetOverride === undefined
                 ? {}
                 : {
-                    reasoningEffort: fromIpcReasoningEffort(request.configuration.reasoningEffort),
+                    reasoningPresetOverride: fromIpcReasoningPreset(
+                      request.configuration.reasoningPresetOverride,
+                    ),
                   }),
             },
           });

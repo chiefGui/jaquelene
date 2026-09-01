@@ -15,20 +15,26 @@ structure ModelTokenPricing {
   outputUsdPerMillion: number
 }
 
-enum ReasoningEffort {
+enum ReasoningPreset {
+  Automatic = "automatic"
+  On = "on"
   Max = "max"
   XHigh = "xhigh"
   High = "high"
   Medium = "medium"
   Low = "low"
   Minimal = "minimal"
-  None = "none"
+  Off = "off"
+}
+
+enum ReasoningPresetSource {
+  ModelDefault = "model-default"
+  Override = "override"
 }
 
 structure ModelReasoningCapability {
-  required: boolean
-  defaultEffort?: ReasoningEffort
-  supportedEfforts?: ReasoningEffort[]
+  defaultPreset: ReasoningPreset
+  supportedPresets: ReasoningPreset[]
 }
 
 structure AvailableModel {
@@ -48,12 +54,12 @@ structure ModelSelection {
 
 structure GenerationConfiguration {
   model: ModelReference
-  reasoningEffort?: ReasoningEffort
+  reasoningPresetOverride?: ReasoningPreset
 }
 
 structure GenerationConfigurationSelection {
   model: ModelSelection
-  reasoningEffort?: ReasoningEffort
+  reasoningPresetOverride?: ReasoningPreset
 }
 
 subtype ModelCatalogRevision = number(

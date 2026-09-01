@@ -100,9 +100,9 @@ export function setCampaignGenerationConfigurationOverrideMutationOptions(
                 ...previousCampaign,
                 generationConfigurationOverride: {
                   model: { ...configuration.model },
-                  ...(configuration.reasoningEffort === undefined
+                  ...(configuration.reasoningPresetOverride === undefined
                     ? {}
-                    : { reasoningEffort: configuration.reasoningEffort }),
+                    : { reasoningPresetOverride: configuration.reasoningPresetOverride }),
                 },
               }
             : withoutGenerationConfigurationOverride(previousCampaign),

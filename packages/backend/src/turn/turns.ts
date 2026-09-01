@@ -8,11 +8,11 @@ import type { Generation } from "#backend/generation/schema";
 import type { ThreadId, TurnId } from "#backend/id";
 import type { GenerationConfiguration } from "#backend/provider/provider";
 import type { ThreadMessage } from "#backend/thread/schema";
-import type { ThreadEngine } from "#backend/thread/threads";
+import { requireThreadMessageContent, type ThreadEngine } from "#backend/thread/threads";
 
 type TurnGenerationEngine = Pick<
   GenerationEngine,
-  "acceptReplyInTransaction" | "listLatestForTurns" | "requireRegisteredConfiguration"
+  "acceptReplyInTransaction" | "listLatestForTurns" | "resolveConfiguration"
 > & {
   scheduleAcceptedReply(
     accepted: AcceptedReplyGeneration,
@@ -67,9 +67,9 @@ function copyConfiguration(configuration: GenerationConfiguration): GenerationCo
       providerId: configuration.model.providerId,
       modelId: configuration.model.modelId,
     },
-    ...(configuration.reasoningEffort === undefined
+    ...(configuration.reasoningPresetOverride === undefined
       ? {}
-      : { reasoningEffort: configuration.reasoningEffort }),
+      : { reasoningPresetOverride: configuration.reasoningPresetOverride }),
   };
 }
 
@@ -110,7 +110,10 @@ export function createTurns(
 ) {
   const activeThreadOperations = new Set<ThreadId>();
 
-  function startExclusive(threadId: ThreadId, start: () => TurnOperation) {
+  async function startExclusive(
+    threadId: ThreadId,
+    start: () => TurnOperation | Promise<TurnOperation>,
+  ) {
     if (activeThreadOperations.has(threadId)) {
       throw new RangeError(`Thread "${threadId}" already has an active turn operation.`);
     }
@@ -120,7 +123,7 @@ export function createTurns(
     let operation: TurnOperation;
 
     try {
-      operation = start();
+      operation = await start();
     } catch (cause) {
       activeThreadOperations.delete(threadId);
       throw cause;
@@ -153,23 +156,25 @@ export function createTurns(
       return { ...page, generations: generationsForPage };
     },
 
-    submit({
+    async submit({
       threadId,
       content,
       configuration: requestedConfiguration,
       signal,
-    }: SubmitTurnRequest): TurnOperation {
+    }: SubmitTurnRequest): Promise<TurnOperation> {
       const configuration = copyConfiguration(requestedConfiguration);
-      generations.requireRegisteredConfiguration(configuration);
+      requireThreadMessageContent(content);
       assertNotAborted(signal);
 
-      return startExclusive(threadId, () => {
+      return startExclusive(threadId, async () => {
+        const resolvedConfiguration = await generations.resolveConfiguration(configuration, signal);
+        assertNotAborted(signal);
         const accepted = database.transaction((transaction) => {
           const { turn, message } = threads.startTurnInTransaction(transaction, threadId, content);
           const acceptedGeneration = generations.acceptReplyInTransaction(
             transaction,
             turn.id,
-            configuration,
+            resolvedConfiguration,
           );
           const acceptance = {
             userMessage: message,
@@ -186,13 +191,12 @@ export function createTurns(
       });
     },
 
-    retry({
+    async retry({
       turnId,
       configuration: requestedConfiguration,
       signal,
-    }: RetryTurnRequest): TurnOperation {
+    }: RetryTurnRequest): Promise<TurnOperation> {
       const configuration = copyConfiguration(requestedConfiguration);
-      generations.requireRegisteredConfiguration(configuration);
       assertNotAborted(signal);
       const input = threads.getTurnInput(turnId);
 
@@ -200,7 +204,9 @@ export function createTurns(
         throw new RangeError(`Turn "${turnId}" does not exist.`);
       }
 
-      return startExclusive(input.turn.threadId, () => {
+      return startExclusive(input.turn.threadId, async () => {
+        const resolvedConfiguration = await generations.resolveConfiguration(configuration, signal);
+        assertNotAborted(signal);
         const latestGeneration = generations.listLatestForTurns([turnId])[0];
 
         if (latestGeneration?.status !== "failed") {
@@ -208,7 +214,7 @@ export function createTurns(
         }
 
         const acceptedGeneration = database.transaction((transaction) =>
-          generations.acceptReplyInTransaction(transaction, turnId, configuration),
+          generations.acceptReplyInTransaction(transaction, turnId, resolvedConfiguration),
         );
         const acceptance = {
           userMessage: input.message,

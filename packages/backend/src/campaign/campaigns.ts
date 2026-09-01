@@ -30,7 +30,7 @@ const campaignSelection = {
     modelId: campaignGenerationConfigurationOverrideTable.modelId,
     name: campaignGenerationConfigurationOverrideTable.name,
     brandId: campaignGenerationConfigurationOverrideTable.brandId,
-    reasoningEffort: campaignGenerationConfigurationOverrideTable.reasoningEffort,
+    reasoningPresetOverride: campaignGenerationConfigurationOverrideTable.reasoningPresetOverride,
   },
 };
 
@@ -39,12 +39,12 @@ function toCampaign({ generationConfigurationOverride, ...campaign }: StoredCamp
     return campaign;
   }
 
-  const { reasoningEffort, ...model } = generationConfigurationOverride;
+  const { reasoningPresetOverride, ...model } = generationConfigurationOverride;
   return {
     ...campaign,
     generationConfigurationOverride: {
       model,
-      ...(reasoningEffort === null ? {} : { reasoningEffort }),
+      ...(reasoningPresetOverride === null ? {} : { reasoningPresetOverride }),
     },
   };
 }
@@ -130,7 +130,7 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         if (configuration) {
           const values = {
             ...configuration.model,
-            reasoningEffort: configuration.reasoningEffort ?? null,
+            reasoningPresetOverride: configuration.reasoningPresetOverride ?? null,
           };
           transaction
             .insert(campaignGenerationConfigurationOverrideTable)
@@ -145,9 +145,9 @@ export function createCampaigns(database: Database, now: () => number = Date.now
             ...campaign,
             generationConfigurationOverride: {
               model: { ...configuration.model },
-              ...(configuration.reasoningEffort === undefined
+              ...(configuration.reasoningPresetOverride === undefined
                 ? {}
-                : { reasoningEffort: configuration.reasoningEffort }),
+                : { reasoningPresetOverride: configuration.reasoningPresetOverride }),
             },
           };
         }

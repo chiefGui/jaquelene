@@ -14,6 +14,12 @@ import {
 import { ids, type MessageId, type TurnId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import {
+  requireResolvedReasoning,
+  resolveReasoning,
+  type ResolvedReasoning,
+} from "#backend/model/reasoning";
+import type { Models } from "#backend/provider/model-catalog";
+import {
   requireGenerationConfiguration,
   requireModelReference,
   type GenerationConfiguration,
@@ -30,6 +36,11 @@ export type GenerateReplyRequest = {
   configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
+
+export type ResolvedGenerationConfiguration = Readonly<{
+  model: ModelReference;
+  reasoning?: ResolvedReasoning;
+}>;
 
 export type ReplyGenerationExecution =
   | {
@@ -170,6 +181,7 @@ function providerResultFields(output: NormalizedProviderResult) {
 export function createGenerations(
   database: Database,
   replyPreparer: ReplyPreparer,
+  models: Pick<Models, "getModel">,
   providers: ProviderGenerationRouter,
   now: () => number = Date.now,
 ) {
@@ -324,18 +336,17 @@ export function createGenerations(
   function acceptReplyInTransaction(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
-    requestedConfiguration: GenerationConfiguration,
+    requestedConfiguration: ResolvedGenerationConfiguration,
   ): AcceptedReplyGeneration {
     const configuration = {
       model: {
         providerId: requestedConfiguration.model.providerId,
         modelId: requestedConfiguration.model.modelId,
       },
-      ...(requestedConfiguration.reasoningEffort === undefined
+      ...(requestedConfiguration.reasoning === undefined
         ? {}
-        : { reasoningEffort: requestedConfiguration.reasoningEffort }),
+        : { reasoning: requireResolvedReasoning(requestedConfiguration.reasoning) }),
     };
-    requireGenerationConfiguration(configuration);
     requireProvider(configuration.model);
     const replyContext = requireReplyContext(transaction, turnId);
 
@@ -356,7 +367,8 @@ export function createGenerations(
         turnId,
         providerId: configuration.model.providerId,
         modelId: configuration.model.modelId,
-        reasoningEffort: configuration.reasoningEffort ?? null,
+        reasoningPreset: configuration.reasoning?.preset ?? null,
+        reasoningPresetSource: configuration.reasoning?.source ?? null,
         status: "pending",
         startedAt: now(),
       })
@@ -411,9 +423,14 @@ export function createGenerations(
             threadId: anchor.threadId,
             modelId: generation.modelId,
             input,
-            ...(generation.reasoningEffort === null
+            ...(generation.reasoningPreset === null || generation.reasoningPresetSource === null
               ? {}
-              : { reasoningEffort: generation.reasoningEffort }),
+              : {
+                  reasoning: {
+                    preset: generation.reasoningPreset,
+                    source: generation.reasoningPresetSource,
+                  },
+                }),
           },
           signal,
         ),
@@ -476,15 +493,38 @@ export function createGenerations(
       throw interruptionCause(signal);
     }
 
+    const resolvedConfiguration = await resolveConfiguration(configuration, signal);
     const accepted = database.transaction((transaction) =>
-      acceptReplyInTransaction(transaction, turnId, configuration),
+      acceptReplyInTransaction(transaction, turnId, resolvedConfiguration),
     );
     return executeAcceptedReply(accepted, signal);
   }
 
-  function requireRegisteredConfiguration(configuration: GenerationConfiguration) {
+  async function resolveConfiguration(
+    requestedConfiguration: GenerationConfiguration,
+    signal?: AbortSignal,
+  ): Promise<ResolvedGenerationConfiguration> {
+    const configuration = {
+      model: {
+        providerId: requestedConfiguration.model.providerId,
+        modelId: requestedConfiguration.model.modelId,
+      },
+      ...(requestedConfiguration.reasoningPresetOverride === undefined
+        ? {}
+        : { reasoningPresetOverride: requestedConfiguration.reasoningPresetOverride }),
+    };
     requireGenerationConfiguration(configuration);
     requireProvider(configuration.model);
+    const model = await models.getModel(configuration.model, signal);
+    const reasoning = resolveReasoning(model.reasoning, configuration.reasoningPresetOverride);
+
+    return {
+      model: {
+        providerId: configuration.model.providerId,
+        modelId: configuration.model.modelId,
+      },
+      ...(reasoning ? { reasoning } : {}),
+    };
   }
 
   return {
@@ -506,7 +546,7 @@ export function createGenerations(
     executeAcceptedReply,
     executeReply,
     listLatestForTurns,
-    requireRegisteredConfiguration,
+    resolveConfiguration,
     async generateReply(request: GenerateReplyRequest) {
       const execution = await executeReply(request);
 

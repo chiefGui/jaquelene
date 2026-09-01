@@ -25,6 +25,7 @@ describe("OpenRouter model provider", () => {
         reasoning: {
           mandatory: false,
           defaultEffort: "medium",
+          defaultEnabled: true,
           supportedEfforts: ["high", "medium", "low", "none"],
         },
       },
@@ -34,6 +35,20 @@ describe("OpenRouter model provider", () => {
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
         reasoning: { mandatory: true, defaultEffort: null, supportedEfforts: null },
+      },
+      {
+        id: "google/binary-off",
+        name: "Google: Binary Off",
+        architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+        pricing,
+        reasoning: { mandatory: false, defaultEnabled: false },
+      },
+      {
+        id: "inclusion/binary-on",
+        name: "Inclusion: Binary On",
+        architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+        pricing,
+        reasoning: { mandatory: false, defaultEnabled: true, supportsMaxTokens: true },
       },
       {
         id: "x-ai/grok-model",
@@ -64,9 +79,8 @@ describe("OpenRouter model provider", () => {
         name: "Text model",
         brandId: "meta",
         reasoning: {
-          required: false,
-          defaultEffort: "medium",
-          supportedEfforts: ["high", "medium", "low", "none"],
+          defaultPreset: "medium",
+          supportedPresets: ["high", "medium", "low", "off"],
         },
         tokenPricing,
       },
@@ -75,9 +89,23 @@ describe("OpenRouter model provider", () => {
         name: "Research model",
         brandId: "new-lab",
         reasoning: {
-          required: true,
-          supportedEfforts: ["max", "xhigh", "high", "medium", "low", "minimal"],
+          defaultPreset: "automatic",
+          supportedPresets: ["automatic", "max", "xhigh", "high", "medium", "low", "minimal"],
         },
+        tokenPricing,
+      },
+      {
+        id: "google/binary-off",
+        name: "Binary Off",
+        brandId: "google",
+        reasoning: { defaultPreset: "off", supportedPresets: ["on", "off"] },
+        tokenPricing,
+      },
+      {
+        id: "inclusion/binary-on",
+        name: "Binary On",
+        brandId: "inclusion",
+        reasoning: { defaultPreset: "on", supportedPresets: ["on", "off"] },
         tokenPricing,
       },
       {
@@ -138,8 +166,12 @@ describe("OpenRouter model provider", () => {
       "default effort that is not supported",
     ],
     [{ mandatory: false, supportedEfforts: [] }, "must expose at least one supported effort"],
-    [{ mandatory: false, supportedEfforts: ["high", "high"] }, 'repeats supported effort "high"'],
+    [{ mandatory: false, supportedEfforts: ["high", "high"] }, 'repeats supported preset "high"'],
     [{ mandatory: false, supportedEfforts: ["high", "future"] }, "invalid supported effort"],
+    [
+      { mandatory: true, defaultEnabled: false },
+      "cannot require reasoning while disabling it by default",
+    ],
   ])("rejects inconsistent reasoning metadata", async (reasoning, message) => {
     const connection = {
       async withApiKey<Result>(use: (value: string) => Promise<Result>) {

@@ -1,9 +1,7 @@
-import { OpenRouterCore } from "@openrouter/sdk/core.js";
-import { chatSend } from "@openrouter/sdk/funcs/chatSend.js";
-import type { ChatMessages, ChatResult } from "@openrouter/sdk/models";
+import { chatResultFromJSON, type ChatMessages, type ChatResult } from "@openrouter/sdk/models";
 import type { DialogueMessage, ModelInput, ProviderGenerationAdapter } from "@jaquelene/backend";
-import type { ReasoningEffort } from "@jaquelene/backend";
 import type { OpenRouterConfiguration } from "./connection";
+import { encodeOpenRouterReasoning, type OpenRouterReasoningRequest } from "./reasoning";
 
 type SendOpenRouterChat = (
   apiKey: string,
@@ -11,8 +9,8 @@ type SendOpenRouterChat = (
     model: string;
     messages: ChatMessages[];
     metadata: Record<string, string>;
-    reasoning?: { effort: ReasoningEffort };
-    sessionId: string;
+    reasoning?: OpenRouterReasoningRequest;
+    session_id: string;
     stream: false;
   },
   signal: AbortSignal,
@@ -39,29 +37,41 @@ async function sendOpenRouterChat(
   request: Parameters<SendOpenRouterChat>[1],
   signal: AbortSignal,
 ): Promise<ChatResult> {
-  const client = new OpenRouterCore({
-    apiKey,
-    appTitle: "Jaquelene",
-    retryConfig: { strategy: "none" },
-    timeoutMs: 300_000,
-  });
-  const response = await chatSend(
-    client,
-    {
-      chatRequest: request,
+  const operationSignal = AbortSignal.any([signal, AbortSignal.timeout(300_000)]);
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "X-OpenRouter-Title": "Jaquelene",
     },
-    { signal },
-  );
+    body: JSON.stringify(request),
+    signal: operationSignal,
+  });
+
+  const body = await response.text();
 
   if (!response.ok) {
-    throw response.error;
+    let cause: unknown = body;
+
+    try {
+      cause = JSON.parse(body);
+    } catch {
+      // Preserve the response body when OpenRouter does not return JSON.
+    }
+
+    throw new Error(`OpenRouter rejected the generation request with status ${response.status}.`, {
+      cause,
+    });
   }
 
-  if (!("choices" in response.value)) {
-    throw new TypeError("OpenRouter returned a stream for a non-streaming generation.");
+  const result = chatResultFromJSON(body);
+
+  if (!result.ok) {
+    throw result.error;
   }
 
-  return response.value;
+  return result.value;
 }
 
 function getResponseText(result: ChatResult) {
@@ -101,16 +111,15 @@ export function createOpenRouterGeneration(
   return {
     generate: (request, signal) =>
       configuration.withApiKey(async (apiKey) => {
+        const reasoning = encodeOpenRouterReasoning(request.reasoning);
         const result = await send(
           apiKey,
           {
             model: request.modelId,
             messages: toOpenRouterMessages(request.input),
             metadata: { jaquelene_generation_id: request.generationId },
-            ...(request.reasoningEffort === undefined
-              ? {}
-              : { reasoning: { effort: request.reasoningEffort } }),
-            sessionId: request.threadId,
+            ...(reasoning ? { reasoning } : {}),
+            session_id: request.threadId,
             stream: false,
           },
           signal,

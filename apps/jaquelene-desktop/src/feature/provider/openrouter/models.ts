@@ -1,11 +1,8 @@
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { modelsListForUser } from "@openrouter/sdk/funcs/modelsListForUser.js";
-import {
-  reasoningEfforts,
-  requireModelReasoningCapability,
-  type ProviderModelsAdapter,
-} from "@jaquelene/backend";
+import { type ProviderModelsAdapter } from "@jaquelene/backend";
 import type { OpenRouterConfiguration } from "./connection";
+import { normalizeOpenRouterReasoning, type OpenRouterReasoningMetadata } from "./reasoning";
 
 type OpenRouterCatalogModel = {
   id: string;
@@ -19,13 +16,7 @@ type OpenRouterCatalogModel = {
     completion: string;
     discount?: number | undefined;
   };
-  reasoning?:
-    | {
-        defaultEffort?: unknown;
-        mandatory: boolean;
-        supportedEfforts?: readonly unknown[] | null | undefined;
-      }
-    | undefined;
+  reasoning?: OpenRouterReasoningMetadata | undefined;
 };
 
 type LoadOpenRouterModels = (
@@ -112,31 +103,6 @@ function normalizeTokenPricing(
   return { inputUsdPerMillion, outputUsdPerMillion };
 }
 
-function normalizeReasoning(id: string, reasoning: OpenRouterCatalogModel["reasoning"]) {
-  if (!reasoning) {
-    return undefined;
-  }
-
-  const { defaultEffort: candidateDefaultEffort, mandatory, supportedEfforts } = reasoning;
-  const normalizedSupportedEfforts =
-    supportedEfforts === null
-      ? reasoningEfforts.filter((effort) => !mandatory || effort !== "none")
-      : supportedEfforts;
-
-  return requireModelReasoningCapability(
-    {
-      required: mandatory,
-      ...(candidateDefaultEffort === undefined || candidateDefaultEffort === null
-        ? {}
-        : { defaultEffort: candidateDefaultEffort }),
-      ...(normalizedSupportedEfforts === undefined
-        ? {}
-        : { supportedEfforts: normalizedSupportedEfforts }),
-    },
-    `OpenRouter model "${id}" reasoning`,
-  );
-}
-
 function normalizeModel({ id, name, pricing, reasoning }: OpenRouterCatalogModel) {
   const separator = id.indexOf("/");
   const authorId =
@@ -168,7 +134,7 @@ function normalizeModel({ id, name, pricing, reasoning }: OpenRouterCatalogModel
   }
 
   const tokenPricing = normalizeTokenPricing(id, pricing);
-  const normalizedReasoning = normalizeReasoning(id, reasoning);
+  const normalizedReasoning = normalizeOpenRouterReasoning(id, reasoning);
 
   return {
     brandId,

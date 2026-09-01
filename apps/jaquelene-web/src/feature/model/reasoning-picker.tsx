@@ -1,22 +1,24 @@
 import Brain01Icon from "@hugeicons/core-free-icons/Brain01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ReasoningEffort, type ModelReasoningCapability } from "@jaquelene/ipc/renderer";
+import { ReasoningPreset, type ModelReasoningCapability } from "@jaquelene/ipc/renderer";
 import { Select } from "@jaquelene/ui/select";
 import * as stylex from "@stylexjs/stylex";
 
-const resetValue = "model-settings";
+const resetValue = "reset-to-model-reasoning";
 
-const effortLabels: Readonly<Record<ReasoningEffort, string>> = {
-  [ReasoningEffort.Max]: "Max",
-  [ReasoningEffort.XHigh]: "Extra high",
-  [ReasoningEffort.High]: "High",
-  [ReasoningEffort.Medium]: "Medium",
-  [ReasoningEffort.Low]: "Low",
-  [ReasoningEffort.Minimal]: "Minimal",
-  [ReasoningEffort.None]: "Off",
+const presetLabels: Readonly<Record<ReasoningPreset, string>> = {
+  [ReasoningPreset.Automatic]: "Automatic",
+  [ReasoningPreset.On]: "On",
+  [ReasoningPreset.Off]: "Off",
+  [ReasoningPreset.Minimal]: "Minimal",
+  [ReasoningPreset.Low]: "Low",
+  [ReasoningPreset.Medium]: "Medium",
+  [ReasoningPreset.High]: "High",
+  [ReasoningPreset.XHigh]: "Extra high",
+  [ReasoningPreset.Max]: "Max",
 };
 
-export function ModelEffortPicker({
+export function ModelReasoningPicker({
   capability,
   disabled,
   onValueChange,
@@ -24,28 +26,28 @@ export function ModelEffortPicker({
 }: {
   capability: ModelReasoningCapability | undefined;
   disabled: boolean;
-  onValueChange: (value: ReasoningEffort | null) => void;
-  value: ReasoningEffort | null;
+  onValueChange: (value: ReasoningPreset | null) => void;
+  value: ReasoningPreset | null;
 }) {
-  const efforts = capability?.supportedEfforts ?? [];
-  const defaultEffort = capability?.defaultEffort;
+  const presets = capability?.supportedPresets ?? [];
+  const defaultPreset = capability?.defaultPreset;
+  const valueUnavailable = value !== null && !presets.includes(value);
 
-  if (efforts.length === 0 && value === null) {
+  if (!valueUnavailable && presets.length <= 1) {
     return null;
   }
 
-  const selectedEffort = value ?? defaultEffort;
+  const selectedPreset = value ?? defaultPreset;
 
-  if (selectedEffort === undefined) {
+  if (selectedPreset === undefined) {
     return null;
   }
 
-  const selectedLabel = effortLabels[selectedEffort];
-  const valueUnavailable = value !== null && !efforts.includes(value);
+  const selectedLabel = presetLabels[selectedPreset];
 
   return (
     <Select.Root
-      selectedValue={selectedEffort}
+      selectedValue={selectedPreset}
       setSelectedValue={(nextValue) => {
         if (nextValue === resetValue) {
           if (value !== null) {
@@ -54,13 +56,13 @@ export function ModelEffortPicker({
           return;
         }
 
-        const effort = efforts.find((candidate) => candidate === nextValue);
+        const preset = presets.find((candidate) => candidate === nextValue);
 
-        if (!effort) {
-          throw new TypeError(`Unknown model reasoning effort "${nextValue}".`);
+        if (!preset) {
+          throw new TypeError(`Unknown model reasoning preset "${nextValue}".`);
         }
 
-        const nextOverride = effort === defaultEffort ? null : effort;
+        const nextOverride = preset === defaultPreset ? null : preset;
 
         if (nextOverride !== value) {
           onValueChange(nextOverride);
@@ -70,7 +72,7 @@ export function ModelEffortPicker({
       <Select
         type="button"
         variant="ghost"
-        aria-label={`Reasoning effort: ${selectedLabel}`}
+        aria-label={`Reasoning: ${selectedLabel}`}
         disabled={disabled}
         style={styles.trigger}
       >
@@ -80,7 +82,7 @@ export function ModelEffortPicker({
         </span>
       </Select>
 
-      <Select.Content aria-label="Reasoning effort">
+      <Select.Content aria-label="Reasoning">
         {valueUnavailable ? (
           <Select.Item value={value} disabled>
             <Select.ItemText>{selectedLabel} · unavailable</Select.ItemText>
@@ -88,16 +90,16 @@ export function ModelEffortPicker({
           </Select.Item>
         ) : null}
 
-        {valueUnavailable && defaultEffort === undefined ? (
+        {valueUnavailable && !capability ? (
           <Select.Item value={resetValue}>
-            <Select.ItemText>Use model settings</Select.ItemText>
+            <Select.ItemText>Clear reasoning setting</Select.ItemText>
             <Select.Indicator />
           </Select.Item>
         ) : null}
 
-        {efforts.map((effort) => (
-          <Select.Item key={effort} value={effort}>
-            <Select.ItemText>{effortLabels[effort]}</Select.ItemText>
+        {presets.map((preset) => (
+          <Select.Item key={preset} value={preset}>
+            <Select.ItemText>{presetLabels[preset]}</Select.ItemText>
             <Select.Indicator />
           </Select.Item>
         ))}

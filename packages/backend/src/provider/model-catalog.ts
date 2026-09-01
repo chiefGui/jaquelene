@@ -4,7 +4,13 @@ import type {
   ResourceSnapshot,
 } from "#backend/resource-cache/resource-cache";
 import { ResourceUnavailableError } from "#backend/resource-cache/resource-cache";
-import { requireModelReasoningCapability, type ProviderId, type ProviderModel } from "./provider";
+import { requireModelReasoningCapability } from "#backend/model/reasoning";
+import {
+  requireModelReference,
+  type ModelReference,
+  type ProviderId,
+  type ProviderModel,
+} from "./provider";
 
 const namespace = "model-catalog";
 const textEncoder = new TextEncoder();
@@ -35,6 +41,7 @@ export type ModelCatalogSnapshot = Readonly<{
 export type Models = Readonly<{
   listProviders: () => readonly ModelProvider[];
   getModels: (providerId: ProviderId, signal?: AbortSignal) => Promise<ModelCatalogSnapshot>;
+  getModel: (reference: ModelReference, signal?: AbortSignal) => Promise<ProviderModel>;
   refreshModels: (providerId: ProviderId, signal?: AbortSignal) => Promise<ModelCatalogSnapshot>;
   subscribe: (listener: (providerId: ProviderId, revision: number) => void) => () => void;
 }>;
@@ -187,7 +194,7 @@ export function createModelCatalog(
       key: configurationRevision,
     }),
     codec: {
-      version: 2,
+      version: 3,
       encode: (value) => textEncoder.encode(JSON.stringify(value)),
       decode: (payload, input) => {
         const value = decodeValue(payload);
@@ -216,6 +223,10 @@ export function createModelCatalog(
   });
 
   const listeners = new Set<(providerId: ProviderId, revision: number) => void>();
+  const modelIndexes = new Map<
+    ProviderId,
+    Readonly<{ revision: number; modelsById: ReadonlyMap<string, ProviderModel> }>
+  >();
   const unsubscribe = cache.subscribe((event) => {
     if (event.address.namespace !== namespace) {
       return;
@@ -250,6 +261,36 @@ export function createModelCatalog(
           ),
         );
       },
+      async getModel(reference, signal) {
+        requireModelReference(reference);
+        const snapshot = await exposeCatalogFailure(async () =>
+          toCatalogSnapshot(
+            await resource.resolve(
+              dependencies.getSource(reference.providerId),
+              signal ? { signal } : {},
+            ),
+          ),
+        );
+        let index = modelIndexes.get(reference.providerId);
+
+        if (!index || index.revision !== snapshot.revision) {
+          index = {
+            revision: snapshot.revision,
+            modelsById: new Map(snapshot.models.map((model) => [model.id, model])),
+          };
+          modelIndexes.set(reference.providerId, index);
+        }
+
+        const model = index.modelsById.get(reference.modelId);
+
+        if (!model) {
+          throw new RangeError(
+            `Provider "${reference.providerId}" does not expose model "${reference.modelId}".`,
+          );
+        }
+
+        return model;
+      },
       refreshModels(providerId, signal) {
         return exposeCatalogFailure(async () =>
           toCatalogSnapshot(
@@ -269,6 +310,7 @@ export function createModelCatalog(
     close() {
       unsubscribe();
       listeners.clear();
+      modelIndexes.clear();
     },
   };
 }

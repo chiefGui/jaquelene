@@ -6,7 +6,7 @@ import {
   type GenerationConfigurationSelection as IpcGenerationConfigurationSelection,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
-import { fromIpcReasoningEffort, toIpcReasoningEffort } from "@/feature/model/reasoning-effort";
+import { fromIpcReasoningPreset, toIpcReasoningPreset } from "@/feature/model/reasoning-preset";
 import type { CampaignPreferences } from "./preferences";
 
 function toIpcCampaign(campaign: Campaign): IpcCampaign {
@@ -17,9 +17,13 @@ function toIpcCampaign(campaign: Campaign): IpcCampaign {
       ? {
           generationConfigurationOverride: {
             model: { ...configuration.model },
-            ...(configuration.reasoningEffort === undefined
+            ...(configuration.reasoningPresetOverride === undefined
               ? {}
-              : { reasoningEffort: toIpcReasoningEffort(configuration.reasoningEffort) }),
+              : {
+                  reasoningPresetOverride: toIpcReasoningPreset(
+                    configuration.reasoningPresetOverride,
+                  ),
+                }),
           },
         }
       : {}),
@@ -29,9 +33,11 @@ function toIpcCampaign(campaign: Campaign): IpcCampaign {
 function fromIpcConfiguration(configuration: IpcGenerationConfigurationSelection) {
   return {
     model: { ...configuration.model },
-    ...(configuration.reasoningEffort === undefined
+    ...(configuration.reasoningPresetOverride === undefined
       ? {}
-      : { reasoningEffort: fromIpcReasoningEffort(configuration.reasoningEffort) }),
+      : {
+          reasoningPresetOverride: fromIpcReasoningPreset(configuration.reasoningPresetOverride),
+        }),
   };
 }
 

@@ -1,5 +1,11 @@
 import type { GenerationId, ThreadId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
+import {
+  requireReasoningPreset,
+  type ModelReasoningCapability,
+  type ReasoningPreset,
+  type ResolvedReasoning,
+} from "#backend/model/reasoning";
 
 export type ProviderId = string;
 
@@ -18,104 +24,6 @@ export function requireModelReference(reference: ModelReference) {
   if (!reference.providerId.trim() || !reference.modelId.trim()) {
     throw new TypeError("A model reference requires provider and model identities.");
   }
-}
-
-export const reasoningEfforts = [
-  "max",
-  "xhigh",
-  "high",
-  "medium",
-  "low",
-  "minimal",
-  "none",
-] as const;
-
-export type ReasoningEffort = (typeof reasoningEfforts)[number];
-
-export function requireReasoningEffort(effort: unknown): asserts effort is ReasoningEffort {
-  if (typeof effort !== "string" || !(reasoningEfforts as readonly string[]).includes(effort)) {
-    throw new TypeError(`Unknown reasoning effort "${String(effort)}".`);
-  }
-}
-
-export type ModelReasoningCapability = Readonly<{
-  required: boolean;
-  defaultEffort?: ReasoningEffort;
-  supportedEfforts?: readonly ReasoningEffort[];
-}>;
-
-export function requireModelReasoningCapability(
-  candidate: unknown,
-  description = "A model reasoning capability",
-): ModelReasoningCapability {
-  if (typeof candidate !== "object" || candidate === null) {
-    throw new TypeError(`${description} must be an object.`);
-  }
-
-  const capability = candidate as Partial<ModelReasoningCapability>;
-
-  if (typeof capability.required !== "boolean") {
-    throw new TypeError(`${description} must declare whether reasoning is required.`);
-  }
-
-  const defaultEffort = capability.defaultEffort;
-
-  if (defaultEffort !== undefined) {
-    try {
-      requireReasoningEffort(defaultEffort);
-    } catch {
-      throw new TypeError(`${description} has an invalid default effort.`);
-    }
-  }
-
-  const candidateSupportedEfforts = capability.supportedEfforts;
-  let supportedEfforts: ReasoningEffort[] | undefined;
-
-  if (candidateSupportedEfforts !== undefined) {
-    if (!Array.isArray(candidateSupportedEfforts) || candidateSupportedEfforts.length === 0) {
-      throw new TypeError(`${description} must expose at least one supported effort.`);
-    }
-
-    const uniqueEfforts = new Set<ReasoningEffort>();
-
-    for (const effort of candidateSupportedEfforts) {
-      try {
-        requireReasoningEffort(effort);
-      } catch {
-        throw new TypeError(`${description} has an invalid supported effort.`);
-      }
-
-      if (uniqueEfforts.has(effort)) {
-        throw new TypeError(`${description} repeats supported effort "${effort}".`);
-      }
-
-      uniqueEfforts.add(effort);
-    }
-
-    supportedEfforts = [...uniqueEfforts];
-  }
-
-  if (capability.required && supportedEfforts?.includes("none")) {
-    throw new TypeError(`${description} requires reasoning and cannot support "none".`);
-  }
-
-  if (capability.required && defaultEffort === "none") {
-    throw new TypeError(`${description} requires reasoning and cannot default to "none".`);
-  }
-
-  if (
-    defaultEffort !== undefined &&
-    supportedEfforts &&
-    !supportedEfforts.includes(defaultEffort)
-  ) {
-    throw new TypeError(`${description} has a default effort that is not supported.`);
-  }
-
-  return {
-    required: capability.required,
-    ...(defaultEffort === undefined ? {} : { defaultEffort }),
-    ...(supportedEfforts ? { supportedEfforts } : {}),
-  };
 }
 
 export type ProviderModel = Readonly<{
@@ -141,20 +49,20 @@ export function requireModelSelection(selection: ModelSelection) {
 
 export type GenerationConfiguration = Readonly<{
   model: ModelReference;
-  reasoningEffort?: ReasoningEffort;
+  reasoningPresetOverride?: ReasoningPreset;
 }>;
 
 export function requireGenerationConfiguration(configuration: GenerationConfiguration) {
   requireModelReference(configuration.model);
 
-  if (configuration.reasoningEffort !== undefined) {
-    requireReasoningEffort(configuration.reasoningEffort);
+  if (configuration.reasoningPresetOverride !== undefined) {
+    requireReasoningPreset(configuration.reasoningPresetOverride);
   }
 }
 
 export type GenerationConfigurationSelection = Readonly<{
   model: ModelSelection;
-  reasoningEffort?: ReasoningEffort;
+  reasoningPresetOverride?: ReasoningPreset;
 }>;
 
 export function requireGenerationConfigurationSelection(
@@ -162,8 +70,8 @@ export function requireGenerationConfigurationSelection(
 ) {
   requireModelSelection(configuration.model);
 
-  if (configuration.reasoningEffort !== undefined) {
-    requireReasoningEffort(configuration.reasoningEffort);
+  if (configuration.reasoningPresetOverride !== undefined) {
+    requireReasoningPreset(configuration.reasoningPresetOverride);
   }
 }
 
@@ -178,7 +86,7 @@ export type ProviderGenerationRequest = Readonly<{
   threadId: ThreadId;
   modelId: string;
   input: ModelInput;
-  reasoningEffort?: ReasoningEffort;
+  reasoning?: ResolvedReasoning;
 }>;
 
 export type ProviderGenerationResult = Readonly<{

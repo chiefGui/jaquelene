@@ -9,19 +9,29 @@ export type { Generations, GenerateReplyRequest } from "#backend/generation/gene
 export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
 export {
   reasoningEfforts,
+  reasoningPresets,
+  reasoningPresetSources,
+  requireModelReasoningCapability,
+  requireReasoningPreset,
+  requireResolvedReasoning,
+  resolveReasoning,
+  type ModelReasoningCapability,
+  type ReasoningEffort,
+  type ReasoningPreset,
+  type ReasoningPresetSource,
+  type ResolvedReasoning,
+} from "#backend/model/reasoning";
+export {
   requireGenerationConfiguration,
   requireGenerationConfigurationSelection,
   requireModelReference,
-  requireModelReasoningCapability,
   requireModelSelection,
-  requireReasoningEffort,
   type ApiKeyProviderConfiguration,
   type ApiKeyProviderConfigurationSnapshot,
   type GenerationConfiguration,
   type GenerationConfigurationSelection,
   type GenerationUsage,
   type ModelReference,
-  type ModelReasoningCapability,
   type ModelSelection,
   type ProviderAdapter,
   type ProviderConfiguration,
@@ -35,7 +45,6 @@ export {
   type ProviderId,
   type ProviderModel,
   type ProviderModelsAdapter,
-  type ReasoningEffort,
 } from "#backend/provider/provider";
 export type {
   Models,

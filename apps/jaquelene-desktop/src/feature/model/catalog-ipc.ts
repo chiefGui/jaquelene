@@ -8,7 +8,7 @@ import {
 } from "@jaquelene/ipc/main";
 import type { WebContents } from "electron";
 import type { ModelCatalog } from "./catalog";
-import { toIpcReasoningEffort } from "./reasoning-effort";
+import { toIpcReasoningPreset } from "./reasoning-preset";
 
 type CatalogModel = Awaited<ReturnType<ModelCatalog["getModels"]>>["models"][number];
 
@@ -19,15 +19,8 @@ function toIpcModel(model: CatalogModel): IpcAvailableModel {
     ...(reasoning
       ? {
           reasoning: {
-            required: reasoning.required,
-            ...(reasoning.defaultEffort === undefined
-              ? {}
-              : { defaultEffort: toIpcReasoningEffort(reasoning.defaultEffort) }),
-            ...(reasoning.supportedEfforts
-              ? {
-                  supportedEfforts: reasoning.supportedEfforts.map(toIpcReasoningEffort),
-                }
-              : {}),
+            defaultPreset: toIpcReasoningPreset(reasoning.defaultPreset),
+            supportedPresets: reasoning.supportedPresets.map(toIpcReasoningPreset),
           },
         }
       : {}),

@@ -55,7 +55,9 @@ function providerAdapter(id: string, generation?: ProviderGenerationAdapter): Pr
   return {
     descriptor: { id, name: id, brandId: id },
     configuration: { kind: "none" },
-    models: { list: async () => [] },
+    models: {
+      list: async () => [{ id: "maker/model", name: "Model", brandId: "maker" }],
+    },
     generation: generation ?? { generate: async () => ({ text: "Unused" }) },
   };
 }
@@ -92,7 +94,7 @@ describe("backend", () => {
         id: "maker/model",
         name: "Model",
         brandId: "maker",
-        reasoning: { required: true },
+        reasoning: { defaultPreset: "high" as const, supportedPresets: ["high"] as const },
       },
     ]);
     const first = await createBackend(
@@ -110,11 +112,17 @@ describe("backend", () => {
           id: "maker/model",
           name: "Model",
           brandId: "maker",
-          reasoning: { required: true },
+          reasoning: { defaultPreset: "high", supportedPresets: ["high"] },
         },
       ],
       freshness: "fresh",
     });
+    await expect(
+      first.models.getModel({ providerId: "provider-a", modelId: "maker/model" }),
+    ).resolves.toMatchObject({ id: "maker/model", name: "Model" });
+    await expect(
+      first.models.getModel({ providerId: "provider-a", modelId: "maker/missing" }),
+    ).rejects.toThrow('does not expose model "maker/missing"');
     expect(firstList).toHaveBeenCalledOnce();
     await first.close();
 
@@ -136,7 +144,7 @@ describe("backend", () => {
           id: "maker/model",
           name: "Model",
           brandId: "maker",
-          reasoning: { required: true },
+          reasoning: { defaultPreset: "high", supportedPresets: ["high"] },
         },
       ],
       freshness: "fresh",
@@ -183,7 +191,7 @@ describe("backend", () => {
     expect(first.instructions.listGroups()).toEqual(factoryRoleplay.listGroups());
     const scenario = first.scenarios.create("Voyage");
     const campaign = first.campaigns.start(scenario.id);
-    const submittedOperation = first.turns.submit({
+    const submittedOperation = await first.turns.submit({
       threadId: campaign.threadId,
       content: "Begin",
       configuration: {
@@ -368,7 +376,7 @@ describe("backend", () => {
     });
     const backend = await createBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
-    const pending = backend.turns.submit({
+    const pending = await backend.turns.submit({
       threadId: thread.id,
       content: "Hello",
       configuration: {
@@ -412,7 +420,7 @@ describe("backend", () => {
     const provider = providerAdapter("provider-a", { generate });
     const backend = await createBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
-    const pending = backend.turns.submit({
+    const pending = await backend.turns.submit({
       threadId: thread.id,
       content: "Hello",
       configuration: {

@@ -65,7 +65,7 @@ function GeneralRoute() {
                 <Item.Value>
                   <ModelPicker.Root
                     value={defaultCampaignModel}
-                    onValueChange={setDefaultCampaignModel.mutate}
+                    onValueChange={(model) => setDefaultCampaignModel.mutate(model)}
                   >
                     <ModelPicker.Trigger
                       id={controlId}

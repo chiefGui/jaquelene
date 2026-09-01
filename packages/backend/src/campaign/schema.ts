@@ -9,7 +9,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import type { CampaignId, ScenarioId, ThreadId } from "#backend/id";
-import { reasoningEfforts } from "#backend/provider/provider";
+import { reasoningPresets } from "#backend/model/reasoning";
 import { scenarioTable } from "#backend/scenario/schema";
 import { threadTable } from "#backend/thread/schema";
 
@@ -49,7 +49,7 @@ export const campaignGenerationConfigurationOverrideTable = sqliteTable(
     modelId: text("model_id").notNull(),
     name: text().notNull(),
     brandId: text("brand_id").notNull(),
-    reasoningEffort: text("reasoning_effort", { enum: reasoningEfforts }),
+    reasoningPresetOverride: text("reasoning_preset_override", { enum: reasoningPresets }),
   },
   (configurationOverride) => [
     primaryKey({ columns: [configurationOverride.campaignId] }),
@@ -59,7 +59,7 @@ export const campaignGenerationConfigurationOverrideTable = sqliteTable(
         AND length(trim(${configurationOverride.modelId})) > 0
         AND length(trim(${configurationOverride.name})) > 0
         AND length(trim(${configurationOverride.brandId})) > 0
-        AND (${configurationOverride.reasoningEffort} IS NULL OR ${configurationOverride.reasoningEffort} IN ('max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none'))`,
+        AND (${configurationOverride.reasoningPresetOverride} IS NULL OR ${configurationOverride.reasoningPresetOverride} IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'))`,
     ),
   ],
 );

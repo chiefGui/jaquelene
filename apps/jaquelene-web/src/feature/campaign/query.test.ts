@@ -1,4 +1,4 @@
-import { ReasoningEffort } from "@jaquelene/ipc/renderer";
+import { ReasoningPreset } from "@jaquelene/ipc/renderer";
 import type {
   Campaign,
   GenerationConfigurationSelection,
@@ -16,14 +16,16 @@ const campaignsIpc = vi.hoisted(() => ({
 
 vi.mock("@jaquelene/ipc/renderer", () => ({
   Campaigns: campaignsIpc,
-  ReasoningEffort: {
-    Max: "max",
-    XHigh: "xhigh",
-    High: "high",
-    Medium: "medium",
-    Low: "low",
+  ReasoningPreset: {
+    Automatic: "automatic",
+    On: "on",
+    Off: "off",
     Minimal: "minimal",
-    None: "none",
+    Low: "low",
+    Medium: "medium",
+    High: "high",
+    XHigh: "xhigh",
+    Max: "max",
   },
 }));
 
@@ -44,11 +46,11 @@ function modelSelection(id: string): ModelSelection {
 
 function generationConfiguration(
   id: string,
-  reasoningEffort?: ReasoningEffort,
+  reasoningPresetOverride?: ReasoningPreset,
 ): GenerationConfigurationSelection {
   return {
     model: modelSelection(id),
-    ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+    ...(reasoningPresetOverride === undefined ? {} : { reasoningPresetOverride }),
   };
 }
 
@@ -87,7 +89,7 @@ describe("campaign generation configuration override mutation", () => {
   it("shows the override immediately and reconciles campaign caches", async () => {
     const queryClient = createQueryClient();
     const original = campaign();
-    const requestedConfiguration = generationConfiguration("requested", ReasoningEffort.High);
+    const requestedConfiguration = generationConfiguration("requested", ReasoningPreset.High);
     const saved = campaign({
       ...requestedConfiguration,
       model: { ...requestedConfiguration.model, name: "Saved model" },
@@ -124,7 +126,7 @@ describe("campaign generation configuration override mutation", () => {
 
   it("returns a campaign to the global default immediately", async () => {
     const queryClient = createQueryClient();
-    const original = campaign(generationConfiguration("override", ReasoningEffort.Low));
+    const original = campaign(generationConfiguration("override", ReasoningPreset.Low));
     const inherited = campaign();
     const save = deferred<Campaign>();
     campaignsIpc.setGenerationConfigurationOverride.mockReturnValue(save.promise);
@@ -147,7 +149,7 @@ describe("campaign generation configuration override mutation", () => {
 
   it("restores the previous campaign when saving fails", async () => {
     const queryClient = createQueryClient();
-    const original = campaign(generationConfiguration("original", ReasoningEffort.Medium));
+    const original = campaign(generationConfiguration("original", ReasoningPreset.Medium));
     const failure = new Error("Could not save the campaign model.");
     campaignsIpc.setGenerationConfigurationOverride.mockRejectedValue(failure);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
@@ -158,7 +160,7 @@ describe("campaign generation configuration override mutation", () => {
     );
 
     await expect(
-      mutation.mutate(generationConfiguration("requested", ReasoningEffort.Minimal)),
+      mutation.mutate(generationConfiguration("requested", ReasoningPreset.Minimal)),
     ).rejects.toBe(failure);
 
     expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(original);

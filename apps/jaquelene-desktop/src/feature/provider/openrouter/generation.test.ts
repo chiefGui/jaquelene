@@ -75,16 +75,19 @@ describe("OpenRouter generation provider", () => {
           { role: "user", content: "Hello" },
         ],
         metadata: { jaquelene_generation_id: request.generationId },
-        sessionId: request.threadId,
+        session_id: request.threadId,
         stream: false,
       },
       signal,
     );
   });
 
-  it("sends an explicitly selected reasoning effort", async () => {
+  it("sends an explicitly selected graded reasoning preset", async () => {
     const signal = operationSignal();
-    const request = { ...generationRequest(), reasoningEffort: "high" as const };
+    const request = {
+      ...generationRequest(),
+      reasoning: { preset: "high" as const, source: "override" as const },
+    };
     const send = vi.fn(async () => chatResult());
     const provider = createOpenRouterGeneration(connection(), send);
 
@@ -93,6 +96,63 @@ describe("OpenRouter generation provider", () => {
     expect(send).toHaveBeenCalledWith(
       "openrouter-key",
       expect.objectContaining({ reasoning: { effort: "high" } }),
+      signal,
+    );
+  });
+
+  it.each([
+    ["on", { enabled: true }],
+    ["off", { effort: "none" }],
+  ] as const)("encodes an explicit %s reasoning preset", async (preset, expected) => {
+    const signal = operationSignal();
+    const request = {
+      ...generationRequest(),
+      reasoning: { preset, source: "override" as const },
+    };
+    const send = vi.fn(async () => chatResult());
+    const provider = createOpenRouterGeneration(connection(), send);
+
+    await provider.generate(request, signal);
+
+    expect(send).toHaveBeenCalledWith(
+      "openrouter-key",
+      expect.objectContaining({ reasoning: expected }),
+      signal,
+    );
+  });
+
+  it("omits an explicit automatic reasoning preset", async () => {
+    const signal = operationSignal();
+    const request = {
+      ...generationRequest(),
+      reasoning: { preset: "automatic" as const, source: "override" as const },
+    };
+    const send = vi.fn(async () => chatResult());
+    const provider = createOpenRouterGeneration(connection(), send);
+
+    await provider.generate(request, signal);
+
+    expect(send).toHaveBeenCalledWith(
+      "openrouter-key",
+      expect.not.objectContaining({ reasoning: expect.anything() }),
+      signal,
+    );
+  });
+
+  it("omits a model-default reasoning preset", async () => {
+    const signal = operationSignal();
+    const request = {
+      ...generationRequest(),
+      reasoning: { preset: "high" as const, source: "model-default" as const },
+    };
+    const send = vi.fn(async () => chatResult());
+    const provider = createOpenRouterGeneration(connection(), send);
+
+    await provider.generate(request, signal);
+
+    expect(send).toHaveBeenCalledWith(
+      "openrouter-key",
+      expect.not.objectContaining({ reasoning: expect.anything() }),
       signal,
     );
   });

@@ -91,6 +91,7 @@ function createBackendServiceLayer() {
           const generationSubsystem = createGenerationSubsystem({
             database,
             replyPreparer: createReplyPreparer(threads, campaigns, instructions),
+            models: providers.models,
             providers: providers.generations,
           });
           const turns = createTurns(database, threads, generationSubsystem.replies);
@@ -348,6 +349,13 @@ export async function createBackend(
         }
 
         return services.models.getModels(providerId, signal);
+      },
+      getModel(reference, signal) {
+        if (state !== "open") {
+          return Promise.reject(new Error("Backend is closed."));
+        }
+
+        return services.models.getModel(reference, signal);
       },
       refreshModels(providerId, signal) {
         if (state !== "open") {

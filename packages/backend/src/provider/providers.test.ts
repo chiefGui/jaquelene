@@ -177,7 +177,7 @@ describe("provider subsystem", () => {
     await subsystem.close();
   });
 
-  it("preserves valid reasoning effort capabilities and rejects inconsistent ones", async () => {
+  it("preserves valid reasoning capabilities and rejects inconsistent ones", async () => {
     const capable = configurationFreeProvider({
       models: {
         async list() {
@@ -187,9 +187,8 @@ describe("provider subsystem", () => {
               name: "Reasoning model",
               brandId: "local",
               reasoning: {
-                required: true,
-                defaultEffort: "high" as const,
-                supportedEfforts: ["high", "medium", "low"] as const,
+                defaultPreset: "high" as const,
+                supportedPresets: ["high", "medium", "low"] as const,
               },
             },
           ];
@@ -204,9 +203,8 @@ describe("provider subsystem", () => {
         name: "Reasoning model",
         brandId: "local",
         reasoning: {
-          required: true,
-          defaultEffort: "high",
-          supportedEfforts: ["high", "medium", "low"],
+          defaultPreset: "high",
+          supportedPresets: ["high", "medium", "low"],
         },
       },
     ]);
@@ -221,7 +219,10 @@ describe("provider subsystem", () => {
               id: "invalid-reasoning-model",
               name: "Invalid reasoning model",
               brandId: "local",
-              reasoning: { required: true, supportedEfforts: ["high", "none"] as const },
+              reasoning: {
+                defaultPreset: "high" as const,
+                supportedPresets: ["high", "on"] as const,
+              },
             },
           ];
         },
@@ -233,7 +234,7 @@ describe("provider subsystem", () => {
     );
 
     await expect(listModels(inconsistentSubsystem, inconsistent.descriptor.id)).rejects.toThrow(
-      'Provider "inconsistent" model "invalid-reasoning-model" reasoning requires reasoning and cannot support "none".',
+      'Provider "inconsistent" model "invalid-reasoning-model" reasoning cannot mix binary and graded reasoning presets.',
     );
     await inconsistentSubsystem.close();
   });

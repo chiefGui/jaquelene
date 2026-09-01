@@ -181,7 +181,7 @@ describe("backend", () => {
     });
     const first = await createBackend(backendOptions(databasePath, [provider]));
     expect(first.instructions.listGroups()).toEqual(factoryRoleplay.listGroups());
-    const scenario = first.scenarios.create("Voyage");
+    const scenario = first.scenarios.create({ title: "Voyage" });
     const campaign = first.campaigns.start(scenario.id);
     const submittedOperation = first.turns.submit({
       threadId: campaign.threadId,

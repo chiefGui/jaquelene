@@ -16,6 +16,7 @@
     "@hugeicons/core-free-icons": "^4.3.0",
     "@hugeicons/react": "^1.1.10",
     "@jaquelene/diagnostics": "workspace:*",
+    "@jaquelene/domain": "workspace:*",
     "@jaquelene/ipc": "workspace:*",
     "@jaquelene/ui": "workspace:*",
     "@lobehub/icons-static-svg": "^1.94.0",

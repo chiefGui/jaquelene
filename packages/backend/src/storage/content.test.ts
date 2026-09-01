@@ -38,7 +38,7 @@ afterEach(() => {
 describe("content storage area", () => {
   it("deletes every content record through one transaction", async () => {
     const { database, path } = createTestDatabase();
-    const scenario = createScenarios(database).create("The Long Night");
+    const scenario = createScenarios(database).create({ title: "The Long Night" });
     const campaign = createCampaigns(database).start(scenario.id);
     createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     const area = createContentStorageArea(database, path);
@@ -56,7 +56,7 @@ describe("content storage area", () => {
 
   it("preserves content while a reply is being generated", () => {
     const { database, path } = createTestDatabase();
-    const scenario = createScenarios(database).create("The Long Night");
+    const scenario = createScenarios(database).create({ title: "The Long Night" });
     const campaign = createCampaigns(database).start(scenario.id);
     const { turn } = createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
@@ -83,7 +83,7 @@ describe("content storage area", () => {
 
   it("rolls back every content deletion when an owner operation fails", () => {
     const { database, path } = createTestDatabase();
-    const scenario = createScenarios(database).create("The Long Night");
+    const scenario = createScenarios(database).create({ title: "The Long Night" });
     const campaign = createCampaigns(database).start(scenario.id);
     createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database.$client.exec(`

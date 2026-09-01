@@ -9,7 +9,7 @@ export function exposeScenarios(target: WebFrameMain, scenarios: Scenarios) {
     get(id) {
       return scenarios.get(ids.scenario.parse(id));
     },
-    rename(id, title) {
+    rename({ id, title }) {
       return scenarios.rename(ids.scenario.parse(id), title);
     },
   });

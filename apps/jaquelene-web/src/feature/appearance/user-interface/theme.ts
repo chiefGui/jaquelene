@@ -51,9 +51,11 @@ const draculaTheme = stylex.createTheme(colors, {
   composerGlowEnd: draculaPalette.composerGlowEnd,
 } satisfies ThemePalette);
 
+export type UiThemeStyle = typeof draculaTheme;
+
 type UiThemeDefinition = {
   label: string;
-  style: typeof draculaTheme;
+  style: UiThemeStyle;
   value: UiTheme;
 };
 

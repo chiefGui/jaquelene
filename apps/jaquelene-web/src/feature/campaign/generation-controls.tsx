@@ -21,10 +21,12 @@ function sameModel(left: ModelSelection, right: ModelSelection) {
 }
 
 function ModelReasoningControl({
+  busy,
   configuration,
   disabled,
   onValueChange,
 }: {
+  busy: boolean;
   configuration: GenerationConfigurationSelection;
   disabled: boolean;
   onValueChange: (value: ReasoningPreset | null) => void;
@@ -39,6 +41,7 @@ function ModelReasoningControl({
   return (
     <ModelReasoningPicker
       capability={capability}
+      busy={busy}
       disabled={disabled}
       value={configuration.reasoningPresetOverride ?? null}
       onValueChange={onValueChange}
@@ -50,19 +53,19 @@ export function CampaignGenerationControls({
   campaignId,
   configuration,
   defaultModel,
-  pending,
+  disabled,
 }: {
   campaignId: string;
   configuration: GenerationConfigurationSelection | null;
   defaultModel: ModelSelection | null;
-  pending: boolean;
+  disabled: boolean;
 }) {
   const setConfigurationOverride = useSetCampaignGenerationConfigurationOverride(campaignId);
   const errorId = useId();
-  const updatePending = pending || setConfigurationOverride.isPending;
+  const busy = disabled || setConfigurationOverride.isPending;
 
   function updateConfiguration(nextConfiguration: GenerationConfigurationSelection) {
-    if (updatePending) {
+    if (disabled) {
       return;
     }
 
@@ -113,9 +116,9 @@ export function CampaignGenerationControls({
               ? `Campaign model: ${configuration.model.name}`
               : "Choose a campaign model"
           }
-          aria-busy={updatePending || undefined}
+          aria-busy={busy || undefined}
           aria-describedby={setConfigurationOverride.isError ? errorId : undefined}
-          disabled={updatePending}
+          disabled={disabled}
           style={styles.modelTrigger}
         >
           <ModelPicker.Value />
@@ -130,8 +133,9 @@ export function CampaignGenerationControls({
 
       {configuration ? (
         <ModelReasoningControl
+          busy={busy}
           configuration={configuration}
-          disabled={updatePending}
+          disabled={disabled}
           onValueChange={updateReasoning}
         />
       ) : null}

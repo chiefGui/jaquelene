@@ -59,7 +59,6 @@ function CampaignRoute() {
     campaign?.generationConfigurationOverride ?? (defaultModel ? { model: defaultModel } : null);
   const effectiveConfigurationPending =
     configurationOverridePending || (inheritsDefaultConfiguration && defaultModelPending);
-  const configurationSelectionPending = configurationOverridePending || defaultModelPending;
 
   if (campaign && !scenario) {
     throw new Error(`Campaign "${campaign.id}" references an unavailable scenario.`);
@@ -106,7 +105,7 @@ function CampaignRoute() {
                 campaignId={campaign.id}
                 defaultModel={defaultModel}
                 configuration={effectiveConfiguration}
-                pending={configurationSelectionPending}
+                disabled={defaultModelPending}
               />
             }
           />

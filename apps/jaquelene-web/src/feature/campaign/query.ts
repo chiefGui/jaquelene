@@ -26,8 +26,21 @@ function setCampaignGenerationConfigurationOverrideMutationKey(id: string) {
 }
 
 type SetCampaignGenerationConfigurationOverrideContext = {
-  previousCampaign: Campaign | null | undefined;
+  sequence: ConfigurationMutationSequence;
+  version: number;
 };
+
+type ConfigurationMutationSequence = {
+  confirmedCampaign: Campaign | null | undefined;
+  initialized: boolean;
+  latestVersion: number;
+  pending: number;
+};
+
+const configurationMutationSequences = new WeakMap<
+  QueryClient,
+  Map<string, ConfigurationMutationSequence>
+>();
 
 export function campaignsForScenarioQuery(scenarioId: string) {
   return queryOptions({
@@ -60,6 +73,57 @@ function cacheCampaign(queryClient: QueryClient, campaign: Campaign) {
   );
 }
 
+function beginConfigurationMutation(queryClient: QueryClient, id: string) {
+  let sequences = configurationMutationSequences.get(queryClient);
+
+  if (!sequences) {
+    sequences = new Map();
+    configurationMutationSequences.set(queryClient, sequences);
+  }
+
+  let sequence = sequences.get(id);
+
+  if (!sequence) {
+    sequence = {
+      confirmedCampaign: undefined,
+      initialized: false,
+      latestVersion: 0,
+      pending: 0,
+    };
+    sequences.set(id, sequence);
+  }
+
+  sequence.latestVersion += 1;
+  sequence.pending += 1;
+  return { sequence, version: sequence.latestVersion };
+}
+
+function endConfigurationMutation(
+  queryClient: QueryClient,
+  id: string,
+  context: SetCampaignGenerationConfigurationOverrideContext | undefined,
+) {
+  if (!context) {
+    return;
+  }
+
+  context.sequence.pending -= 1;
+
+  if (context.sequence.pending > 0) {
+    return;
+  }
+
+  const sequences = configurationMutationSequences.get(queryClient);
+
+  if (sequences?.get(id) === context.sequence) {
+    sequences.delete(id);
+
+    if (sequences.size === 0) {
+      configurationMutationSequences.delete(queryClient);
+    }
+  }
+}
+
 export function setCampaignGenerationConfigurationOverrideMutationOptions(
   queryClient: QueryClient,
   id: string,
@@ -85,39 +149,58 @@ export function setCampaignGenerationConfigurationOverrideMutationOptions(
       return campaign;
     },
     async onMutate(configuration) {
+      const context = beginConfigurationMutation(queryClient, id);
       await queryClient.cancelQueries({ queryKey: query.queryKey, exact: true });
       const previousCampaign = queryClient.getQueryData<Campaign | null>(query.queryKey);
+
+      if (!context.sequence.initialized) {
+        context.sequence.confirmedCampaign = previousCampaign;
+        context.sequence.initialized = true;
+      }
 
       if (previousCampaign) {
         await queryClient.cancelQueries({
           queryKey: campaignsForScenarioQuery(previousCampaign.scenarioId).queryKey,
           exact: true,
         });
-        cacheCampaign(
-          queryClient,
-          configuration
-            ? {
-                ...previousCampaign,
-                generationConfigurationOverride: {
-                  model: { ...configuration.model },
-                  ...(configuration.reasoningPresetOverride === undefined
-                    ? {}
-                    : { reasoningPresetOverride: configuration.reasoningPresetOverride }),
-                },
-              }
-            : withoutGenerationConfigurationOverride(previousCampaign),
-        );
+        if (context.version === context.sequence.latestVersion) {
+          cacheCampaign(
+            queryClient,
+            configuration
+              ? {
+                  ...previousCampaign,
+                  generationConfigurationOverride: {
+                    model: { ...configuration.model },
+                    ...(configuration.reasoningPresetOverride === undefined
+                      ? {}
+                      : { reasoningPresetOverride: configuration.reasoningPresetOverride }),
+                  },
+                }
+              : withoutGenerationConfigurationOverride(previousCampaign),
+          );
+        }
       }
 
-      return { previousCampaign };
+      return context;
     },
     onError(_error, _configuration, context) {
-      if (context?.previousCampaign) {
-        cacheCampaign(queryClient, context.previousCampaign);
+      if (
+        context &&
+        context.version === context.sequence.latestVersion &&
+        context.sequence.confirmedCampaign
+      ) {
+        cacheCampaign(queryClient, context.sequence.confirmedCampaign);
       }
     },
-    onSuccess(campaign) {
-      cacheCampaign(queryClient, campaign);
+    onSuccess(campaign, _configuration, context) {
+      context.sequence.confirmedCampaign = campaign;
+
+      if (context.version === context.sequence.latestVersion) {
+        cacheCampaign(queryClient, campaign);
+      }
+    },
+    onSettled(_campaign, _error, _configuration, context) {
+      endConfigurationMutation(queryClient, id, context);
     },
   });
 }

@@ -75,10 +75,12 @@ function createQueryClient() {
 
 function deferred<Result>() {
   let resolve!: (value: Result) => void;
-  const promise = new Promise<Result>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<Result>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
 }
 
 beforeEach(() => {
@@ -145,6 +147,124 @@ describe("campaign generation configuration override mutation", () => {
     save.resolve(inherited);
     await expect(result).resolves.toEqual(inherited);
     expect(campaignsIpc.setGenerationConfigurationOverride).toHaveBeenCalledWith(original.id, null);
+  });
+
+  it("keeps the latest optimistic configuration while ordered saves settle", async () => {
+    const queryClient = createQueryClient();
+    const original = campaign();
+    const firstConfiguration = generationConfiguration("first", ReasoningPreset.On);
+    const latestConfiguration = generationConfiguration("latest", ReasoningPreset.Off);
+    const firstSaved = campaign(firstConfiguration);
+    const latestSaved = campaign(latestConfiguration);
+    const firstSave = deferred<Campaign>();
+    const latestSave = deferred<Campaign>();
+    campaignsIpc.setGenerationConfigurationOverride
+      .mockReturnValueOnce(firstSave.promise)
+      .mockReturnValueOnce(latestSave.promise);
+    queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
+    queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
+    const mutation = new MutationObserver(
+      queryClient,
+      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
+    );
+
+    const firstResult = mutation.mutate(firstConfiguration);
+    const latestResult = mutation.mutate(latestConfiguration);
+
+    await vi.waitFor(() => {
+      expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(
+        campaign(latestConfiguration),
+      );
+    });
+    expect(campaignsIpc.setGenerationConfigurationOverride).toHaveBeenCalledTimes(1);
+
+    firstSave.resolve(firstSaved);
+    await expect(firstResult).resolves.toEqual(firstSaved);
+    await vi.waitFor(() => {
+      expect(campaignsIpc.setGenerationConfigurationOverride).toHaveBeenCalledTimes(2);
+    });
+    expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(
+      campaign(latestConfiguration),
+    );
+
+    latestSave.resolve(latestSaved);
+    await expect(latestResult).resolves.toEqual(latestSaved);
+    expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(latestSaved);
+    expect(
+      queryClient.getQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey),
+    ).toEqual([latestSaved]);
+  });
+
+  it("restores the original campaign when every ordered save fails", async () => {
+    const queryClient = createQueryClient();
+    const original = campaign(generationConfiguration("original", ReasoningPreset.Medium));
+    const firstSave = deferred<Campaign>();
+    const latestSave = deferred<Campaign>();
+    const firstFailure = new Error("Could not save the first configuration.");
+    const latestFailure = new Error("Could not save the latest configuration.");
+    campaignsIpc.setGenerationConfigurationOverride
+      .mockReturnValueOnce(firstSave.promise)
+      .mockReturnValueOnce(latestSave.promise);
+    queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
+    queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
+    const mutation = new MutationObserver(
+      queryClient,
+      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
+    );
+
+    const firstResult = mutation.mutate(generationConfiguration("first", ReasoningPreset.On));
+    const latestResult = mutation.mutate(generationConfiguration("latest", ReasoningPreset.Off));
+    const firstRejection = expect(firstResult).rejects.toBe(firstFailure);
+    const latestRejection = expect(latestResult).rejects.toBe(latestFailure);
+
+    firstSave.reject(firstFailure);
+    await firstRejection;
+    await vi.waitFor(() => {
+      expect(campaignsIpc.setGenerationConfigurationOverride).toHaveBeenCalledTimes(2);
+    });
+    latestSave.reject(latestFailure);
+    await latestRejection;
+
+    expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(original);
+    expect(
+      queryClient.getQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey),
+    ).toEqual([original]);
+  });
+
+  it("restores the last confirmed campaign when the latest ordered save fails", async () => {
+    const queryClient = createQueryClient();
+    const original = campaign();
+    const firstConfiguration = generationConfiguration("first", ReasoningPreset.On);
+    const firstSaved = campaign(firstConfiguration);
+    const firstSave = deferred<Campaign>();
+    const latestSave = deferred<Campaign>();
+    const latestFailure = new Error("Could not save the latest configuration.");
+    campaignsIpc.setGenerationConfigurationOverride
+      .mockReturnValueOnce(firstSave.promise)
+      .mockReturnValueOnce(latestSave.promise);
+    queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
+    queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
+    const mutation = new MutationObserver(
+      queryClient,
+      setCampaignGenerationConfigurationOverrideMutationOptions(queryClient, original.id),
+    );
+
+    const firstResult = mutation.mutate(firstConfiguration);
+    const latestResult = mutation.mutate(generationConfiguration("latest", ReasoningPreset.Off));
+    const latestRejection = expect(latestResult).rejects.toBe(latestFailure);
+
+    firstSave.resolve(firstSaved);
+    await expect(firstResult).resolves.toEqual(firstSaved);
+    await vi.waitFor(() => {
+      expect(campaignsIpc.setGenerationConfigurationOverride).toHaveBeenCalledTimes(2);
+    });
+    latestSave.reject(latestFailure);
+    await latestRejection;
+
+    expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(firstSaved);
+    expect(
+      queryClient.getQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey),
+    ).toEqual([firstSaved]);
   });
 
   it("restores the previous campaign when saving fails", async () => {

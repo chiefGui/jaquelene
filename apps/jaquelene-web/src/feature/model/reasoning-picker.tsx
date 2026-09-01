@@ -19,11 +19,13 @@ const presetLabels: Readonly<Record<ReasoningPreset, string>> = {
 };
 
 export function ModelReasoningPicker({
+  busy,
   capability,
   disabled,
   onValueChange,
   value,
 }: {
+  busy: boolean;
   capability: ModelReasoningCapability | undefined;
   disabled: boolean;
   onValueChange: (value: ReasoningPreset | null) => void;
@@ -73,6 +75,7 @@ export function ModelReasoningPicker({
         type="button"
         variant="ghost"
         aria-label={`Reasoning: ${selectedLabel}`}
+        aria-busy={busy || undefined}
         disabled={disabled}
         style={styles.trigger}
       >

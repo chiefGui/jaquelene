@@ -70,7 +70,7 @@ type SelectContentProps = StyleableProps<
   Omit<ComboboxPopoverProps, "alwaysVisible" | "render" | "unmountOnHide">
 >;
 
-function SelectContent({ style, ...props }: SelectContentProps) {
+function SelectContent({ sameWidth = true, style, ...props }: SelectContentProps) {
   const combobox = useComboboxContext();
   const mounted = useStoreState(combobox, "mounted") ?? false;
 
@@ -79,7 +79,7 @@ function SelectContent({ style, ...props }: SelectContentProps) {
       <ComboboxPopover
         portal
         gutter={8}
-        sameWidth
+        sameWidth={sameWidth}
         {...props}
         alwaysVisible
         render={<Popover.Surface />}

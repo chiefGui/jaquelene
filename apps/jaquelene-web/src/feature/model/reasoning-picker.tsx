@@ -85,7 +85,7 @@ export function ModelReasoningPicker({
         </span>
       </Select>
 
-      <Select.Content aria-label="Reasoning">
+      <Select.Content aria-label="Reasoning" sameWidth={false} style={styles.content}>
         {valueUnavailable ? (
           <Select.Item value={value} disabled>
             <Select.ItemText>{selectedLabel} · unavailable</Select.ItemText>
@@ -112,6 +112,10 @@ export function ModelReasoningPicker({
 }
 
 const styles = stylex.create({
+  content: {
+    minWidth: "var(--popover-anchor-width)",
+    whiteSpace: "nowrap",
+  },
   trigger: {
     minWidth: "7rem",
   },

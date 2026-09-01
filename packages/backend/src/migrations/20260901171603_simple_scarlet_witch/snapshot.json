@@ -2,9 +2,7 @@
   "version": "7",
   "dialect": "sqlite",
   "id": "7856005a-fec5-4dc4-b366-9c9400c7d9f0",
-  "prevIds": [
-    "43fdc6ac-7be2-4546-81ee-759e86045047"
-  ],
+  "prevIds": ["43fdc6ac-7be2-4546-81ee-759e86045047"],
   "ddl": [
     {
       "name": "campaign_generation_preferences",
@@ -565,13 +563,9 @@
       "table": "turns"
     },
     {
-      "columns": [
-        "campaign_id"
-      ],
+      "columns": ["campaign_id"],
       "tableTo": "campaigns",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -580,13 +574,9 @@
       "table": "campaign_generation_preferences"
     },
     {
-      "columns": [
-        "scenario_id"
-      ],
+      "columns": ["scenario_id"],
       "tableTo": "scenarios",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -595,13 +585,9 @@
       "table": "campaigns"
     },
     {
-      "columns": [
-        "thread_id"
-      ],
+      "columns": ["thread_id"],
       "tableTo": "threads",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -610,13 +596,9 @@
       "table": "campaigns"
     },
     {
-      "columns": [
-        "turn_id"
-      ],
+      "columns": ["turn_id"],
       "tableTo": "turns",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -625,15 +607,9 @@
       "table": "generations"
     },
     {
-      "columns": [
-        "turn_id",
-        "output_message_id"
-      ],
+      "columns": ["turn_id", "output_message_id"],
       "tableTo": "thread_messages",
-      "columnsTo": [
-        "turn_id",
-        "id"
-      ],
+      "columnsTo": ["turn_id", "id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": true,
@@ -642,13 +618,9 @@
       "table": "generations"
     },
     {
-      "columns": [
-        "thread_id"
-      ],
+      "columns": ["thread_id"],
       "tableTo": "threads",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -657,15 +629,9 @@
       "table": "thread_messages"
     },
     {
-      "columns": [
-        "thread_id",
-        "turn_id"
-      ],
+      "columns": ["thread_id", "turn_id"],
       "tableTo": "turns",
-      "columnsTo": [
-        "thread_id",
-        "id"
-      ],
+      "columnsTo": ["thread_id", "id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": true,
@@ -674,15 +640,9 @@
       "table": "thread_messages"
     },
     {
-      "columns": [
-        "thread_id",
-        "parent_message_id"
-      ],
+      "columns": ["thread_id", "parent_message_id"],
       "tableTo": "thread_messages",
-      "columnsTo": [
-        "thread_id",
-        "id"
-      ],
+      "columnsTo": ["thread_id", "id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": true,
@@ -691,17 +651,9 @@
       "table": "thread_messages"
     },
     {
-      "columns": [
-        "thread_id",
-        "id",
-        "active_child_message_id"
-      ],
+      "columns": ["thread_id", "id", "active_child_message_id"],
       "tableTo": "thread_messages",
-      "columnsTo": [
-        "thread_id",
-        "parent_message_id",
-        "id"
-      ],
+      "columnsTo": ["thread_id", "parent_message_id", "id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": true,
@@ -710,13 +662,9 @@
       "table": "thread_messages"
     },
     {
-      "columns": [
-        "active_message_id"
-      ],
+      "columns": ["active_message_id"],
       "tableTo": "thread_messages",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "nameExplicit": false,
@@ -725,15 +673,9 @@
       "table": "threads"
     },
     {
-      "columns": [
-        "id",
-        "active_message_id"
-      ],
+      "columns": ["id", "active_message_id"],
       "tableTo": "thread_messages",
-      "columnsTo": [
-        "thread_id",
-        "id"
-      ],
+      "columnsTo": ["thread_id", "id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": true,
@@ -742,13 +684,9 @@
       "table": "threads"
     },
     {
-      "columns": [
-        "thread_id"
-      ],
+      "columns": ["thread_id"],
       "tableTo": "threads",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -757,63 +695,49 @@
       "table": "turns"
     },
     {
-      "columns": [
-        "campaign_id"
-      ],
+      "columns": ["campaign_id"],
       "nameExplicit": false,
       "name": "campaign_generation_preferences_pk",
       "entityType": "pks",
       "table": "campaign_generation_preferences"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "campaigns_pk",
       "entityType": "pks",
       "table": "campaigns"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "generations_pk",
       "entityType": "pks",
       "table": "generations"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "scenarios_pk",
       "entityType": "pks",
       "table": "scenarios"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "thread_messages_pk",
       "entityType": "pks",
       "table": "thread_messages"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "threads_pk",
       "entityType": "pks",
       "table": "threads"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "turns_pk",
       "entityType": "pks",

@@ -1,8 +1,15 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
-import { Chip, type ChipActionProps, type ChipFrameProps } from "@jaquelene/ui";
+import {
+  Chip,
+  type ChipActionProps,
+  type ChipEndEdge,
+  type ChipFrameProps,
+  type ChipStartEdge,
+} from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
+import { Children, cloneElement, createContext, isValidElement, useContext } from "react";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -14,6 +21,14 @@ type BreadcrumbLinkProps = ChipActionProps & {
 
 type BreadcrumbPageProps = ChipFrameProps;
 
+type BreadcrumbItemPosition = "first" | "last" | "middle" | "only";
+
+type BreadcrumbItemProps = StyleableProps<RoleProps<"li">> & {
+  position?: BreadcrumbItemPosition;
+};
+
+const BreadcrumbItemPositionContext = createContext<BreadcrumbItemPosition>("only");
+
 function BreadcrumbRoot({
   "aria-label": ariaLabel = "Breadcrumb",
   style,
@@ -22,57 +37,72 @@ function BreadcrumbRoot({
   return <Role.nav aria-label={ariaLabel} {...props} {...stylex.props(styles.root, style)} />;
 }
 
-function BreadcrumbList({ style, ...props }: StyleableProps<RoleProps<"ol">>) {
-  return <Role.ol {...props} {...stylex.props(styles.list, style)} />;
+function BreadcrumbList({ children, style, ...props }: StyleableProps<RoleProps<"ol">>) {
+  const items = Children.toArray(children);
+
+  return (
+    <Role.ol {...props} {...stylex.props(styles.list, style)}>
+      {items.map((item, index) =>
+        isValidElement<BreadcrumbItemProps>(item)
+          ? cloneElement(item, {
+              position:
+                items.length === 1
+                  ? "only"
+                  : index === 0
+                    ? "first"
+                    : index === items.length - 1
+                      ? "last"
+                      : "middle",
+            })
+          : item,
+      )}
+    </Role.ol>
+  );
 }
 
-function BreadcrumbItem({ children, style, ...props }: StyleableProps<RoleProps<"li">>) {
+function BreadcrumbItem({ children, position = "only", style, ...props }: BreadcrumbItemProps) {
+  const edges = getEdges(position);
+
   return (
-    <Role.li {...props} {...stylex.props(styles.item, style)}>
-      {typeof children === "string" || typeof children === "number" ? (
-        <Chip.Frame>{children}</Chip.Frame>
-      ) : (
-        children
-      )}
-    </Role.li>
+    <BreadcrumbItemPositionContext value={position}>
+      <Role.li {...props} {...stylex.props(styles.item, style)}>
+        {position === "middle" || position === "last" ? (
+          <Chip.Divider style={styles.divider} />
+        ) : null}
+        {typeof children === "string" || typeof children === "number" ? (
+          <Chip.Frame {...edges} compound>
+            {children}
+          </Chip.Frame>
+        ) : (
+          children
+        )}
+      </Role.li>
+    </BreadcrumbItemPositionContext>
   );
 }
 
 function BreadcrumbLink({ style, ...props }: BreadcrumbLinkProps) {
-  return <Chip.Action {...props} style={style} />;
+  const edges = getEdges(useContext(BreadcrumbItemPositionContext));
+
+  return <Chip.Action {...props} {...edges} compound style={style} />;
 }
 
 function BreadcrumbPage({ style, ...props }: BreadcrumbPageProps) {
-  return <Chip.Frame {...props} aria-current="page" style={[styles.page, style]} />;
+  const edges = getEdges(useContext(BreadcrumbItemPositionContext));
+
+  return (
+    <Chip.Frame {...props} {...edges} aria-current="page" compound style={[styles.page, style]} />
+  );
 }
 
-function BreadcrumbSeparator({
-  style,
-  ...props
-}: Omit<StyleableProps<RoleProps<"li">>, "children">) {
-  return (
-    <Role.li
-      {...props}
-      role="presentation"
-      aria-hidden="true"
-      {...stylex.props(styles.separator, style)}
-    >
-      <svg
-        viewBox="0 0 8 1"
-        preserveAspectRatio="none"
-        focusable="false"
-        {...stylex.props(styles.separatorIcon)}
-      >
-        <path
-          d="M0 0L8 .5L0 1"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-    </Role.li>
-  );
+function getEdges(position: BreadcrumbItemPosition): {
+  endEdge: ChipEndEdge;
+  startEdge: ChipStartEdge;
+} {
+  return {
+    endEdge: position === "last" || position === "only" ? "rounded" : "pointed",
+    startEdge: position === "first" || position === "only" ? "rounded" : "notched",
+  };
 }
 
 export const Breadcrumb = {
@@ -81,50 +111,48 @@ export const Breadcrumb = {
   Item: BreadcrumbItem,
   Link: BreadcrumbLink,
   Page: BreadcrumbPage,
-  Separator: BreadcrumbSeparator,
 } as const;
 
 const styles = stylex.create({
   root: {
-    height: "100%",
-    maxWidth: "100%",
-    minWidth: 0,
-  },
-  list: {
     alignItems: "center",
     display: "flex",
     height: "100%",
     maxWidth: "100%",
     minWidth: 0,
+  },
+  divider: {
+    left: 0,
+    position: "absolute",
+    top: "-0.0625rem",
+    zIndex: 1,
+  },
+  list: {
+    alignItems: "center",
+    backgroundColor: `color-mix(in oklch, ${tokens.accent} 8%, transparent)`,
+    borderColor: tokens.surfaceRaisedBorder,
+    borderRadius: tokens.radiusMedium,
+    borderStyle: "solid",
+    borderWidth: 1,
+    display: "flex",
+    height: "1.375rem",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
   },
   item: {
     alignItems: "center",
     color: tokens.muted,
     display: "flex",
-    height: "100%",
-    minWidth: 0,
-    paddingInlineEnd: {
-      default: "0.375rem",
-      ":last-child": 0,
-    },
-    paddingInlineStart: {
-      default: "0.625rem",
+    height: "1.25rem",
+    marginInlineStart: {
+      default: "-0.375rem",
       ":first-child": 0,
     },
+    minWidth: 0,
+    position: "relative",
   },
   page: {
     color: tokens.foreground,
-  },
-  separator: {
-    color: tokens.border,
-    flexShrink: 0,
-    height: "100%",
-    width: "0.5rem",
-  },
-  separatorIcon: {
-    display: "block",
-    height: "100%",
-    overflow: "visible",
-    width: "100%",
   },
 });

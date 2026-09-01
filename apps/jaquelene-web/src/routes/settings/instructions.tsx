@@ -39,7 +39,6 @@ function InstructionsRoute() {
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Separator />
             <Breadcrumb.Item>
               <Breadcrumb.Page>Instructions</Breadcrumb.Page>
             </Breadcrumb.Item>

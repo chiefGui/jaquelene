@@ -27,6 +27,7 @@ import {
   useSubmitTurn,
 } from "./query";
 import { isLatestThreadHistory } from "./thread-query-cache";
+import { threadLayout } from "./thread-layout.stylex";
 import { ThreadTimeline } from "./thread-timeline";
 import { deriveThreadViewState } from "./thread-view-state";
 
@@ -36,16 +37,20 @@ function scrollToEnd(viewport: HTMLElement) {
   viewport.scrollTop = viewport.scrollHeight;
 }
 
-type ThreadFooterProps = Readonly<{
+function isScrolledToEnd(viewport: HTMLElement) {
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
+}
+
+type ThreadControlsLayerProps = Readonly<{
   children: ReactNode;
   onHeightChange: (height: number) => void;
 }>;
 
-function ThreadFooter({ children, onHeightChange }: ThreadFooterProps) {
-  const footer = useRef<HTMLElement>(null);
+function ThreadControlsLayer({ children, onHeightChange }: ThreadControlsLayerProps) {
+  const layer = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    const element = footer.current;
+    const element = layer.current;
 
     if (!element) {
       return;
@@ -65,9 +70,14 @@ function ThreadFooter({ children, onHeightChange }: ThreadFooterProps) {
   }, [onHeightChange]);
 
   return (
-    <footer ref={footer} {...stylex.props(styles.footer)}>
-      {children}
-    </footer>
+    <div {...stylex.props(styles.controlsAnchor)}>
+      <div
+        ref={layer}
+        {...stylex.props(threadLayout.column, threadLayout.gutter, styles.controlsLayer)}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -295,40 +305,48 @@ export function ThreadView({
 
   return (
     <section aria-label="Thread" {...stylex.props(styles.root)}>
-      <ThreadTimeline
-        key={`timeline:${threadId}`}
-        view={threadView}
-        pendingSubmission={historical ? null : pendingSubmission}
-        bottomInset={timelineBottomInset}
-        viewport={viewport}
-        pinnedToEnd={pinnedToEnd}
-        hasNextPage={messagesQuery.hasNextPage}
-        isFetchingNextPage={messagesQuery.isFetchingNextPage}
-        isFetchNextPageError={messagesQuery.isFetchNextPageError}
-        historyNavigationPending={historyNavigationPending}
-        retryPending={retryPending}
-        loadOlder={loadOlder}
-        retryReply={retryReply}
-      />
-      <ThreadFooter onHeightChange={setTimelineBottomInset}>
-        {historical ? (
-          <ThreadHistoryReturn
-            error={returnToLatestMutation.isError}
-            pending={returnToLatestMutation.isPending}
-            returnToLatest={returnToLatest}
-          />
-        ) : (
-          <ThreadComposer
-            key={`composer:${threadId}`}
-            threadId={threadId}
-            model={model}
-            modelPending={modelPending}
-            operationPending={operationPending}
-            messageMaxCodeUnits={threadView.messageMaxCodeUnits}
-            composerControls={composerControls}
-          />
-        )}
-      </ThreadFooter>
+      <div
+        ref={viewport}
+        onScroll={(event) => {
+          pinnedToEnd.current = isScrolledToEnd(event.currentTarget);
+        }}
+        {...stylex.props(styles.viewport)}
+      >
+        <ThreadTimeline
+          key={`timeline:${threadId}`}
+          view={threadView}
+          pendingSubmission={historical ? null : pendingSubmission}
+          bottomInset={timelineBottomInset}
+          viewport={viewport}
+          pinnedToEnd={pinnedToEnd}
+          hasNextPage={messagesQuery.hasNextPage}
+          isFetchingNextPage={messagesQuery.isFetchingNextPage}
+          isFetchNextPageError={messagesQuery.isFetchNextPageError}
+          historyNavigationPending={historyNavigationPending}
+          retryPending={retryPending}
+          loadOlder={loadOlder}
+          retryReply={retryReply}
+        />
+        <ThreadControlsLayer onHeightChange={setTimelineBottomInset}>
+          {historical ? (
+            <ThreadHistoryReturn
+              error={returnToLatestMutation.isError}
+              pending={returnToLatestMutation.isPending}
+              returnToLatest={returnToLatest}
+            />
+          ) : (
+            <ThreadComposer
+              key={`composer:${threadId}`}
+              threadId={threadId}
+              model={model}
+              modelPending={modelPending}
+              operationPending={operationPending}
+              messageMaxCodeUnits={threadView.messageMaxCodeUnits}
+              composerControls={composerControls}
+            />
+          )}
+        </ThreadControlsLayer>
+      </div>
     </section>
   );
 }
@@ -340,19 +358,26 @@ const styles = stylex.create({
     flexDirection: "column",
     minHeight: 0,
     overflow: "hidden",
-    position: "relative",
   },
-  footer: {
+  viewport: {
+    flex: 1,
+    minHeight: 0,
+    overflowAnchor: "none",
+    overflowY: "auto",
+    scrollbarGutter: "stable",
+  },
+  controlsAnchor: {
+    bottom: 0,
+    height: 0,
+    position: "sticky",
+    zIndex: 1,
+  },
+  controlsLayer: {
     bottom: 0,
     left: 0,
-    marginInline: "auto",
-    maxWidth: "42rem",
     paddingBlock: "0 1.5rem",
-    paddingInline: "1.5rem",
     position: "absolute",
     right: 0,
-    width: "100%",
-    zIndex: 1,
   },
   historyReturn: {
     alignItems: "center",

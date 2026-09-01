@@ -13,6 +13,7 @@ import {
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import type { SubmitTurnVariables } from "./query";
+import { threadLayout } from "./thread-layout.stylex";
 import { PendingThreadMessageRow, ThreadMessageRow } from "./thread-message";
 import type { ThreadViewState } from "./thread-view-state";
 
@@ -67,10 +68,6 @@ function estimateTimelineItemSize(item: ThreadTimelineItem) {
     estimatedMessageChrome +
     (hasReplyState ? estimatedReplyStateHeight : 0)
   );
-}
-
-function isScrolledToEnd(viewport: HTMLElement) {
-  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
 }
 
 export const ThreadTimeline = memo(function ThreadTimeline({
@@ -246,60 +243,44 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   }
 
   return (
-    <div
-      ref={viewport}
-      onScroll={(event) => {
-        pinnedToEnd.current = isScrolledToEnd(event.currentTarget);
-      }}
-      {...stylex.props(styles.viewport)}
-    >
-      <div {...stylex.props(styles.messageBody)}>
-        {hasHistoryControls ? (
-          <div ref={historyControls} {...stylex.props(styles.historyControls)}>
-            {hasNextPage ? (
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={isFetchingNextPage || historyNavigationPending}
-                onClick={() => void loadOlderMessages()}
-              >
-                {isFetchingNextPage ? "Loading…" : "Load older messages"}
-              </Button>
-            ) : null}
-            {isFetchNextPageError ? (
-              <p role="alert" {...stylex.props(styles.pageError)}>
-                Could not load older messages.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+    <div {...stylex.props(styles.messageBody)}>
+      {hasHistoryControls ? (
+        <div
+          ref={historyControls}
+          {...stylex.props(threadLayout.column, threadLayout.gutter, styles.historyControls)}
+        >
+          {hasNextPage ? (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={isFetchingNextPage || historyNavigationPending}
+              onClick={() => void loadOlderMessages()}
+            >
+              {isFetchingNextPage ? "Loading…" : "Load older messages"}
+            </Button>
+          ) : null}
+          {isFetchNextPageError ? (
+            <p role="alert" {...stylex.props(styles.pageError)}>
+              Could not load older messages.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
-        {!hasItems ? (
-          <div {...stylex.props(styles.empty)}>
-            <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
-          </div>
-        ) : (
-          <ol aria-label="Messages" ref={setMessageList} {...stylex.props(styles.messageList)}>
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-              const item = items[virtualItem.index]!;
+      {!hasItems ? (
+        <div {...stylex.props(styles.empty)}>
+          <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
+        </div>
+      ) : (
+        <ol
+          aria-label="Messages"
+          ref={setMessageList}
+          {...stylex.props(threadLayout.column, styles.messageList)}
+        >
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const item = items[virtualItem.index]!;
 
-              if (item.type === "submission") {
-                return (
-                  <li
-                    key={virtualItem.key}
-                    ref={virtualizer.measureElement}
-                    data-index={virtualItem.index}
-                    aria-posinset={virtualItem.index + 1}
-                    aria-setsize={items.length}
-                    {...stylex.props(styles.virtualItem)}
-                  >
-                    <PendingThreadMessageRow submission={item.value} />
-                  </li>
-                );
-              }
-
-              const { message, fromUser, reply } = item.value;
-
+            if (item.type === "submission") {
               return (
                 <li
                   key={virtualItem.key}
@@ -307,34 +288,42 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                   data-index={virtualItem.index}
                   aria-posinset={virtualItem.index + 1}
                   aria-setsize={items.length}
-                  {...stylex.props(styles.virtualItem)}
+                  {...stylex.props(threadLayout.gutter, styles.virtualItem)}
                 >
-                  <ThreadMessageRow
-                    message={message}
-                    fromUser={fromUser}
-                    reply={reply}
-                    announceReply={message.id === view.latestMessageId}
-                    retryPending={retryPending}
-                    retryReply={retryReply}
-                  />
+                  <PendingThreadMessageRow submission={item.value} />
                 </li>
               );
-            })}
-          </ol>
-        )}
-      </div>
+            }
+
+            const { message, fromUser, reply } = item.value;
+
+            return (
+              <li
+                key={virtualItem.key}
+                ref={virtualizer.measureElement}
+                data-index={virtualItem.index}
+                aria-posinset={virtualItem.index + 1}
+                aria-setsize={items.length}
+                {...stylex.props(threadLayout.gutter, styles.virtualItem)}
+              >
+                <ThreadMessageRow
+                  message={message}
+                  fromUser={fromUser}
+                  reply={reply}
+                  announceReply={message.id === view.latestMessageId}
+                  retryPending={retryPending}
+                  retryReply={retryReply}
+                />
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </div>
   );
 });
 
 const styles = stylex.create({
-  viewport: {
-    flex: 1,
-    minHeight: 0,
-    overflowAnchor: "none",
-    overflowY: "auto",
-    scrollbarGutter: "stable",
-  },
   messageBody: {
     display: "flex",
     flexDirection: "column",
@@ -345,11 +334,7 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     gap: "0.5rem",
-    marginInline: "auto",
-    maxWidth: "42rem",
     paddingBlock: "1.5rem 1rem",
-    paddingInline: "1.5rem",
-    width: "100%",
   },
   pageError: {
     color: tokens.danger,
@@ -374,15 +359,11 @@ const styles = stylex.create({
   },
   messageList: {
     flexShrink: 0,
-    marginInline: "auto",
-    maxWidth: "42rem",
     position: "relative",
-    width: "100%",
   },
   virtualItem: {
     boxSizing: "border-box",
     left: 0,
-    paddingInline: "1.5rem",
     position: "absolute",
     top: 0,
     width: "100%",

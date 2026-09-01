@@ -18,12 +18,27 @@ export function scenarioQuery(id: string) {
   });
 }
 
-function invalidateScenarioList(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: scenariosQuery.queryKey, exact: true });
+function refreshScenarioList(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: scenariosQuery.queryKey, exact: true });
 }
 
 function cacheScenario(queryClient: QueryClient, scenario: Scenario) {
   queryClient.setQueryData(scenarioQuery(scenario.id).queryKey, scenario);
+  queryClient.setQueryData<Scenario[]>(scenariosQuery.queryKey, (scenarios) => {
+    if (!scenarios) {
+      return scenarios;
+    }
+
+    const index = scenarios.findIndex(({ id }) => id === scenario.id);
+    return index === -1 ? [...scenarios, scenario] : scenarios.with(index, scenario);
+  });
+}
+
+function removeScenarioFromCache(queryClient: QueryClient, id: string) {
+  queryClient.setQueryData(scenarioQuery(id).queryKey, null);
+  queryClient.setQueryData<Scenario[]>(scenariosQuery.queryKey, (scenarios) =>
+    scenarios?.filter((scenario) => scenario.id !== id),
+  );
 }
 
 export function useCreateScenario() {
@@ -32,13 +47,9 @@ export function useCreateScenario() {
   return useMutation({
     ...ipcMutationOptions,
     mutationFn: scenarioIpc.create,
-    onSuccess(result) {
-      if (result.status === "empty-title") {
-        return;
-      }
-
-      cacheScenario(queryClient, result.scenario);
-      return invalidateScenarioList(queryClient);
+    onSuccess(scenario) {
+      cacheScenario(queryClient, scenario);
+      refreshScenarioList(queryClient);
     },
   });
 }
@@ -48,19 +59,15 @@ export function useRenameScenario() {
 
   return useMutation({
     ...ipcMutationOptions,
-    mutationFn: ({ id, title }: { id: string; title: string }) => scenarioIpc.rename(id, title),
-    onSuccess(result, { id }) {
-      if (result.status === "empty-title") {
-        return;
-      }
-
-      if (result.status === "renamed") {
-        cacheScenario(queryClient, result.scenario);
+    mutationFn: scenarioIpc.rename,
+    onSuccess(scenario, { id }) {
+      if (scenario) {
+        cacheScenario(queryClient, scenario);
       } else {
-        queryClient.setQueryData(scenarioQuery(id).queryKey, null);
+        removeScenarioFromCache(queryClient, id);
       }
 
-      return invalidateScenarioList(queryClient);
+      refreshScenarioList(queryClient);
     },
   });
 }

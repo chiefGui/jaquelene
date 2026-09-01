@@ -68,8 +68,8 @@ describe("campaigns", () => {
   it("starts campaigns for a scenario and lists the newest first", () => {
     let startedAt = 100;
     const { campaigns, scenarios } = openCampaigns(createDatabasePath(), () => startedAt++);
-    const scenario = scenarios.create("Campaign scenario");
-    const otherScenario = scenarios.create("Other scenario");
+    const scenario = scenarios.create({ title: "Campaign scenario" });
+    const otherScenario = scenarios.create({ title: "Other scenario" });
     const first = campaigns.start(scenario.id);
     const second = campaigns.start(scenario.id);
     campaigns.start(otherScenario.id);
@@ -86,7 +86,7 @@ describe("campaigns", () => {
   it("persists campaigns when the database is reopened", () => {
     const path = createDatabasePath();
     const firstConnection = openCampaigns(path, () => 200);
-    const scenario = firstConnection.scenarios.create("Persistent campaign scenario");
+    const scenario = firstConnection.scenarios.create({ title: "Persistent campaign scenario" });
     const started = firstConnection.campaigns.start(scenario.id);
     const configured = firstConnection.campaigns.setGenerationConfigurationOverride(
       started.id,
@@ -105,7 +105,7 @@ describe("campaigns", () => {
 
   it("creates a thread with a newly started campaign", () => {
     const { campaigns, scenarios, threads } = openCampaigns(createDatabasePath(), () => 250);
-    const scenario = scenarios.create("Threaded campaign scenario");
+    const scenario = scenarios.create({ title: "Threaded campaign scenario" });
     const campaign = campaigns.start(scenario.id);
 
     expect(threads.get(campaign.threadId)).toEqual({
@@ -117,7 +117,7 @@ describe("campaigns", () => {
   it("requires every stored campaign to have an identity", () => {
     const path = createDatabasePath();
     const { database, scenarios, threads } = openCampaigns(path);
-    const scenario = scenarios.create("Campaign identity scenario");
+    const scenario = scenarios.create({ title: "Campaign identity scenario" });
     const thread = threads.create();
     closeDatabase(database);
 
@@ -153,7 +153,7 @@ describe("campaigns", () => {
 
   it("finds the campaign that owns a thread", () => {
     const { campaigns, scenarios } = openCampaigns(createDatabasePath());
-    const campaign = campaigns.start(scenarios.create("Thread owner").id);
+    const campaign = campaigns.start(scenarios.create({ title: "Thread owner" }).id);
 
     expect(campaigns.getContextForThread(campaign.threadId)).toEqual({
       id: campaign.id,
@@ -163,7 +163,9 @@ describe("campaigns", () => {
 
   it("sets, replaces, and clears a campaign generation configuration override", () => {
     const { campaigns, database, scenarios } = openCampaigns(createDatabasePath());
-    const campaign = campaigns.start(scenarios.create("Configuration override scenario").id);
+    const campaign = campaigns.start(
+      scenarios.create({ title: "Configuration override scenario" }).id,
+    );
     const configuration = generationConfiguration("override", "high");
     const replacement = generationConfiguration("replacement");
 
@@ -196,7 +198,9 @@ describe("campaigns", () => {
 
   it("rejects an incomplete campaign generation configuration override", () => {
     const { campaigns, scenarios } = openCampaigns(createDatabasePath());
-    const campaign = campaigns.start(scenarios.create("Invalid configuration scenario").id);
+    const campaign = campaigns.start(
+      scenarios.create({ title: "Invalid configuration scenario" }).id,
+    );
 
     expect(() =>
       campaigns.setGenerationConfigurationOverride(campaign.id, {
@@ -220,7 +224,9 @@ describe("campaigns", () => {
   it("rejects incomplete, blank, or invalid stored campaign configuration overrides", () => {
     const path = createDatabasePath();
     const { campaigns, database, scenarios } = openCampaigns(path);
-    const campaign = campaigns.start(scenarios.create("Partial configuration scenario").id);
+    const campaign = campaigns.start(
+      scenarios.create({ title: "Partial configuration scenario" }).id,
+    );
     closeDatabase(database);
     const client = new DatabaseSync(path);
 
@@ -253,7 +259,9 @@ describe("campaigns", () => {
 
   it("deletes a generation configuration override with its owning campaign", () => {
     const { campaigns, database, scenarios } = openCampaigns(createDatabasePath());
-    const campaign = campaigns.start(scenarios.create("Owned configuration scenario").id);
+    const campaign = campaigns.start(
+      scenarios.create({ title: "Owned configuration scenario" }).id,
+    );
     campaigns.setGenerationConfigurationOverride(campaign.id, generationConfiguration("owned"));
 
     database.delete(campaignTable).where(eq(campaignTable.id, campaign.id)).run();

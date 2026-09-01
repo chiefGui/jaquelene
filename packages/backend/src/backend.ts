@@ -241,9 +241,9 @@ export async function createBackend(
 
   return {
     scenarios: {
-      create(title) {
+      create(input) {
         assertOpen();
-        return services.scenarios.create(title);
+        return services.scenarios.create(input);
       },
       list() {
         assertOpen();

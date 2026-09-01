@@ -259,7 +259,7 @@ describe("generations", () => {
   it("includes the factory default roleplay instruction for campaign replies", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { campaigns, generations, scenarios, threads } = openGenerationEnvironment(provider);
-    const scenario = scenarios.create("The Long Night");
+    const scenario = scenarios.create({ title: "The Long Night" });
     const campaign = campaigns.start(scenario.id);
     const started = threads.startTurn(campaign.threadId, "Begin");
 

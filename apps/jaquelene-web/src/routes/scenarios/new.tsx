@@ -1,9 +1,23 @@
-import { Button, Input } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import {
+  Form as AriakitForm,
+  FormError,
+  FormInput,
+  FormLabel,
+  useFormStore,
+  useFormSubmit,
+} from "@ariakit/react/form";
+import { useStoreState } from "@ariakit/react/store";
+import {
+  SCENARIO_TITLE_MAX_UTF16_LENGTH,
+  createScenarioInputSchema,
+  type CreateScenarioInput,
+} from "@jaquelene/domain";
+import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type SubmitEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { useCreateScenarioFormValidation } from "@/feature/scenario/form";
 import type { Scenario } from "@/feature/scenario/ipc";
 import { useCreateScenario } from "@/feature/scenario/query";
 import { ContentPane } from "@/layout/content-pane";
@@ -13,24 +27,23 @@ export const Route = createFileRoute("/scenarios/new")({
   component: NewScenarioRoute,
 });
 
-type CreateScenarioError = {
-  message: string;
-  titleInvalid?: true;
-};
-
-const emptyTitleError = {
-  message: "Enter a scenario title.",
-  titleInvalid: true,
-} satisfies CreateScenarioError;
-
 function NewScenarioRoute() {
   const createScenarioMutation = useCreateScenario();
   const navigate = useNavigate({ from: "/scenarios/new" });
   const active = useRef(true);
-  const titleInput = useRef<HTMLInputElement>(null);
+  const form = useFormStore({
+    defaultValues: { title: "" } satisfies CreateScenarioInput,
+  });
+  const submitting = useStoreState(form, "submitting");
+  const hasSubmitted = useStoreState(
+    form,
+    ["submitFailed", "submitSucceed"],
+    (state) => state.submitFailed > 0 || state.submitSucceed > 0,
+  );
   const [createdScenario, setCreatedScenario] = useState<Scenario | null>(null);
-  const [error, setError] = useState<CreateScenarioError | null>(null);
-  const [pending, setPending] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
+
+  useCreateScenarioFormValidation(form);
 
   useEffect(() => {
     active.current = true;
@@ -38,12 +51,6 @@ function NewScenarioRoute() {
       active.current = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!pending && error?.titleInvalid) {
-      titleInput.current?.focus();
-    }
-  }, [error, pending]);
 
   async function openScenario(scenario: Scenario) {
     try {
@@ -57,65 +64,41 @@ function NewScenarioRoute() {
       }
 
       reportError("scenario.open-created", cause);
-      setError({ message: "The scenario was created, but it could not be opened." });
+      setOperationError("The scenario was created, but it could not be opened.");
     }
   }
 
-  async function createScenario(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
+  useFormSubmit(form, async (state) => {
+    let scenario = createdScenario;
 
-    if (pending) {
-      return;
+    if (!scenario) {
+      try {
+        const input = createScenarioInputSchema.parse(state.values);
+        scenario = await createScenarioMutation.mutateAsync(input);
+      } catch (cause) {
+        reportError("scenario.create", cause);
+
+        if (active.current) {
+          setOperationError("Could not create the scenario.");
+        }
+        return;
+      }
+
+      if (!active.current) {
+        return;
+      }
+
+      setCreatedScenario(scenario);
     }
 
-    setError(null);
-    setPending(true);
-
-    try {
-      let scenario = createdScenario;
-
-      if (!scenario) {
-        const title = new FormData(event.currentTarget).get("title");
-
-        if (typeof title !== "string") {
-          setError(emptyTitleError);
-          return;
-        }
-
-        const result = await createScenarioMutation.mutateAsync(title);
-
-        if (!active.current) {
-          return;
-        }
-
-        if (result.status === "empty-title") {
-          setError(emptyTitleError);
-          return;
-        }
-
-        scenario = result.scenario;
-        setCreatedScenario(scenario);
-      }
-
-      await openScenario(scenario);
-    } catch (cause) {
-      reportError("scenario.create", cause);
-
-      if (active.current) {
-        setError({ message: "Could not create the scenario." });
-      }
-    } finally {
-      if (active.current) {
-        setPending(false);
-      }
-    }
-  }
+    await openScenario(scenario);
+  });
 
   let actionLabel = "Create scenario";
 
   if (createdScenario) {
-    actionLabel = pending ? "Opening…" : "Open scenario";
-  } else if (pending) {
+    actionLabel = submitting ? "Opening…" : "Open scenario";
+  } else if (submitting) {
     actionLabel = "Creating…";
   }
 
@@ -137,35 +120,48 @@ function NewScenarioRoute() {
 
       <ContentPane.Viewport>
         <ContentPane.Body>
-          <form aria-labelledby="create-scenario-page" onSubmit={createScenario}>
-            <label htmlFor="new-scenario-title" {...stylex.props(styles.label)}>
-              Title
-            </label>
-            <div {...stylex.props(styles.fieldRow)}>
-              <Input
-                ref={titleInput}
-                id="new-scenario-title"
-                name="title"
-                type="text"
-                required
-                autoFocus
-                disabled={pending || Boolean(createdScenario)}
-                aria-describedby={error?.titleInvalid ? "create-scenario-error" : undefined}
-                aria-invalid={error?.titleInvalid || undefined}
-                style={styles.input}
-                placeholder="Scenario title"
-              />
-              <Button type="submit" disabled={pending}>
-                {actionLabel}
-              </Button>
-            </div>
+          <AriakitForm
+            store={form}
+            aria-busy={submitting || undefined}
+            aria-labelledby="create-scenario-page"
+            onSubmit={() => setOperationError(null)}
+            render={<FormLayout.Root style={styles.form} />}
+            resetOnSubmit={false}
+            validateOnBlur={hasSubmitted}
+            validateOnChange={hasSubmitted}
+          >
+            <Field.Root>
+              <FormLabel name={form.names.title} render={<Field.Label />}>
+                Title
+              </FormLabel>
+              <Field.Control>
+                <FormInput
+                  name={form.names.title}
+                  render={
+                    <Input
+                      type="text"
+                      autoFocus
+                      disabled={submitting || Boolean(createdScenario)}
+                      maxLength={SCENARIO_TITLE_MAX_UTF16_LENGTH}
+                      placeholder="Scenario title"
+                      style={styles.input}
+                    />
+                  }
+                />
+                <Button type="submit" disabled={submitting} style={styles.submitButton}>
+                  {actionLabel}
+                </Button>
+              </Field.Control>
+              <FormError name={form.names.title} render={<Field.Error />} />
+            </Field.Root>
 
-            {error ? (
-              <p id="create-scenario-error" role="alert" {...stylex.props(styles.error)}>
-                {error.message}
-              </p>
-            ) : null}
-          </form>
+            <FormLayout.Status
+              role={operationError ? "alert" : undefined}
+              tone={operationError ? "danger" : "neutral"}
+            >
+              {operationError}
+            </FormLayout.Status>
+          </AriakitForm>
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>
@@ -173,24 +169,14 @@ function NewScenarioRoute() {
 }
 
 const styles = stylex.create({
-  label: {
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
-    lineHeight: tokens.lineHeightSmall,
-  },
-  fieldRow: {
-    display: "flex",
-    gap: "0.5rem",
-    marginTop: "0.5rem",
+  form: {
+    maxWidth: "34rem",
   },
   input: {
     flex: 1,
     minWidth: 0,
   },
-  error: {
-    color: tokens.danger,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
+  submitButton: {
+    minWidth: "7.5rem",
   },
 });

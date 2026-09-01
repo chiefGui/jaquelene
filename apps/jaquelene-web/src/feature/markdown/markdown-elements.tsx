@@ -98,21 +98,9 @@ function MarkdownTaskMarker({ checked }: ComponentProps<"input">) {
 function MarkdownTable({ children }: ChildrenOnly) {
   return (
     <div {...stylex.props(styles.tableViewport)}>
-      <table {...stylex.props(styles.table)}>{children}</table>
+      <table>{children}</table>
     </div>
   );
-}
-
-function MarkdownTableHeader({ children }: ChildrenOnly) {
-  return (
-    <th scope="col" {...stylex.props(styles.tableCell, styles.tableHeader)}>
-      {children}
-    </th>
-  );
-}
-
-function MarkdownTableCell({ children }: ChildrenOnly) {
-  return <td {...stylex.props(styles.tableCell)}>{children}</td>;
 }
 
 function MarkdownContainer({ children }: ChildrenOnly) {
@@ -143,8 +131,6 @@ export const markdownOverrides = {
   p: MarkdownParagraph,
   pre: MarkdownCodeBlock,
   table: MarkdownTable,
-  td: MarkdownTableCell,
-  th: MarkdownTableHeader,
   ul: MarkdownUnorderedList,
 } satisfies MarkdownToJSX.Overrides;
 
@@ -267,22 +253,6 @@ const styles = stylex.create({
     },
     maxWidth: "100%",
     overflowX: "auto",
-  },
-  table: {
-    borderCollapse: "collapse",
-    minWidth: "100%",
-  },
-  tableCell: {
-    borderColor: tokens.surfaceRaisedBorder,
-    borderStyle: "solid",
-    borderWidth: 1,
-    paddingBlock: "0.375rem",
-    paddingInline: "0.5rem",
-    textAlign: "start",
-    verticalAlign: "top",
-  },
-  tableHeader: {
-    fontWeight: 600,
   },
   footnotes: {
     borderBlockStartColor: tokens.surfaceRaisedBorder,

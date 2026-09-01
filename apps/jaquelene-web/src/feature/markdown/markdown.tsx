@@ -1,5 +1,5 @@
 import { compiler, type MarkdownToJSX } from "markdown-to-jsx/react";
-import { Fragment, memo } from "react";
+import { memo } from "react";
 import { markdownOverrides } from "./markdown-elements";
 
 type MarkdownProps = Readonly<{
@@ -18,9 +18,9 @@ const markdownOptions = {
   overrides: markdownOverrides,
   preserveFrontmatter: false,
   tagfilter: true,
-  wrapper: Fragment,
+  wrapper: null,
 } satisfies MarkdownToJSX.Options;
 
 export const Markdown = memo(function Markdown({ content }: MarkdownProps) {
-  return <>{compiler(content, markdownOptions)}</>;
+  return compiler(content, markdownOptions);
 });

@@ -1,10 +1,14 @@
 const estimatedCharactersPerLine = 32;
 const estimatedLineHeight = 20;
+const estimatedParagraphGap = 10;
 const estimatedMessageChrome = 42;
 const estimatedReplyStateHeight = 22;
 
-function estimateVisualLineCount(content: string) {
-  let lineCount = 0;
+function estimateContentHeight(content: string) {
+  let height = 0;
+  let hasRenderedLine = false;
+  let paragraphGapPending = false;
+  let lineHasContent = false;
   let lineCodeUnits = 0;
 
   for (let index = 0; index < content.length; index += 1) {
@@ -12,10 +16,23 @@ function estimateVisualLineCount(content: string) {
 
     if (codeUnit !== 10 && codeUnit !== 13) {
       lineCodeUnits += 1;
+      lineHasContent ||= codeUnit !== 9 && codeUnit !== 32;
       continue;
     }
 
-    lineCount += Math.max(1, Math.ceil(lineCodeUnits / estimatedCharactersPerLine));
+    if (lineHasContent) {
+      if (paragraphGapPending) {
+        height += estimatedParagraphGap;
+      }
+
+      height += Math.ceil(lineCodeUnits / estimatedCharactersPerLine) * estimatedLineHeight;
+      hasRenderedLine = true;
+      paragraphGapPending = false;
+    } else if (hasRenderedLine) {
+      paragraphGapPending = true;
+    }
+
+    lineHasContent = false;
     lineCodeUnits = 0;
 
     if (codeUnit === 13 && content.charCodeAt(index + 1) === 10) {
@@ -23,12 +40,20 @@ function estimateVisualLineCount(content: string) {
     }
   }
 
-  return lineCount + Math.max(1, Math.ceil(lineCodeUnits / estimatedCharactersPerLine));
+  if (lineHasContent) {
+    if (paragraphGapPending) {
+      height += estimatedParagraphGap;
+    }
+
+    height += Math.ceil(lineCodeUnits / estimatedCharactersPerLine) * estimatedLineHeight;
+  }
+
+  return height || estimatedLineHeight;
 }
 
 export function estimateThreadTimelineItemSize(content: string, hasReplyState: boolean) {
   return (
-    estimateVisualLineCount(content) * estimatedLineHeight +
+    estimateContentHeight(content) +
     estimatedMessageChrome +
     (hasReplyState ? estimatedReplyStateHeight : 0)
   );

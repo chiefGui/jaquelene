@@ -164,7 +164,7 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
-    paddingBlockStart: "0.5rem",
+    paddingBlockStart: "2.75rem",
   },
   navigation: {
     flex: 1,

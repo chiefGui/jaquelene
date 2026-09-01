@@ -21,6 +21,7 @@ export type UsageBucket = UsageTimeBucket &
   }>;
 
 export type UsageOverview = Readonly<{
+  hasHistory: boolean;
   period: UsagePeriod;
   granularity: "day" | "week" | "month" | "quarter" | "year";
   startsAt: number;
@@ -322,13 +323,11 @@ export function createUsageOverviewReader(database: Database, now: () => number 
   return {
     get(period: UsagePeriod): UsageOverview {
       const earliest =
-        period === "all-time"
-          ? (database
-              .select({ value: min(providerAttemptTable.startedAt) })
-              .from(providerAttemptTable)
-              .get()?.value ?? null)
-          : null;
-      const range = createUsageTimeRange(period, earliest, now());
+        database
+          .select({ value: min(providerAttemptTable.startedAt) })
+          .from(providerAttemptTable)
+          .get()?.value ?? null;
+      const range = createUsageTimeRange(period, period === "all-time" ? earliest : null, now());
       const aggregateRows = aggregateBuckets(database, range.buckets);
       const costRows = aggregateCosts(database, range.buckets);
       const buckets = range.buckets.map((bucket, ordinal) =>
@@ -337,6 +336,7 @@ export function createUsageOverviewReader(database: Database, now: () => number 
       const summary = sumBuckets(buckets);
 
       return {
+        hasHistory: earliest !== null,
         period,
         granularity: range.granularity,
         startsAt: range.startsAt,

@@ -75,6 +75,7 @@ describe("usage overview", () => {
 
     const snapshot = overview.get("last-7-days");
 
+    expect(snapshot.hasHistory).toBe(true);
     expect(snapshot.attempts).toEqual({ provider: 3, pending: 1, completed: 1, failed: 1 });
     expect(snapshot.tokenCoverage).toEqual({ reported: 1, unknown: 1 });
     expect(snapshot.tokens).toEqual({
@@ -107,6 +108,7 @@ describe("usage overview", () => {
     const { overview } = openEnvironment(now);
     const snapshot = overview.get("all-time");
 
+    expect(snapshot.hasHistory).toBe(false);
     expect(snapshot.attempts.provider).toBe(0);
     expect(snapshot.tokenCoverage).toEqual({ reported: 0, unknown: 0 });
     expect(snapshot.tokens).toBeUndefined();
@@ -114,17 +116,47 @@ describe("usage overview", () => {
     expect(snapshot.buckets).toHaveLength(1);
   });
 
-  it("uses the range index for bounded attempt reads", () => {
+  it("distinguishes empty history from an empty selected period", () => {
+    const now = new Date(2026, 8, 1, 12).getTime();
+    const { database, overview } = openEnvironment(now);
+
+    database
+      .insert(providerAttemptTable)
+      .values({
+        id: ids.providerAttempt.create(),
+        generationId: ids.generation.create(),
+        threadId: ids.thread.create(),
+        providerId: "openrouter",
+        requestedModelId: "maker/model",
+        status: "completed",
+        startedAt: new Date(2025, 8, 1, 12).getTime(),
+        finishedAt: new Date(2025, 8, 1, 12, 1).getTime(),
+      })
+      .run();
+
+    const snapshot = overview.get("last-7-days");
+
+    expect(snapshot.hasHistory).toBe(true);
+    expect(snapshot.attempts.provider).toBe(0);
+  });
+
+  it("uses the time index for bounded reads and history detection", () => {
     const now = new Date(2026, 8, 1, 12).getTime();
     const { database } = openEnvironment(now);
-    const plan = database.$client
+    const rangePlan = database.$client
       .prepare(
         "EXPLAIN QUERY PLAN SELECT id FROM provider_attempts WHERE started_at >= ? AND started_at < ?",
       )
       .all(now - 1_000, now) as Array<{ detail: string }>;
+    const historyPlan = database.$client
+      .prepare("EXPLAIN QUERY PLAN SELECT min(started_at) FROM provider_attempts")
+      .all() as Array<{ detail: string }>;
 
-    expect(plan.some(({ detail }) => detail.includes("provider_attempts_started_at_idx"))).toBe(
-      true,
-    );
+    expect(
+      rangePlan.some(({ detail }) => detail.includes("provider_attempts_started_at_idx")),
+    ).toBe(true);
+    expect(
+      historyPlan.some(({ detail }) => detail.includes("provider_attempts_started_at_idx")),
+    ).toBe(true);
   });
 });

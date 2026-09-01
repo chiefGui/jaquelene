@@ -64,6 +64,7 @@ structure UsageBucket {
 }
 
 structure UsageOverview {
+  hasHistory: boolean
   period: UsagePeriod
   granularity: UsageBucketGranularity
   startsAt: UnixTimeMilliseconds

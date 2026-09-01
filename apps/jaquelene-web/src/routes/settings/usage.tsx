@@ -16,6 +16,7 @@ import { useId, useRef, useState, type KeyboardEvent, type RefObject } from "rea
 import { summarizeCosts } from "@/feature/usage/presentation";
 import { usageOverviewQuery, useClearUsageHistory } from "@/feature/usage/query";
 import { UsageChart, type UsageMetric } from "@/feature/usage/usage-chart";
+import { UsageEmptyState } from "@/feature/usage/usage-empty-state";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
@@ -179,112 +180,121 @@ function UsageRoute() {
       </ContentPane.Header>
 
       <ContentPane.Viewport>
-        <ContentPane.Body>
-          <section aria-label="Usage overview" aria-busy={overviewQuery.isFetching || undefined}>
-            <div {...stylex.props(styles.overviewHeader)}>
-              <div role="tablist" aria-label="Usage metric" {...stylex.props(styles.metrics)}>
-                <MetricTab
-                  active={metric === "tokens"}
-                  buttonRef={tokenTab}
-                  controls={metricPanelId}
-                  id={tokenTabId}
-                  label="tokens"
-                  metric="tokens"
-                  onNavigate={navigateMetric}
-                  setMetric={setMetric}
-                  value={presentTokens(overview)}
-                />
-                <MetricTab
-                  active={metric === "cost"}
-                  buttonRef={costTab}
-                  controls={metricPanelId}
-                  id={costTabId}
-                  label="cost"
-                  metric="cost"
-                  onNavigate={navigateMetric}
-                  setMetric={setMetric}
-                  value={presentCost(overview)}
-                />
-              </div>
-
-              <Select.Root
-                selectedValue={period}
-                setSelectedValue={(value) => {
-                  if (!periodOptions.some((option) => option.value === value)) {
-                    throw new TypeError(`Unknown usage period "${value}".`);
-                  }
-
-                  setPeriod(value as UsagePeriod);
-                }}
+        <ContentPane.Body style={!overview.hasHistory && styles.emptyBody}>
+          {overview.hasHistory ? (
+            <>
+              <section
+                aria-label="Usage overview"
+                aria-busy={overviewQuery.isFetching || undefined}
               >
-                <Select aria-label="Usage period" variant="ghost">
-                  <Select.Value>{selectedPeriod.label}</Select.Value>
-                </Select>
-                <Select.Content aria-label="Usage period" width="content">
-                  {periodOptions.map((option) => (
-                    <Select.Item key={option.value} value={option.value}>
-                      <Select.ItemText>{option.label}</Select.ItemText>
-                      <Select.Indicator />
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select.Root>
-            </div>
+                <div {...stylex.props(styles.overviewHeader)}>
+                  <div role="tablist" aria-label="Usage metric" {...stylex.props(styles.metrics)}>
+                    <MetricTab
+                      active={metric === "tokens"}
+                      buttonRef={tokenTab}
+                      controls={metricPanelId}
+                      id={tokenTabId}
+                      label="tokens"
+                      metric="tokens"
+                      onNavigate={navigateMetric}
+                      setMetric={setMetric}
+                      value={presentTokens(overview)}
+                    />
+                    <MetricTab
+                      active={metric === "cost"}
+                      buttonRef={costTab}
+                      controls={metricPanelId}
+                      id={costTabId}
+                      label="cost"
+                      metric="cost"
+                      onNavigate={navigateMetric}
+                      setMetric={setMetric}
+                      value={presentCost(overview)}
+                    />
+                  </div>
 
-            <div
-              id={metricPanelId}
-              role="tabpanel"
-              aria-labelledby={metric === "tokens" ? tokenTabId : costTabId}
-            >
-              <UsageChart
-                key={`${overview.period}:${metric}`}
-                metric={metric}
-                overview={overview}
-              />
-            </div>
-
-            {reportingNote ? <p {...stylex.props(styles.note)}>{reportingNote}</p> : null}
-          </section>
-
-          <section aria-labelledby="usage-history-heading" {...stylex.props(styles.history)}>
-            <Item.Group>
-              <Item.Root>
-                <Item.Content>
-                  <Item.Label id="usage-history-heading" render={<h2 />}>
-                    Usage history
-                  </Item.Label>
-                  <Item.Description>Permanently clear all recorded usage.</Item.Description>
-                </Item.Content>
-
-                <ConfirmDialog
-                  open={clearOpen}
-                  setOpen={(open) => {
-                    if (!clearHistory.isPending) {
-                      setClearOpen(open);
-                      if (open) {
-                        clearHistory.reset();
+                  <Select.Root
+                    selectedValue={period}
+                    setSelectedValue={(value) => {
+                      if (!periodOptions.some((option) => option.value === value)) {
+                        throw new TypeError(`Unknown usage period "${value}".`);
                       }
-                    }
-                  }}
-                  heading="Clear usage history?"
-                  description="All recorded usage will be permanently removed."
-                  confirmLabel="Clear"
-                  pending={clearHistory.isPending}
-                  error={clearHistory.isError ? "Couldn’t clear usage history." : undefined}
-                  onConfirm={() => {
-                    clearHistory.mutate(undefined, {
-                      onSuccess: () => setClearOpen(false),
-                    });
-                  }}
-                  trigger={
-                    <Button type="button" variant="ghost" tone="danger">
-                      Clear
-                    </Button>
-                  }
-                />
-              </Item.Root>
-            </Item.Group>
-          </section>
+
+                      setPeriod(value as UsagePeriod);
+                    }}
+                  >
+                    <Select aria-label="Usage period" variant="ghost">
+                      <Select.Value>{selectedPeriod.label}</Select.Value>
+                    </Select>
+                    <Select.Content aria-label="Usage period" width="content">
+                      {periodOptions.map((option) => (
+                        <Select.Item key={option.value} value={option.value}>
+                          <Select.ItemText>{option.label}</Select.ItemText>
+                          <Select.Indicator />
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                </div>
+
+                <div
+                  id={metricPanelId}
+                  role="tabpanel"
+                  aria-labelledby={metric === "tokens" ? tokenTabId : costTabId}
+                >
+                  <UsageChart
+                    key={`${overview.period}:${metric}`}
+                    metric={metric}
+                    overview={overview}
+                  />
+                </div>
+
+                {reportingNote ? <p {...stylex.props(styles.note)}>{reportingNote}</p> : null}
+              </section>
+
+              <section aria-labelledby="usage-history-heading" {...stylex.props(styles.history)}>
+                <Item.Group>
+                  <Item.Root>
+                    <Item.Content>
+                      <Item.Label id="usage-history-heading" render={<h2 />}>
+                        Usage history
+                      </Item.Label>
+                      <Item.Description>Permanently clear all recorded usage.</Item.Description>
+                    </Item.Content>
+
+                    <ConfirmDialog
+                      open={clearOpen}
+                      setOpen={(open) => {
+                        if (!clearHistory.isPending) {
+                          setClearOpen(open);
+                          if (open) {
+                            clearHistory.reset();
+                          }
+                        }
+                      }}
+                      heading="Clear usage history?"
+                      description="All recorded usage will be permanently removed."
+                      confirmLabel="Clear"
+                      pending={clearHistory.isPending}
+                      error={clearHistory.isError ? "Couldn’t clear usage history." : undefined}
+                      onConfirm={() => {
+                        clearHistory.mutate(undefined, {
+                          onSuccess: () => setClearOpen(false),
+                        });
+                      }}
+                      trigger={
+                        <Button type="button" variant="ghost" tone="danger">
+                          Clear
+                        </Button>
+                      }
+                    />
+                  </Item.Root>
+                </Item.Group>
+              </section>
+            </>
+          ) : (
+            <UsageEmptyState />
+          )}
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>
@@ -292,6 +302,12 @@ function UsageRoute() {
 }
 
 const styles = stylex.create({
+  emptyBody: {
+    alignItems: "center",
+    display: "flex",
+    height: "100%",
+    justifyContent: "center",
+  },
   overviewHeader: {
     alignItems: "center",
     display: "flex",

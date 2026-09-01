@@ -17,6 +17,11 @@ import {
   type ITurnsDispatcher,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
+import {
+  fromIpcReasoningPreset,
+  toIpcReasoningPreset,
+  toIpcReasoningPresetSource,
+} from "@/feature/model/reasoning-preset";
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
   switch (author) {
@@ -71,6 +76,14 @@ function toIpcGeneration(generation: Generation) {
     turnId: generation.turnId,
     providerId: generation.providerId,
     modelId: generation.modelId,
+    ...(generation.reasoning
+      ? {
+          reasoning: {
+            preset: toIpcReasoningPreset(generation.reasoning.preset),
+            source: toIpcReasoningPresetSource(generation.reasoning.source),
+          },
+        }
+      : {}),
     status: toIpcGenerationStatus(generation.status),
     ...(generation.failureKind
       ? { failureKind: toIpcGenerationFailureKind(generation.failureKind) }
@@ -225,19 +238,37 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
       });
 
       const dispatcher = TurnsIpc.for(target).setImplementation({
-        submit(request) {
-          const operation = turns.submit({
+        async submit(request) {
+          const operation = await turns.submit({
             threadId: ids.thread.parse(request.threadId),
             content: request.content,
-            model: { ...request.model },
+            configuration: {
+              model: { ...request.configuration.model },
+              ...(request.configuration.reasoningPresetOverride === undefined
+                ? {}
+                : {
+                    reasoningPresetOverride: fromIpcReasoningPreset(
+                      request.configuration.reasoningPresetOverride,
+                    ),
+                  }),
+            },
           });
           observeSettlement("thread.turn.submit", operation.settlement);
           return toIpcSubmission(operation.acceptance);
         },
-        retry(request) {
-          const operation = turns.retry({
+        async retry(request) {
+          const operation = await turns.retry({
             turnId: ids.turn.parse(request.turnId),
-            model: { ...request.model },
+            configuration: {
+              model: { ...request.configuration.model },
+              ...(request.configuration.reasoningPresetOverride === undefined
+                ? {}
+                : {
+                    reasoningPresetOverride: fromIpcReasoningPreset(
+                      request.configuration.reasoningPresetOverride,
+                    ),
+                  }),
+            },
           });
           observeSettlement("thread.turn.retry", operation.settlement);
           return toIpcGeneration(operation.acceptance.generation);

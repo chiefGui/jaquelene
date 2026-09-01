@@ -2,12 +2,15 @@ import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { CampaignModelPicker } from "@/feature/campaign/model-picker";
+import { CampaignGenerationControls } from "@/feature/campaign/generation-controls";
 import {
   defaultCampaignModelQuery,
   useIsDefaultCampaignModelPending,
 } from "@/feature/campaign/preferences";
-import { campaignQuery, useIsCampaignModelOverridePending } from "@/feature/campaign/query";
+import {
+  campaignQuery,
+  useIsCampaignGenerationConfigurationOverridePending,
+} from "@/feature/campaign/query";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import { scenariosQuery } from "@/feature/scenario/query";
 import { ScenariosSidebar } from "@/feature/scenario/sidebar";
@@ -48,13 +51,14 @@ function CampaignRoute() {
   const { data: scenarios } = useSuspenseQuery(scenariosQuery);
   const { data: defaultModel } = useSuspenseQuery(defaultCampaignModelQuery);
   const defaultModelPending = useIsDefaultCampaignModelPending();
-  const modelOverridePending = useIsCampaignModelOverridePending(campaignId);
+  const configurationOverridePending =
+    useIsCampaignGenerationConfigurationOverridePending(campaignId);
   const scenario = campaign ? scenarios.find(({ id }) => id === campaign.scenarioId) : undefined;
-  const inheritsDefaultModel = campaign?.modelOverride === undefined;
-  const effectiveModel = campaign?.modelOverride ?? defaultModel;
-  const effectiveModelPending =
-    modelOverridePending || (inheritsDefaultModel && defaultModelPending);
-  const modelSelectionPending = modelOverridePending || defaultModelPending;
+  const inheritsDefaultConfiguration = campaign?.generationConfigurationOverride === undefined;
+  const effectiveConfiguration =
+    campaign?.generationConfigurationOverride ?? (defaultModel ? { model: defaultModel } : null);
+  const effectiveConfigurationPending =
+    configurationOverridePending || (inheritsDefaultConfiguration && defaultModelPending);
 
   if (campaign && !scenario) {
     throw new Error(`Campaign "${campaign.id}" references an unavailable scenario.`);
@@ -94,14 +98,14 @@ function CampaignRoute() {
         {campaign ? (
           <ThreadView
             threadId={campaign.threadId}
-            model={effectiveModel}
-            modelPending={effectiveModelPending}
+            configuration={effectiveConfiguration}
+            configurationPending={effectiveConfigurationPending}
             composerControls={
-              <CampaignModelPicker
+              <CampaignGenerationControls
                 campaignId={campaign.id}
                 defaultModel={defaultModel}
-                model={effectiveModel}
-                pending={modelSelectionPending}
+                configuration={effectiveConfiguration}
+                disabled={defaultModelPending}
               />
             }
           />

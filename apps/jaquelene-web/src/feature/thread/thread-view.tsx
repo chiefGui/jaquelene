@@ -1,4 +1,7 @@
-import type { ModelReference } from "@jaquelene/ipc/renderer";
+import type {
+  GenerationConfiguration,
+  GenerationConfigurationSelection,
+} from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
@@ -32,6 +35,20 @@ import { ThreadTimeline } from "./thread-timeline";
 import { deriveThreadViewState } from "./thread-view-state";
 
 type RetryStatus = "pending" | "failed" | null;
+
+function toGenerationConfiguration(
+  configuration: GenerationConfigurationSelection,
+): GenerationConfiguration {
+  return {
+    model: {
+      providerId: configuration.model.providerId,
+      modelId: configuration.model.modelId,
+    },
+    ...(configuration.reasoningPresetOverride === undefined
+      ? {}
+      : { reasoningPresetOverride: configuration.reasoningPresetOverride }),
+  };
+}
 
 function scrollToEnd(viewport: HTMLElement) {
   viewport.scrollTop = viewport.scrollHeight;
@@ -111,8 +128,8 @@ const ThreadHistoryReturn = memo(function ThreadHistoryReturn({
 
 type ThreadComposerProps = Readonly<{
   threadId: string;
-  model: ModelReference | null;
-  modelPending: boolean;
+  configuration: GenerationConfigurationSelection | null;
+  configurationPending: boolean;
   operationPending: boolean;
   messageMaxCodeUnits: number;
   composerControls: ReactNode;
@@ -120,8 +137,8 @@ type ThreadComposerProps = Readonly<{
 
 const ThreadComposer = memo(function ThreadComposer({
   threadId,
-  model,
-  modelPending,
+  configuration,
+  configurationPending,
   operationPending,
   messageMaxCodeUnits,
   composerControls,
@@ -133,12 +150,12 @@ const ThreadComposer = memo(function ThreadComposer({
   const draftRevision = useRef(0);
   const composerInputId = useId();
   const sendErrorId = useId();
-  const submissionBlocked = operationPending || modelPending;
+  const submissionBlocked = operationPending || configurationPending;
 
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (submissionBlocked || acceptingSubmission.current || !model) {
+    if (submissionBlocked || acceptingSubmission.current || !configuration) {
       return;
     }
 
@@ -158,7 +175,7 @@ const ThreadComposer = memo(function ThreadComposer({
         clientId: crypto.randomUUID(),
         content,
         submittedAt: Date.now(),
-        model: { providerId: model.providerId, modelId: model.modelId },
+        configuration: toGenerationConfiguration(configuration),
       });
     } catch (cause) {
       setDraft((currentDraft) =>
@@ -204,7 +221,7 @@ const ThreadComposer = memo(function ThreadComposer({
         </Composer.Controls>
         <Composer.Submit
           pending={operationPending}
-          disabled={modelPending || !model || !draft.trim()}
+          disabled={configurationPending || !configuration || !draft.trim()}
         />
       </Composer.Footer>
     </Composer>
@@ -213,13 +230,13 @@ const ThreadComposer = memo(function ThreadComposer({
 
 export function ThreadView({
   threadId,
-  model,
-  modelPending,
+  configuration,
+  configurationPending,
   composerControls,
 }: {
   threadId: string;
-  model: ModelReference | null;
-  modelPending: boolean;
+  configuration: GenerationConfigurationSelection | null;
+  configurationPending: boolean;
   composerControls: ReactNode;
 }) {
   const queryClient = useQueryClient();
@@ -248,15 +265,21 @@ export function ThreadView({
         pages: messagesQuery.data.pages,
         retryActivity:
           retryTurnId && retryStatus ? { turnId: retryTurnId, status: retryStatus } : null,
-        hasModel: model !== null && !historical,
+        hasModel: configuration !== null && !historical,
       }),
-    [historical, messagesQuery.data.pages, model, retryStatus, retryTurnId],
+    [configuration, historical, messagesQuery.data.pages, retryStatus, retryTurnId],
   );
   const operationPending = turnOperationPending || (!historical && threadView.replyPending);
 
   const retryReply = useCallback(
     async (turnId: string) => {
-      if (historical || operationPending || !model || modelPending || acceptingRetry.current) {
+      if (
+        historical ||
+        operationPending ||
+        !configuration ||
+        configurationPending ||
+        acceptingRetry.current
+      ) {
         return;
       }
 
@@ -266,7 +289,7 @@ export function ThreadView({
       try {
         await retryTurn({
           turnId,
-          model: { providerId: model.providerId, modelId: model.modelId },
+          configuration: toGenerationConfiguration(configuration),
         });
       } catch (cause) {
         reportError("thread.turn.retry", cause);
@@ -274,7 +297,7 @@ export function ThreadView({
         acceptingRetry.current = false;
       }
     },
-    [historical, model, modelPending, operationPending, resetRetry, retryTurn],
+    [configuration, configurationPending, historical, operationPending, resetRetry, retryTurn],
   );
 
   const loadOlder = useCallback(async () => {
@@ -292,7 +315,7 @@ export function ThreadView({
       reportError("thread.messages.return-to-latest", cause);
     }
   }, [returnToLatestMessages]);
-  const retryPending = operationPending || modelPending || returnToLatestMutation.isPending;
+  const retryPending = operationPending || configurationPending || returnToLatestMutation.isPending;
   const historyNavigationPending = operationPending || returnToLatestMutation.isPending;
 
   useLayoutEffect(() => {
@@ -338,8 +361,8 @@ export function ThreadView({
             <ThreadComposer
               key={`composer:${threadId}`}
               threadId={threadId}
-              model={model}
-              modelPending={modelPending}
+              configuration={configuration}
+              configurationPending={configurationPending}
               operationPending={operationPending}
               messageMaxCodeUnits={threadView.messageMaxCodeUnits}
               composerControls={composerControls}

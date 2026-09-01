@@ -7,6 +7,7 @@ import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
+import type { ModelReasoningCapability } from "#backend/model/reasoning";
 import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
@@ -46,10 +47,28 @@ function createDatabasePath() {
 
 type TestGenerationProvider = {
   id: string;
+  reasoning?: ModelReasoningCapability;
   generate: (
     request: ProviderGenerationRequest & { signal?: AbortSignal },
   ) => Promise<ProviderGenerationResult>;
 };
+
+function modelResolver(provider?: TestGenerationProvider) {
+  return {
+    async getModel(reference: { providerId: string; modelId: string }) {
+      if (!provider || reference.providerId !== provider.id) {
+        throw new RangeError(`Unknown test model provider "${reference.providerId}".`);
+      }
+
+      return {
+        id: reference.modelId,
+        name: "Test model",
+        brandId: "test",
+        ...(provider.reasoning ? { reasoning: provider.reasoning } : {}),
+      };
+    },
+  };
+}
 
 function generationRouter(provider?: TestGenerationProvider): ProviderGenerationRouter {
   return {
@@ -75,6 +94,7 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   const generations = createGenerations(
     database,
     createReplyPreparer(threads, campaigns, instructions),
+    modelResolver(provider),
     generationRouter(provider),
     now,
   );
@@ -110,7 +130,14 @@ describe("generations", () => {
       finishReason: "stop",
       usage: { inputTokens: 12, outputTokens: 5, totalTokens: 17 },
     }));
-    const provider = { id: "provider-a", generate };
+    const provider = {
+      id: "provider-a",
+      generate,
+      reasoning: {
+        defaultPreset: "medium",
+        supportedPresets: ["high", "medium", "low", "off"],
+      },
+    } satisfies TestGenerationProvider;
     const { database, generations, threads } = openGenerationEnvironment(
       provider,
       () => timestamp++,
@@ -120,7 +147,10 @@ describe("generations", () => {
 
     const result = await generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/requested-model" },
+      configuration: {
+        model: { providerId: provider.id, modelId: "maker/requested-model" },
+        reasoningPresetOverride: "high",
+      },
     });
 
     expect(generate).toHaveBeenCalledWith({
@@ -131,6 +161,7 @@ describe("generations", () => {
         instructions: [],
         dialogue: [{ messageId: started.message.id, role: "user", content: "Hello" }],
       },
+      reasoning: { preset: "high", source: "override" },
     });
     expect(result).toEqual({
       activated: true,
@@ -149,6 +180,7 @@ describe("generations", () => {
         turnId: started.turn.id,
         providerId: provider.id,
         modelId: "maker/requested-model",
+        reasoning: { preset: "high", source: "override" },
         status: "completed",
         failureKind: null,
         providerGenerationId: "provider-generation-1",
@@ -163,11 +195,74 @@ describe("generations", () => {
       },
     });
     expect(result.generation.outputMessageId).toBe(result.message.id);
-    expect(database.select().from(generationTable).get()).toEqual(result.generation);
+    expect(database.select().from(generationTable).get()).toEqual(
+      expect.objectContaining({
+        id: result.generation.id,
+        reasoningPreset: "high",
+        reasoningPresetSource: "override",
+        status: "completed",
+      }),
+    );
     expect(threads.listMessages({ threadId: thread.id })).toEqual({
       messages: [started.message, result.message],
       ...threadPageMetadata([started.message, result.message]),
     });
+  });
+
+  it("resolves and snapshots the selected model's reasoning default", async () => {
+    const provider = {
+      id: "provider-a",
+      generate: vi.fn(async () => ({ text: "Reasoned reply" })),
+      reasoning: {
+        defaultPreset: "medium",
+        supportedPresets: ["high", "medium", "low", "off"],
+      },
+    } satisfies TestGenerationProvider;
+    const { generations, threads } = openGenerationEnvironment(provider);
+    const thread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
+
+    const result = await generations.generateReply({
+      turnId: started.turn.id,
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
+    });
+
+    expect(provider.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reasoning: { preset: "medium", source: "model-default" },
+      }),
+    );
+    expect(result.generation).toEqual(
+      expect.objectContaining({
+        reasoning: { preset: "medium", source: "model-default" },
+      }),
+    );
+  });
+
+  it("rejects an unsupported reasoning override before accepting generation work", async () => {
+    const provider = {
+      id: "provider-a",
+      generate: vi.fn(async () => ({ text: "Unused" })),
+      reasoning: {
+        defaultPreset: "low",
+        supportedPresets: ["low", "off"],
+      },
+    } satisfies TestGenerationProvider;
+    const { database, generations, threads } = openGenerationEnvironment(provider);
+    const thread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
+
+    await expect(
+      generations.generateReply({
+        turnId: started.turn.id,
+        configuration: {
+          model: { providerId: provider.id, modelId: "maker/model" },
+          reasoningPresetOverride: "high",
+        },
+      }),
+    ).rejects.toThrow('does not support reasoning preset "high"');
+    expect(provider.generate).not.toHaveBeenCalled();
+    expect(database.select().from(generationTable).all()).toEqual([]);
   });
 
   it("includes the factory default roleplay instruction for campaign replies", async () => {
@@ -179,7 +274,7 @@ describe("generations", () => {
 
     await generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
     const defaultRoleplay = factoryRoleplay.listGroups()[0]!.instructions[0]!;
@@ -211,13 +306,13 @@ describe("generations", () => {
     const first = threads.startTurn(thread.id, "First user message");
     const firstReply = await generations.generateReply({
       turnId: first.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     const second = threads.startTurn(thread.id, "Second user message");
 
     await generations.generateReply({
       turnId: second.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
     expect(provider.generate).toHaveBeenLastCalledWith(
@@ -249,11 +344,11 @@ describe("generations", () => {
     const started = threads.startTurn(thread.id, "Hello");
     const first = await generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     const regenerated = await generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
     expect(regenerated.activated).toBe(true);
@@ -284,7 +379,7 @@ describe("generations", () => {
     const first = threads.startTurn(thread.id, "First user message");
     const pending = generations.generateReply({
       turnId: first.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledOnce());
     const second = threads.startTurn(thread.id, "Newer user message");
@@ -329,6 +424,7 @@ describe("generations", () => {
           return preparedInput.promise;
         },
       },
+      modelResolver(provider),
       generationRouter(provider),
     );
     const thread = threads.create();
@@ -336,9 +432,10 @@ describe("generations", () => {
     const model = { providerId: provider.id, modelId: "maker/model" };
     const pending = generations.generateReply({
       turnId: first.turn.id,
-      model,
+      configuration: { model },
     });
     model.modelId = "mutated/model";
+    await vi.waitFor(() => expect(anchors).toHaveLength(1));
     const second = threads.startTurn(thread.id, "Newer user message");
 
     expect(anchors).toEqual([
@@ -380,7 +477,7 @@ describe("generations", () => {
     const started = threads.startTurn(thread.id, "Hello");
     const request = {
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     };
     const firstGeneration = generations.generateReply(request);
 
@@ -417,11 +514,11 @@ describe("generations", () => {
     const second = threads.startTurn(thread.id, "Second");
     const firstGeneration = generations.generateReply({
       turnId: first.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     const secondGeneration = generations.generateReply({
       turnId: second.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledTimes(2));
 
@@ -454,13 +551,13 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: started.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toBe(failure);
     await expect(
       generations.generateReply({
         turnId: started.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow(TypeError);
 
@@ -486,7 +583,7 @@ describe("generations", () => {
     const interruption = new Error("Generation interrupted by test.");
     const pending = generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       signal: controller.signal,
     });
     await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledOnce());
@@ -521,7 +618,7 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: started.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow();
 
@@ -554,7 +651,7 @@ describe("generations", () => {
     const first = threads.startTurn(firstThread.id, "First thread");
     await generations.generateReply({
       turnId: first.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
     const secondThread = threads.create();
@@ -563,7 +660,7 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: second.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow();
 
@@ -588,7 +685,7 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: second.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).resolves.toEqual(
       expect.objectContaining({
@@ -655,6 +752,22 @@ describe("generations", () => {
     expect(() =>
       database
         .insert(generationTable)
+        .values({ id: ids.generation.create(), ...pending, reasoningPreset: "high" })
+        .run(),
+    ).toThrow();
+    expect(() =>
+      database
+        .insert(generationTable)
+        .values({
+          id: ids.generation.create(),
+          ...pending,
+          reasoningPresetSource: "override",
+        })
+        .run(),
+    ).toThrow();
+    expect(() =>
+      database
+        .insert(generationTable)
         .values({
           id: ids.generation.create(),
           turnId: second.turn.id,
@@ -692,7 +805,7 @@ describe("generations", () => {
     const started = threads.startTurn(thread.id, "Hello");
     await generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
     expect(() =>
@@ -714,11 +827,13 @@ describe("generations", () => {
       createInstructionRegistry([factoryRoleplay]),
     );
 
-    const generations = createGenerations(database, preparer, generationRouter());
+    const generations = createGenerations(database, preparer, modelResolver(), generationRouter());
     await expect(
       generations.generateReply({
         turnId: started.turn.id,
-        model: { providerId: "missing-provider", modelId: "maker/model" },
+        configuration: {
+          model: { providerId: "missing-provider", modelId: "maker/model" },
+        },
       }),
     ).rejects.toThrow('Unknown generation provider "missing-provider".');
     expect(provider.generate).not.toHaveBeenCalled();
@@ -731,12 +846,17 @@ describe("generations", () => {
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
     const prepare = vi.fn(() => new Promise<never>(() => {}));
-    const generations = createGenerations(database, { prepare }, generationRouter(provider));
+    const generations = createGenerations(
+      database,
+      { prepare },
+      modelResolver(provider),
+      generationRouter(provider),
+    );
     const controller = new AbortController();
     const interruption = new Error("Reply preparation interrupted by test.");
     const pending = generations.generateReply({
       turnId: started.turn.id,
-      model: { providerId: provider.id, modelId: "maker/model" },
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       signal: controller.signal,
     });
     await vi.waitFor(() =>
@@ -771,7 +891,7 @@ describe("generations", () => {
     await expect(
       generations.generateReply({
         turnId: missingTurnId,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow(`Turn "${missingTurnId}" does not exist.`);
 
@@ -785,13 +905,14 @@ describe("generations", () => {
           dialogue: [{ messageId: ids.message.create(), role: "user", content: "Hello" }],
         }),
       },
+      modelResolver(provider),
       generationRouter(provider),
     );
 
     await expect(
       malformed.generateReply({
         turnId: started.turn.id,
-        model: { providerId: provider.id, modelId: "maker/model" },
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow("A prepared reply must end with its accepted user input.");
     expect(provider.generate).not.toHaveBeenCalled();

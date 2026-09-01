@@ -1,0 +1,167 @@
+import { describe, expect, it } from "vite-plus/test";
+import { normalizeOpenRouterReasoning } from "./reasoning";
+
+describe("OpenRouter reasoning", () => {
+  it.each([
+    [
+      "GLM graded mandatory reasoning",
+      {
+        mandatory: true,
+        defaultEnabled: true,
+        defaultEffort: "max",
+        supportedEfforts: ["max", "high", "low"],
+      },
+      { defaultPreset: "max", supportedPresets: ["max", "high", "low"] },
+    ],
+    [
+      "binary reasoning off by default",
+      { mandatory: false, defaultEnabled: false },
+      { defaultPreset: "off", supportedPresets: ["on", "off"] },
+    ],
+    [
+      "binary reasoning on by default",
+      { mandatory: false, defaultEnabled: true },
+      { defaultPreset: "on", supportedPresets: ["on", "off"] },
+    ],
+    [
+      "binary reasoning with a provider-managed default",
+      { mandatory: false },
+      {
+        defaultPreset: "automatic",
+        supportedPresets: ["automatic", "on", "off"],
+      },
+    ],
+    [
+      "budget-backed reasoning on by default",
+      { mandatory: false, defaultEnabled: true, supportsMaxTokens: true },
+      {
+        defaultPreset: "medium",
+        supportedPresets: ["max", "high", "medium", "low", "minimal", "off"],
+      },
+    ],
+    [
+      "budget-backed reasoning off by default",
+      { mandatory: false, defaultEnabled: false, supportsMaxTokens: true },
+      {
+        defaultPreset: "off",
+        supportedPresets: ["max", "high", "medium", "low", "minimal", "off"],
+      },
+    ],
+    [
+      "mandatory budget-backed reasoning",
+      { mandatory: true, defaultEnabled: true, supportsMaxTokens: true },
+      {
+        defaultPreset: "medium",
+        supportedPresets: ["max", "high", "medium", "low", "minimal"],
+      },
+    ],
+    [
+      "provider-managed budget-backed default",
+      { mandatory: false, supportsMaxTokens: true },
+      {
+        defaultPreset: "automatic",
+        supportedPresets: ["automatic", "max", "high", "medium", "low", "minimal", "off"],
+      },
+    ],
+    [
+      "budget-backed extra-high default",
+      {
+        mandatory: false,
+        defaultEnabled: true,
+        defaultEffort: "xhigh",
+        supportsMaxTokens: true,
+      },
+      {
+        defaultPreset: "max",
+        supportedPresets: ["max", "high", "medium", "low", "minimal", "off"],
+      },
+    ],
+    [
+      "native effort levels with additional budget support",
+      {
+        mandatory: false,
+        defaultEnabled: true,
+        defaultEffort: "high",
+        supportedEfforts: ["high", "low"],
+        supportsMaxTokens: true,
+      },
+      {
+        defaultPreset: "high",
+        supportedPresets: ["high", "low", "off"],
+      },
+    ],
+    [
+      "graded reasoning off by default",
+      {
+        mandatory: false,
+        defaultEnabled: false,
+        defaultEffort: "high",
+        supportedEfforts: ["high", "medium", "low"],
+      },
+      { defaultPreset: "off", supportedPresets: ["high", "medium", "low", "off"] },
+    ],
+    [
+      "provider-managed optional default",
+      {
+        mandatory: false,
+        defaultEffort: "medium",
+        supportedEfforts: ["high", "medium", "low"],
+      },
+      {
+        defaultPreset: "automatic",
+        supportedPresets: ["automatic", "high", "medium", "low", "off"],
+      },
+    ],
+    [
+      'provider-managed enabled default reported with effort "none"',
+      {
+        mandatory: false,
+        defaultEnabled: true,
+        defaultEffort: "none",
+        supportedEfforts: ["high", "medium", "low", "none"],
+      },
+      {
+        defaultPreset: "automatic",
+        supportedPresets: ["automatic", "high", "medium", "low", "off"],
+      },
+    ],
+    [
+      'mandatory provider-managed default reported with effort "none"',
+      {
+        mandatory: true,
+        defaultEffort: "none",
+        supportedEfforts: ["high", "medium", "low"],
+      },
+      {
+        defaultPreset: "automatic",
+        supportedPresets: ["automatic", "high", "medium", "low"],
+      },
+    ],
+    [
+      "fixed mandatory reasoning",
+      { mandatory: true },
+      { defaultPreset: "on", supportedPresets: ["on"] },
+    ],
+  ] as const)("normalizes %s", (_description, metadata, expected) => {
+    expect(normalizeOpenRouterReasoning("maker/model", metadata)).toEqual(expected);
+  });
+
+  it("does not invent a capability when OpenRouter omits reasoning metadata", () => {
+    expect(normalizeOpenRouterReasoning("maker/model", undefined)).toBeUndefined();
+  });
+
+  it.each([
+    [
+      { mandatory: true, defaultEnabled: false },
+      "cannot require reasoning while disabling it by default",
+    ],
+    [
+      { mandatory: false, defaultEffort: "high", supportedEfforts: ["medium", "low"] },
+      "default effort that is not supported",
+    ],
+    [{ mandatory: false, supportedEfforts: "high" }, "invalid supported efforts"],
+    [{ mandatory: false, supportsMaxTokens: "yes" }, "invalid reasoning token-budget support"],
+  ] as const)("rejects inconsistent metadata", (metadata, message) => {
+    expect(() => normalizeOpenRouterReasoning("maker/model", metadata)).toThrow(message);
+  });
+});

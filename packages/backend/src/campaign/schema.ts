@@ -9,6 +9,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import type { CampaignId, ScenarioId, ThreadId } from "#backend/id";
+import { reasoningPresets } from "#backend/model/reasoning";
 import { scenarioTable } from "#backend/scenario/schema";
 import { threadTable } from "#backend/thread/schema";
 
@@ -37,8 +38,8 @@ export const campaignTable = sqliteTable(
   ],
 );
 
-export const campaignModelOverrideTable = sqliteTable(
-  "campaign_model_overrides",
+export const campaignGenerationConfigurationOverrideTable = sqliteTable(
+  "campaign_generation_configuration_overrides",
   {
     campaignId: text("campaign_id")
       .$type<CampaignId>()
@@ -48,15 +49,17 @@ export const campaignModelOverrideTable = sqliteTable(
     modelId: text("model_id").notNull(),
     name: text().notNull(),
     brandId: text("brand_id").notNull(),
+    reasoningPresetOverride: text("reasoning_preset_override", { enum: reasoningPresets }),
   },
-  (modelOverride) => [
-    primaryKey({ columns: [modelOverride.campaignId] }),
+  (configurationOverride) => [
+    primaryKey({ columns: [configurationOverride.campaignId] }),
     check(
-      "campaign_model_overrides_values_valid",
-      sql`length(trim(${modelOverride.providerId})) > 0
-        AND length(trim(${modelOverride.modelId})) > 0
-        AND length(trim(${modelOverride.name})) > 0
-        AND length(trim(${modelOverride.brandId})) > 0`,
+      "campaign_generation_configuration_overrides_values_valid",
+      sql`length(trim(${configurationOverride.providerId})) > 0
+        AND length(trim(${configurationOverride.modelId})) > 0
+        AND length(trim(${configurationOverride.name})) > 0
+        AND length(trim(${configurationOverride.brandId})) > 0
+        AND (${configurationOverride.reasoningPresetOverride} IS NULL OR ${configurationOverride.reasoningPresetOverride} IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'))`,
     ),
   ],
 );

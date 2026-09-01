@@ -69,6 +69,7 @@ structure TurnGeneration {
   turnId: string
   providerId: string
   modelId: string
+  reasoning?: ResolvedReasoning
   status: GenerationStatus
   failureKind?: GenerationFailureKind
   outputMessageId?: string
@@ -94,12 +95,12 @@ structure ThreadMessagePage {
 structure SubmitTurnRequest {
   threadId: string
   content: ThreadMessageContent
-  model: ModelReference
+  configuration: GenerationConfiguration
 }
 
 structure RetryTurnRequest {
   turnId: string
-  model: ModelReference
+  configuration: GenerationConfiguration
 }
 
 structure TurnSubmission {

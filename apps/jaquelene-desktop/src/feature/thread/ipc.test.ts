@@ -1,6 +1,7 @@
 import type { Generation, TurnAcceptance, TurnSettlement, Turns } from "@jaquelene/backend";
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
+import { ReasoningPreset, ReasoningPresetSource } from "@jaquelene/ipc/main";
 import type {
   CompletedReply as IpcCompletedReply,
   FailedReply as IpcFailedReply,
@@ -35,6 +36,18 @@ vi.mock("@jaquelene/ipc/main", () => ({
     Completed: "completed",
     Failed: "failed",
   },
+  ReasoningPreset: {
+    Automatic: "automatic",
+    On: "on",
+    Off: "off",
+    Minimal: "minimal",
+    Low: "low",
+    Medium: "medium",
+    High: "high",
+    XHigh: "xhigh",
+    Max: "max",
+  },
+  ReasoningPresetSource: { ModelDefault: "model-default", Override: "override" },
   ThreadMessageAuthor: { User: "user", Assistant: "assistant" },
   Threads: {
     for: () => ({
@@ -91,6 +104,7 @@ function createTurnState() {
     turnId,
     providerId: "openrouter",
     modelId: "maker/model",
+    reasoning: { preset: "high", source: "override" },
     status: "pending",
     failureKind: null,
     providerGenerationId: null,
@@ -188,22 +202,25 @@ describe("thread IPC", () => {
       generations: [acceptance.generation],
       contentBytes: 5,
     }));
-    const submit = vi.fn<Turns["submit"]>(() => ({ acceptance, settlement }));
+    const submit = vi.fn<Turns["submit"]>(async () => ({ acceptance, settlement }));
     const backendTurns: Turns = {
       listForThread,
       submit,
-      retry: vi.fn(() => ({ acceptance, settlement })),
+      retry: vi.fn(async () => ({ acceptance, settlement })),
     };
     const report = vi.fn<ErrorReporter["report"]>();
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
     const ipc = requireImplementations();
     const page = await ipc.threads.listMessages({ threadId: acceptance.userMessage.threadId });
-    const model = { providerId: "openrouter", modelId: "maker/model" };
+    const configuration = {
+      model: { providerId: "openrouter", modelId: "maker/model" },
+      reasoningPresetOverride: ReasoningPreset.High,
+    };
     const submitted = await ipc.turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model,
+      configuration,
     });
 
     expect(listForThread).toHaveBeenCalledWith({
@@ -227,6 +244,10 @@ describe("thread IPC", () => {
           turnId: acceptance.userMessage.turnId,
           providerId: "openrouter",
           modelId: "maker/model",
+          reasoning: {
+            preset: ReasoningPreset.High,
+            source: ReasoningPresetSource.Override,
+          },
           status: "pending",
           startedAt: 101,
         },
@@ -239,7 +260,10 @@ describe("thread IPC", () => {
     expect(submit).toHaveBeenCalledWith({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model,
+      configuration: {
+        model: configuration.model,
+        reasoningPresetOverride: "high",
+      },
     });
     expect(submitted).toEqual({
       userMessage: page.messages[0],
@@ -270,7 +294,7 @@ describe("thread IPC", () => {
     };
     const backendTurns: Turns = {
       listForThread: vi.fn(emptyPage),
-      submit: vi.fn(() => ({ acceptance, settlement: Promise.resolve(inactiveCompletion) })),
+      submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(inactiveCompletion) })),
       retry: vi.fn(),
     };
     const report = vi.fn<ErrorReporter["report"]>();
@@ -279,7 +303,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     await vi.waitFor(() => expect(implementations.dispatchReplySuperseded).toHaveBeenCalledOnce());
@@ -303,7 +327,7 @@ describe("thread IPC", () => {
     };
     const backendTurns: Turns = {
       listForThread: vi.fn(emptyPage),
-      submit: vi.fn(() => ({ acceptance, settlement: Promise.resolve(failed) })),
+      submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(failed) })),
       retry: vi.fn(),
     };
     const report = vi.fn<ErrorReporter["report"]>();
@@ -312,7 +336,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: failed.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
@@ -331,7 +355,7 @@ describe("thread IPC", () => {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
     };
-    const retry = vi.fn<Turns["retry"]>(() => ({
+    const retry = vi.fn<Turns["retry"]>(async () => ({
       acceptance,
       settlement: Promise.resolve(failed),
     }));
@@ -341,17 +365,19 @@ describe("thread IPC", () => {
       retry,
     };
     const report = vi.fn<ErrorReporter["report"]>();
-    const model = { providerId: "openrouter", modelId: "maker/model" };
+    const configuration = {
+      model: { providerId: "openrouter", modelId: "maker/model" },
+    };
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
     const accepted = await requireImplementations().turns.retry({
       turnId: failed.userMessage.turnId,
-      model,
+      configuration,
     });
 
     expect(retry).toHaveBeenCalledWith({
       turnId: failed.userMessage.turnId,
-      model,
+      configuration,
     });
     expect(accepted.status).toBe("pending");
     await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
@@ -365,7 +391,7 @@ describe("thread IPC", () => {
     const cause = new Error("Settlement ownership failed");
     const backendTurns: Turns = {
       listForThread: vi.fn(emptyPage),
-      submit: vi.fn(() => ({ acceptance, settlement: Promise.reject(cause) })),
+      submit: vi.fn(async () => ({ acceptance, settlement: Promise.reject(cause) })),
       retry: vi.fn(),
     };
     const report = vi.fn<ErrorReporter["report"]>();
@@ -374,7 +400,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
@@ -401,7 +427,7 @@ describe("thread IPC", () => {
     };
     const backendTurns: Turns = {
       listForThread: vi.fn(emptyPage),
-      submit: vi.fn(() => ({ acceptance, settlement: Promise.resolve(interrupted) })),
+      submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(interrupted) })),
       retry: vi.fn(),
     };
     const report = vi.fn<ErrorReporter["report"]>();
@@ -410,7 +436,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: interrupted.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     await vi.waitFor(() => expect(implementations.dispatchReplyFailed).toHaveBeenCalledOnce());
@@ -421,7 +447,7 @@ describe("thread IPC", () => {
     const { acceptance, completed } = createTurnState();
     const backendTurns: Turns = {
       listForThread: vi.fn(emptyPage),
-      submit: vi.fn(() => ({ acceptance, settlement: Promise.resolve(completed) })),
+      submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(completed) })),
       retry: vi.fn(),
     };
     const target = {
@@ -434,7 +460,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     expect(implementations.dispatchReplyFailed).not.toHaveBeenCalled();
@@ -451,7 +477,7 @@ describe("thread IPC", () => {
     });
     const backendTurns: Turns = {
       listForThread: vi.fn(emptyPage),
-      submit: vi.fn(() => ({ acceptance, settlement })),
+      submit: vi.fn(async () => ({ acceptance, settlement })),
       retry: vi.fn(),
     };
     const report = vi.fn<ErrorReporter["report"]>();
@@ -461,7 +487,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
     stopSubmittingRenderer();
     messaging.expose(activeTarget());
@@ -475,7 +501,7 @@ describe("thread IPC", () => {
     const { acceptance, completed } = createTurnState();
     const backendTurns: Turns = {
       listForThread: vi.fn(emptyPage),
-      submit: vi.fn(() => ({ acceptance, settlement: Promise.resolve(completed) })),
+      submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(completed) })),
       retry: vi.fn(),
     };
     const cause = new Error("IPC send failed");
@@ -488,7 +514,7 @@ describe("thread IPC", () => {
     await requireImplementations().turns.submit({
       threadId: acceptance.userMessage.threadId,
       content: "Hello",
-      model: { providerId: "openrouter", modelId: "maker/model" },
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
 
     await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
@@ -499,20 +525,22 @@ describe("thread IPC", () => {
     });
   });
 
-  it("rejects malformed TypeIDs at the adapter boundary", () => {
+  it("rejects malformed TypeIDs at the adapter boundary", async () => {
     const listForThread = vi.fn(emptyPage);
     const submit = vi.fn();
     const retry = vi.fn();
     const backendTurns: Turns = { listForThread, submit, retry };
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     const ipc = requireImplementations();
-    const model = { providerId: "openrouter", modelId: "maker/model" };
+    const configuration = {
+      model: { providerId: "openrouter", modelId: "maker/model" },
+    };
 
     expect(() => ipc.threads.listMessages({ threadId: "invalid" })).toThrow(TypeError);
-    expect(() => ipc.turns.submit({ threadId: "invalid", content: "Hello", model })).toThrow(
-      TypeError,
-    );
-    expect(() => ipc.turns.retry({ turnId: "invalid", model })).toThrow(TypeError);
+    await expect(
+      ipc.turns.submit({ threadId: "invalid", content: "Hello", configuration }),
+    ).rejects.toThrow(TypeError);
+    await expect(ipc.turns.retry({ turnId: "invalid", configuration })).rejects.toThrow(TypeError);
     expect(listForThread).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
     expect(retry).not.toHaveBeenCalled();

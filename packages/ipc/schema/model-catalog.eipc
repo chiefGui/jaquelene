@@ -15,8 +15,31 @@ structure ModelTokenPricing {
   outputUsdPerMillion: number
 }
 
+enum ReasoningPreset {
+  Automatic = "automatic"
+  On = "on"
+  Max = "max"
+  XHigh = "xhigh"
+  High = "high"
+  Medium = "medium"
+  Low = "low"
+  Minimal = "minimal"
+  Off = "off"
+}
+
+enum ReasoningPresetSource {
+  ModelDefault = "model-default"
+  Override = "override"
+}
+
+structure ResolvedReasoning {
+  preset: ReasoningPreset
+  source: ReasoningPresetSource
+}
+
 structure ModelReasoningCapability {
-  required: boolean
+  defaultPreset: ReasoningPreset
+  supportedPresets: ReasoningPreset[]
 }
 
 structure AvailableModel {
@@ -32,6 +55,16 @@ structure ModelSelection {
   modelId: string
   name: string
   brandId: string
+}
+
+structure GenerationConfiguration {
+  model: ModelReference
+  reasoningPresetOverride?: ReasoningPreset
+}
+
+structure GenerationConfigurationSelection {
+  model: ModelSelection
+  reasoningPresetOverride?: ReasoningPreset
 }
 
 subtype ModelCatalogRevision = number(

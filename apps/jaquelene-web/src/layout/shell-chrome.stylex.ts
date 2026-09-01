@@ -1,4 +1,4 @@
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 
 const headerHeight = "2.75rem";

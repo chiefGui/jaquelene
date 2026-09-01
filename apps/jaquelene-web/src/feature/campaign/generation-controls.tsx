@@ -11,7 +11,7 @@ import type {
   ReasoningPreset,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -156,7 +156,7 @@ const styles = stylex.create({
     width: "fit-content",
   },
   error: {
-    color: tokens.danger,
+    color: colors.danger,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
   },

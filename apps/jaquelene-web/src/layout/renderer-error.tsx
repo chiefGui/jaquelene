@@ -1,6 +1,6 @@
 import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { Button } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { Component, type ReactNode } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
@@ -53,8 +53,8 @@ function RendererError() {
 const styles = stylex.create({
   root: {
     alignItems: "center",
-    backgroundColor: tokens.canvas,
-    color: tokens.foreground,
+    backgroundColor: colors.canvas,
+    color: colors.foreground,
     display: "flex",
     fontFamily: tokens.fontSystem,
     fontSize: tokens.fontSizeSmall,
@@ -76,7 +76,7 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightLarge,
   },
   description: {
-    color: tokens.muted,
+    color: colors.muted,
     marginTop: "0.5rem",
   },
   action: {

@@ -1,9 +1,12 @@
 import { UiTheme } from "@jaquelene/ipc/renderer";
-import { draculaTheme } from "@jaquelene/ui/theme/dracula.stylex";
-import { jaqueleneTheme } from "@jaquelene/ui/theme/jaquelene.stylex";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { draculaPalette } from "@jaquelene/ui/theme/dracula.stylex";
+import { jaquelenePalette } from "@jaquelene/ui/theme/jaquelene.stylex";
+import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useLayoutEffect } from "react";
+
+const jaqueleneTheme = stylex.createTheme(colors, jaquelenePalette);
+const draculaTheme = stylex.createTheme(colors, draculaPalette);
 
 type UiThemeDefinition = {
   label: string;
@@ -26,13 +29,13 @@ export const uiThemes = {
 
 const styles = stylex.create({
   document: {
-    accentColor: tokens.accent,
-    backgroundColor: tokens.canvas,
+    accentColor: colors.accent,
+    backgroundColor: colors.canvas,
     colorScheme: "dark",
-    scrollbarColor: `color-mix(in oklch, ${tokens.muted} 65%, transparent) transparent`,
+    scrollbarColor: `color-mix(in oklch, ${colors.muted} 65%, transparent) transparent`,
     "::selection": {
-      backgroundColor: `color-mix(in oklch, ${tokens.accent} 35%, transparent)`,
-      color: tokens.foreground,
+      backgroundColor: `color-mix(in oklch, ${colors.accent} 35%, transparent)`,
+      color: colors.foreground,
     },
   },
 });

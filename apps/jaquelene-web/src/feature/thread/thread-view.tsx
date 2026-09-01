@@ -3,7 +3,7 @@ import type {
   GenerationConfigurationSelection,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useQueryClient, useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import {
@@ -492,8 +492,8 @@ const styles = stylex.create({
   },
   historyControls: {
     alignItems: "center",
-    backgroundColor: tokens.surfaceRaised,
-    borderColor: tokens.surfaceRaisedBorder,
+    backgroundColor: colors.surfaceRaised,
+    borderColor: colors.surfaceRaisedBorder,
     borderRadius: tokens.radiusLarge,
     borderStyle: "solid",
     borderWidth: 1,
@@ -504,7 +504,7 @@ const styles = stylex.create({
     padding: "0.75rem",
   },
   historyDescription: {
-    color: tokens.muted,
+    color: colors.muted,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
   },
@@ -524,7 +524,7 @@ const styles = stylex.create({
     minWidth: "7.75rem",
   },
   historyError: {
-    color: tokens.danger,
+    color: colors.danger,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.375rem",

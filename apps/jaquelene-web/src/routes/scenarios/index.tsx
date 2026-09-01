@@ -1,7 +1,7 @@
 import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
 import Book01Icon from "@hugeicons/core-free-icons/Book01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
@@ -9,7 +9,7 @@ import { scenariosQuery } from "@/feature/scenario/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
-const cardHoverBackground = `color-mix(in oklab, ${tokens.accent} 8%, transparent)`;
+const cardHoverBackground = `color-mix(in oklab, ${colors.accent} 8%, transparent)`;
 
 export const Route = createFileRoute("/scenarios/")({
   component: ScenariosIndexRoute,
@@ -98,11 +98,11 @@ const styles = stylex.create({
       default: "transparent",
       ":hover": cardHoverBackground,
     },
-    borderColor: tokens.border,
+    borderColor: colors.border,
     borderRadius: tokens.radiusLarge,
     borderStyle: "solid",
     borderWidth: 1,
-    color: tokens.foreground,
+    color: colors.foreground,
     display: "flex",
     flexDirection: "column",
     gap: "1.5rem",
@@ -111,7 +111,7 @@ const styles = stylex.create({
     minWidth: 0,
     outlineColor: {
       default: null,
-      ":focus-visible": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
+      ":focus-visible": `color-mix(in oklab, ${colors.accent} 60%, transparent)`,
     },
     outlineOffset: {
       default: null,
@@ -134,7 +134,7 @@ const styles = stylex.create({
     borderStyle: "dashed",
   },
   icon: {
-    color: tokens.muted,
+    color: colors.muted,
     flexShrink: 0,
   },
   cardLabel: {

@@ -2,7 +2,7 @@ import { Role, type RoleProps } from "@ariakit/react/role";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { createContext, useContext } from "react";
-import { tokens } from "../theme.stylex";
+import { colors, tokens } from "../tokens.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -87,7 +87,7 @@ const styles = stylex.create({
     gap: "0.5rem",
   },
   heading: {
-    color: tokens.foreground,
+    color: colors.foreground,
     fontSize: tokens.fontSizeSmall,
     fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
@@ -95,7 +95,7 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   sectionDescription: {
-    color: tokens.muted,
+    color: colors.muted,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     margin: 0,
@@ -103,8 +103,8 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   group: {
-    backgroundColor: `color-mix(in oklab, ${tokens.foreground} 2%, transparent)`,
-    borderColor: tokens.border,
+    backgroundColor: `color-mix(in oklab, ${colors.foreground} 2%, transparent)`,
+    borderColor: colors.border,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
@@ -119,7 +119,7 @@ const styles = stylex.create({
     padding: "1rem",
   },
   groupItem: {
-    borderColor: tokens.border,
+    borderColor: colors.border,
     borderStyle: "solid",
     borderTopWidth: {
       default: 0,
@@ -130,20 +130,20 @@ const styles = stylex.create({
     minWidth: 0,
   },
   label: {
-    color: tokens.foreground,
+    color: colors.foreground,
     fontSize: tokens.fontSizeSmall,
     fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
     textBox: "trim-both text",
   },
   description: {
-    color: tokens.muted,
+    color: colors.muted,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.25rem",
   },
   value: {
-    color: `color-mix(in oklab, ${tokens.foreground} 75%, transparent)`,
+    color: `color-mix(in oklab, ${colors.foreground} 75%, transparent)`,
     flexShrink: 0,
     fontSize: tokens.fontSizeSmall,
     fontVariantNumeric: "tabular-nums",

@@ -1,7 +1,7 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { tokens } from "../theme.stylex";
+import { colors, tokens } from "../tokens.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -39,12 +39,12 @@ const styles = stylex.create({
     minWidth: 0,
   },
   status: {
-    color: tokens.muted,
+    color: colors.muted,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     minHeight: tokens.lineHeightXSmall,
   },
   statusDanger: {
-    color: tokens.danger,
+    color: colors.danger,
   },
 });

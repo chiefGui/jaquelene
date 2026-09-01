@@ -1,5 +1,5 @@
 import { Button, Item } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -91,6 +91,6 @@ function GeneralRoute() {
 
 const styles = stylex.create({
   error: {
-    color: tokens.danger,
+    color: colors.danger,
   },
 });

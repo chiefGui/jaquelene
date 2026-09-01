@@ -2,7 +2,7 @@ import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { IconButton } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import {
   Link,
@@ -151,12 +151,12 @@ function PrimarySidebarItemContent({ icon, label }: { icon: IconSvgElement; labe
   );
 }
 
-const focusColor = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
-const hoverBackground = `color-mix(in oklab, ${tokens.accent} 10%, transparent)`;
+const focusColor = `color-mix(in oklab, ${colors.accent} 60%, transparent)`;
+const hoverBackground = `color-mix(in oklab, ${colors.accent} 10%, transparent)`;
 
 const styles = stylex.create({
   root: {
-    backgroundColor: tokens.canvas,
+    backgroundColor: colors.canvas,
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
@@ -188,13 +188,13 @@ const styles = stylex.create({
       default: "transparent",
       ":hover": hoverBackground,
       ':is([data-status="active"])': hoverBackground,
-      ':is([data-status="active"]):hover': `color-mix(in oklab, ${tokens.accent} 15%, transparent)`,
+      ':is([data-status="active"]):hover': `color-mix(in oklab, ${colors.accent} 15%, transparent)`,
     },
     borderRadius: tokens.radiusMedium,
     color: {
-      default: tokens.muted,
-      ":hover": tokens.foreground,
-      ':is([data-status="active"])': tokens.foreground,
+      default: colors.muted,
+      ":hover": colors.foreground,
+      ':is([data-status="active"])': colors.foreground,
     },
     display: "flex",
     fontSize: tokens.fontSizeSmall,

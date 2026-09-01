@@ -1,5 +1,5 @@
 import { Button } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -342,7 +342,7 @@ const styles = stylex.create({
     paddingBlock: "1.5rem 1rem",
   },
   pageError: {
-    color: tokens.danger,
+    color: colors.danger,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     textAlign: "center",
@@ -360,7 +360,7 @@ const styles = stylex.create({
     textAlign: "center",
   },
   emptyDescription: {
-    color: tokens.muted,
+    color: colors.muted,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.25rem",

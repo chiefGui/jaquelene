@@ -1,6 +1,6 @@
 import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { useReducedMotion } from "@jaquelene/ui/motion";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -559,16 +559,16 @@ const styles = stylex.create({
     transitionTimingFunction: "cubic-bezier(0.2, 0, 0, 1)",
   },
   paletteStart: {
-    color: tokens.composerGlowStart,
+    color: colors.composerGlowStart,
   },
   paletteFirstBlend: {
-    color: tokens.composerGlowFirstBlend,
+    color: colors.composerGlowFirstBlend,
   },
   paletteSecondBlend: {
-    color: tokens.composerGlowSecondBlend,
+    color: colors.composerGlowSecondBlend,
   },
   paletteEnd: {
-    color: tokens.composerGlowEnd,
+    color: colors.composerGlowEnd,
   },
 });
 

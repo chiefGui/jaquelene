@@ -1,10 +1,10 @@
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 
 export const paneSurface = stylex.create({
   root: {
-    backgroundColor: tokens.surface,
-    borderColor: tokens.border,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,

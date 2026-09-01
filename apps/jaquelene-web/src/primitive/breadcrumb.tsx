@@ -6,7 +6,7 @@ import {
   type ChipFrameProps,
   type ChipStartEdge,
 } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { Children, cloneElement, createContext, isValidElement, useContext } from "react";
@@ -129,8 +129,8 @@ const styles = stylex.create({
   },
   list: {
     alignItems: "center",
-    backgroundColor: `color-mix(in oklch, ${tokens.accent} 8%, transparent)`,
-    borderColor: tokens.surfaceRaisedBorder,
+    backgroundColor: `color-mix(in oklch, ${colors.accent} 8%, transparent)`,
+    borderColor: colors.surfaceRaisedBorder,
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",
     borderWidth: 1,
@@ -142,7 +142,7 @@ const styles = stylex.create({
   },
   item: {
     alignItems: "center",
-    color: tokens.muted,
+    color: colors.muted,
     display: "flex",
     height: "1.25rem",
     marginInlineStart: {
@@ -153,6 +153,6 @@ const styles = stylex.create({
     position: "relative",
   },
   page: {
-    color: tokens.foreground,
+    color: colors.foreground,
   },
 });

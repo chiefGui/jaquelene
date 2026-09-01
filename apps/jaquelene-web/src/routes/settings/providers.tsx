@@ -6,7 +6,7 @@ import {
 } from "@jaquelene/ipc/renderer";
 import { Button, IconFrame, Input, Item, Ping } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -238,7 +238,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   providerMarkContainer: {
-    backgroundColor: `color-mix(in oklab, ${tokens.foreground} 4%, transparent)`,
+    backgroundColor: `color-mix(in oklab, ${colors.foreground} 4%, transparent)`,
     height: "2rem",
   },
   providerMark: {
@@ -251,7 +251,7 @@ const styles = stylex.create({
     gap: "0.5rem",
   },
   connected: {
-    color: tokens.success,
+    color: colors.success,
   },
   mono: {
     fontFamily: tokens.fontMono,
@@ -285,7 +285,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   formError: {
-    color: tokens.danger,
+    color: colors.danger,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.5rem",

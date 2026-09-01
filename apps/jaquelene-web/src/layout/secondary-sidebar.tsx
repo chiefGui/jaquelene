@@ -11,7 +11,7 @@ import {
 import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { IconButton, type IconButtonProps } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps, ReactNode } from "react";

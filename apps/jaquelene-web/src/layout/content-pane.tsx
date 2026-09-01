@@ -1,4 +1,4 @@
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
@@ -48,7 +48,7 @@ const styles = stylex.create({
     flexDirection: "column",
   },
   header: {
-    borderBottomColor: `color-mix(in srgb, ${tokens.border} 55%, transparent)`,
+    borderBottomColor: `color-mix(in srgb, ${colors.border} 55%, transparent)`,
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
     paddingInlineStart: "0.75rem",

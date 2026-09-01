@@ -1,6 +1,6 @@
 import type { CampaignUsageSnapshot } from "@jaquelene/ipc/renderer";
 import { formatCount, formatUsd } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId } from "react";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
@@ -80,9 +80,9 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightSmall,
   },
   value: {
-    color: tokens.foreground,
+    color: colors.foreground,
   },
   label: {
-    color: tokens.muted,
+    color: colors.muted,
   },
 });

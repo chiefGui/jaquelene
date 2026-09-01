@@ -5,7 +5,7 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
-import { tokens } from "../theme.stylex";
+import { colors, tokens } from "../tokens.stylex";
 
 type ButtonVariant = "ghost" | "soft" | "solid";
 type ButtonTone = "danger" | "neutral";
@@ -64,7 +64,7 @@ const styles = stylex.create({
     },
     outlineColor: {
       default: null,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 60%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${colors.accent} 60%, transparent)`,
     },
     outlineOffset: {
       default: null,
@@ -82,64 +82,64 @@ const styles = stylex.create({
   },
   solid: {
     backgroundColor: {
-      default: `color-mix(in oklch, ${tokens.foreground} 90%, transparent)`,
-      ":not(:disabled):hover": tokens.foreground,
+      default: `color-mix(in oklch, ${colors.foreground} 90%, transparent)`,
+      ":not(:disabled):hover": colors.foreground,
     },
-    color: tokens.canvas,
+    color: colors.canvas,
   },
   ghost: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
+      ":not(:disabled):hover": `color-mix(in oklch, ${colors.accent} 10%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${colors.accent} 10%, transparent)`,
     },
     color: {
-      default: tokens.muted,
-      ":not(:disabled):hover": tokens.foreground,
-      ":is([data-focus-visible])": tokens.foreground,
+      default: colors.muted,
+      ":not(:disabled):hover": colors.foreground,
+      ":is([data-focus-visible])": colors.foreground,
     },
   },
   soft: {
     backgroundColor: {
-      default: `color-mix(in oklch, ${tokens.accent} 8%, transparent)`,
-      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.accent} 12%, transparent)`,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 12%, transparent)`,
+      default: `color-mix(in oklch, ${colors.accent} 8%, transparent)`,
+      ":not(:disabled):hover": `color-mix(in oklch, ${colors.accent} 12%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${colors.accent} 12%, transparent)`,
     },
     color: {
-      default: tokens.muted,
-      ":not(:disabled):hover": tokens.foreground,
-      ":is([data-focus-visible])": tokens.foreground,
+      default: colors.muted,
+      ":not(:disabled):hover": colors.foreground,
+      ":is([data-focus-visible])": colors.foreground,
     },
   },
   solidDanger: {
     backgroundColor: {
-      default: `color-mix(in oklch, ${tokens.danger} 82%, ${tokens.canvas})`,
-      ":not(:disabled):hover": tokens.danger,
+      default: `color-mix(in oklch, ${colors.danger} 82%, ${colors.canvas})`,
+      ":not(:disabled):hover": colors.danger,
     },
-    color: tokens.canvas,
+    color: colors.canvas,
   },
   ghostDanger: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
+      ":not(:disabled):hover": `color-mix(in oklch, ${colors.danger} 8%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${colors.danger} 8%, transparent)`,
     },
     color: {
-      default: `color-mix(in oklab, ${tokens.danger} 72%, ${tokens.muted})`,
-      ":not(:disabled):hover": tokens.danger,
-      ":is([data-focus-visible])": tokens.danger,
+      default: `color-mix(in oklab, ${colors.danger} 72%, ${colors.muted})`,
+      ":not(:disabled):hover": colors.danger,
+      ":is([data-focus-visible])": colors.danger,
     },
   },
   softDanger: {
     backgroundColor: {
-      default: `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
-      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 12%, transparent)`,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.danger} 12%, transparent)`,
+      default: `color-mix(in oklch, ${colors.danger} 8%, transparent)`,
+      ":not(:disabled):hover": `color-mix(in oklch, ${colors.danger} 12%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklch, ${colors.danger} 12%, transparent)`,
     },
     color: {
-      default: tokens.danger,
-      ":not(:disabled):hover": `color-mix(in oklab, ${tokens.danger} 82%, ${tokens.foreground})`,
-      ":is([data-focus-visible])": `color-mix(in oklab, ${tokens.danger} 82%, ${tokens.foreground})`,
+      default: colors.danger,
+      ":not(:disabled):hover": `color-mix(in oklab, ${colors.danger} 82%, ${colors.foreground})`,
+      ":is([data-focus-visible])": `color-mix(in oklab, ${colors.danger} 82%, ${colors.foreground})`,
     },
   },
   label: {

@@ -1,5 +1,5 @@
 import { MotionProvider } from "@jaquelene/ui/motion";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useMatches } from "@tanstack/react-router";
@@ -44,8 +44,8 @@ export function AppShell() {
 
 const styles = stylex.create({
   root: {
-    backgroundColor: tokens.canvas,
-    color: tokens.foreground,
+    backgroundColor: colors.canvas,
+    color: colors.foreground,
     display: "grid",
     fontSize: tokens.fontSizeSmall,
     gridTemplateColumns: "14rem minmax(0, 1fr)",

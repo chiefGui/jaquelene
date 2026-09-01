@@ -1,6 +1,6 @@
 import { Item } from "@jaquelene/ui";
 import { Select } from "@jaquelene/ui/select";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Radio, RadioGroup, useRadioStore } from "@ariakit/react/radio";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -258,7 +258,7 @@ function AppearanceRoute() {
 
 const styles = stylex.create({
   error: {
-    color: tokens.danger,
+    color: colors.danger,
   },
   select: {
     minWidth: "8rem",
@@ -271,7 +271,7 @@ const styles = stylex.create({
   themeOption: {
     alignItems: "center",
     borderRadius: tokens.radiusMedium,
-    color: tokens.muted,
+    color: colors.muted,
     display: "flex",
     flexDirection: "column",
     gap: "0.5rem",
@@ -282,7 +282,7 @@ const styles = stylex.create({
     },
     outlineColor: {
       default: null,
-      ":is([data-focus-visible])": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
+      ":is([data-focus-visible])": `color-mix(in oklab, ${colors.accent} 60%, transparent)`,
     },
     outlineOffset: {
       default: null,
@@ -300,8 +300,8 @@ const styles = stylex.create({
   },
   themeOrb: {
     alignItems: "center",
-    backgroundColor: tokens.canvas,
-    borderColor: tokens.surfaceRaisedBorder,
+    backgroundColor: colors.canvas,
+    borderColor: colors.surfaceRaisedBorder,
     borderRadius: "50%",
     borderStyle: "solid",
     borderWidth: 1,
@@ -312,23 +312,23 @@ const styles = stylex.create({
     width: "2.75rem",
   },
   themeOrbCore: {
-    backgroundColor: tokens.surface,
-    backgroundImage: `radial-gradient(circle at 72% 76%, color-mix(in oklab, ${tokens.accent} 24%, transparent), transparent 56%), linear-gradient(145deg, ${tokens.surfaceRaised}, ${tokens.canvas} 76%)`,
-    borderColor: `color-mix(in oklab, ${tokens.foreground} 14%, transparent)`,
+    backgroundColor: colors.surface,
+    backgroundImage: `radial-gradient(circle at 72% 76%, color-mix(in oklab, ${colors.accent} 24%, transparent), transparent 56%), linear-gradient(145deg, ${colors.surfaceRaised}, ${colors.canvas} 76%)`,
+    borderColor: `color-mix(in oklab, ${colors.foreground} 14%, transparent)`,
     borderRadius: "50%",
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: `inset 0 -0.375rem 0.875rem color-mix(in oklab, ${tokens.canvas} 58%, transparent)`,
+    boxShadow: `inset 0 -0.375rem 0.875rem color-mix(in oklab, ${colors.canvas} 58%, transparent)`,
     height: "100%",
     overflow: "hidden",
     position: "relative",
     width: "100%",
   },
   themeOrbLiquid: {
-    backgroundImage: `radial-gradient(circle at 72% 20%, color-mix(in oklab, ${tokens.foreground} 64%, transparent) 0 4%, transparent 22%), linear-gradient(124deg, ${tokens.reasoning}, ${tokens.accent} 48%, ${tokens.storageAppData})`,
+    backgroundImage: `radial-gradient(circle at 72% 20%, color-mix(in oklab, ${colors.foreground} 64%, transparent) 0 4%, transparent 22%), linear-gradient(124deg, ${colors.reasoning}, ${colors.accent} 48%, ${colors.storageAppData})`,
     borderRadius: "48% 52% 44% 56% / 34% 40% 60% 66%",
     bottom: "-17%",
-    boxShadow: `inset 0 0.325rem 0.625rem color-mix(in oklab, ${tokens.foreground} 18%, transparent), 0 -0.125rem 0.5rem color-mix(in oklab, ${tokens.accent} 32%, transparent)`,
+    boxShadow: `inset 0 0.325rem 0.625rem color-mix(in oklab, ${colors.foreground} 18%, transparent), 0 -0.125rem 0.5rem color-mix(in oklab, ${colors.accent} 32%, transparent)`,
     height: "73%",
     left: "-18%",
     position: "absolute",
@@ -336,7 +336,7 @@ const styles = stylex.create({
     width: "136%",
   },
   themeOrbShine: {
-    backgroundImage: `radial-gradient(ellipse, color-mix(in oklab, ${tokens.foreground} 72%, transparent), transparent 68%)`,
+    backgroundImage: `radial-gradient(ellipse, color-mix(in oklab, ${colors.foreground} 72%, transparent), transparent 68%)`,
     borderRadius: "50%",
     filter: "blur(0.35px)",
     height: "0.5rem",
@@ -348,15 +348,15 @@ const styles = stylex.create({
     width: "0.875rem",
   },
   themeOrbSelected: {
-    boxShadow: `0 0 0 2px ${tokens.canvas}, 0 0 0 4px ${tokens.accent}`,
+    boxShadow: `0 0 0 2px ${colors.canvas}, 0 0 0 4px ${colors.accent}`,
   },
   themeLabel: {
-    color: tokens.muted,
+    color: colors.muted,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     textBox: "trim-both text",
   },
   themeLabelSelected: {
-    color: tokens.foreground,
+    color: colors.foreground,
   },
 });

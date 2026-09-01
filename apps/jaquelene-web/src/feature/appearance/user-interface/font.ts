@@ -1,5 +1,5 @@
 import { UiFont } from "@jaquelene/ipc/renderer";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { useLayoutEffect } from "react";

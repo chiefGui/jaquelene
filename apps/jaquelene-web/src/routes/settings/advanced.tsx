@@ -1,7 +1,7 @@
 import FolderOpenIcon from "@hugeicons/core-free-icons/FolderOpenIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, Item, Switch } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -124,7 +124,7 @@ const styles = stylex.create({
     justifyContent: "space-between",
   },
   error: {
-    color: tokens.danger,
+    color: colors.danger,
   },
   openFolder: {
     gap: "0.5rem",

@@ -1,6 +1,6 @@
 import { InstructionOrigin, type Instruction } from "@jaquelene/ipc/renderer";
 import { Badge, Item } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -90,7 +90,7 @@ const styles = stylex.create({
     justifyContent: "space-between",
   },
   content: {
-    color: `color-mix(in oklab, ${tokens.foreground} 82%, transparent)`,
+    color: `color-mix(in oklab, ${colors.foreground} 82%, transparent)`,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginBlock: "1rem 0",

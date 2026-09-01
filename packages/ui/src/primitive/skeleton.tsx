@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
-import { tokens } from "../theme.stylex";
+import { colors, tokens } from "../tokens.stylex";
 import { useReducedMotion } from "./motion";
 
 export type SkeletonProps = Omit<
@@ -30,7 +30,7 @@ const shimmer = stylex.keyframes({
 
 const styles = stylex.create({
   root: {
-    backgroundColor: `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
+    backgroundColor: `color-mix(in oklch, ${colors.accent} 10%, transparent)`,
     borderRadius: tokens.radiusMedium,
     overflow: "hidden",
     position: "relative",
@@ -41,7 +41,7 @@ const styles = stylex.create({
       animationIterationCount: "infinite",
       animationName: shimmer,
       animationTimingFunction: "linear",
-      backgroundImage: `linear-gradient(105deg, transparent 35%, color-mix(in oklch, ${tokens.foreground} 5%, transparent) 50%, transparent 65%)`,
+      backgroundImage: `linear-gradient(105deg, transparent 35%, color-mix(in oklch, ${colors.foreground} 5%, transparent) 50%, transparent 65%)`,
       content: '""',
       inset: 0,
       position: "absolute",

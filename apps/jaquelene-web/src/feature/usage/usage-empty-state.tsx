@@ -1,5 +1,65 @@
+import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { EmptyState } from "@/primitive/empty-state";
+
+const columnHalfWidth = 15;
+const columnDepth = 9;
+const cornerX = 3;
+const cornerY = 1.8;
+
+type UsageColumnProps = Readonly<{
+  x: number;
+  y: number;
+  height: number;
+}>;
+
+function UsageColumn({ x, y, height }: UsageColumnProps) {
+  const left = x - columnHalfWidth;
+  const right = x + columnHalfWidth;
+  const shoulderTop = y + columnDepth;
+  const frontTop = y + 2 * columnDepth;
+  const shoulderBottom = shoulderTop + height;
+  const frontBottom = frontTop + height;
+
+  const body = [
+    `M${left} ${shoulderTop}`,
+    `L${x} ${frontTop}`,
+    `L${right} ${shoulderTop}`,
+    `L${right} ${shoulderBottom}`,
+    `L${x} ${frontBottom}`,
+    `L${left} ${shoulderBottom}Z`,
+  ].join(" ");
+  const sides = [
+    `M${left} ${shoulderTop}`,
+    `L${left} ${shoulderBottom - cornerY}`,
+    `Q${left} ${shoulderBottom} ${left + cornerX} ${shoulderBottom + cornerY}`,
+    `L${x - cornerX} ${frontBottom - cornerY}`,
+    `Q${x} ${frontBottom} ${x + cornerX} ${frontBottom - cornerY}`,
+    `L${right - cornerX} ${shoulderBottom + cornerY}`,
+    `Q${right} ${shoulderBottom} ${right} ${shoulderBottom - cornerY}`,
+    `L${right} ${shoulderTop}`,
+    `M${x} ${frontTop}L${x} ${frontBottom}`,
+  ].join(" ");
+  const top = [
+    `M${x + cornerX} ${y + cornerY}`,
+    `L${right - cornerX} ${shoulderTop - cornerY}`,
+    `Q${right} ${shoulderTop} ${right - cornerX} ${shoulderTop + cornerY}`,
+    `L${x + cornerX} ${frontTop - cornerY}`,
+    `Q${x} ${frontTop} ${x - cornerX} ${frontTop - cornerY}`,
+    `L${left + cornerX} ${shoulderTop + cornerY}`,
+    `Q${left} ${shoulderTop} ${left + cornerX} ${shoulderTop - cornerY}`,
+    `L${x - cornerX} ${y + cornerY}`,
+    `Q${x} ${y} ${x + cornerX} ${y + cornerY}Z`,
+  ].join(" ");
+
+  return (
+    <>
+      <path d={body} fill={tokens.canvas} stroke="none" />
+      <path d={sides} strokeOpacity="0.58" />
+      <path d={top} fill={tokens.canvas} strokeOpacity="0.95" />
+    </>
+  );
+}
 
 export function UsageEmptyState() {
   return (
@@ -8,7 +68,7 @@ export function UsageEmptyState() {
         <svg
           aria-hidden="true"
           focusable="false"
-          viewBox="26 0 148 150"
+          viewBox="8 0 166 180"
           {...stylex.props(styles.illustration)}
         >
           <g
@@ -18,26 +78,17 @@ export function UsageEmptyState() {
             strokeLinejoin="round"
             strokeWidth="2"
           >
-            <path opacity="0.2" d="m28 101 66-38 78 45-66 38-78-45Z" />
-            <path opacity="0.38" d="m28 101 78 45 66-38" />
+            <path d="M10 109v8q0 3 7 7l75 42q7 4 14 0l58-34q7-4 7-11v-4" strokeOpacity="0.34" />
+            <path
+              d="M89 71l75 42q7 4 0 8l-58 34q-7 4-14 0l-75-42q-7-4 0-8l58-34q7-4 14 0Z"
+              fill={tokens.canvas}
+              strokeOpacity="0.48"
+            />
 
-            <g>
-              <path d="m137 39 16 9-16 9-16-9 16-9Z" fill="currentColor" fillOpacity="0.12" />
-              <path d="m121 48 16 9 16-9v53l-16 9-16-9V48Z" />
-              <path opacity="0.42" d="M137 57v53M121 66l16 9 16-9M121 84l16 9 16-9" />
-            </g>
-
-            <g>
-              <path d="m96 61 14 8-14 8-14-8 14-8Z" fill="currentColor" fillOpacity="0.12" />
-              <path d="m82 69 14 8 14-8v42l-14 8-14-8V69Z" />
-              <path opacity="0.42" d="M96 77v42M82 89l14 8 14-8" />
-            </g>
-
-            <g>
-              <path d="m58 83 12 7-12 7-12-7 12-7Z" fill="currentColor" fillOpacity="0.12" />
-              <path d="m46 90 12 7 12-7v15l-12 7-12-7V90Z" />
-              <path opacity="0.42" d="M58 97v15" />
-            </g>
+            <UsageColumn x={139} y={13} height={96} />
+            <UsageColumn x={106} y={37} height={80} />
+            <UsageColumn x={73} y={61} height={64} />
+            <UsageColumn x={40} y={85} height={47} />
           </g>
         </svg>
       </EmptyState.Illustration>
@@ -55,6 +106,6 @@ export function UsageEmptyState() {
 const styles = stylex.create({
   illustration: {
     height: "9.375rem",
-    width: "9.25rem",
+    width: "8.625rem",
   },
 });

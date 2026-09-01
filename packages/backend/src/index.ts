@@ -12,6 +12,7 @@ export {
   requireGenerationConfiguration,
   requireGenerationConfigurationSelection,
   requireModelReference,
+  requireModelReasoningCapability,
   requireModelSelection,
   requireReasoningEffort,
   type ApiKeyProviderConfiguration,

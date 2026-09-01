@@ -128,16 +128,18 @@ describe("OpenRouter model provider", () => {
   });
 
   it.each([
-    [{ mandatory: true, supportedEfforts: ["high", "none"] }, "cannot disable required reasoning"],
-    [{ mandatory: true, defaultEffort: "none" }, "cannot default required reasoning off"],
+    [
+      { mandatory: true, supportedEfforts: ["high", "none"] },
+      'requires reasoning and cannot support "none"',
+    ],
+    [{ mandatory: true, defaultEffort: "none" }, 'requires reasoning and cannot default to "none"'],
     [
       { mandatory: false, defaultEffort: "high", supportedEfforts: ["medium", "low"] },
-      "unsupported default reasoning effort",
+      "default effort that is not supported",
     ],
-    [
-      { mandatory: false, supportedEfforts: ["high", "future"] },
-      "unknown supported reasoning effort",
-    ],
+    [{ mandatory: false, supportedEfforts: [] }, "must expose at least one supported effort"],
+    [{ mandatory: false, supportedEfforts: ["high", "high"] }, 'repeats supported effort "high"'],
+    [{ mandatory: false, supportedEfforts: ["high", "future"] }, "invalid supported effort"],
   ])("rejects inconsistent reasoning metadata", async (reasoning, message) => {
     const connection = {
       async withApiKey<Result>(use: (value: string) => Promise<Result>) {

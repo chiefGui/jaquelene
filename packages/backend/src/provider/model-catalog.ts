@@ -4,12 +4,7 @@ import type {
   ResourceSnapshot,
 } from "#backend/resource-cache/resource-cache";
 import { ResourceUnavailableError } from "#backend/resource-cache/resource-cache";
-import {
-  requireReasoningEffort,
-  type ProviderId,
-  type ProviderModel,
-  type ReasoningEffort,
-} from "./provider";
+import { requireModelReasoningCapability, type ProviderId, type ProviderModel } from "./provider";
 
 const namespace = "model-catalog";
 const textEncoder = new TextEncoder();
@@ -84,86 +79,10 @@ function requireModel(providerId: ProviderId, candidate: unknown): ProviderModel
   let tokenPricing: ProviderModel["tokenPricing"];
 
   if (model.reasoning !== undefined) {
-    if (
-      typeof model.reasoning !== "object" ||
-      model.reasoning === null ||
-      typeof model.reasoning.required !== "boolean"
-    ) {
-      throw new TypeError(`Provider "${providerId}" model "${id}" has invalid reasoning.`);
-    }
-
-    const defaultEffort = model.reasoning.defaultEffort;
-    const supportedEfforts = model.reasoning.supportedEfforts;
-
-    if (defaultEffort !== undefined) {
-      try {
-        requireReasoningEffort(defaultEffort);
-      } catch {
-        throw new TypeError(
-          `Provider "${providerId}" model "${id}" has an invalid default reasoning effort.`,
-        );
-      }
-    }
-
-    let normalizedSupportedEfforts: ReasoningEffort[] | undefined;
-
-    if (supportedEfforts !== undefined) {
-      if (!Array.isArray(supportedEfforts) || supportedEfforts.length === 0) {
-        throw new TypeError(
-          `Provider "${providerId}" model "${id}" has invalid supported reasoning efforts.`,
-        );
-      }
-
-      const uniqueEfforts = new Set<ReasoningEffort>();
-
-      for (const effort of supportedEfforts) {
-        try {
-          requireReasoningEffort(effort);
-        } catch {
-          throw new TypeError(
-            `Provider "${providerId}" model "${id}" has an invalid supported reasoning effort.`,
-          );
-        }
-
-        if (uniqueEfforts.has(effort)) {
-          throw new TypeError(
-            `Provider "${providerId}" model "${id}" repeats a supported reasoning effort.`,
-          );
-        }
-
-        uniqueEfforts.add(effort);
-      }
-
-      normalizedSupportedEfforts = [...uniqueEfforts];
-    }
-
-    if (model.reasoning.required && normalizedSupportedEfforts?.includes("none")) {
-      throw new TypeError(
-        `Provider "${providerId}" model "${id}" requires reasoning but supports disabling it.`,
-      );
-    }
-
-    if (model.reasoning.required && defaultEffort === "none") {
-      throw new TypeError(
-        `Provider "${providerId}" model "${id}" requires reasoning but disables it by default.`,
-      );
-    }
-
-    if (
-      defaultEffort !== undefined &&
-      normalizedSupportedEfforts &&
-      !normalizedSupportedEfforts.includes(defaultEffort)
-    ) {
-      throw new TypeError(
-        `Provider "${providerId}" model "${id}" has an unsupported default reasoning effort.`,
-      );
-    }
-
-    reasoning = {
-      required: model.reasoning.required,
-      ...(defaultEffort === undefined ? {} : { defaultEffort }),
-      ...(normalizedSupportedEfforts ? { supportedEfforts: normalizedSupportedEfforts } : {}),
-    };
+    reasoning = requireModelReasoningCapability(
+      model.reasoning,
+      `Provider "${providerId}" model "${id}" reasoning`,
+    );
   }
 
   if (model.tokenPricing !== undefined) {

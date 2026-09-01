@@ -2,10 +2,8 @@ import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { modelsListForUser } from "@openrouter/sdk/funcs/modelsListForUser.js";
 import {
   reasoningEfforts,
-  requireReasoningEffort,
-  type ModelReasoningCapability,
+  requireModelReasoningCapability,
   type ProviderModelsAdapter,
-  type ReasoningEffort,
 } from "@jaquelene/backend";
 import type { OpenRouterConfiguration } from "./connection";
 
@@ -114,86 +112,29 @@ function normalizeTokenPricing(
   return { inputUsdPerMillion, outputUsdPerMillion };
 }
 
-function normalizeReasoning(
-  id: string,
-  reasoning: OpenRouterCatalogModel["reasoning"],
-): ModelReasoningCapability | undefined {
+function normalizeReasoning(id: string, reasoning: OpenRouterCatalogModel["reasoning"]) {
   if (!reasoning) {
     return undefined;
   }
 
   const { defaultEffort: candidateDefaultEffort, mandatory, supportedEfforts } = reasoning;
-  let defaultEffort: ReasoningEffort | undefined;
+  const normalizedSupportedEfforts =
+    supportedEfforts === null
+      ? reasoningEfforts.filter((effort) => !mandatory || effort !== "none")
+      : supportedEfforts;
 
-  if (candidateDefaultEffort !== undefined && candidateDefaultEffort !== null) {
-    if (typeof candidateDefaultEffort !== "string") {
-      throw new TypeError(`OpenRouter model "${id}" has an invalid default reasoning effort.`);
-    }
-
-    try {
-      requireReasoningEffort(candidateDefaultEffort);
-    } catch {
-      throw new TypeError(`OpenRouter model "${id}" has an unknown default reasoning effort.`);
-    }
-
-    defaultEffort = candidateDefaultEffort;
-  }
-
-  let normalizedSupportedEfforts: ReasoningEffort[] | undefined;
-
-  if (supportedEfforts === null) {
-    normalizedSupportedEfforts = reasoningEfforts.filter(
-      (effort) => !mandatory || effort !== "none",
-    );
-  } else if (supportedEfforts !== undefined) {
-    const uniqueEfforts = new Set<ReasoningEffort>();
-
-    for (const candidate of supportedEfforts) {
-      if (typeof candidate !== "string") {
-        throw new TypeError(`OpenRouter model "${id}" has an invalid supported reasoning effort.`);
-      }
-
-      try {
-        requireReasoningEffort(candidate);
-      } catch {
-        throw new TypeError(`OpenRouter model "${id}" has an unknown supported reasoning effort.`);
-      }
-
-      if (mandatory && candidate === "none") {
-        throw new TypeError(`OpenRouter model "${id}" cannot disable required reasoning.`);
-      }
-
-      if (uniqueEfforts.has(candidate)) {
-        throw new TypeError(`OpenRouter model "${id}" repeats a supported reasoning effort.`);
-      }
-
-      uniqueEfforts.add(candidate);
-    }
-
-    if (uniqueEfforts.size === 0) {
-      throw new TypeError(`OpenRouter model "${id}" exposes no supported reasoning efforts.`);
-    }
-
-    normalizedSupportedEfforts = [...uniqueEfforts];
-  }
-
-  if (mandatory && defaultEffort === "none") {
-    throw new TypeError(`OpenRouter model "${id}" cannot default required reasoning off.`);
-  }
-
-  if (
-    defaultEffort !== undefined &&
-    normalizedSupportedEfforts &&
-    !normalizedSupportedEfforts.includes(defaultEffort)
-  ) {
-    throw new TypeError(`OpenRouter model "${id}" has an unsupported default reasoning effort.`);
-  }
-
-  return {
-    required: mandatory,
-    ...(defaultEffort === undefined ? {} : { defaultEffort }),
-    ...(normalizedSupportedEfforts ? { supportedEfforts: normalizedSupportedEfforts } : {}),
-  };
+  return requireModelReasoningCapability(
+    {
+      required: mandatory,
+      ...(candidateDefaultEffort === undefined || candidateDefaultEffort === null
+        ? {}
+        : { defaultEffort: candidateDefaultEffort }),
+      ...(normalizedSupportedEfforts === undefined
+        ? {}
+        : { supportedEfforts: normalizedSupportedEfforts }),
+    },
+    `OpenRouter model "${id}" reasoning`,
+  );
 }
 
 function normalizeModel({ id, name, pricing, reasoning }: OpenRouterCatalogModel) {

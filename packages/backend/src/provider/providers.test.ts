@@ -233,7 +233,7 @@ describe("provider subsystem", () => {
     );
 
     await expect(listModels(inconsistentSubsystem, inconsistent.descriptor.id)).rejects.toThrow(
-      'Provider "inconsistent" model "invalid-reasoning-model" requires reasoning but supports disabling it.',
+      'Provider "inconsistent" model "invalid-reasoning-model" reasoning requires reasoning and cannot support "none".',
     );
     await inconsistentSubsystem.close();
   });

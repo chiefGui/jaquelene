@@ -135,7 +135,7 @@ function ThemePreferenceItem({ disabled, error, onValueChange, value }: ThemePre
   });
 
   return (
-    <Item.Root>
+    <Item.Root style={styles.themeItem}>
       <Item.Content>
         <Item.Label id={labelId}>Theme</Item.Label>
         {error ? (
@@ -262,6 +262,12 @@ const styles = stylex.create({
   },
   select: {
     minWidth: "8rem",
+  },
+  themeItem: {
+    alignItems: "flex-start",
+    flexDirection: "column",
+    gap: "1rem",
+    justifyContent: "flex-start",
   },
   themeGroup: {
     alignItems: "center",

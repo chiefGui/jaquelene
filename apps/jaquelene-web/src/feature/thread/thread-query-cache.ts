@@ -78,6 +78,7 @@ function isValidPage(page: ThreadMessagePage, contract: ThreadPageContract) {
   }
 
   let actualContentBytes = 0;
+  const messageTurnIds = new Set<string>();
 
   for (const message of page.messages) {
     if (message.content.length > contract.messageMaxCodeUnits) {
@@ -85,6 +86,17 @@ function isValidPage(page: ThreadMessagePage, contract: ThreadPageContract) {
     }
 
     actualContentBytes += messageContentBytes(message);
+    messageTurnIds.add(message.turnId);
+  }
+
+  const generationTurnIds = new Set<string>();
+
+  for (const generation of page.generations) {
+    if (!messageTurnIds.has(generation.turnId) || generationTurnIds.has(generation.turnId)) {
+      return false;
+    }
+
+    generationTurnIds.add(generation.turnId);
   }
 
   return (
@@ -266,8 +278,14 @@ export function isLatestThreadHistory(data: ThreadQueryData) {
   return data.pageParams[0]?.kind === "latest";
 }
 
-export function createLatestThreadHistory(page: ThreadMessagePage): ThreadQueryData {
-  return { pages: [page], pageParams: [latestThreadHistoryPageParam] };
+export function createLatestThreadHistory(
+  page: ThreadMessagePage,
+  threadId: string,
+): ThreadQueryData {
+  return requireValidThreadHistory(
+    { pages: [page], pageParams: [latestThreadHistoryPageParam] },
+    threadId,
+  );
 }
 
 export function retainThreadHistory(

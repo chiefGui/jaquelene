@@ -479,14 +479,29 @@ describe("thread query cache", () => {
     ).toEqual({ outcome: "historical" });
   });
 
-  it("creates an explicit latest window from an authoritative page", () => {
+  it("creates only a consistent latest window from an authoritative page", () => {
     const latest = failedTurn(1);
     const latestPage = page([latest.userMessage], [latest.generation]);
 
-    expect(createLatestThreadHistory(latestPage)).toEqual({
+    expect(createLatestThreadHistory(latestPage, threadId)).toEqual({
       pages: [latestPage],
       pageParams: [latestThreadHistoryPageParam],
     });
+
+    const inconsistentPages = [
+      { ...latestPage, contentBytes: latestPage.contentBytes + 1 },
+      { ...latestPage, generations: [...latestPage.generations, latest.generation] },
+      {
+        ...latestPage,
+        generations: [{ ...latest.generation, turnId: "turn-other" }],
+      },
+    ];
+
+    for (const inconsistentPage of inconsistentPages) {
+      expect(() => createLatestThreadHistory(inconsistentPage, threadId)).toThrow(
+        "Thread message history is inconsistent.",
+      );
+    }
   });
 
   it("requests authoritative reconciliation for inconsistent turn updates", () => {

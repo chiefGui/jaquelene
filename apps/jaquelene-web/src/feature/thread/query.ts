@@ -160,7 +160,10 @@ export function useReturnToLatestThreadMessages(threadId: string) {
     mutationKey: [...threadQueryKey, threadId, "return-to-latest"],
     mutationFn: () => listThreadMessages({ threadId, direction: ThreadMessagePageDirection.Older }),
     onSuccess(page) {
-      queryClient.setQueryData<ThreadQueryData>(queryKey, createLatestThreadHistory(page));
+      queryClient.setQueryData<ThreadQueryData>(
+        queryKey,
+        createLatestThreadHistory(page, threadId),
+      );
     },
   });
 }

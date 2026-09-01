@@ -51,7 +51,7 @@ describe("model reasoning", () => {
     expect(() => requireModelReasoningCapability(candidate)).toThrow(message as string);
   });
 
-  it("resolves defaults and explicit overrides without approximation", () => {
+  it("resolves defaults and explicit selections without approximation", () => {
     const capability = requireModelReasoningCapability({
       defaultPreset: "medium",
       supportedPresets: ["high", "medium", "low", "off"],
@@ -63,7 +63,7 @@ describe("model reasoning", () => {
     });
     expect(resolveReasoning(capability, "high")).toEqual({
       preset: "high",
-      source: "override",
+      source: "selection",
     });
     expect(() => resolveReasoning(capability, "max")).toThrow(
       'does not support reasoning preset "max"',
@@ -78,9 +78,9 @@ describe("model reasoning", () => {
   });
 
   it("validates resolved reasoning provenance", () => {
-    expect(requireResolvedReasoning({ preset: "high", source: "override" })).toEqual({
+    expect(requireResolvedReasoning({ preset: "high", source: "selection" })).toEqual({
       preset: "high",
-      source: "override",
+      source: "selection",
     });
     expect(() => requireResolvedReasoning({ preset: "high", source: "fallback" })).toThrow(
       'Unknown reasoning preset source "fallback"',

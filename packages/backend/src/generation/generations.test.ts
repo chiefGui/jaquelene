@@ -149,7 +149,7 @@ describe("generations", () => {
       turnId: started.turn.id,
       configuration: {
         model: { providerId: provider.id, modelId: "maker/requested-model" },
-        reasoningPresetOverride: "high",
+        reasoningPreset: "high",
       },
     });
 
@@ -161,7 +161,7 @@ describe("generations", () => {
         instructions: [],
         dialogue: [{ messageId: started.message.id, role: "user", content: "Hello" }],
       },
-      reasoning: { preset: "high", source: "override" },
+      reasoning: { preset: "high", source: "selection" },
     });
     expect(result).toEqual({
       activated: true,
@@ -180,7 +180,7 @@ describe("generations", () => {
         turnId: started.turn.id,
         providerId: provider.id,
         modelId: "maker/requested-model",
-        reasoning: { preset: "high", source: "override" },
+        reasoning: { preset: "high", source: "selection" },
         status: "completed",
         failureKind: null,
         providerGenerationId: "provider-generation-1",
@@ -199,7 +199,7 @@ describe("generations", () => {
       expect.objectContaining({
         id: result.generation.id,
         reasoningPreset: "high",
-        reasoningPresetSource: "override",
+        reasoningPresetSource: "selection",
         status: "completed",
       }),
     );
@@ -239,7 +239,7 @@ describe("generations", () => {
     );
   });
 
-  it("rejects an unsupported reasoning override before accepting generation work", async () => {
+  it("rejects an unsupported reasoning selection before accepting generation work", async () => {
     const provider = {
       id: "provider-a",
       generate: vi.fn(async () => ({ text: "Unused" })),
@@ -257,7 +257,7 @@ describe("generations", () => {
         turnId: started.turn.id,
         configuration: {
           model: { providerId: provider.id, modelId: "maker/model" },
-          reasoningPresetOverride: "high",
+          reasoningPreset: "high",
         },
       }),
     ).rejects.toThrow('does not support reasoning preset "high"');
@@ -761,7 +761,7 @@ describe("generations", () => {
         .values({
           id: ids.generation.create(),
           ...pending,
-          reasoningPresetSource: "override",
+          reasoningPresetSource: "selection",
         })
         .run(),
     ).toThrow();

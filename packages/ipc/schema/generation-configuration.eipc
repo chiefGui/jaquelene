@@ -1,0 +1,11 @@
+module jaquelene
+
+structure GenerationConfiguration {
+  model: ModelReference
+  reasoningPreset?: ReasoningPreset
+}
+
+structure GenerationConfigurationSelection {
+  model: ModelSelection
+  reasoningPreset?: ReasoningPreset
+}

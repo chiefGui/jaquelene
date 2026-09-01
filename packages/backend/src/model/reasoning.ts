@@ -75,7 +75,7 @@ export function requireModelReasoningCapability(
   };
 }
 
-export const reasoningPresetSources = ["model-default", "override"] as const;
+export const reasoningPresetSources = ["model-default", "selection"] as const;
 
 export type ReasoningPresetSource = (typeof reasoningPresetSources)[number];
 
@@ -104,21 +104,21 @@ export function requireResolvedReasoning(candidate: unknown): ResolvedReasoning 
 
 export function resolveReasoning(
   capability: ModelReasoningCapability | undefined,
-  override: ReasoningPreset | undefined,
+  selection: ReasoningPreset | undefined,
 ): ResolvedReasoning | undefined {
   if (!capability) {
-    if (override !== undefined) {
+    if (selection !== undefined) {
       throw new RangeError("The selected model does not expose reasoning configuration.");
     }
 
     return undefined;
   }
 
-  if (override !== undefined && !capability.supportedPresets.includes(override)) {
-    throw new RangeError(`The selected model does not support reasoning preset "${override}".`);
+  if (selection !== undefined && !capability.supportedPresets.includes(selection)) {
+    throw new RangeError(`The selected model does not support reasoning preset "${selection}".`);
   }
 
-  return override === undefined
+  return selection === undefined
     ? { preset: capability.defaultPreset, source: "model-default" }
-    : { preset: override, source: "override" };
+    : { preset: selection, source: "selection" };
 }

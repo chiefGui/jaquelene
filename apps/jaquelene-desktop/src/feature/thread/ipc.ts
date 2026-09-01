@@ -244,12 +244,10 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
             content: request.content,
             configuration: {
               model: { ...request.configuration.model },
-              ...(request.configuration.reasoningPresetOverride === undefined
+              ...(request.configuration.reasoningPreset === undefined
                 ? {}
                 : {
-                    reasoningPresetOverride: fromIpcReasoningPreset(
-                      request.configuration.reasoningPresetOverride,
-                    ),
+                    reasoningPreset: fromIpcReasoningPreset(request.configuration.reasoningPreset),
                   }),
             },
           });
@@ -261,12 +259,10 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
             turnId: ids.turn.parse(request.turnId),
             configuration: {
               model: { ...request.configuration.model },
-              ...(request.configuration.reasoningPresetOverride === undefined
+              ...(request.configuration.reasoningPreset === undefined
                 ? {}
                 : {
-                    reasoningPresetOverride: fromIpcReasoningPreset(
-                      request.configuration.reasoningPresetOverride,
-                    ),
+                    reasoningPreset: fromIpcReasoningPreset(request.configuration.reasoningPreset),
                   }),
             },
           });

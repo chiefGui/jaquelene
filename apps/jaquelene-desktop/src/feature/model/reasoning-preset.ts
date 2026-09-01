@@ -56,7 +56,7 @@ export function toIpcReasoningPresetSource(
   switch (source) {
     case "model-default":
       return IpcReasoningPresetSource.ModelDefault;
-    case "override":
-      return IpcReasoningPresetSource.Override;
+    case "selection":
+      return IpcReasoningPresetSource.Selection;
   }
 }

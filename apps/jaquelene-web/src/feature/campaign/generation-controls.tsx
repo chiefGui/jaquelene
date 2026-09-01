@@ -1,7 +1,13 @@
+import {
+  setCampaignGenerationModel,
+  setCampaignGenerationReasoningPreset,
+} from "@jaquelene/domain";
 import type {
   AvailableModel,
+  CampaignGenerationPreferences,
   GenerationConfigurationSelection,
   ModelSelection,
+  ModelReasoningCapability,
   ReasoningPreset,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
@@ -14,11 +20,7 @@ import { reportError } from "@/feature/diagnostics/diagnostics";
 import { modelsForProviderQuery } from "@/feature/model/catalog-query";
 import { ModelPicker } from "@/feature/model/picker";
 import { ModelReasoningPicker } from "@/feature/model/reasoning-picker";
-import { useSetCampaignGenerationConfigurationOverride } from "./query";
-
-function sameModel(left: ModelSelection, right: ModelSelection) {
-  return left.providerId === right.providerId && left.modelId === right.modelId;
-}
+import { useSetCampaignGenerationPreferences } from "./query";
 
 function ModelReasoningControl({
   busy,
@@ -29,7 +31,10 @@ function ModelReasoningControl({
   busy: boolean;
   configuration: GenerationConfigurationSelection;
   disabled: boolean;
-  onValueChange: (value: ReasoningPreset | null) => void;
+  onValueChange: (
+    value: ReasoningPreset | null,
+    capability: ModelReasoningCapability | undefined,
+  ) => void;
 }) {
   const models = useQuery(modelsForProviderQuery(configuration.model.providerId));
   const selectedModel = useMemo(
@@ -43,8 +48,8 @@ function ModelReasoningControl({
       capability={capability}
       busy={busy}
       disabled={disabled}
-      value={configuration.reasoningPresetOverride ?? null}
-      onValueChange={onValueChange}
+      value={configuration.reasoningPreset ?? null}
+      onValueChange={(value) => onValueChange(value, capability)}
     />
   );
 }
@@ -54,55 +59,44 @@ export function CampaignGenerationControls({
   configuration,
   defaultModel,
   disabled,
+  preferences,
 }: {
   campaignId: string;
   configuration: GenerationConfigurationSelection | null;
   defaultModel: ModelSelection | null;
   disabled: boolean;
+  preferences: CampaignGenerationPreferences | undefined;
 }) {
-  const setConfigurationOverride = useSetCampaignGenerationConfigurationOverride(campaignId);
+  const setPreferences = useSetCampaignGenerationPreferences(campaignId);
   const errorId = useId();
-  const busy = disabled || setConfigurationOverride.isPending;
+  const busy = disabled || setPreferences.isPending;
 
-  function updateConfiguration(nextConfiguration: GenerationConfigurationSelection) {
+  function updatePreferences(nextPreferences: CampaignGenerationPreferences | undefined) {
     if (disabled) {
       return;
     }
 
-    const matchesDefault =
-      nextConfiguration.reasoningPresetOverride === undefined &&
-      defaultModel !== null &&
-      sameModel(defaultModel, nextConfiguration.model);
-
-    setConfigurationOverride.reset();
-    setConfigurationOverride.mutate(matchesDefault ? null : nextConfiguration, {
+    setPreferences.reset();
+    setPreferences.mutate(nextPreferences ?? null, {
       onError(cause) {
-        reportError("campaign.generation-configuration-override.update", cause);
+        reportError("campaign.generation-preferences.update", cause);
       },
     });
   }
 
   function updateModel(model: ModelSelection, availableModel: AvailableModel) {
-    const reasoningPresetOverride = configuration?.reasoningPresetOverride;
-    const preserveReasoningOverride =
-      reasoningPresetOverride !== undefined &&
-      availableModel.reasoning?.defaultPreset !== reasoningPresetOverride &&
-      availableModel.reasoning?.supportedPresets.includes(reasoningPresetOverride);
-    updateConfiguration({
-      model,
-      ...(preserveReasoningOverride ? { reasoningPresetOverride } : {}),
-    });
+    updatePreferences(
+      setCampaignGenerationModel(preferences, model, defaultModel, availableModel.reasoning),
+    );
   }
 
-  function updateReasoning(reasoningPresetOverride: ReasoningPreset | null) {
-    if (!configuration) {
-      return;
-    }
-
-    updateConfiguration({
-      model: { ...configuration.model },
-      ...(reasoningPresetOverride === null ? {} : { reasoningPresetOverride }),
-    });
+  function updateReasoning(
+    reasoningPreset: ReasoningPreset | null,
+    capability: ModelReasoningCapability | undefined,
+  ) {
+    updatePreferences(
+      setCampaignGenerationReasoningPreset(preferences, reasoningPreset ?? undefined, capability),
+    );
   }
 
   return (
@@ -117,7 +111,7 @@ export function CampaignGenerationControls({
               : "Choose a campaign model"
           }
           aria-busy={busy || undefined}
-          aria-describedby={setConfigurationOverride.isError ? errorId : undefined}
+          aria-describedby={setPreferences.isError ? errorId : undefined}
           disabled={disabled}
           style={styles.modelTrigger}
         >
@@ -140,7 +134,7 @@ export function CampaignGenerationControls({
         />
       ) : null}
 
-      {setConfigurationOverride.isError ? (
+      {setPreferences.isError ? (
         <p id={errorId} role="alert" {...stylex.props(styles.error)}>
           Couldn’t save generation settings.
         </p>

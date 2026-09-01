@@ -1,11 +1,6 @@
 import type { GenerationId, ThreadId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
-import {
-  requireReasoningPreset,
-  type ModelReasoningCapability,
-  type ReasoningPreset,
-  type ResolvedReasoning,
-} from "#backend/model/reasoning";
+import type { ModelReasoningCapability, ResolvedReasoning } from "#backend/model/reasoning";
 
 export type ProviderId = string;
 
@@ -44,34 +39,6 @@ export function requireModelSelection(selection: ModelSelection) {
 
   if (!selection.name.trim() || !selection.brandId.trim()) {
     throw new TypeError("A model selection requires display metadata.");
-  }
-}
-
-export type GenerationConfiguration = Readonly<{
-  model: ModelReference;
-  reasoningPresetOverride?: ReasoningPreset;
-}>;
-
-export function requireGenerationConfiguration(configuration: GenerationConfiguration) {
-  requireModelReference(configuration.model);
-
-  if (configuration.reasoningPresetOverride !== undefined) {
-    requireReasoningPreset(configuration.reasoningPresetOverride);
-  }
-}
-
-export type GenerationConfigurationSelection = Readonly<{
-  model: ModelSelection;
-  reasoningPresetOverride?: ReasoningPreset;
-}>;
-
-export function requireGenerationConfigurationSelection(
-  configuration: GenerationConfigurationSelection,
-) {
-  requireModelSelection(configuration.model);
-
-  if (configuration.reasoningPresetOverride !== undefined) {
-    requireReasoningPreset(configuration.reasoningPresetOverride);
   }
 }
 

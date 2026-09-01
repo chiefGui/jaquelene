@@ -88,7 +88,7 @@ describe("OpenRouter generation provider", () => {
       const signal = operationSignal();
       const request = {
         ...generationRequest(),
-        reasoning: { preset, source: "override" as const },
+        reasoning: { preset, source: "selection" as const },
       };
       const send = vi.fn(async () => chatResult());
       const provider = createOpenRouterGeneration(connection(), send);
@@ -110,7 +110,7 @@ describe("OpenRouter generation provider", () => {
     const signal = operationSignal();
     const request = {
       ...generationRequest(),
-      reasoning: { preset, source: "override" as const },
+      reasoning: { preset, source: "selection" as const },
     };
     const send = vi.fn(async () => chatResult());
     const provider = createOpenRouterGeneration(connection(), send);
@@ -128,7 +128,7 @@ describe("OpenRouter generation provider", () => {
     const signal = operationSignal();
     const request = {
       ...generationRequest(),
-      reasoning: { preset: "automatic" as const, source: "override" as const },
+      reasoning: { preset: "automatic" as const, source: "selection" as const },
     };
     const send = vi.fn(async () => chatResult());
     const provider = createOpenRouterGeneration(connection(), send);

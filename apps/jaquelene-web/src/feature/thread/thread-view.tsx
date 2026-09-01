@@ -44,9 +44,9 @@ function toGenerationConfiguration(
       providerId: configuration.model.providerId,
       modelId: configuration.model.modelId,
     },
-    ...(configuration.reasoningPresetOverride === undefined
+    ...(configuration.reasoningPreset === undefined
       ? {}
-      : { reasoningPresetOverride: configuration.reasoningPresetOverride }),
+      : { reasoningPreset: configuration.reasoningPreset }),
   };
 }
 

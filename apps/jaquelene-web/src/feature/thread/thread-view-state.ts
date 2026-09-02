@@ -1,4 +1,5 @@
 import {
+  GenerationIntent,
   GenerationStatus,
   ThreadMessageAuthor,
   type ThreadMessage,
@@ -18,8 +19,8 @@ type FailedTurnGeneration = TurnGeneration &
 
 type ThreadMessageView = Readonly<{
   message: ThreadMessage;
-  fromUser: boolean;
   replyFailure: ThreadReplyFailureView | null;
+  regeneration: ThreadReplyRegenerationView | null;
 }>;
 
 type ThreadReplyFailureView = Readonly<{
@@ -27,6 +28,11 @@ type ThreadReplyFailureView = Readonly<{
   retrying: boolean;
   retryFailed: boolean;
   canRetry: boolean;
+}>;
+
+type ThreadReplyRegenerationView = Readonly<{
+  status: "available" | "failed" | "pending";
+  canRegenerate: boolean;
 }>;
 
 export type ThreadViewState = Readonly<{
@@ -39,6 +45,7 @@ export type ThreadViewState = Readonly<{
 type ThreadViewStateInput = Readonly<{
   pages: readonly ThreadMessagePage[];
   retryActivity: RetryActivity;
+  actionsAvailable: boolean;
   hasModel: boolean;
 }>;
 
@@ -51,6 +58,7 @@ function isFailedGeneration(
 export function deriveThreadViewState({
   pages,
   retryActivity,
+  actionsAvailable,
   hasModel,
 }: ThreadViewStateInput): ThreadViewState {
   const newestPage = pages[0];
@@ -74,20 +82,44 @@ export function deriveThreadViewState({
 
   for (const message of threadMessages) {
     const fromUser = message.author === ThreadMessageAuthor.User;
-    const generation = fromUser ? generationByTurn.get(message.turnId) : undefined;
+    const generation = generationByTurn.get(message.turnId);
+    const latest = message.id === latestMessage?.id;
+    let regeneration: ThreadReplyRegenerationView | null = null;
 
-    if (!isFailedGeneration(generation)) {
-      messages.push({ message, fromUser, replyFailure: null });
+    if (!fromUser && latest && actionsAvailable) {
+      if (
+        generation?.intent === GenerationIntent.Regeneration &&
+        generation.status === GenerationStatus.Pending
+      ) {
+        regeneration = { status: "pending", canRegenerate: false };
+      } else if (
+        generation?.intent === GenerationIntent.Regeneration &&
+        generation.status === GenerationStatus.Failed
+      ) {
+        regeneration = { status: "failed", canRegenerate: hasModel };
+      } else if (
+        generation?.status === GenerationStatus.Completed &&
+        generation.outputMessageId === message.id
+      ) {
+        regeneration = { status: "available", canRegenerate: hasModel };
+      }
+    }
+
+    const failedRegeneration =
+      generation?.intent === GenerationIntent.Regeneration &&
+      generation.status === GenerationStatus.Failed;
+
+    if (!fromUser || !isFailedGeneration(generation) || failedRegeneration) {
+      messages.push({ message, replyFailure: null, regeneration });
       continue;
     }
 
-    const latest = message.id === latestMessage?.id;
     const retrying = retryActivity?.status === "pending" && retryActivity.turnId === message.turnId;
-    const canRetry = latest && hasModel;
+    const canRetry = latest && actionsAvailable && hasModel;
 
     messages.push({
       message,
-      fromUser,
+      regeneration,
       replyFailure: {
         generation,
         retrying,
@@ -102,7 +134,7 @@ export function deriveThreadViewState({
     messages,
     latestMessageId: latestMessage?.id ?? null,
     replyPending:
-      latestMessage?.author === ThreadMessageAuthor.User &&
+      latestMessage !== undefined &&
       generationByTurn.get(latestMessage.turnId)?.status === GenerationStatus.Pending,
     messageMaxCodeUnits: newestPage.messageMaxCodeUnits,
   };

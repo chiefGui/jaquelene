@@ -19,6 +19,7 @@ import {
 import { threadMessageTable, turnTable } from "#backend/thread/schema";
 
 export const generationStatuses = ["pending", "completed", "failed"] as const;
+export const generationIntents = ["reply", "retry", "regeneration"] as const;
 export const generationFailureKinds = [
   "preparation",
   "provider",
@@ -38,6 +39,7 @@ export const generationTable = sqliteTable(
     modelId: text("model_id").notNull(),
     reasoningPreset: text("reasoning_preset", { enum: reasoningPresets }),
     reasoningPresetSource: text("reasoning_preset_source", { enum: reasoningPresetSources }),
+    intent: text({ enum: generationIntents }).notNull(),
     status: text({ enum: generationStatuses }).notNull(),
     failureKind: text("failure_kind", { enum: generationFailureKinds }),
     outputMessageId: text("output_message_id").$type<MessageId>(),
@@ -71,6 +73,10 @@ export const generationTable = sqliteTable(
           AND ${generation.reasoningPresetSource} IS NOT NULL
           AND ${generation.reasoningPreset} IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')
           AND ${generation.reasoningPresetSource} IN ('model-default', 'selection'))`,
+    ),
+    check(
+      "generations_intent_valid",
+      sql`${generation.intent} IN ('reply', 'retry', 'regeneration')`,
     ),
     check(
       "generations_status_valid",
@@ -108,6 +114,7 @@ export type StoredGeneration = typeof generationTable.$inferSelect;
 export type Generation = Omit<StoredGeneration, "reasoningPreset" | "reasoningPresetSource"> & {
   reasoning?: ResolvedReasoning;
 };
+export type GenerationIntent = (typeof generationIntents)[number];
 export type GenerationFailureKind = (typeof generationFailureKinds)[number];
 
 export function toGeneration({

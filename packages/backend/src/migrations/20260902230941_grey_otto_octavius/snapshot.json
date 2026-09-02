@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "3be2c49f-545a-4783-bd87-b7e4414d9528",
+  "id": "aa326f1c-1e58-4fd4-b8ad-a98864ddcff4",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -211,6 +211,16 @@
       "default": null,
       "generated": null,
       "name": "reasoning_preset_source",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "intent",
       "entityType": "columns",
       "table": "generations"
     },
@@ -1587,6 +1597,12 @@
     {
       "value": "(\"reasoning_preset\" IS NULL AND \"reasoning_preset_source\" IS NULL)\n        OR (\"reasoning_preset\" IS NOT NULL\n          AND \"reasoning_preset_source\" IS NOT NULL\n          AND \"reasoning_preset\" IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')\n          AND \"reasoning_preset_source\" IN ('model-default', 'selection'))",
       "name": "generations_reasoning_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "\"intent\" IN ('reply', 'retry', 'regeneration')",
+      "name": "generations_intent_valid",
       "entityType": "checks",
       "table": "generations"
     },

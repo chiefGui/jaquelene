@@ -1,4 +1,5 @@
 import {
+  GenerationIntent,
   GenerationStatus,
   ThreadMessageAuthor,
   type ThreadMessage,
@@ -19,6 +20,11 @@ export type ThreadTurnUpdate =
     }>
   | Readonly<{
       type: "retry-accepted";
+      generation: TurnGeneration;
+    }>
+  | Readonly<{
+      type: "regeneration-accepted";
+      assistantMessageId: string;
       generation: TurnGeneration;
     }>
   | Readonly<{
@@ -356,7 +362,17 @@ function isReplyCompletion(
 
 function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
   if (update.type === "retry-accepted") {
-    return update.generation.status === GenerationStatus.Pending;
+    return (
+      update.generation.intent === GenerationIntent.Retry &&
+      update.generation.status === GenerationStatus.Pending
+    );
+  }
+
+  if (update.type === "regeneration-accepted") {
+    return (
+      update.generation.intent === GenerationIntent.Regeneration &&
+      update.generation.status === GenerationStatus.Pending
+    );
   }
 
   const { userMessage, generation } = update;
@@ -371,7 +387,10 @@ function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
 
   switch (update.type) {
     case "submission-accepted":
-      return generation.status === GenerationStatus.Pending;
+      return (
+        generation.intent === GenerationIntent.Reply &&
+        generation.status === GenerationStatus.Pending
+      );
     case "reply-failed":
       return generation.status === GenerationStatus.Failed;
     case "reply-completed":
@@ -439,6 +458,34 @@ export function reconcileThreadTurn(
     return CURRENT;
   }
 
+  if (update.type === "regeneration-accepted") {
+    const assistantIndex = messageIndexById.get(update.assistantMessageId);
+    const assistantMessage = assistantIndex === undefined ? undefined : messages[assistantIndex];
+
+    if (
+      assistantIndex !== messages.length - 1 ||
+      assistantMessage?.author !== ThreadMessageAuthor.Assistant ||
+      assistantMessage.turnId !== update.generation.turnId
+    ) {
+      return RELOAD;
+    }
+
+    generationByTurn.set(update.generation.turnId, update.generation);
+
+    return {
+      outcome: "updated",
+      data: retainThreadHistory(
+        rebuildPages(
+          messages,
+          [...generationByTurn.values()],
+          contract,
+          data.pages.at(-1)?.olderCursor,
+        ),
+        "newest",
+      ),
+    };
+  }
+
   const userMessage =
     update.type === "retry-accepted"
       ? messages.find(
@@ -467,7 +514,19 @@ export function reconcileThreadTurn(
   }
 
   if (isReplyCompletion(update) && userIndex !== -1 && userIndex !== messages.length - 1) {
-    return RELOAD;
+    const currentAssistant = messages[userIndex + 1];
+    const replacesActiveReply =
+      update.generation.intent === GenerationIntent.Regeneration &&
+      userIndex === messages.length - 2 &&
+      currentAssistant?.author === ThreadMessageAuthor.Assistant &&
+      currentAssistant.turnId === userMessage.turnId;
+
+    if (!replacesActiveReply) {
+      return RELOAD;
+    }
+
+    messages.pop();
+    messageIndexById.delete(currentAssistant.id);
   }
 
   function upsertMessage(message: ThreadMessage) {

@@ -42,11 +42,13 @@ import {
   toGeneration,
   type Generation,
   type GenerationFailureKind,
+  type GenerationIntent,
   type StoredGeneration,
 } from "./schema";
 
 export type GenerateReplyRequest = {
   turnId: TurnId;
+  intent: GenerationIntent;
   configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
@@ -329,7 +331,71 @@ export function createGenerations(
   function acceptReplyInTransaction(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
+    intent: GenerationIntent,
     requestedConfiguration: ResolvedGenerationConfiguration,
+  ): AcceptedReplyGeneration {
+    const replyContext = requireReplyContext(transaction, turnId);
+
+    return acceptReplyForContext(transaction, turnId, intent, requestedConfiguration, replyContext);
+  }
+
+  function acceptRegenerationInTransaction(
+    transaction: Pick<Database, "insert" | "select">,
+    assistantMessageId: MessageId,
+    requestedConfiguration: ResolvedGenerationConfiguration,
+  ): AcceptedReplyGeneration {
+    const source = transaction
+      .select({
+        author: threadMessageTable.author,
+        turnId: generationTable.turnId,
+      })
+      .from(generationTable)
+      .innerJoin(
+        threadMessageTable,
+        and(
+          eq(threadMessageTable.turnId, generationTable.turnId),
+          eq(threadMessageTable.id, generationTable.outputMessageId),
+        ),
+      )
+      .where(
+        and(
+          eq(generationTable.outputMessageId, assistantMessageId),
+          eq(generationTable.status, "completed"),
+        ),
+      )
+      .get();
+
+    if (!source) {
+      throw new RangeError(
+        `Message "${assistantMessageId}" is not the output of a completed generation.`,
+      );
+    }
+
+    if (source.author !== "assistant") {
+      throw new TypeError(`Message "${assistantMessageId}" is not an assistant message.`);
+    }
+
+    const replyContext = requireReplyContext(transaction, source.turnId);
+
+    if (replyContext.activeMessageId !== assistantMessageId) {
+      throw new RangeError(`Message "${assistantMessageId}" is not the active thread reply.`);
+    }
+
+    return acceptReplyForContext(
+      transaction,
+      source.turnId,
+      "regeneration",
+      requestedConfiguration,
+      replyContext,
+    );
+  }
+
+  function acceptReplyForContext(
+    transaction: Pick<Database, "insert" | "select">,
+    turnId: TurnId,
+    intent: GenerationIntent,
+    requestedConfiguration: ResolvedGenerationConfiguration,
+    replyContext: ReturnType<typeof requireReplyContext>,
   ): AcceptedReplyGeneration {
     const configuration = {
       model: {
@@ -341,7 +407,6 @@ export function createGenerations(
         : { reasoning: requireResolvedReasoning(requestedConfiguration.reasoning) }),
     };
     requireProvider(configuration.model);
-    const replyContext = requireReplyContext(transaction, turnId);
 
     const pendingGeneration = transaction
       .select({ id: generationTable.id })
@@ -358,6 +423,7 @@ export function createGenerations(
       .values({
         id: ids.generation.create(),
         turnId,
+        intent,
         providerId: configuration.model.providerId,
         modelId: configuration.model.modelId,
         reasoningPreset: configuration.reasoning?.preset ?? null,
@@ -511,6 +577,7 @@ export function createGenerations(
 
   async function executeReply({
     turnId,
+    intent,
     configuration,
     signal,
   }: GenerateReplyRequest): Promise<ReplyGenerationExecution> {
@@ -520,7 +587,7 @@ export function createGenerations(
 
     const resolvedConfiguration = await resolveConfiguration(configuration, signal);
     const accepted = database.transaction((transaction) =>
-      acceptReplyInTransaction(transaction, turnId, resolvedConfiguration),
+      acceptReplyInTransaction(transaction, turnId, intent, resolvedConfiguration),
     );
     return executeAcceptedReply(accepted, signal);
   }
@@ -583,6 +650,7 @@ export function createGenerations(
       }
     },
 
+    acceptRegenerationInTransaction,
     acceptReplyInTransaction,
     executeAcceptedReply,
     executeReply,

@@ -6,7 +6,7 @@ import type {
   ReplyGenerationExecution,
 } from "#backend/generation/generations";
 import type { Generation } from "#backend/generation/schema";
-import type { ThreadId, TurnId } from "#backend/id";
+import type { MessageId, ThreadId, TurnId } from "#backend/id";
 import type { ThreadMessage } from "#backend/thread/schema";
 import {
   requireThreadMessageContent,
@@ -23,7 +23,10 @@ export type { DeleteThreadHistoryRequest, ThreadHistoryDeletion } from "#backend
 
 type TurnGenerationEngine = Pick<
   GenerationEngine,
-  "acceptReplyInTransaction" | "listLatestForTurns" | "resolveConfiguration"
+  | "acceptRegenerationInTransaction"
+  | "acceptReplyInTransaction"
+  | "listLatestForTurns"
+  | "resolveConfiguration"
 > & {
   scheduleAcceptedReply(
     accepted: AcceptedReplyGeneration,
@@ -32,7 +35,7 @@ type TurnGenerationEngine = Pick<
 };
 type TurnThreads = Pick<
   ThreadEngine,
-  "deleteFrom" | "getTurnInput" | "listMessages" | "startTurnInTransaction"
+  "deleteFrom" | "getMessage" | "getTurnInput" | "listMessages" | "startTurnInTransaction"
 >;
 
 type ListThreadRequest = Parameters<TurnThreads["listMessages"]>[0];
@@ -50,6 +53,12 @@ export type SubmitTurnRequest = {
 
 export type RetryTurnRequest = {
   turnId: TurnId;
+  configuration: GenerationConfiguration;
+  signal?: AbortSignal;
+};
+
+export type RegenerateReplyRequest = {
+  assistantMessageId: MessageId;
   configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
@@ -133,7 +142,11 @@ export function createTurns(
 
     try {
       const operation = await start();
-      lease.generating(operation.acceptance.userMessage.turnId, operation.acceptance.generation.id);
+      lease.generating(
+        operation.acceptance.userMessage.turnId,
+        operation.acceptance.generation.id,
+        operation.acceptance.generation.intent,
+      );
 
       void operation.settlement.then(
         () => lease.release(),
@@ -201,6 +214,7 @@ export function createTurns(
           const acceptedGeneration = generations.acceptReplyInTransaction(
             transaction,
             turn.id,
+            "reply",
             resolvedConfiguration,
           );
           const acceptance = {
@@ -241,7 +255,7 @@ export function createTurns(
         }
 
         const acceptedGeneration = database.transaction((transaction) =>
-          generations.acceptReplyInTransaction(transaction, turnId, resolvedConfiguration),
+          generations.acceptReplyInTransaction(transaction, turnId, "retry", resolvedConfiguration),
         );
         const acceptance = {
           userMessage: input.message,
@@ -253,6 +267,58 @@ export function createTurns(
           settlement: beginSettlement(acceptance, acceptedGeneration, signal),
         };
       });
+    },
+
+    async regenerate({
+      assistantMessageId,
+      configuration: requestedConfiguration,
+      signal,
+    }: RegenerateReplyRequest): Promise<TurnOperation> {
+      const configuration = copyConfiguration(requestedConfiguration);
+      assertNotAborted(signal);
+      const assistantMessage = threads.getMessage(assistantMessageId);
+
+      if (!assistantMessage) {
+        throw new RangeError(`Message "${assistantMessageId}" does not exist.`);
+      }
+
+      if (assistantMessage.author !== "assistant") {
+        throw new TypeError(`Message "${assistantMessageId}" is not an assistant message.`);
+      }
+
+      const input = threads.getTurnInput(assistantMessage.turnId);
+
+      if (!input) {
+        throw new Error(`Turn "${assistantMessage.turnId}" has no user input.`);
+      }
+
+      return startExclusive(
+        assistantMessage.threadId,
+        { state: "regenerating", assistantMessageId },
+        async () => {
+          const resolvedConfiguration = await generations.resolveConfiguration(
+            configuration,
+            signal,
+          );
+          assertNotAborted(signal);
+          const acceptedGeneration = database.transaction((transaction) =>
+            generations.acceptRegenerationInTransaction(
+              transaction,
+              assistantMessageId,
+              resolvedConfiguration,
+            ),
+          );
+          const acceptance = {
+            userMessage: input.message,
+            generation: acceptedGeneration.generation,
+          } satisfies TurnAcceptance;
+
+          return {
+            acceptance,
+            settlement: beginSettlement(acceptance, acceptedGeneration, signal),
+          };
+        },
+      );
     },
   };
 }

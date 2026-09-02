@@ -68,7 +68,11 @@ export type {
   ProviderSummary,
 } from "#backend/provider/providers";
 export type { ModelCatalogSnapshot } from "#backend/provider/model-catalog";
-export type { Generation, GenerationFailureKind } from "#backend/generation/schema";
+export type {
+  Generation,
+  GenerationFailureKind,
+  GenerationIntent,
+} from "#backend/generation/schema";
 export type { Usage } from "#backend/usage/history";
 export type { UsageOverview, UsageOverviewReader } from "#backend/usage/overview";
 export { usagePeriods, type UsagePeriod } from "#backend/usage/calendar";
@@ -108,6 +112,7 @@ export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/threads";
 export type {
   DeleteThreadHistoryRequest,
+  RegenerateReplyRequest,
   RetryTurnRequest,
   SubmitTurnRequest,
   ThreadActivityPage,

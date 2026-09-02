@@ -1,20 +1,22 @@
+import type { GenerationIntent } from "#backend/generation/schema";
 import type { GenerationId, MessageId, ThreadId, TurnId } from "#backend/id";
 
 export type TurnOperationInspection =
   | Readonly<{ state: "idle" }>
   | Readonly<{ state: "submitting" }>
   | Readonly<{ state: "retrying"; turnId: TurnId }>
+  | Readonly<{ state: "regenerating"; assistantMessageId: MessageId }>
   | Readonly<{ state: "truncating"; userMessageId: MessageId }>
   | Readonly<{
       state: "generating";
-      source: "submit" | "retry";
+      intent: GenerationIntent;
       turnId: TurnId;
       generationId: GenerationId;
     }>;
 
 export type StartingTurnOperation = Extract<
   TurnOperationInspection,
-  { state: "submitting" | "retrying" }
+  { state: "submitting" | "retrying" | "regenerating" }
 >;
 type TruncatingTurnOperation = Extract<TurnOperationInspection, { state: "truncating" }>;
 type AcquiredTurnOperation = StartingTurnOperation | TruncatingTurnOperation;
@@ -22,7 +24,9 @@ type ActiveTurnOperation = Exclude<TurnOperationInspection, { state: "idle" }>;
 
 type TurnOperationLease = Readonly<{ release: () => void }>;
 type GeneratingTurnOperationLease = TurnOperationLease &
-  Readonly<{ generating: (turnId: TurnId, generationId: GenerationId) => void }>;
+  Readonly<{
+    generating: (turnId: TurnId, generationId: GenerationId, intent: GenerationIntent) => void;
+  }>;
 
 type OperationEntry = Readonly<{
   owner: symbol;
@@ -66,7 +70,7 @@ export function createTurnOperationCoordinator() {
     }
 
     return {
-      generating(turnId: TurnId, generationId: GenerationId) {
+      generating(turnId: TurnId, generationId: GenerationId, intent: GenerationIntent) {
         const current = operations.get(threadId);
 
         if (released || current?.owner !== owner) {
@@ -81,7 +85,7 @@ export function createTurnOperationCoordinator() {
           owner,
           operation: {
             state: "generating",
-            source: starting.state === "submitting" ? "submit" : "retry",
+            intent,
             turnId,
             generationId,
           },

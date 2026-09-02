@@ -2,6 +2,7 @@ import type { Generation, TurnAcceptance, TurnSettlement } from "@jaquelene/back
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
 import {
+  GenerationIntent,
   ReasoningPreset,
   ReasoningPresetSource,
   ThreadMessagePageDirection,
@@ -41,6 +42,11 @@ vi.mock("@jaquelene/ipc/main", () => ({
     Pending: "pending",
     Completed: "completed",
     Failed: "failed",
+  },
+  GenerationIntent: {
+    Reply: "reply",
+    Retry: "retry",
+    Regeneration: "regeneration",
   },
   ReasoningPreset: {
     Automatic: "automatic",
@@ -98,7 +104,7 @@ function requireImplementations() {
   return { threads: implementations.threads, turns: implementations.turns };
 }
 
-function createTurnState() {
+function createTurnState(intent: Generation["intent"] = "reply") {
   const threadId = ids.thread.create();
   const turnId = ids.turn.create();
   const userMessageId = ids.message.create();
@@ -116,6 +122,7 @@ function createTurnState() {
   const pendingGeneration: Generation = {
     id: ids.generation.create(),
     turnId,
+    intent,
     providerId: "openrouter",
     modelId: "maker/model",
     reasoning: { preset: "high", source: "selection" },
@@ -155,8 +162,9 @@ function createTurnState() {
 function failedSettlement(
   failureKind: NonNullable<Generation["failureKind"]>,
   cause: unknown,
+  intent: Generation["intent"] = "reply",
 ): FailedTurnSettlement {
-  const { acceptance } = createTurnState();
+  const { acceptance } = createTurnState(intent);
 
   return {
     ...acceptance,
@@ -188,6 +196,7 @@ function createBackendTurnsStub(
   return {
     deleteFrom: vi.fn(),
     listForThread: vi.fn(emptyPage),
+    regenerate: vi.fn(),
     submit: vi.fn(),
     retry: vi.fn(),
     ...overrides,
@@ -288,6 +297,7 @@ describe("thread IPC", () => {
           turnId: acceptance.userMessage.turnId,
           providerId: "openrouter",
           modelId: "maker/model",
+          intent: GenerationIntent.Reply,
           reasoning: {
             preset: ReasoningPreset.High,
             source: ReasoningPresetSource.Selection,
@@ -311,7 +321,10 @@ describe("thread IPC", () => {
     });
     expect(submitted).toEqual({
       userMessage: page.messages[0],
-      generation: expect.objectContaining({ status: "pending" }),
+      generation: expect.objectContaining({
+        intent: GenerationIntent.Reply,
+        status: "pending",
+      }),
     });
     expect(implementations.dispatchReplyCompleted).not.toHaveBeenCalled();
 
@@ -322,6 +335,7 @@ describe("thread IPC", () => {
       userMessage: page.messages[0],
       generation: expect.objectContaining({
         id: completed.generation.id,
+        intent: GenerationIntent.Reply,
         status: "completed",
         outputMessageId: completed.assistantMessage.id,
       }),
@@ -390,7 +404,7 @@ describe("thread IPC", () => {
 
   it("labels unexpected retry failures as retry operations", async () => {
     const cause = new Error("Reply preparation failed");
-    const failed = failedSettlement("preparation", cause);
+    const failed = failedSettlement("preparation", cause, "retry");
     const acceptance: TurnAcceptance = {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
@@ -419,6 +433,71 @@ describe("thread IPC", () => {
     await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
     expect(report).toHaveBeenCalledWith(
       expect.objectContaining({ operation: "thread.turn.retry" }),
+    );
+  });
+
+  it("maps regeneration and publishes its settlement", async () => {
+    const { acceptance, completed } = createTurnState("regeneration");
+    const assistantMessageId = ids.message.create();
+    const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(async () => ({
+      acceptance,
+      settlement: Promise.resolve(completed),
+    }));
+    const backendTurns = createBackendTurnsStub({ regenerate });
+
+    exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
+    const accepted = await requireImplementations().turns.regenerate({
+      assistantMessageId,
+      configuration: {
+        model: { providerId: "openrouter", modelId: "maker/model" },
+        reasoningPreset: ReasoningPreset.High,
+      },
+    });
+
+    expect(regenerate).toHaveBeenCalledWith({
+      assistantMessageId,
+      configuration: {
+        model: { providerId: "openrouter", modelId: "maker/model" },
+        reasoningPreset: "high",
+      },
+    });
+    expect(accepted).toEqual(
+      expect.objectContaining({
+        id: acceptance.generation.id,
+        intent: GenerationIntent.Regeneration,
+        status: "pending",
+        reasoning: {
+          preset: ReasoningPreset.High,
+          source: ReasoningPresetSource.Selection,
+        },
+      }),
+    );
+    await vi.waitFor(() => expect(implementations.dispatchReplyCompleted).toHaveBeenCalledOnce());
+  });
+
+  it("labels unexpected regeneration failures as regeneration operations", async () => {
+    const cause = new Error("Reply preparation failed");
+    const failed = failedSettlement("preparation", cause, "regeneration");
+    const acceptance: TurnAcceptance = {
+      userMessage: failed.userMessage,
+      generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
+    };
+    const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(async () => ({
+      acceptance,
+      settlement: Promise.resolve(failed),
+    }));
+    const backendTurns = createBackendTurnsStub({ regenerate });
+    const report = vi.fn<ErrorReporter["report"]>();
+
+    exposeSingleRenderer(activeTarget(), backendTurns, { report });
+    await requireImplementations().turns.regenerate({
+      assistantMessageId: ids.message.create(),
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
+    });
+
+    await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
+    expect(report).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: "thread.reply.regenerate" }),
     );
   });
 
@@ -578,10 +657,17 @@ describe("thread IPC", () => {
 
   it("rejects malformed TypeIDs at the adapter boundary", async () => {
     const listForThread = vi.fn(emptyPage);
+    const regenerate = vi.fn();
     const submit = vi.fn();
     const retry = vi.fn();
     const deleteFrom = vi.fn<ThreadMessagingTurns["deleteFrom"]>();
-    const backendTurns = createBackendTurnsStub({ deleteFrom, listForThread, submit, retry });
+    const backendTurns = createBackendTurnsStub({
+      deleteFrom,
+      listForThread,
+      regenerate,
+      submit,
+      retry,
+    });
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     const ipc = requireImplementations();
     const configuration = {
@@ -598,6 +684,9 @@ describe("thread IPC", () => {
       ipc.turns.submit({ threadId: "invalid", content: "Hello", configuration }),
     ).rejects.toThrow(TypeError);
     await expect(ipc.turns.retry({ turnId: "invalid", configuration })).rejects.toThrow(TypeError);
+    await expect(
+      ipc.turns.regenerate({ assistantMessageId: "invalid", configuration }),
+    ).rejects.toThrow(TypeError);
     expect(() =>
       ipc.turns.deleteFrom({ threadId: "invalid", userMessageId: ids.message.create() }),
     ).toThrow(TypeError);
@@ -607,6 +696,7 @@ describe("thread IPC", () => {
     expect(listForThread).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
     expect(retry).not.toHaveBeenCalled();
+    expect(regenerate).not.toHaveBeenCalled();
     expect(deleteFrom).not.toHaveBeenCalled();
   });
 });

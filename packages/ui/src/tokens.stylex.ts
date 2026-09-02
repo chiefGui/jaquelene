@@ -17,15 +17,15 @@ export const colors = stylex.defineVars({
   backgroundSelected: "oklch(0.71 0.08 276 / 19%)",
   backgroundSelectedHover: "oklch(0.71 0.08 276 / 24%)",
 
-  // Accent backgrounds
-  backgroundAccentBold: "oklch(0.925 0.014 282 / 90%)",
-  backgroundAccentBoldHover: "oklch(0.925 0.014 282)",
-
-  // Danger backgrounds
-  backgroundDangerSubtlest: "oklch(0.7 0.16 22 / 8%)",
-  backgroundDangerSubtle: "oklch(0.7 0.16 22 / 12%)",
-  backgroundDangerBold: "oklch(0.6 0.135 22)",
-  backgroundDangerBoldHover: "oklch(0.7 0.16 22)",
+  // Button
+  buttonSolidBackground: "oklch(0.925 0.014 282 / 90%)",
+  buttonSolidBackgroundHover: "oklch(0.925 0.014 282)",
+  buttonSolidForeground: "oklch(0.135 0.01 272)",
+  buttonDangerSubtleBackground: "oklch(0.7 0.16 22 / 8%)",
+  buttonDangerSubtleBackgroundHover: "oklch(0.7 0.16 22 / 12%)",
+  buttonDangerSolidBackground: "oklch(0.6 0.135 22)",
+  buttonDangerSolidBackgroundHover: "oklch(0.7 0.16 22)",
+  buttonDangerSolidForeground: "oklch(0.135 0.01 272)",
 
   // Control backgrounds
   backgroundControlChecked: "oklch(0.55 0.06 276)",
@@ -56,10 +56,6 @@ export const colors = stylex.defineVars({
   foregroundDanger: "oklch(0.7 0.16 22)",
   foregroundSuccess: "oklch(0.75 0.13 158)",
   foregroundReasoning: "oklch(0.75 0.1 305)",
-
-  // Paired foregrounds
-  foregroundOnAccent: "oklch(0.135 0.01 272)",
-  foregroundOnDanger: "oklch(0.135 0.01 272)",
 
   // Text selection foreground
   foregroundTextSelection: "oklch(0.925 0.014 282)",

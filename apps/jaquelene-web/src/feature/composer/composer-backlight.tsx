@@ -292,6 +292,13 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
   let reducedMotion = false;
   let startedAt = 0;
   let loop: FrameLoopHandle | undefined;
+  const [paletteStart, paletteFirstBlend, paletteSecondBlend, paletteEnd] =
+    readBacklightPalette(host);
+  const params = currentEngine.uniforms.params;
+  params.palette_start.splice(0, 4, ...paletteStart);
+  params.palette_first_blend.splice(0, 4, ...paletteFirstBlend);
+  params.palette_second_blend.splice(0, 4, ...paletteSecondBlend);
+  params.palette_end.splice(0, 4, ...paletteEnd);
 
   function updatePlacement() {
     if (disposed) {
@@ -374,15 +381,6 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
     }
   }
 
-  function updatePalette() {
-    const [start, firstBlend, secondBlend, end] = readBacklightPalette(host);
-    const params = currentEngine.uniforms.params;
-    params.palette_start.splice(0, 4, ...start);
-    params.palette_first_blend.splice(0, 4, ...firstBlend);
-    params.palette_second_blend.splice(0, 4, ...secondBlend);
-    params.palette_end.splice(0, 4, ...end);
-  }
-
   function synchronize() {
     stopLoop();
 
@@ -403,8 +401,6 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
     }
   }
 
-  updatePalette();
-
   const resizeObserver = new ResizeObserver(() => {
     if (active && reducedMotion && document.visibilityState === "visible") {
       renderOnce();
@@ -413,21 +409,6 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
   resizeObserver.observe(canvas);
   const positionObserver = new ResizeObserver(schedulePlacement);
   positionObserver.observe(host);
-  const themeObserver = new MutationObserver(() => {
-    try {
-      updatePalette();
-
-      if (active && reducedMotion && document.visibilityState === "visible") {
-        renderOnce();
-      }
-    } catch (error) {
-      fail(error);
-    }
-  });
-  themeObserver.observe(document.documentElement, {
-    attributeFilter: ["class", "data-theme"],
-    attributes: true,
-  });
   document.addEventListener("visibilitychange", synchronize);
   document.addEventListener("scroll", schedulePlacement, { capture: true, passive: true });
   window.addEventListener("resize", schedulePlacement, { passive: true });
@@ -456,7 +437,6 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
       stopLoop();
       resizeObserver.disconnect();
       positionObserver.disconnect();
-      themeObserver.disconnect();
       document.removeEventListener("visibilitychange", synchronize);
       document.removeEventListener("scroll", schedulePlacement, true);
       window.removeEventListener("resize", schedulePlacement);

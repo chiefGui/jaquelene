@@ -82,10 +82,10 @@ const styles = stylex.create({
   },
   solid: {
     backgroundColor: {
-      default: colors.backgroundAccentBold,
-      ":not(:disabled):hover": colors.backgroundAccentBoldHover,
+      default: colors.buttonSolidBackground,
+      ":not(:disabled):hover": colors.buttonSolidBackgroundHover,
     },
-    color: colors.foregroundOnAccent,
+    color: colors.buttonSolidForeground,
   },
   ghost: {
     backgroundColor: {
@@ -115,17 +115,17 @@ const styles = stylex.create({
   },
   solidDanger: {
     backgroundColor: {
-      default: colors.backgroundDangerBold,
-      ":not(:disabled):hover": colors.backgroundDangerBoldHover,
+      default: colors.buttonDangerSolidBackground,
+      ":not(:disabled):hover": colors.buttonDangerSolidBackgroundHover,
     },
-    color: colors.foregroundOnDanger,
+    color: colors.buttonDangerSolidForeground,
   },
   ghostDanger: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": colors.backgroundDangerSubtlest,
-      ":not(:disabled):active": colors.backgroundDangerSubtle,
-      ":is([data-focus-visible])": colors.backgroundDangerSubtlest,
+      ":not(:disabled):hover": colors.buttonDangerSubtleBackground,
+      ":not(:disabled):active": colors.buttonDangerSubtleBackgroundHover,
+      ":is([data-focus-visible])": colors.buttonDangerSubtleBackground,
     },
     color: {
       default: colors.foregroundDanger,
@@ -135,10 +135,10 @@ const styles = stylex.create({
   },
   softDanger: {
     backgroundColor: {
-      default: colors.backgroundDangerSubtlest,
-      ":not(:disabled):hover": colors.backgroundDangerSubtle,
-      ":not(:disabled):active": colors.backgroundDangerSubtle,
-      ":is([data-focus-visible])": colors.backgroundDangerSubtle,
+      default: colors.buttonDangerSubtleBackground,
+      ":not(:disabled):hover": colors.buttonDangerSubtleBackgroundHover,
+      ":not(:disabled):active": colors.buttonDangerSubtleBackgroundHover,
+      ":is([data-focus-visible])": colors.buttonDangerSubtleBackgroundHover,
     },
     color: {
       default: colors.foregroundDanger,

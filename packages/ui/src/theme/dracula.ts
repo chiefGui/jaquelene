@@ -22,15 +22,15 @@ export const draculaTheme = stylex.createTheme(colors, {
   backgroundSelected: "oklch(0.58172 0.22593 284.37 / 22%)",
   backgroundSelectedHover: "oklch(0.58172 0.22593 284.37 / 30%)",
 
-  // Accent backgrounds
-  backgroundAccentBold: "oklch(0.48 0.2 284)",
-  backgroundAccentBoldHover: "oklch(0.5 0.2 284)",
-
-  // Danger backgrounds
-  backgroundDangerSubtlest: "oklch(0.70927 0.1686 32.68 / 8%)",
-  backgroundDangerSubtle: "oklch(0.70927 0.1686 32.68 / 10%)",
-  backgroundDangerBold: "oklch(0.70927 0.1686 32.68)",
-  backgroundDangerBoldHover: "oklch(0.75 0.15 34)",
+  // Button
+  buttonSolidBackground: "oklch(0.48 0.2 284)",
+  buttonSolidBackgroundHover: "oklch(0.5 0.2 284)",
+  buttonSolidForeground: "oklch(0.91559 0.00947 292.78)",
+  buttonDangerSubtleBackground: "oklch(0.70927 0.1686 32.68 / 8%)",
+  buttonDangerSubtleBackgroundHover: "oklch(0.70927 0.1686 32.68 / 10%)",
+  buttonDangerSolidBackground: "oklch(0.70927 0.1686 32.68)",
+  buttonDangerSolidBackgroundHover: "oklch(0.75 0.15 34)",
+  buttonDangerSolidForeground: "oklch(0.16218 0.00847 296.89)",
 
   // Control backgrounds
   backgroundControlChecked: "oklch(0.58172 0.22593 284.37)",
@@ -61,10 +61,6 @@ export const draculaTheme = stylex.createTheme(colors, {
   foregroundDanger: "oklch(0.78 0.14 34)",
   foregroundSuccess: "oklch(0.86812 0.23551 141.97)",
   foregroundReasoning: "oklch(0.8 0.14 353)",
-
-  // Paired foregrounds
-  foregroundOnAccent: "oklch(0.91559 0.00947 292.78)",
-  foregroundOnDanger: "oklch(0.16218 0.00847 296.89)",
 
   // Text selection foreground
   foregroundTextSelection: "oklch(0.91559 0.00947 292.78)",

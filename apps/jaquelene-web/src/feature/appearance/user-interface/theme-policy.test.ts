@@ -6,7 +6,7 @@ const sourceModules = import.meta.glob<string>(
 );
 
 const rawColorAllowlist = [
-  "/packages/ui/src/theme/dracula.theme.ts",
+  "/packages/ui/src/theme/dracula.ts",
   "/packages/ui/src/tokens.stylex.ts",
 ];
 

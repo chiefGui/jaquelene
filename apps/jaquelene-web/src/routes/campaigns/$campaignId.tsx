@@ -6,7 +6,7 @@ import { IconButton } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { CampaignGenerationControls } from "@/feature/campaign/generation-controls";
 import {
@@ -18,11 +18,12 @@ import { campaignUsageQuery } from "@/feature/campaign/usage-query";
 import { CampaignDetailsSidebar } from "@/feature/campaign/details-sidebar";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import {
-  campaignRoleplayInstructionKeyQuery,
-  instructionGroupsQuery,
-} from "@/feature/instruction/query";
-import { scenariosQuery } from "@/feature/scenario/query";
-import { ScenariosSidebar } from "@/feature/scenario/sidebar";
+  campaignPromptSelectionQuery,
+  narratorPromptKind,
+  promptDefaultQuery,
+  promptPagesQuery,
+  promptQuery,
+} from "@/feature/prompt/query";
 import { threadMessagesQuery } from "@/feature/thread/query";
 import { ThreadView } from "@/feature/thread/thread-view";
 import { ContentPane } from "@/layout/content-pane";
@@ -35,15 +36,23 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
       ...campaignQuery(params.campaignId),
       staleTime: "static",
     });
+    const narratorSelectionPromise = context.queryClient.query(
+      campaignPromptSelectionQuery(params.campaignId, narratorPromptKind),
+    );
 
     await Promise.all([
       campaignPromise,
       context.queryClient.query(campaignUsageQuery(params.campaignId)),
-      context.queryClient.query({ ...scenariosQuery, staleTime: "static" }),
       context.queryClient.query(defaultCampaignModelQuery),
       context.queryClient.query(modelProvidersQuery),
-      context.queryClient.query(instructionGroupsQuery),
-      context.queryClient.query(campaignRoleplayInstructionKeyQuery(params.campaignId)),
+      context.queryClient.query(promptDefaultQuery(narratorPromptKind)),
+      context.queryClient.ensureInfiniteQueryData(promptPagesQuery(narratorPromptKind)),
+      narratorSelectionPromise,
+      narratorSelectionPromise.then((selection) =>
+        selection?.effectivePromptKey
+          ? context.queryClient.query(promptQuery(selection.effectivePromptKey))
+          : undefined,
+      ),
       campaignPromise.then((result) =>
         result
           ? context.queryClient.infiniteQuery(threadMessagesQuery(result.threadId))
@@ -52,9 +61,6 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
     ]);
   },
   remountDeps: ({ params }) => params.campaignId,
-  staticData: {
-    primarySidebar: ScenariosSidebar,
-  },
   component: CampaignRoute,
 });
 
@@ -62,12 +68,10 @@ function CampaignRoute() {
   const { campaignId } = Route.useParams();
   const { data: campaign } = useSuspenseQuery(campaignQuery(campaignId));
   const { data: usage } = useSuspenseQuery(campaignUsageQuery(campaignId));
-  const { data: scenarios } = useSuspenseQuery(scenariosQuery);
   const { data: defaultModel } = useSuspenseQuery(defaultCampaignModelQuery);
   const defaultModelPending = useIsDefaultCampaignModelPending();
   const generationPreferencesPending = useIsCampaignGenerationPreferencesPending(campaignId);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const scenario = campaign ? scenarios.find(({ id }) => id === campaign.scenarioId) : undefined;
   const effectiveConfiguration = composeCampaignGenerationConfiguration(
     defaultModel,
     campaign?.generationPreferences,
@@ -75,10 +79,6 @@ function CampaignRoute() {
   const effectiveConfigurationPending =
     generationPreferencesPending ||
     (campaign?.generationPreferences?.model === undefined && defaultModelPending);
-
-  if (campaign && !scenario) {
-    throw new Error(`Campaign "${campaign.id}" references an unavailable scenario.`);
-  }
 
   if (campaign && !usage) {
     throw new Error(`Campaign "${campaign.id}" has no usage snapshot.`);
@@ -90,19 +90,7 @@ function CampaignRoute() {
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>
-              <Breadcrumb.Link render={<Link to="/scenarios" />}>Scenarios</Breadcrumb.Link>
-            </Breadcrumb.Item>
-            {scenario ? (
-              <Breadcrumb.Item>
-                <Breadcrumb.Link
-                  render={<Link to="/scenarios/$scenarioId" params={{ scenarioId: scenario.id }} />}
-                >
-                  {scenario.title}
-                </Breadcrumb.Link>
-              </Breadcrumb.Item>
-            ) : null}
-            <Breadcrumb.Item>
-              <Breadcrumb.Page>Campaign</Breadcrumb.Page>
+              <Breadcrumb.Page>{campaign?.title ?? "Campaign"}</Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
         </Breadcrumb.Root>
@@ -153,7 +141,7 @@ function CampaignRoute() {
         )}
       </ContentPane.Viewport>
 
-      {campaign && usage ? <CampaignDetailsSidebar campaignId={campaign.id} usage={usage} /> : null}
+      {campaign && usage ? <CampaignDetailsSidebar campaign={campaign} usage={usage} /> : null}
     </SecondarySidebar.Root>
   );
 }

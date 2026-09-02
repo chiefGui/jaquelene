@@ -1,7 +1,7 @@
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { IconButton } from "@jaquelene/ui";
+import { IconButton, Skeleton } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import {
@@ -39,6 +39,12 @@ type PrimarySidebarItem =
 interface PrimarySidebarNavigation {
   navigationLabel: string;
   items: readonly PrimarySidebarItem[];
+  loadingItemCount?: number;
+  trailingAction?: {
+    label: string;
+    onSelect: () => void;
+    pending: boolean;
+  };
 }
 
 declare module "@tanstack/react-router" {
@@ -77,7 +83,11 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
         <span {...stylex.props(styles.brand)}>Jaquelene</span>
       </header>
 
-      <nav aria-label={navigation.navigationLabel} {...stylex.props(styles.navigation)}>
+      <nav
+        aria-label={navigation.navigationLabel}
+        aria-busy={navigation.loadingItemCount ? true : undefined}
+        {...stylex.props(styles.navigation)}
+      >
         <ul {...stylex.props(styles.list)}>
           {navigation.items.map((item) => {
             if ("action" in item) {
@@ -108,6 +118,27 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
               </li>
             );
           })}
+          {Array.from({ length: navigation.loadingItemCount ?? 0 }, (_, index) => (
+            <li key={`loading-${index}`}>
+              <div {...stylex.props(styles.loadingItem)}>
+                <Skeleton style={styles.loadingIcon} />
+                <Skeleton style={styles.loadingLabel} />
+              </div>
+            </li>
+          ))}
+          {navigation.trailingAction ? (
+            <li>
+              <button
+                type="button"
+                aria-busy={navigation.trailingAction.pending || undefined}
+                disabled={navigation.trailingAction.pending}
+                onClick={navigation.trailingAction.onSelect}
+                {...stylex.props(styles.navigationItem, styles.trailingAction)}
+              >
+                <span {...stylex.props(styles.label)}>{navigation.trailingAction.label}</span>
+              </button>
+            </li>
+          ) : null}
         </ul>
       </nav>
 
@@ -230,6 +261,25 @@ const styles = stylex.create({
     textBox: "trim-both text",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  },
+  trailingAction: {
+    paddingInlineStart: "2rem",
+  },
+  loadingItem: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.5rem",
+    height: "2.25rem",
+    paddingInline: "0.5rem",
+  },
+  loadingIcon: {
+    flexShrink: 0,
+    height: "1rem",
+    width: "1rem",
+  },
+  loadingLabel: {
+    height: "0.75rem",
+    width: "7rem",
   },
   footer: {
     flexShrink: 0,

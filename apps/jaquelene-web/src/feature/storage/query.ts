@@ -10,11 +10,10 @@ import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interfa
 import { campaignQueryKey } from "@/feature/campaign/query";
 import { defaultCampaignModelQuery } from "@/feature/campaign/preferences";
 import { favoriteModelsQuery } from "@/feature/model/favorite-models";
-import { instructionQueryKey } from "@/feature/instruction/query";
+import { promptQueryKey } from "@/feature/prompt/query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { diagnosticsPreferencesQuery } from "@/feature/diagnostics/preferences";
 import { providersQuery } from "@/feature/provider/query";
-import { scenarioQueryKey } from "@/feature/scenario/query";
 import { threadQueryKey } from "@/feature/thread/query";
 import { usageQueryKey } from "@/feature/usage/query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
@@ -49,13 +48,7 @@ function applyStorageDeletion(
   });
 }
 
-const contentQueryKeys = [
-  scenarioQueryKey,
-  campaignQueryKey,
-  instructionQueryKey,
-  threadQueryKey,
-  usageQueryKey,
-] as const;
+const contentQueryKeys = [campaignQueryKey, promptQueryKey, threadQueryKey, usageQueryKey] as const;
 const appDataQueryKeys = [
   favoriteModelsQuery.queryKey,
   userInterfacePreferencesQuery.queryKey,

@@ -1,15 +1,17 @@
 import { ReasoningPreset } from "@jaquelene/ipc/renderer";
 import type {
   Campaign,
+  CampaignPage,
   CampaignGenerationPreferences,
   ModelSelection,
 } from "@jaquelene/ipc/renderer";
-import { MutationObserver, QueryClient } from "@tanstack/react-query";
+import { MutationObserver, QueryClient, type InfiniteData } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const campaignsIpc = vi.hoisted(() => ({
   get: vi.fn(),
-  listForScenario: vi.fn(),
+  list: vi.fn(),
+  rename: vi.fn(),
   setGenerationPreferences: vi.fn(),
   start: vi.fn(),
 }));
@@ -30,9 +32,10 @@ vi.mock("@jaquelene/ipc/renderer", () => ({
 }));
 
 import {
+  campaignPagesQuery,
   campaignQuery,
-  campaignsForScenarioQuery,
   setCampaignGenerationPreferencesMutationOptions,
+  startCampaignMutationOptions,
 } from "./query";
 
 function modelSelection(id: string): ModelSelection {
@@ -57,11 +60,22 @@ function generationPreferences(
 function campaign(generationPreferences?: CampaignGenerationPreferences): Campaign {
   return {
     id: "campaign-a",
-    scenarioId: "scenario-a",
+    title: "Campaign A",
     threadId: "thread-a",
     startedAt: 100,
     ...(generationPreferences ? { generationPreferences } : {}),
   };
+}
+
+function cacheCampaignPage(queryClient: QueryClient, campaign: Campaign) {
+  queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, {
+    pages: [{ campaigns: [campaign] }],
+    pageParams: [undefined],
+  });
+}
+
+function cachedCampaignPage(queryClient: QueryClient) {
+  return queryClient.getQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey);
 }
 
 function createQueryClient() {
@@ -94,6 +108,30 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
+describe("campaign start mutation", () => {
+  it("publishes a started campaign immediately and schedules list reconciliation", async () => {
+    const queryClient = createQueryClient();
+    const existing = campaign();
+    const started: Campaign = {
+      id: "campaign-new",
+      title: "New campaign",
+      threadId: "thread-new",
+      startedAt: 200,
+    };
+    const request = { title: started.title, composition: [] };
+    campaignsIpc.start.mockResolvedValue(started);
+    cacheCampaignPage(queryClient, existing);
+    const mutation = new MutationObserver(queryClient, startCampaignMutationOptions(queryClient));
+
+    await expect(mutation.mutate(request)).resolves.toEqual(started);
+
+    expect(queryClient.getQueryData(campaignQuery(started.id).queryKey)).toEqual(started);
+    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([started, existing]);
+    expect(queryClient.getQueryState(campaignPagesQuery.queryKey)?.isInvalidated).toBe(true);
+    expect(campaignsIpc.list).not.toHaveBeenCalled();
+  });
+});
+
 describe("campaign generation preferences mutation", () => {
   it("shows the preferences immediately and reconciles campaign caches", async () => {
     const queryClient = createQueryClient();
@@ -106,7 +144,7 @@ describe("campaign generation preferences mutation", () => {
     const save = deferred<Campaign>();
     campaignsIpc.setGenerationPreferences.mockReturnValue(save.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
-    queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
+    cacheCampaignPage(queryClient, original);
     const mutation = observePreferencesMutation(queryClient, original.id);
 
     const result = mutation.mutate(requestedPreferences);
@@ -125,9 +163,7 @@ describe("campaign generation preferences mutation", () => {
       requestedPreferences,
     );
     expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(saved);
-    expect(
-      queryClient.getQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey),
-    ).toEqual([saved]);
+    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([saved]);
   });
 
   it("stores a reasoning preference without pinning the inherited model", async () => {
@@ -181,7 +217,7 @@ describe("campaign generation preferences mutation", () => {
       .mockReturnValueOnce(firstSave.promise)
       .mockReturnValueOnce(latestSave.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
-    queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
+    cacheCampaignPage(queryClient, original);
     const mutation = observePreferencesMutation(queryClient, original.id);
 
     const firstResult = mutation.mutate(firstPreferences);
@@ -206,9 +242,7 @@ describe("campaign generation preferences mutation", () => {
     latestSave.resolve(latestSaved);
     await expect(latestResult).resolves.toEqual(latestSaved);
     expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(latestSaved);
-    expect(
-      queryClient.getQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey),
-    ).toEqual([latestSaved]);
+    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([latestSaved]);
   });
 
   it("restores the original campaign when every ordered save fails", async () => {
@@ -222,7 +256,7 @@ describe("campaign generation preferences mutation", () => {
       .mockReturnValueOnce(firstSave.promise)
       .mockReturnValueOnce(latestSave.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
-    queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
+    cacheCampaignPage(queryClient, original);
     const mutation = observePreferencesMutation(queryClient, original.id);
 
     const firstResult = mutation.mutate(generationPreferences("first", ReasoningPreset.On));
@@ -239,9 +273,7 @@ describe("campaign generation preferences mutation", () => {
     await latestRejection;
 
     expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(original);
-    expect(
-      queryClient.getQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey),
-    ).toEqual([original]);
+    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([original]);
   });
 
   it("restores the last confirmed campaign when the latest ordered save fails", async () => {
@@ -256,7 +288,7 @@ describe("campaign generation preferences mutation", () => {
       .mockReturnValueOnce(firstSave.promise)
       .mockReturnValueOnce(latestSave.promise);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
-    queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
+    cacheCampaignPage(queryClient, original);
     const mutation = observePreferencesMutation(queryClient, original.id);
 
     const firstResult = mutation.mutate(firstPreferences);
@@ -272,9 +304,7 @@ describe("campaign generation preferences mutation", () => {
     await latestRejection;
 
     expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(firstSaved);
-    expect(
-      queryClient.getQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey),
-    ).toEqual([firstSaved]);
+    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([firstSaved]);
   });
 
   it("restores the previous campaign when saving fails", async () => {
@@ -283,7 +313,7 @@ describe("campaign generation preferences mutation", () => {
     const failure = new Error("Could not save the campaign model.");
     campaignsIpc.setGenerationPreferences.mockRejectedValue(failure);
     queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
-    queryClient.setQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey, [original]);
+    cacheCampaignPage(queryClient, original);
     const mutation = observePreferencesMutation(queryClient, original.id);
 
     await expect(
@@ -291,9 +321,7 @@ describe("campaign generation preferences mutation", () => {
     ).rejects.toBe(failure);
 
     expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(original);
-    expect(
-      queryClient.getQueryData(campaignsForScenarioQuery(original.scenarioId).queryKey),
-    ).toEqual([original]);
+    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([original]);
   });
 
   it("rejects an update when the campaign disappeared", async () => {

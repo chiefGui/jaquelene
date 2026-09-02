@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
-import { createScenarios } from "#backend/scenario/scenarios";
 import { createThreads } from "#backend/thread/threads";
 import { providerAttemptTable } from "#backend/usage/schema";
 import { createCampaigns } from "./campaigns";
@@ -24,7 +23,6 @@ function openEnvironment() {
     database,
     campaigns: createCampaigns(database),
     usage: createCampaignUsage(database),
-    scenarios: createScenarios(database),
     threads: createThreads(database),
   };
 }
@@ -41,8 +39,8 @@ afterEach(() => {
 
 describe("campaign usage", () => {
   it("aggregates every dispatched attempt while preserving reporting coverage", () => {
-    const { database, campaigns, scenarios, threads, usage } = openEnvironment();
-    const campaign = campaigns.start(scenarios.create({ title: "Usage" }).id);
+    const { database, campaigns, threads, usage } = openEnvironment();
+    const campaign = campaigns.start({ title: "Usage", composition: [] });
     const turn = threads.startTurn(campaign.threadId, "Hello").turn;
     const preparingTurn = threads.startTurn(campaign.threadId, "Still preparing").turn;
 
@@ -175,8 +173,8 @@ describe("campaign usage", () => {
   });
 
   it("distinguishes an empty campaign from an unknown campaign", () => {
-    const { campaigns, scenarios, usage } = openEnvironment();
-    const campaign = campaigns.start(scenarios.create({ title: "Empty" }).id);
+    const { campaigns, usage } = openEnvironment();
+    const campaign = campaigns.start({ title: "Empty", composition: [] });
 
     expect(usage.get(campaign.id)).toEqual({
       campaignId: campaign.id,

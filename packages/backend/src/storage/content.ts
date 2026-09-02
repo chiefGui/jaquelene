@@ -2,8 +2,7 @@ import { eq } from "drizzle-orm";
 import { campaignTable } from "#backend/campaign/schema";
 import { getDatabaseStoragePaths, type Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
-import { roleplayInstructionTable } from "#backend/instruction/schema";
-import { scenarioTable } from "#backend/scenario/schema";
+import { promptTable } from "#backend/prompt/schema";
 import { StorageCategory, type StorageArea } from "#backend/storage/storage";
 import { threadTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
@@ -32,10 +31,9 @@ function deleteContent(database: Database) {
 
     transaction.delete(providerAttemptTable).run();
     transaction.delete(campaignTable).run();
-    transaction.delete(roleplayInstructionTable).run();
+    transaction.delete(promptTable).where(eq(promptTable.origin, "custom")).run();
     transaction.delete(generationTable).run();
     transaction.delete(threadTable).run();
-    transaction.delete(scenarioTable).run();
   });
 
   database.$client.exec("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");

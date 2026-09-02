@@ -1,16 +1,56 @@
-import type { CampaignGenerationPreferences as ComposableCampaignGenerationPreferences } from "@jaquelene/domain";
-import { desc, eq, getTableColumns } from "drizzle-orm";
+import {
+  parseCampaignTitleInput,
+  parsePromptKey,
+  promptKindKeySchema,
+  type CampaignGenerationPreferences as ComposableCampaignGenerationPreferences,
+  type CampaignTitle,
+  type PromptKey,
+  type PromptKindKey,
+} from "@jaquelene/domain";
+import { and, desc, eq, getTableColumns, lt, or } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
-import { ids, type CampaignId, type ScenarioId, type ThreadId } from "#backend/id";
+import { ids, type CampaignId, type ThreadId } from "#backend/id";
 import { requireReasoningPreset, type ReasoningPreset } from "#backend/model/reasoning";
+import { decodeCursor, encodeCursor } from "#backend/pagination/cursor";
+import { campaignPromptSelectionTable, promptKindTable, promptTable } from "#backend/prompt/schema";
 import { requireModelSelection, type ModelSelection } from "#backend/provider/provider";
 import { insertThread } from "#backend/thread/threads";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
+
+export const campaignPageSize = 50;
+const campaignCompositionLimit = 32;
 
 export type CampaignGenerationPreferences = ComposableCampaignGenerationPreferences<
   ModelSelection,
   ReasoningPreset
 >;
+
+export type CampaignPromptSelectionInput = Readonly<{
+  kind: PromptKindKey;
+  promptKey?: PromptKey;
+}>;
+
+export type StartCampaignInput = Readonly<{
+  title: string;
+  composition: readonly CampaignPromptSelectionInput[];
+}>;
+
+export type CampaignPageRequest = Readonly<{
+  cursor?: string;
+}>;
+
+export type Campaign = Readonly<{
+  id: CampaignId;
+  title: CampaignTitle;
+  threadId: ThreadId;
+  startedAt: number;
+  generationPreferences?: CampaignGenerationPreferences;
+}>;
+
+export type CampaignPage = Readonly<{
+  campaigns: readonly Campaign[];
+  nextCursor?: string;
+}>;
 
 function requireCampaignGenerationPreferences(preferences: CampaignGenerationPreferences) {
   if (preferences.model === undefined && preferences.reasoningPreset === undefined) {
@@ -26,13 +66,58 @@ function requireCampaignGenerationPreferences(preferences: CampaignGenerationPre
   }
 }
 
-export type Campaign = Readonly<{
-  id: CampaignId;
-  scenarioId: ScenarioId;
-  threadId: ThreadId;
-  startedAt: number;
-  generationPreferences?: CampaignGenerationPreferences;
-}>;
+function parseComposition(value: unknown): readonly CampaignPromptSelectionInput[] {
+  if (!Array.isArray(value) || value.length > campaignCompositionLimit) {
+    throw new TypeError("Campaign composition is invalid.");
+  }
+
+  const seenKinds = new Set<PromptKindKey>();
+
+  return value.map((selection) => {
+    if (!selection || typeof selection !== "object" || Array.isArray(selection)) {
+      throw new TypeError("Campaign prompt selection is invalid.");
+    }
+
+    const keys = Object.keys(selection);
+
+    if (!keys.every((key) => key === "kind" || key === "promptKey") || !("kind" in selection)) {
+      throw new TypeError("Campaign prompt selection is invalid.");
+    }
+
+    const kindResult = promptKindKeySchema.safeParse(selection.kind);
+
+    if (!kindResult.success) {
+      throw new TypeError("Campaign prompt kind is invalid.", { cause: kindResult.error });
+    }
+
+    if (seenKinds.has(kindResult.data)) {
+      throw new TypeError(`Campaign composition contains prompt kind "${kindResult.data}" twice.`);
+    }
+
+    seenKinds.add(kindResult.data);
+    const promptKey = "promptKey" in selection ? selection.promptKey : undefined;
+
+    return {
+      kind: kindResult.data,
+      ...(promptKey === undefined ? {} : { promptKey: parsePromptKey(promptKey) }),
+    };
+  });
+}
+
+function parseStartCampaignInput(value: StartCampaignInput) {
+  if (!value || typeof value !== "object") {
+    throw new TypeError("Campaign input is invalid.");
+  }
+
+  const keys = Object.keys(value);
+
+  if (!keys.every((key) => key === "title" || key === "composition")) {
+    throw new TypeError("Campaign input is invalid.");
+  }
+
+  const { title } = parseCampaignTitleInput({ title: value.title });
+  return { title, composition: parseComposition(value.composition) };
+}
 
 type StoredCampaign = typeof campaignTable.$inferSelect & {
   generationPreferences: Omit<
@@ -73,43 +158,115 @@ function toCampaign({ generationPreferences, ...campaign }: StoredCampaign): Cam
   };
   requireCampaignGenerationPreferences(preferences);
 
-  return {
-    ...campaign,
-    generationPreferences: preferences,
-  };
+  return { ...campaign, generationPreferences: preferences };
+}
+
+function parseCampaignCursor(cursor: string) {
+  const [startedAt, idInput] = decodeCursor(cursor, 2);
+
+  if (typeof startedAt !== "number" || !Number.isSafeInteger(startedAt) || startedAt < 0) {
+    throw new TypeError("Campaign cursor is invalid.");
+  }
+
+  if (typeof idInput !== "string") {
+    throw new TypeError("Campaign cursor is invalid.");
+  }
+
+  try {
+    return { startedAt, id: ids.campaign.parse(idInput) };
+  } catch (error) {
+    throw new TypeError("Campaign cursor is invalid.", { cause: error });
+  }
 }
 
 export function createCampaigns(database: Database, now: () => number = Date.now) {
   return {
-    start(scenarioId: ScenarioId) {
+    start(input: StartCampaignInput) {
+      const { title, composition } = parseStartCampaignInput(input);
       const startedAt = now();
 
       return database.transaction((transaction) => {
+        for (const { kind, promptKey } of composition) {
+          const promptKind = transaction
+            .select({ key: promptKindTable.key })
+            .from(promptKindTable)
+            .where(eq(promptKindTable.key, kind))
+            .get();
+
+          if (!promptKind) {
+            throw new RangeError(`Prompt kind "${kind}" does not exist.`);
+          }
+
+          if (promptKey !== undefined) {
+            const prompt = transaction
+              .select({ key: promptTable.key })
+              .from(promptTable)
+              .where(and(eq(promptTable.kind, kind), eq(promptTable.key, promptKey)))
+              .get();
+
+            if (!prompt) {
+              throw new RangeError(`Prompt "${promptKey}" does not exist for kind "${kind}".`);
+            }
+          }
+        }
+
         const thread = insertThread(transaction, startedAt);
         const campaign = {
           id: ids.campaign.create(),
-          scenarioId,
+          title,
           threadId: thread.id,
           startedAt,
         };
-
         transaction.insert(campaignTable).values(campaign).run();
+
+        for (const { kind, promptKey } of composition) {
+          if (promptKey === undefined) {
+            continue;
+          }
+          transaction
+            .insert(campaignPromptSelectionTable)
+            .values({ campaignId: campaign.id, kind, promptKey })
+            .run();
+        }
+
         return campaign;
       });
     },
 
-    listForScenario(scenarioId: ScenarioId) {
-      return database
+    list({ cursor }: CampaignPageRequest = {}) {
+      const cursorCampaign = cursor === undefined ? undefined : parseCampaignCursor(cursor);
+
+      const beforeCursor = cursorCampaign
+        ? or(
+            lt(campaignTable.startedAt, cursorCampaign.startedAt),
+            and(
+              eq(campaignTable.startedAt, cursorCampaign.startedAt),
+              lt(campaignTable.id, cursorCampaign.id),
+            ),
+          )
+        : undefined;
+      const rows = database
         .select(campaignSelection)
         .from(campaignTable)
         .leftJoin(
           campaignGenerationPreferencesTable,
           eq(campaignGenerationPreferencesTable.campaignId, campaignTable.id),
         )
-        .where(eq(campaignTable.scenarioId, scenarioId))
+        .where(beforeCursor)
         .orderBy(desc(campaignTable.startedAt), desc(campaignTable.id))
-        .all()
-        .map(toCampaign);
+        .limit(campaignPageSize + 1)
+        .all();
+      const hasNextPage = rows.length > campaignPageSize;
+      const pageRows = hasNextPage ? rows.slice(0, campaignPageSize) : rows;
+      const lastCampaign = hasNextPage ? pageRows.at(-1) : undefined;
+      const nextCursor = lastCampaign
+        ? encodeCursor([lastCampaign.startedAt, lastCampaign.id])
+        : undefined;
+
+      return {
+        campaigns: pageRows.map(toCampaign),
+        ...(nextCursor ? { nextCursor } : {}),
+      };
     },
 
     get(id: CampaignId) {
@@ -125,13 +282,37 @@ export function createCampaigns(database: Database, now: () => number = Date.now
       return campaign ? toCampaign(campaign) : null;
     },
 
+    rename(id: CampaignId, titleInput: unknown) {
+      const { title } = parseCampaignTitleInput({ title: titleInput });
+      const campaign = database
+        .update(campaignTable)
+        .set({ title })
+        .where(eq(campaignTable.id, id))
+        .returning()
+        .get();
+
+      if (!campaign) {
+        return null;
+      }
+
+      const generationPreferences = database
+        .select({
+          providerId: campaignGenerationPreferencesTable.providerId,
+          modelId: campaignGenerationPreferencesTable.modelId,
+          name: campaignGenerationPreferencesTable.name,
+          brandId: campaignGenerationPreferencesTable.brandId,
+          reasoningPreset: campaignGenerationPreferencesTable.reasoningPreset,
+        })
+        .from(campaignGenerationPreferencesTable)
+        .where(eq(campaignGenerationPreferencesTable.campaignId, id))
+        .get();
+      return toCampaign({ ...campaign, generationPreferences: generationPreferences ?? null });
+    },
+
     getContextForThread(threadId: ThreadId) {
       return (
         database
-          .select({
-            id: campaignTable.id,
-            scenarioId: campaignTable.scenarioId,
-          })
+          .select({ id: campaignTable.id })
           .from(campaignTable)
           .where(eq(campaignTable.threadId, threadId))
           .get() ?? null

@@ -7,10 +7,9 @@ import { campaignTable } from "#backend/campaign/schema";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
-import { createRoleplayInstructions } from "#backend/instruction/roleplay-instructions";
-import { roleplayInstructionTable } from "#backend/instruction/schema";
-import { createScenarios } from "#backend/scenario/scenarios";
-import { scenarioTable } from "#backend/scenario/schema";
+import { narratorPromptKind, narratorPromptModule } from "#backend/prompt/narrator";
+import { createPrompts } from "#backend/prompt/prompts";
+import { promptTable } from "#backend/prompt/schema";
 import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
 import { providerAttemptTable } from "#backend/usage/schema";
@@ -41,9 +40,9 @@ afterEach(() => {
 describe("content storage area", () => {
   it("deletes every content record through one transaction", async () => {
     const { database, path } = createTestDatabase();
-    const scenario = createScenarios(database).create({ title: "The Long Night" });
-    const campaign = createCampaigns(database).start(scenario.id);
-    createRoleplayInstructions(database).create({ title: "Noir", body: "Keep it dark." });
+    const prompts = createPrompts(database, [narratorPromptModule]);
+    const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
+    prompts.create({ kind: narratorPromptKind.key, title: "Noir", body: "Keep it dark." });
     const { turn } = createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
       .insert(providerAttemptTable)
@@ -66,19 +65,18 @@ describe("content storage area", () => {
     expect(database.select().from(generationTable).all()).toEqual([]);
     expect(database.select().from(providerAttemptTable).all()).toEqual([]);
     expect(database.select().from(campaignTable).all()).toEqual([]);
-    expect(database.select().from(roleplayInstructionTable).all()).toEqual([]);
+    expect(database.select().from(promptTable).all()).toHaveLength(1);
     expect(database.select().from(threadMessageTable).all()).toEqual([]);
     expect(database.select().from(turnTable).all()).toEqual([]);
     expect(database.select().from(threadTable).all()).toEqual([]);
-    expect(database.select().from(scenarioTable).all()).toEqual([]);
     expect(() => area.delete()).not.toThrow();
   });
 
   it("preserves content while a reply is being generated", () => {
     const { database, path } = createTestDatabase();
-    const scenario = createScenarios(database).create({ title: "The Long Night" });
-    const campaign = createCampaigns(database).start(scenario.id);
-    createRoleplayInstructions(database).create({ title: "Noir", body: "Keep it dark." });
+    const prompts = createPrompts(database, [narratorPromptModule]);
+    const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
+    prompts.create({ kind: narratorPromptKind.key, title: "Noir", body: "Keep it dark." });
     const { turn } = createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
       .insert(generationTable)
@@ -96,17 +94,16 @@ describe("content storage area", () => {
     expect(() => area.delete()).toThrow(
       "Content cannot be deleted while a reply is being generated.",
     );
-    expect(database.select().from(scenarioTable).all()).toHaveLength(1);
     expect(database.select().from(campaignTable).all()).toHaveLength(1);
-    expect(database.select().from(roleplayInstructionTable).all()).toHaveLength(1);
+    expect(database.select().from(promptTable).all()).toHaveLength(2);
     expect(database.select().from(threadTable).all()).toHaveLength(1);
     expect(database.select().from(generationTable).all()).toHaveLength(1);
   });
 
   it("preserves content while an orphaned provider attempt is active", () => {
     const { database, path } = createTestDatabase();
-    const scenario = createScenarios(database).create({ title: "The Long Night" });
-    const campaign = createCampaigns(database).start(scenario.id);
+    createPrompts(database, [narratorPromptModule]);
+    const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
     createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
       .insert(providerAttemptTable)
@@ -130,8 +127,8 @@ describe("content storage area", () => {
 
   it("rolls back every content deletion when an owner operation fails", () => {
     const { database, path } = createTestDatabase();
-    const scenario = createScenarios(database).create({ title: "The Long Night" });
-    const campaign = createCampaigns(database).start(scenario.id);
+    createPrompts(database, [narratorPromptModule]);
+    const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
     createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
       .insert(providerAttemptTable)
@@ -157,7 +154,6 @@ describe("content storage area", () => {
     const area = createContentStorageArea(database, path);
 
     expect(() => area.delete()).toThrow('Failed query: delete from "threads"');
-    expect(database.select().from(scenarioTable).all()).toHaveLength(1);
     expect(database.select().from(campaignTable).all()).toHaveLength(1);
     expect(database.select().from(threadTable).all()).toHaveLength(1);
     expect(database.select().from(turnTable).all()).toHaveLength(1);

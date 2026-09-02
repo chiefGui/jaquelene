@@ -1,9 +1,8 @@
 import type {
   Campaigns,
   CampaignUsageReader,
-  Instructions,
+  Prompts,
   Providers,
-  Scenarios,
   Storage,
   Turns,
   Usage,
@@ -26,8 +25,7 @@ import { exposeModelCatalog } from "../feature/model/catalog-ipc";
 import type { FavoriteModels } from "../feature/model/favorite-models";
 import { exposeFavoriteModels } from "../feature/model/favorite-models-ipc";
 import { exposeProviders } from "../feature/provider/ipc";
-import { exposeScenarios } from "../feature/scenario/ipc";
-import { exposeInstructions } from "../feature/instruction/ipc";
+import { exposePrompts } from "../feature/prompt/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
 import { exposeUsage } from "../feature/usage/ipc";
 import type { LocalState } from "../local-state";
@@ -102,10 +100,9 @@ export function createMainWindowManager({
   rendererUrl,
   diagnostics,
   localState,
-  scenarios,
   campaigns,
   campaignUsage,
-  instructions,
+  prompts,
   turns,
   modelCatalog,
   favoriteModels,
@@ -117,10 +114,9 @@ export function createMainWindowManager({
   rendererUrl: string;
   diagnostics: ApplicationDiagnostics;
   localState: LocalState;
-  scenarios: Scenarios;
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
-  instructions: Instructions;
+  prompts: Prompts;
   turns: Turns;
   modelCatalog: ModelCatalog;
   favoriteModels: FavoriteModels;
@@ -208,8 +204,7 @@ export function createMainWindowManager({
     addFinalizer(scope, () => browserWindow.off("closed", onClosed));
 
     try {
-      exposeScenarios(browserWindow.webContents.mainFrame, scenarios);
-      exposeInstructions(browserWindow.webContents.mainFrame, instructions);
+      exposePrompts(browserWindow.webContents.mainFrame, prompts);
       exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
       exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
       exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);

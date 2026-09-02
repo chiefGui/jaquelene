@@ -5,6 +5,7 @@ import {
   type CampaignUsage as BackendCampaignUsage,
   type CampaignUsageReader,
 } from "@jaquelene/backend";
+import { promptKeySchema, promptKindKeySchema } from "@jaquelene/domain";
 import {
   CampaignPreferences as CampaignPreferencesIpc,
   Campaigns as CampaignsIpc,
@@ -61,14 +62,30 @@ function fromIpcPreferences(preferences: IpcCampaignGenerationPreferences) {
 
 export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
   CampaignsIpc.for(target).setImplementation({
-    start(id) {
-      return toIpcCampaign(campaigns.start(ids.scenario.parse(id)));
+    start({ title, composition }) {
+      return toIpcCampaign(
+        campaigns.start({
+          title,
+          composition: composition.map(({ kind, promptKey }) => ({
+            kind: promptKindKeySchema.parse(kind),
+            ...(promptKey ? { promptKey: promptKeySchema.parse(promptKey) } : {}),
+          })),
+        }),
+      );
     },
-    listForScenario(id) {
-      return campaigns.listForScenario(ids.scenario.parse(id)).map(toIpcCampaign);
+    list(request) {
+      const page = campaigns.list(request);
+      return {
+        campaigns: page.campaigns.map(toIpcCampaign),
+        ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+      };
     },
     get(id) {
       const campaign = campaigns.get(ids.campaign.parse(id));
+      return campaign ? toIpcCampaign(campaign) : null;
+    },
+    rename({ id, title }) {
+      const campaign = campaigns.rename(ids.campaign.parse(id), title);
       return campaign ? toIpcCampaign(campaign) : null;
     },
     setGenerationPreferences(id, preferences) {

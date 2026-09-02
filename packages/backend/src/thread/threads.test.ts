@@ -68,7 +68,7 @@ describe("threads", () => {
 
   it("starts durable turns and links each user message to the active head", () => {
     let timestamp = 200;
-    const { threads } = openThreads(createDatabasePath(), () => timestamp++);
+    const { database, threads } = openThreads(createDatabasePath(), () => timestamp++);
     const thread = threads.create();
     const otherThread = threads.create();
     const first = threads.startTurn(thread.id, "  First message  ");
@@ -104,6 +104,16 @@ describe("threads", () => {
       contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
       contentBytes: 31,
     });
+    expect(
+      database
+        .select({
+          lastActivityAt: threadTable.lastActivityAt,
+          turnCount: threadTable.turnCount,
+        })
+        .from(threadTable)
+        .where(eq(threadTable.id, thread.id))
+        .get(),
+    ).toEqual({ lastActivityAt: second.message.createdAt, turnCount: 2 });
   });
 
   it("follows message ancestry for a turn without leaking sibling branches", () => {
@@ -132,8 +142,18 @@ describe("threads", () => {
       }),
     );
 
-    expect(firstReply.activated).toBe(true);
-    expect(siblingReply.activated).toBe(false);
+    expect(firstReply.threadActivity).not.toBeNull();
+    expect(siblingReply.threadActivity).toBeNull();
+    expect(
+      database
+        .select({
+          lastActivityAt: threadTable.lastActivityAt,
+          turnCount: threadTable.turnCount,
+        })
+        .from(threadTable)
+        .where(eq(threadTable.id, thread.id))
+        .get(),
+    ).toEqual({ lastActivityAt: firstReply.message.createdAt, turnCount: 2 });
     expect(
       database
         .select({
@@ -435,15 +455,20 @@ describe("threads", () => {
       }),
     );
 
-    expect(rootReply.activated).toBe(true);
-    expect(targetReply.activated).toBe(true);
-    expect(inactiveTargetReply.activated).toBe(false);
-    expect(retainedLaterMessage.activated).toBe(false);
+    expect(rootReply.threadActivity).not.toBeNull();
+    expect(targetReply.threadActivity).not.toBeNull();
+    expect(inactiveTargetReply.threadActivity).toBeNull();
+    expect(retainedLaterMessage.threadActivity).toBeNull();
     expect(threads.deleteFrom({ threadId: thread.id, userMessageId: target.message.id })).toEqual({
       threadId: thread.id,
       userMessageId: target.message.id,
       activeMessageId: rootReply.message.id,
       deletedTurnCount: 2,
+      threadActivity: {
+        threadId: thread.id,
+        lastActivityAt: rootReply.message.createdAt,
+        turnCount: 1,
+      },
     });
 
     expect(threads.listMessages({ threadId: thread.id, direction: "older" }).messages).toEqual([
@@ -483,6 +508,11 @@ describe("threads", () => {
       userMessageId: root.message.id,
       activeMessageId: null,
       deletedTurnCount: 1,
+      threadActivity: {
+        threadId: thread.id,
+        lastActivityAt: thread.createdAt,
+        turnCount: 0,
+      },
     });
     expect(threads.get(thread.id)).toEqual(thread);
     expect(threads.listMessages({ threadId: thread.id, direction: "older" }).messages).toEqual([]);
@@ -512,7 +542,7 @@ describe("threads", () => {
     );
     const otherMessage = threads.startTurn(otherThread.id, "Other thread message").message;
 
-    expect(activeReply.activated).toBe(true);
+    expect(activeReply.threadActivity).not.toBeNull();
     expect(() =>
       threads.deleteFrom({ threadId: thread.id, userMessageId: activeReply.message.id }),
     ).toThrow(TypeError);

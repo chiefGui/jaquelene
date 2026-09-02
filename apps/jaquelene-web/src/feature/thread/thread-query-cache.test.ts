@@ -91,6 +91,7 @@ function pendingTurn(
   return {
     userMessage,
     generation,
+    threadActivity: { threadId, lastActivityAt: sequence, turnCount: sequence },
   };
 }
 
@@ -375,6 +376,7 @@ describe("thread query cache", () => {
         ...pendingTurn(2, GenerationIntent.Retry).generation,
         turnId: failed.userMessage.turnId,
       },
+      threadActivity: failed.threadActivity,
     };
     const completed = completedTurn(retryAcceptance, 2);
     const data: ThreadQueryData = {
@@ -403,6 +405,7 @@ describe("thread query cache", () => {
         ...pendingTurn(3, GenerationIntent.Regeneration).generation,
         turnId: original.userMessage.turnId,
       },
+      threadActivity: original.threadActivity,
     };
     const regenerated = completedTurn(regenerationAcceptance, 4);
     const data: ThreadQueryData = {

@@ -4,7 +4,9 @@ import {
   type Campaign,
   type CampaignDeletion,
   type CampaignPage,
+  type CampaignSummary,
   type StartCampaignRequest,
+  type ThreadActivity,
 } from "@jaquelene/ipc/renderer";
 import {
   infiniteQueryOptions,
@@ -17,6 +19,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import {
+  campaignDetailQueryKey,
   campaignListQueryKey,
   campaignPromptSelectionPrefix,
   campaignRecordQueryKey,
@@ -78,19 +81,109 @@ function withoutGenerationPreferences(campaign: Campaign): Campaign {
 }
 
 function cacheCampaign(queryClient: QueryClient, campaign: Campaign) {
-  queryClient.setQueryData(campaignQuery(campaign.id).queryKey, campaign);
-  queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, (data) =>
-    data
+  queryClient.setQueryData<Campaign | null>(campaignQuery(campaign.id).queryKey, (current) =>
+    current
       ? {
-          ...data,
-          pages: data.pages.map((page) => ({
-            ...page,
-            campaigns: page.campaigns.map((candidate) =>
-              candidate.id === campaign.id ? campaign : candidate,
-            ),
-          })),
+          ...campaign,
+          lastActivityAt: current.lastActivityAt,
+          turnCount: current.turnCount,
         }
-      : data,
+      : campaign,
+  );
+}
+
+function updateCampaignSummaries(
+  queryClient: QueryClient,
+  update: (campaigns: readonly CampaignSummary[]) => readonly CampaignSummary[],
+) {
+  queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, (data) => {
+    if (!data) {
+      return data;
+    }
+
+    const loadedCampaigns = data.pages.flatMap((page) => page.campaigns);
+    const updatedCampaigns = update(loadedCampaigns);
+    const hasUnloadedCampaigns = data.pages.at(-1)?.nextCursor !== undefined;
+    const campaigns = hasUnloadedCampaigns
+      ? updatedCampaigns.slice(0, loadedCampaigns.length)
+      : updatedCampaigns;
+    const lastPageIndex = data.pages.length - 1;
+    let offset = 0;
+    const pages = data.pages.map((page, index) => {
+      const pageSize = index === lastPageIndex ? campaigns.length - offset : page.campaigns.length;
+      const pageCampaigns = campaigns.slice(offset, offset + pageSize);
+      offset += pageSize;
+      return { ...page, campaigns: pageCampaigns };
+    });
+
+    return { ...data, pages };
+  });
+}
+
+function compareCampaignActivity(left: CampaignSummary, right: CampaignSummary) {
+  if (left.lastActivityAt !== right.lastActivityAt) {
+    return left.lastActivityAt < right.lastActivityAt ? 1 : -1;
+  }
+
+  return left.threadId < right.threadId ? 1 : left.threadId === right.threadId ? 0 : -1;
+}
+
+export function updateCampaignActivity(
+  queryClient: QueryClient,
+  activity: Readonly<ThreadActivity>,
+  { allowRewind = false }: Readonly<{ allowRewind?: boolean }> = {},
+) {
+  const data = queryClient.getQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey);
+  const campaignFound =
+    data?.pages.some((page) =>
+      page.campaigns.some((campaign) => campaign.threadId === activity.threadId),
+    ) ?? false;
+
+  queryClient.setQueriesData<Campaign | null>({ queryKey: campaignDetailQueryKey }, (campaign) =>
+    campaign?.threadId === activity.threadId
+      ? {
+          ...campaign,
+          lastActivityAt: allowRewind
+            ? activity.lastActivityAt
+            : Math.max(campaign.lastActivityAt, activity.lastActivityAt),
+          turnCount: allowRewind
+            ? activity.turnCount
+            : Math.max(campaign.turnCount, activity.turnCount),
+        }
+      : campaign,
+  );
+
+  if (campaignFound) {
+    updateCampaignSummaries(queryClient, (campaigns) =>
+      campaigns
+        .map((campaign) =>
+          campaign.threadId === activity.threadId
+            ? {
+                ...campaign,
+                lastActivityAt: allowRewind
+                  ? activity.lastActivityAt
+                  : Math.max(campaign.lastActivityAt, activity.lastActivityAt),
+              }
+            : campaign,
+        )
+        .sort(compareCampaignActivity),
+    );
+  }
+
+  return (
+    !data || !campaignFound || data.pages.length > 1 || data.pages.at(-1)?.nextCursor !== undefined
+  );
+}
+
+export function invalidateCampaignPages(queryClient: QueryClient) {
+  return queryClient.invalidateQueries({ queryKey: campaignPagesQuery.queryKey, exact: true });
+}
+
+function updateCampaignSummaryTitle(queryClient: QueryClient, campaign: Campaign) {
+  updateCampaignSummaries(queryClient, (campaigns) =>
+    campaigns.map((candidate) =>
+      candidate.id === campaign.id ? { ...candidate, title: campaign.title } : candidate,
+    ),
   );
 }
 
@@ -171,10 +264,7 @@ export function setCampaignGenerationPreferencesMutationOptions(
     },
     async onMutate(preferences) {
       const context = beginPreferencesMutation(queryClient, id);
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: query.queryKey, exact: true }),
-        queryClient.cancelQueries({ queryKey: campaignPagesQuery.queryKey, exact: true }),
-      ]);
+      await queryClient.cancelQueries({ queryKey: query.queryKey, exact: true });
       const previousCampaign = queryClient.getQueryData<Campaign | null>(query.queryKey);
 
       if (!context.sequence.initialized) {
@@ -306,31 +396,19 @@ export function startCampaignMutationOptions(queryClient: QueryClient) {
     mutationFn: startCampaign,
     onSuccess(campaign) {
       queryClient.setQueryData(campaignQuery(campaign.id).queryKey, campaign);
-      const list = queryClient.getQueryData<InfiniteData<CampaignPage>>(
-        campaignPagesQuery.queryKey,
+      const summary: CampaignSummary = {
+        id: campaign.id,
+        title: campaign.title,
+        threadId: campaign.threadId,
+        lastActivityAt: campaign.lastActivityAt,
+      };
+      updateCampaignSummaries(queryClient, (campaigns) =>
+        [summary, ...campaigns.filter((candidate) => candidate.id !== campaign.id)].sort(
+          compareCampaignActivity,
+        ),
       );
-      const firstPage = list?.pages[0];
 
-      if (list && firstPage) {
-        queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, {
-          ...list,
-          pages: [
-            {
-              ...firstPage,
-              campaigns: [
-                campaign,
-                ...firstPage.campaigns.filter((candidate) => candidate.id !== campaign.id),
-              ],
-            },
-            ...list.pages.slice(1),
-          ],
-        });
-      }
-
-      void queryClient.invalidateQueries({
-        queryKey: campaignPagesQuery.queryKey,
-        exact: true,
-      });
+      void invalidateCampaignPages(queryClient);
     },
   });
 }
@@ -357,6 +435,7 @@ export function useRenameCampaign(id: string) {
     },
     onSuccess(campaign) {
       cacheCampaign(queryClient, campaign);
+      updateCampaignSummaryTitle(queryClient, campaign);
     },
   });
 }

@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
   check,
-  index,
   integer,
   primaryKey,
   sqliteTable,
@@ -29,7 +28,6 @@ export const campaignTable = sqliteTable(
   },
   (campaign) => [
     primaryKey({ columns: [campaign.id] }),
-    index("campaigns_started_at_index").on(campaign.startedAt, campaign.id),
     uniqueIndex("campaigns_thread_unique").on(campaign.threadId),
     check(
       "campaigns_title_valid",

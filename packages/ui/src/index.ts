@@ -11,6 +11,7 @@ export { Item } from "./primitive/item";
 export { Ping, type PingProps } from "./primitive/ping";
 export { Skeleton, type SkeletonProps } from "./primitive/skeleton";
 export { Switch, type SwitchProps } from "./primitive/switch";
+export { Timestamp, type TimestampProps } from "./primitive/timestamp";
 export { formatBytes } from "./util/format-bytes";
 export {
   formatCompactCount,

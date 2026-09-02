@@ -63,6 +63,17 @@ export function createDevelopmentProfileId(worktreeDirectory: string) {
   return requireDevelopmentProfileId(`${profileLabel(normalizedDirectory)}-${fingerprint}`);
 }
 
+export function getDevelopmentProfileUserDataDirectory(
+  appDataDirectory: string,
+  profileId: string,
+) {
+  return join(
+    appDataDirectory,
+    developmentProfilesDirectoryName,
+    requireDevelopmentProfileId(profileId),
+  );
+}
+
 export function configureDevelopmentProfile(
   application: ProfileApplication,
   profileId: string | undefined,
@@ -72,9 +83,8 @@ export function configureDevelopmentProfile(
   }
 
   const id = requireDevelopmentProfileId(profileId);
-  const userDataDirectory = join(
+  const userDataDirectory = getDevelopmentProfileUserDataDirectory(
     application.getPath("appData"),
-    developmentProfilesDirectoryName,
     id,
   );
   const sessionDataDirectory = join(userDataDirectory, "session");

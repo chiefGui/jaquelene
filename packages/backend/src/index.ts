@@ -1,5 +1,6 @@
 export { createBackend } from "#backend/backend";
 export type { Backend, BackendInspection, BackendOptions } from "#backend/backend";
+export { getDatabaseStoragePaths } from "#backend/database/database";
 export type {
   ResourceCacheFailure,
   ResourceCacheInspection,
@@ -9,6 +10,7 @@ export type {
   CampaignDeletion,
   CampaignPage,
   CampaignPageRequest,
+  CampaignSummary,
   CampaignPromptSelectionInput,
   CampaignGenerationPreferences,
   Campaigns,
@@ -109,7 +111,7 @@ export type {
   SetCampaignPromptSelectionInput,
 } from "#backend/prompt/types";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
-export type { Threads } from "#backend/thread/threads";
+export type { ThreadActivity, Threads } from "#backend/thread/threads";
 export type {
   DeleteThreadHistoryRequest,
   RegenerateReplyRequest,

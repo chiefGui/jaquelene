@@ -132,7 +132,11 @@ function createTurnState(intent: Generation["intent"] = "reply") {
     startedAt: 101,
     finishedAt: null,
   };
-  const acceptance: TurnAcceptance = { userMessage, generation: pendingGeneration };
+  const acceptance: TurnAcceptance = {
+    userMessage,
+    generation: pendingGeneration,
+    threadActivity: { threadId, lastActivityAt: userMessage.createdAt, turnCount: 1 },
+  };
   const assistantMessage = {
     id: assistantMessageId,
     threadId,
@@ -154,6 +158,7 @@ function createTurnState(intent: Generation["intent"] = "reply") {
     },
     assistantMessage,
     assistantActivated: true,
+    threadActivity: { threadId, lastActivityAt: assistantMessage.createdAt, turnCount: 1 },
   };
 
   return { acceptance, completed };
@@ -325,6 +330,7 @@ describe("thread IPC", () => {
         intent: GenerationIntent.Reply,
         status: "pending",
       }),
+      threadActivity: acceptance.threadActivity,
     });
     expect(implementations.dispatchReplyCompleted).not.toHaveBeenCalled();
 
@@ -340,6 +346,7 @@ describe("thread IPC", () => {
         outputMessageId: completed.assistantMessage.id,
       }),
       assistantMessage: expect.objectContaining({ content: "Hi" }),
+      threadActivity: completed.threadActivity,
     });
     expect(report).not.toHaveBeenCalled();
   });
@@ -380,6 +387,7 @@ describe("thread IPC", () => {
     const acceptance: TurnAcceptance = {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
+      threadActivity: failed.threadActivity,
     };
     const backendTurns = createBackendTurnsStub({
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(failed) })),
@@ -408,6 +416,7 @@ describe("thread IPC", () => {
     const acceptance: TurnAcceptance = {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
+      threadActivity: failed.threadActivity,
     };
     const retry = vi.fn<ThreadMessagingTurns["retry"]>(async () => ({
       acceptance,
@@ -481,6 +490,7 @@ describe("thread IPC", () => {
     const acceptance: TurnAcceptance = {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
+      threadActivity: failed.threadActivity,
     };
     const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(async () => ({
       acceptance,
@@ -537,6 +547,7 @@ describe("thread IPC", () => {
         failureKind: null,
         finishedAt: null,
       },
+      threadActivity: interrupted.threadActivity,
     };
     const backendTurns = createBackendTurnsStub({
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(interrupted) })),
@@ -639,6 +650,7 @@ describe("thread IPC", () => {
       userMessageId,
       activeMessageId,
       deletedTurnCount: 3,
+      threadActivity: { threadId, lastActivityAt: 700, turnCount: 4 },
     }));
     const backendTurns = createBackendTurnsStub({ deleteFrom });
 
@@ -651,6 +663,7 @@ describe("thread IPC", () => {
       userMessageId,
       activeMessageId,
       deletedTurnCount: 3,
+      threadActivity: { threadId, lastActivityAt: 700, turnCount: 4 },
     });
     expect(implementations.dispatchHistoryDeleted).toHaveBeenCalledWith(result);
   });

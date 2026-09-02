@@ -1,20 +1,20 @@
 import type { Campaign, CampaignUsageSnapshot } from "@jaquelene/ipc/renderer";
-import { formatCount, formatCurrencyNanos } from "@jaquelene/ui";
+import { Timestamp, formatCount, formatCurrencyNanos } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { CampaignNarratorControl } from "@/feature/prompt/campaign-control";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
 import { summarizeCosts } from "@/feature/usage/presentation";
 import { CampaignDeleteControl } from "./delete-control";
 import { CampaignTitleControl } from "./title-control";
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function MetricRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <p {...stylex.props(styles.metric)}>
-      <span {...stylex.props(styles.label)}>{label}</span>
-      <span {...stylex.props(styles.value)}>{value}</span>
-    </p>
+    <div {...stylex.props(styles.metric)}>
+      <dt {...stylex.props(styles.label)}>{label}</dt>
+      <dd {...stylex.props(styles.value)}>{value}</dd>
+    </div>
   );
 }
 
@@ -63,10 +63,16 @@ export function CampaignDetailsSidebar({
               Metadata
             </h2>
 
-            <div {...stylex.props(styles.metrics)}>
+            <dl {...stylex.props(styles.metrics)}>
+              <MetricRow value={formatCount(campaign.turnCount)} label="Turns" />
               <MetricRow value={tokensValue} label="Tokens" />
               <MetricRow value={costValue} label="Cost" />
-            </div>
+              <MetricRow
+                value={<Timestamp value={campaign.lastActivityAt} />}
+                label="Last activity"
+              />
+              <MetricRow value={<Timestamp value={campaign.startedAt} />} label="Started" />
+            </dl>
           </section>
         </SecondarySidebar.Body>
       </SecondarySidebar.Viewport>
@@ -101,7 +107,7 @@ const styles = stylex.create({
   metrics: {
     display: "grid",
     gap: "0.75rem",
-    marginTop: "1rem",
+    marginBlock: "1rem 0",
   },
   metric: {
     alignItems: "baseline",
@@ -112,8 +118,9 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightSmall,
   },
   value: {
-    color: colors.foregroundPrimary,
+    color: `color-mix(in oklch, ${colors.foregroundPrimary} 60%, ${colors.foregroundSecondary})`,
     fontVariantNumeric: "tabular-nums",
+    margin: 0,
     textAlign: "end",
   },
   label: {

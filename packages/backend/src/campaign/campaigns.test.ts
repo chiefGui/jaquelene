@@ -20,7 +20,13 @@ import type { ModelSelection } from "#backend/provider/provider";
 import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
 import { providerAttemptTable } from "#backend/usage/schema";
-import { campaignPageSize, createCampaigns, type CampaignGenerationPreferences } from "./campaigns";
+import {
+  campaignPageSize,
+  createCampaigns,
+  type Campaign,
+  type CampaignGenerationPreferences,
+  type CampaignSummary,
+} from "./campaigns";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
 
 const directories: string[] = [];
@@ -32,7 +38,7 @@ function createDatabasePath() {
   return join(directory, "jaquelene.sqlite");
 }
 
-function openCampaigns(path: string, now?: () => number) {
+function openCampaigns(path: string, now?: () => number, threadNow?: () => number) {
   const database = openDatabase(path);
   databases.push(database);
   const prompts = createPrompts(database, [narratorPromptModule]);
@@ -40,12 +46,21 @@ function openCampaigns(path: string, now?: () => number) {
     database,
     campaigns: createCampaigns(database, now),
     prompts,
-    threads: createThreads(database),
+    threads: createThreads(database, threadNow),
   };
 }
 
 function start(campaigns: ReturnType<typeof createCampaigns>, title: string) {
   return campaigns.start({ title, composition: [{ kind: narratorPromptKind.key }] });
+}
+
+function summary(campaign: Campaign, lastActivityAt = campaign.lastActivityAt): CampaignSummary {
+  return {
+    id: campaign.id,
+    title: campaign.title,
+    threadId: campaign.threadId,
+    lastActivityAt,
+  };
 }
 
 function modelSelection(id: string): ModelSelection {
@@ -88,9 +103,71 @@ describe("campaigns", () => {
       title: "First campaign",
       threadId: expect.stringMatching(/^thread_/),
       startedAt: 100,
+      lastActivityAt: 100,
+      turnCount: 0,
     });
     expect(threads.get(first.threadId)).toEqual({ id: first.threadId, createdAt: 100 });
-    expect(campaigns.list().campaigns).toEqual([second, first]);
+    expect(campaigns.list().campaigns).toEqual([summary(second), summary(first)]);
+  });
+
+  it("orders campaign summaries by active conversation activity", () => {
+    let startedAt = 100;
+    let messageAt = 300;
+    const { campaigns, threads } = openCampaigns(
+      createDatabasePath(),
+      () => startedAt++,
+      () => messageAt++,
+    );
+    const first = start(campaigns, "First campaign");
+    const second = start(campaigns, "Second campaign");
+    const activity = threads.startTurn(first.threadId, "Bring this campaign forward");
+
+    expect(campaigns.list().campaigns).toEqual([
+      summary(first, activity.message.createdAt),
+      summary(second),
+    ]);
+    expect(campaigns.get(first.id)).toEqual({
+      ...first,
+      lastActivityAt: activity.message.createdAt,
+      turnCount: 1,
+    });
+  });
+
+  it("uses the activity index for the bounded sidebar read", () => {
+    const { campaigns, database } = openCampaigns(createDatabasePath(), () => 400);
+    start(campaigns, "Indexed campaign");
+
+    const queries = [
+      `
+        EXPLAIN QUERY PLAN
+        SELECT campaigns.id
+        FROM threads
+        INNER JOIN campaigns ON campaigns.thread_id = threads.id
+        ORDER BY threads.last_activity_at DESC, threads.id DESC
+        LIMIT 51
+      `,
+      `
+        EXPLAIN QUERY PLAN
+        SELECT campaigns.id
+        FROM threads
+        INNER JOIN campaigns ON campaigns.thread_id = threads.id
+        WHERE threads.last_activity_at < 500
+          OR (threads.last_activity_at = 500 AND threads.id < 'thread_z')
+        ORDER BY threads.last_activity_at DESC, threads.id DESC
+        LIMIT 51
+      `,
+    ];
+
+    for (const query of queries) {
+      const plan = database.$client
+        .prepare(query)
+        .all()
+        .map((row) => String(row.detail))
+        .join("\n");
+
+      expect(plan).toContain("threads_last_activity_at_index");
+      expect(plan).not.toContain("USE TEMP B-TREE");
+    }
   });
 
   it("creates the campaign, thread, and explicit composition atomically", () => {
@@ -149,21 +226,30 @@ describe("campaigns", () => {
     const firstPage = campaigns.list();
 
     expect(firstPage.campaigns).toHaveLength(campaignPageSize);
-    expect(firstPage.campaigns[0]).toEqual(created.at(-1));
+    expect(firstPage.campaigns[0]).toEqual(summary(created.at(-1)!));
     expect(firstPage.nextCursor).toEqual(expect.any(String));
     database.delete(campaignTable).where(eq(campaignTable.id, created[1]!.id)).run();
-    expect(campaigns.list({ cursor: firstPage.nextCursor! }).campaigns).toEqual([created[0]]);
+    expect(campaigns.list({ cursor: firstPage.nextCursor! }).campaigns).toEqual([
+      summary(created[0]!),
+    ]);
   });
 
   it("persists, renames, and locates campaigns by their thread", () => {
     const path = createDatabasePath();
     const first = openCampaigns(path, () => 200);
     const campaign = start(first.campaigns, "Original");
-    expect(first.campaigns.rename(campaign.id, "  Renamed  ")?.title).toBe("Renamed");
+    const activity = first.threads.startTurn(campaign.threadId, "Remember this turn");
+    const renamed = {
+      ...campaign,
+      title: "Renamed",
+      lastActivityAt: activity.message.createdAt,
+      turnCount: 1,
+    };
+    expect(first.campaigns.rename(campaign.id, "  Renamed  ")).toEqual(renamed);
     closeDatabase(first.database);
 
     const second = openCampaigns(path);
-    expect(second.campaigns.get(campaign.id)?.title).toBe("Renamed");
+    expect(second.campaigns.get(campaign.id)).toEqual(renamed);
     expect(second.campaigns.getContextForThread(campaign.threadId)).toEqual({ id: campaign.id });
   });
 
@@ -276,7 +362,14 @@ describe("campaigns", () => {
 
     expect(campaigns.get(campaign.id)).toBeNull();
     expect(threads.get(campaign.threadId)).toBeNull();
-    expect(database.select().from(campaignTable).all()).toEqual([unrelated]);
+    expect(database.select().from(campaignTable).all()).toEqual([
+      {
+        id: unrelated.id,
+        title: unrelated.title,
+        threadId: unrelated.threadId,
+        startedAt: unrelated.startedAt,
+      },
+    ]);
     expect(database.select().from(campaignGenerationPreferencesTable).all()).toEqual([]);
     expect(database.select().from(campaignPromptSelectionTable).all()).toEqual([]);
     expect(database.select().from(generationTable).all()).toEqual([]);
@@ -286,6 +379,8 @@ describe("campaigns", () => {
       {
         id: unrelated.threadId,
         createdAt: unrelated.startedAt,
+        lastActivityAt: unrelated.lastActivityAt,
+        turnCount: unrelated.turnCount,
         lastMessageSequence: 0,
         activeMessageId: null,
       },
@@ -299,7 +394,7 @@ describe("campaigns", () => {
   it("preserves a campaign while its reply is pending", () => {
     const { campaigns, database, threads } = openCampaigns(createDatabasePath());
     const campaign = start(campaigns, "Active campaign");
-    const { turn } = threads.startTurn(campaign.threadId, "Begin the story.");
+    const { turn, activity } = threads.startTurn(campaign.threadId, "Begin the story.");
     database
       .insert(generationTable)
       .values({
@@ -316,7 +411,11 @@ describe("campaigns", () => {
     expect(() => campaigns.delete(campaign.id)).toThrow(
       "Campaign cannot be deleted while a reply is being generated.",
     );
-    expect(campaigns.get(campaign.id)).toEqual(campaign);
+    expect(campaigns.get(campaign.id)).toEqual({
+      ...campaign,
+      lastActivityAt: activity.lastActivityAt,
+      turnCount: activity.turnCount,
+    });
     expect(threads.get(campaign.threadId)).toEqual({
       id: campaign.threadId,
       createdAt: campaign.startedAt,

@@ -2,7 +2,14 @@ import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const ipc = vi.hoisted(() => {
-  type HistoryDeletion = Readonly<{ threadId: string }>;
+  type HistoryDeletion = Readonly<{
+    threadId: string;
+    threadActivity: Readonly<{
+      threadId: string;
+      lastActivityAt: number;
+      turnCount: number;
+    }>;
+  }>;
   type HistoryDeletedListener = (deletion: HistoryDeletion) => void;
 
   let historyDeletedListener: HistoryDeletedListener | undefined;
@@ -43,6 +50,11 @@ const ipc = vi.hoisted(() => {
   };
 });
 
+const campaignCache = vi.hoisted(() => ({
+  invalidateCampaignPages: vi.fn(() => Promise.resolve()),
+  updateCampaignActivity: vi.fn(() => true),
+}));
+
 vi.mock("@jaquelene/ipc/renderer", () => ({
   ThreadMessagePageDirection: { Older: "older", Newer: "newer" },
   Threads: ipc.Threads,
@@ -53,12 +65,17 @@ vi.mock("@/feature/campaign/usage-query", () => ({
   invalidateCampaignUsage: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock("@/feature/campaign/query", () => campaignCache);
+
 vi.mock("@/feature/diagnostics/diagnostics", () => ({ reportError: vi.fn() }));
 
 import { installThreadReconciliation, threadMessagesQuery } from "./query";
 
 beforeEach(() => {
   ipc.reset();
+  campaignCache.invalidateCampaignPages.mockClear();
+  campaignCache.updateCampaignActivity.mockClear();
+  campaignCache.updateCampaignActivity.mockReturnValue(true);
 });
 
 describe("thread reconciliation", () => {
@@ -68,12 +85,21 @@ describe("thread reconciliation", () => {
     const threadId = "thread_01k46w4v06f7vs6qdqb8r78x8w";
     const stop = installThreadReconciliation(queryClient);
 
-    ipc.listener()?.({ threadId });
+    ipc.listener()?.({
+      threadId,
+      threadActivity: { threadId, lastActivityAt: 500, turnCount: 2 },
+    });
 
     expect(resetQueries).toHaveBeenCalledWith({
       queryKey: threadMessagesQuery(threadId).queryKey,
       exact: true,
     });
+    expect(campaignCache.updateCampaignActivity).toHaveBeenCalledWith(
+      queryClient,
+      { threadId, lastActivityAt: 500, turnCount: 2 },
+      { allowRewind: true },
+    );
+    expect(campaignCache.invalidateCampaignPages).toHaveBeenCalledWith(queryClient);
 
     stop();
     expect(ipc.stops.historyDeleted).toHaveBeenCalledOnce();

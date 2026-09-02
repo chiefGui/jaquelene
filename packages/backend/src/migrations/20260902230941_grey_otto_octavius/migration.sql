@@ -148,11 +148,15 @@ CREATE TABLE `thread_messages` (
 CREATE TABLE `threads` (
 	`id` text PRIMARY KEY NOT NULL,
 	`created_at` integer NOT NULL,
+	`last_activity_at` integer NOT NULL,
+	`turn_count` integer DEFAULT 0 NOT NULL,
 	`last_message_sequence` integer DEFAULT 0 NOT NULL,
 	`active_message_id` text,
 	CONSTRAINT `fk_threads_active_message_id_thread_messages_id_fk` FOREIGN KEY (`active_message_id`) REFERENCES `thread_messages`(`id`) ON DELETE SET NULL,
 	CONSTRAINT `threads_active_message_thread_fk` FOREIGN KEY (`id`,`active_message_id`) REFERENCES `thread_messages`(`thread_id`,`id`),
 	CONSTRAINT "threads_created_at_nonnegative" CHECK("created_at" >= 0),
+	CONSTRAINT "threads_last_activity_at_nonnegative" CHECK("last_activity_at" >= 0),
+	CONSTRAINT "threads_turn_count_nonnegative" CHECK("turn_count" >= 0),
 	CONSTRAINT "threads_last_message_sequence_nonnegative" CHECK("last_message_sequence" >= 0)
 );
 --> statement-breakpoint
@@ -240,7 +244,6 @@ CREATE TABLE `provider_attempts` (
           AND "failure_kind" IS NOT NULL))
 );
 --> statement-breakpoint
-CREATE INDEX `campaigns_started_at_index` ON `campaigns` (`started_at`,`id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `campaigns_thread_unique` ON `campaigns` (`thread_id`);--> statement-breakpoint
 CREATE INDEX `generations_turn_started_at_idx` ON `generations` (`turn_id`,`started_at`,`id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `generations_pending_turn_unique` ON `generations` (`turn_id`) WHERE "generations"."status" = 'pending';--> statement-breakpoint
@@ -255,6 +258,7 @@ CREATE UNIQUE INDEX `thread_messages_thread_id_unique` ON `thread_messages` (`th
 CREATE UNIQUE INDEX `thread_messages_thread_parent_id_unique` ON `thread_messages` (`thread_id`,`parent_message_id`,`id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `thread_messages_turn_id_unique` ON `thread_messages` (`turn_id`,`id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `thread_messages_turn_user_unique` ON `thread_messages` (`turn_id`) WHERE "thread_messages"."author" = 'user';--> statement-breakpoint
+CREATE INDEX `threads_last_activity_at_index` ON `threads` (`last_activity_at`,`id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `turns_thread_id_unique` ON `turns` (`thread_id`,`id`);--> statement-breakpoint
 CREATE INDEX `provider_attempts_generation_idx` ON `provider_attempts` (`generation_id`,`started_at`,`id`);--> statement-breakpoint
 CREATE INDEX `provider_attempts_started_at_idx` ON `provider_attempts` (`started_at`,`id`);--> statement-breakpoint

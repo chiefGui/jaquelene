@@ -3,6 +3,7 @@ import {
   type AnySQLiteColumn,
   check,
   foreignKey,
+  index,
   integer,
   primaryKey,
   sqliteTable,
@@ -19,6 +20,8 @@ export const threadTable = sqliteTable(
   {
     id: text().$type<ThreadId>().notNull(),
     createdAt: integer("created_at").notNull(),
+    lastActivityAt: integer("last_activity_at").notNull(),
+    turnCount: integer("turn_count").notNull().default(0),
     lastMessageSequence: integer("last_message_sequence").notNull().default(0),
     activeMessageId: text("active_message_id")
       .$type<MessageId>()
@@ -26,12 +29,15 @@ export const threadTable = sqliteTable(
   },
   (thread): SQLiteTableExtraConfigValue[] => [
     primaryKey({ columns: [thread.id] }),
+    index("threads_last_activity_at_index").on(thread.lastActivityAt, thread.id),
     foreignKey({
       columns: [thread.id, thread.activeMessageId],
       foreignColumns: [threadMessageTable.threadId, threadMessageTable.id],
       name: "threads_active_message_thread_fk",
     }),
     check("threads_created_at_nonnegative", sql`${thread.createdAt} >= 0`),
+    check("threads_last_activity_at_nonnegative", sql`${thread.lastActivityAt} >= 0`),
+    check("threads_turn_count_nonnegative", sql`${thread.turnCount} >= 0`),
     check("threads_last_message_sequence_nonnegative", sql`${thread.lastMessageSequence} >= 0`),
   ],
 );

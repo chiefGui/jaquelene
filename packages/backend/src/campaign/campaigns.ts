@@ -15,8 +15,8 @@ import { requireReasoningPreset, type ReasoningPreset } from "#backend/model/rea
 import { decodeCursor, encodeCursor } from "#backend/pagination/cursor";
 import { campaignPromptSelectionTable, promptKindTable, promptTable } from "#backend/prompt/schema";
 import { requireModelSelection, type ModelSelection } from "#backend/provider/provider";
-import { insertThread } from "#backend/thread/threads";
 import { threadTable, turnTable } from "#backend/thread/schema";
+import { insertThread } from "#backend/thread/threads";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
 
 export const campaignPageSize = 50;
@@ -46,11 +46,20 @@ export type Campaign = Readonly<{
   title: CampaignTitle;
   threadId: ThreadId;
   startedAt: number;
+  lastActivityAt: number;
+  turnCount: number;
   generationPreferences?: CampaignGenerationPreferences;
 }>;
 
+export type CampaignSummary = Readonly<{
+  id: CampaignId;
+  title: CampaignTitle;
+  threadId: ThreadId;
+  lastActivityAt: number;
+}>;
+
 export type CampaignPage = Readonly<{
-  campaigns: readonly Campaign[];
+  campaigns: readonly CampaignSummary[];
   nextCursor?: string;
 }>;
 
@@ -127,6 +136,8 @@ function parseStartCampaignInput(value: StartCampaignInput) {
 }
 
 type StoredCampaign = typeof campaignTable.$inferSelect & {
+  lastActivityAt: number;
+  turnCount: number;
   generationPreferences: Omit<
     typeof campaignGenerationPreferencesTable.$inferSelect,
     "campaignId"
@@ -135,6 +146,8 @@ type StoredCampaign = typeof campaignTable.$inferSelect & {
 
 const campaignSelection = {
   ...getTableColumns(campaignTable),
+  lastActivityAt: threadTable.lastActivityAt,
+  turnCount: threadTable.turnCount,
   generationPreferences: {
     providerId: campaignGenerationPreferencesTable.providerId,
     modelId: campaignGenerationPreferencesTable.modelId,
@@ -169,21 +182,39 @@ function toCampaign({ generationPreferences, ...campaign }: StoredCampaign): Cam
 }
 
 function parseCampaignCursor(cursor: string) {
-  const [startedAt, idInput] = decodeCursor(cursor, 2);
+  const [lastActivityAt, threadIdInput] = decodeCursor(cursor, 2);
 
-  if (typeof startedAt !== "number" || !Number.isSafeInteger(startedAt) || startedAt < 0) {
+  if (
+    typeof lastActivityAt !== "number" ||
+    !Number.isSafeInteger(lastActivityAt) ||
+    lastActivityAt < 0
+  ) {
     throw new TypeError("Campaign cursor is invalid.");
   }
 
-  if (typeof idInput !== "string") {
+  if (typeof threadIdInput !== "string") {
     throw new TypeError("Campaign cursor is invalid.");
   }
 
   try {
-    return { startedAt, id: ids.campaign.parse(idInput) };
+    return { lastActivityAt, threadId: ids.thread.parse(threadIdInput) };
   } catch (error) {
     throw new TypeError("Campaign cursor is invalid.", { cause: error });
   }
+}
+
+function getCampaign(database: Database, id: CampaignId) {
+  const campaign = database
+    .select(campaignSelection)
+    .from(campaignTable)
+    .innerJoin(threadTable, eq(threadTable.id, campaignTable.threadId))
+    .leftJoin(
+      campaignGenerationPreferencesTable,
+      eq(campaignGenerationPreferencesTable.campaignId, campaignTable.id),
+    )
+    .where(eq(campaignTable.id, id))
+    .get();
+  return campaign ? toCampaign(campaign) : null;
 }
 
 export function createCampaigns(database: Database, now: () => number = Date.now) {
@@ -236,7 +267,7 @@ export function createCampaigns(database: Database, now: () => number = Date.now
             .run();
         }
 
-        return campaign;
+        return { ...campaign, lastActivityAt: startedAt, turnCount: 0 };
       });
     },
 
@@ -245,48 +276,41 @@ export function createCampaigns(database: Database, now: () => number = Date.now
 
       const beforeCursor = cursorCampaign
         ? or(
-            lt(campaignTable.startedAt, cursorCampaign.startedAt),
+            lt(threadTable.lastActivityAt, cursorCampaign.lastActivityAt),
             and(
-              eq(campaignTable.startedAt, cursorCampaign.startedAt),
-              lt(campaignTable.id, cursorCampaign.id),
+              eq(threadTable.lastActivityAt, cursorCampaign.lastActivityAt),
+              lt(threadTable.id, cursorCampaign.threadId),
             ),
           )
         : undefined;
       const rows = database
-        .select(campaignSelection)
-        .from(campaignTable)
-        .leftJoin(
-          campaignGenerationPreferencesTable,
-          eq(campaignGenerationPreferencesTable.campaignId, campaignTable.id),
-        )
+        .select({
+          id: campaignTable.id,
+          title: campaignTable.title,
+          threadId: campaignTable.threadId,
+          lastActivityAt: threadTable.lastActivityAt,
+        })
+        .from(threadTable)
+        .innerJoin(campaignTable, eq(campaignTable.threadId, threadTable.id))
         .where(beforeCursor)
-        .orderBy(desc(campaignTable.startedAt), desc(campaignTable.id))
+        .orderBy(desc(threadTable.lastActivityAt), desc(threadTable.id))
         .limit(campaignPageSize + 1)
         .all();
       const hasNextPage = rows.length > campaignPageSize;
       const pageRows = hasNextPage ? rows.slice(0, campaignPageSize) : rows;
       const lastCampaign = hasNextPage ? pageRows.at(-1) : undefined;
       const nextCursor = lastCampaign
-        ? encodeCursor([lastCampaign.startedAt, lastCampaign.id])
+        ? encodeCursor([lastCampaign.lastActivityAt, lastCampaign.threadId])
         : undefined;
 
       return {
-        campaigns: pageRows.map(toCampaign),
+        campaigns: pageRows,
         ...(nextCursor ? { nextCursor } : {}),
       };
     },
 
     get(id: CampaignId) {
-      const campaign = database
-        .select(campaignSelection)
-        .from(campaignTable)
-        .leftJoin(
-          campaignGenerationPreferencesTable,
-          eq(campaignGenerationPreferencesTable.campaignId, campaignTable.id),
-        )
-        .where(eq(campaignTable.id, id))
-        .get();
-      return campaign ? toCampaign(campaign) : null;
+      return getCampaign(database, id);
     },
 
     delete(id: CampaignId): CampaignDeletion | null {
@@ -338,29 +362,14 @@ export function createCampaigns(database: Database, now: () => number = Date.now
 
     rename(id: CampaignId, titleInput: unknown) {
       const { title } = parseCampaignTitleInput({ title: titleInput });
-      const campaign = database
+      const renamed = database
         .update(campaignTable)
         .set({ title })
         .where(eq(campaignTable.id, id))
-        .returning()
+        .returning({ id: campaignTable.id })
         .get();
 
-      if (!campaign) {
-        return null;
-      }
-
-      const generationPreferences = database
-        .select({
-          providerId: campaignGenerationPreferencesTable.providerId,
-          modelId: campaignGenerationPreferencesTable.modelId,
-          name: campaignGenerationPreferencesTable.name,
-          brandId: campaignGenerationPreferencesTable.brandId,
-          reasoningPreset: campaignGenerationPreferencesTable.reasoningPreset,
-        })
-        .from(campaignGenerationPreferencesTable)
-        .where(eq(campaignGenerationPreferencesTable.campaignId, id))
-        .get();
-      return toCampaign({ ...campaign, generationPreferences: generationPreferences ?? null });
+      return renamed ? getCampaign(database, id) : null;
     },
 
     getContextForThread(threadId: ThreadId) {
@@ -380,8 +389,13 @@ export function createCampaigns(database: Database, now: () => number = Date.now
 
       return database.transaction((transaction) => {
         const campaign = transaction
-          .select()
+          .select({
+            ...getTableColumns(campaignTable),
+            lastActivityAt: threadTable.lastActivityAt,
+            turnCount: threadTable.turnCount,
+          })
           .from(campaignTable)
+          .innerJoin(threadTable, eq(threadTable.id, campaignTable.threadId))
           .where(eq(campaignTable.id, id))
           .get();
 

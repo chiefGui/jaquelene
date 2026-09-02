@@ -40,6 +40,11 @@ subtype ThreadDeletedTurnCount = number(
   maxValue: 9007199254740991
 )
 
+subtype ThreadTurnCount = number(
+  minValue: 0
+  maxValue: 9007199254740991
+)
+
 enum ThreadMessageAuthor {
   User = "user"
   Assistant = "assistant"
@@ -78,6 +83,12 @@ structure ThreadMessage {
   author: ThreadMessageAuthor
   content: ThreadMessageContent
   createdAt: UnixTimeMilliseconds
+}
+
+structure ThreadActivity {
+  threadId: string
+  lastActivityAt: UnixTimeMilliseconds
+  turnCount: ThreadTurnCount
 }
 
 structure TurnGeneration {
@@ -137,22 +148,26 @@ structure ThreadHistoryDeletion {
   userMessageId: string
   activeMessageId?: string
   deletedTurnCount: ThreadDeletedTurnCount
+  threadActivity: ThreadActivity
 }
 
 structure TurnSubmission {
   userMessage: ThreadMessage
   generation: TurnGeneration
+  threadActivity: ThreadActivity
 }
 
 structure FailedReply {
   userMessage: ThreadMessage
   generation: TurnGeneration
+  threadActivity: ThreadActivity
 }
 
 structure CompletedReply {
   userMessage: ThreadMessage
   assistantMessage: ThreadMessage
   generation: TurnGeneration
+  threadActivity: ThreadActivity
 }
 
 structure SupersededReply {

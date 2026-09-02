@@ -6,6 +6,7 @@ import {
   configureDevelopmentProfile,
   createDevelopmentProfileId,
   developmentProfileEnvironmentVariable,
+  getDevelopmentProfileUserDataDirectory,
   prepareApplicationInstance,
   requireDevelopmentProfileId,
 } from "./development-profile";
@@ -40,6 +41,12 @@ describe("development profiles", () => {
     expect(first).toMatch(/^04-[a-f0-9]{12}$/);
     expect(second).toMatch(/^04-[a-f0-9]{12}$/);
     expect(second).not.toBe(first);
+  });
+
+  it("resolves user data within the shared development profiles directory", () => {
+    expect(getDevelopmentProfileUserDataDirectory("app-data", "04-123456789abc")).toBe(
+      join("app-data", "Jaquelene Development", "04-123456789abc"),
+    );
   });
 
   it.each([undefined, "", "UPPERCASE", "../escape", "trailing-", "nul.txt", "a".repeat(65)])(

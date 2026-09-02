@@ -13,9 +13,10 @@ import {
   useMutationState,
   useQueryClient,
 } from "@tanstack/react-query";
-import { reportError } from "@/feature/diagnostics/diagnostics";
+import { invalidateCampaignPages, updateCampaignActivity } from "@/feature/campaign/query";
 import { invalidateCampaignUsage } from "@/feature/campaign/usage-query";
 import { threadQueryKey } from "@/feature/cache-keys";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 import {
   THREAD_HISTORY_RETAINED_PAGE_LIMIT,
@@ -150,6 +151,12 @@ function refreshCampaignUsage(queryClient: QueryClient) {
   );
 }
 
+function refreshCampaignPages(queryClient: QueryClient) {
+  void invalidateCampaignPages(queryClient).catch((cause: unknown) =>
+    reportError("campaign.sidebar.refresh", cause),
+  );
+}
+
 export function retainLoadedThreadMessages(
   queryClient: QueryClient,
   threadId: string,
@@ -214,16 +221,25 @@ export function installThreadReconciliation(queryClient: QueryClient) {
   }
 
   const stopFailureListener = onReplyFailed((failure) => {
+    if (updateCampaignActivity(queryClient, failure.threadActivity)) {
+      refreshCampaignPages(queryClient);
+    }
     applyEvent(failure.userMessage.threadId, { type: "reply-failed", ...failure });
   });
   const stopCompletionListener = onReplyCompleted((completion) => {
+    if (updateCampaignActivity(queryClient, completion.threadActivity)) {
+      refreshCampaignPages(queryClient);
+    }
     applyEvent(completion.userMessage.threadId, { type: "reply-completed", ...completion });
   });
   const stopSupersededListener = onReplySuperseded(({ threadId }) => {
     refreshCampaignUsage(queryClient);
     runReconciliation("thread.turn.settlement", () => reloadThread(queryClient, threadId));
   });
-  const stopHistoryDeletedListener = onHistoryDeleted(({ threadId }) => {
+  const stopHistoryDeletedListener = onHistoryDeleted(({ threadId, threadActivity }) => {
+    if (updateCampaignActivity(queryClient, threadActivity, { allowRewind: true })) {
+      refreshCampaignPages(queryClient);
+    }
     runReconciliation("thread.history.delete.reconcile", () =>
       queryClient.resetQueries({ queryKey: threadMessagesQuery(threadId).queryKey, exact: true }),
     );
@@ -252,6 +268,9 @@ export function useSubmitTurn(threadId: string) {
       }),
     onSuccess(submission) {
       refreshCampaignUsage(queryClient);
+      if (updateCampaignActivity(queryClient, submission.threadActivity)) {
+        refreshCampaignPages(queryClient);
+      }
       return reconcileTurn(queryClient, threadId, {
         type: "submission-accepted",
         ...submission,

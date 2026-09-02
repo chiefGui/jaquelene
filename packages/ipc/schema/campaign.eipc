@@ -10,7 +10,16 @@ structure Campaign {
   title: CampaignTitle
   threadId: string
   startedAt: UnixTimeMilliseconds
+  lastActivityAt: UnixTimeMilliseconds
+  turnCount: ThreadTurnCount
   generationPreferences?: CampaignGenerationPreferences
+}
+
+structure CampaignSummary {
+  id: string
+  title: CampaignTitle
+  threadId: string
+  lastActivityAt: UnixTimeMilliseconds
 }
 
 subtype CampaignTitle = string(
@@ -38,7 +47,7 @@ structure CampaignPageRequest {
 }
 
 structure CampaignPage {
-  campaigns: Campaign[]
+  campaigns: CampaignSummary[]
   nextCursor?: CampaignPageCursor
 }
 

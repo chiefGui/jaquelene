@@ -153,10 +153,11 @@ function UsageRoute() {
   const costSummary = summarizeCosts(overview.costs);
   const hasEstimates = overview.costs.some((cost) => cost.source === "estimated");
   const hasMultipleCurrencies = costSummary.kind === "multiple-currencies";
-  const reportingNote = [
-    ...(hasMultipleCurrencies ? ["Costs are kept separate by currency."] : []),
-    ...(hasEstimates && !hasMultipleCurrencies ? ["Estimated cost is marked with ~."] : []),
-  ].join(" ");
+  const reportingNote = hasMultipleCurrencies
+    ? "Costs are kept separate by currency."
+    : hasEstimates
+      ? "Estimated cost is marked with ~."
+      : null;
 
   function navigateMetric(nextMetric: UsageMetric) {
     setMetric(nextMetric);

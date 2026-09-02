@@ -320,6 +320,59 @@ describe("backend", () => {
     expect(JSON.stringify(inputs)).not.toContain("Private");
   });
 
+  it("deletes settled campaign content without deleting its usage history", async () => {
+    const providerStarted = deferred<void>();
+    const providerResult = deferred<ProviderGenerationResult>();
+    const provider = providerAdapter("provider-a", {
+      generate() {
+        providerStarted.resolve();
+        return providerResult.promise;
+      },
+    });
+    await using backend = await createBackend(backendOptions(createDatabasePath(), [provider]));
+    const campaign = backend.campaigns.start({
+      title: "Disposable campaign",
+      composition: [{ kind: narratorPromptKind.key }],
+    });
+    const operation = await backend.turns.submit({
+      threadId: campaign.threadId,
+      content: "Begin",
+      configuration: {
+        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      },
+    });
+    await providerStarted.promise;
+
+    expect(() => backend.campaigns.delete(campaign.id)).toThrow(
+      "Campaign cannot be deleted while its thread has an active operation.",
+    );
+
+    providerResult.resolve({
+      text: "The voyage begins.",
+      usage: {
+        tokens: { input: { total: 3 }, output: { total: 2 }, total: 5 },
+      },
+    });
+    await operation.settlement;
+    expect(backend.campaignUsage.get(campaign.id)).toMatchObject({
+      attempts: { completed: 1 },
+      tokens: { total: 5 },
+    });
+
+    expect(backend.campaigns.delete(campaign.id)).toEqual({
+      id: campaign.id,
+      threadId: campaign.threadId,
+    });
+    expect(backend.campaigns.get(campaign.id)).toBeNull();
+    expect(backend.threads.get(campaign.threadId)).toBeNull();
+    expect(backend.campaignUsage.get(campaign.id)).toBeNull();
+    expect(backend.usage.getOverview("all-time")).toMatchObject({
+      hasHistory: true,
+      attempts: { provider: 1, completed: 1 },
+      tokens: { total: 5 },
+    });
+  });
+
   it("closes provider adapters in reverse acquisition order", async () => {
     const databasePath = createDatabasePath();
     const closed: string[] = [];

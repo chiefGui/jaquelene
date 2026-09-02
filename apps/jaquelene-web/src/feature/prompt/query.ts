@@ -15,13 +15,14 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
+import { campaignPromptSelectionQueryKey, promptQueryKey } from "@/feature/cache-keys";
+import { campaignMutationKey, campaignMutationScope } from "@/feature/campaign/mutation";
 import { ipcMutationOptions, ipcQueryOptions } from "@/ipc";
 import { promptIpc } from "./ipc";
 
 export const narratorPromptKind = "narrator";
-export const promptQueryKey = ["prompts"] as const;
+export { promptQueryKey } from "@/feature/cache-keys";
 const promptDefaultMutationKey = [...promptQueryKey, "set-default"] as const;
-const campaignPromptSelectionQueryKey = [...promptQueryKey, "campaign-selection"] as const;
 
 export const promptKindsQuery = queryOptions({
   ...ipcQueryOptions,
@@ -150,7 +151,8 @@ export function useSetCampaignPromptSelection(campaignId: string, kind: string) 
   const queryClient = useQueryClient();
   return useMutation<CampaignPromptSelection, Error, string | undefined>({
     ...ipcMutationOptions,
-    scope: { id: `campaign:${campaignId}:prompt:${kind}` },
+    mutationKey: [...campaignMutationKey(campaignId), "prompt", kind],
+    scope: campaignMutationScope(campaignId),
     async mutationFn(promptKey) {
       const selection = await promptIpc.setCampaignSelection({
         campaignId,

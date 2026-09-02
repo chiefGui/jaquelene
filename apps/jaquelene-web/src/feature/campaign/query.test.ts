@@ -9,6 +9,7 @@ import { MutationObserver, QueryClient, type InfiniteData } from "@tanstack/reac
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const campaignsIpc = vi.hoisted(() => ({
+  delete: vi.fn(),
   get: vi.fn(),
   list: vi.fn(),
   rename: vi.fn(),
@@ -34,9 +35,15 @@ vi.mock("@jaquelene/ipc/renderer", () => ({
 import {
   campaignPagesQuery,
   campaignQuery,
+  deleteCampaignMutationOptions,
   setCampaignGenerationPreferencesMutationOptions,
   startCampaignMutationOptions,
 } from "./query";
+import {
+  campaignPromptSelectionPrefix,
+  campaignUsageRecordQueryKey,
+  threadQueryPrefix,
+} from "@/feature/cache-keys";
 
 function modelSelection(id: string): ModelSelection {
   return {
@@ -129,6 +136,105 @@ describe("campaign start mutation", () => {
     expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([started, existing]);
     expect(queryClient.getQueryState(campaignPagesQuery.queryKey)?.isInvalidated).toBe(true);
     expect(campaignsIpc.list).not.toHaveBeenCalled();
+  });
+});
+
+describe("campaign deletion mutation", () => {
+  it("removes campaign-owned caches and reconciles the campaign list", async () => {
+    const queryClient = createQueryClient();
+    const deleted = campaign();
+    const retained: Campaign = {
+      id: "campaign-b",
+      title: "Campaign B",
+      threadId: "thread-b",
+      startedAt: 90,
+    };
+    campaignsIpc.delete.mockResolvedValue({ id: deleted.id, threadId: deleted.threadId });
+    queryClient.setQueryData(campaignQuery(deleted.id).queryKey, deleted);
+    queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, {
+      pages: [{ campaigns: [deleted, retained] }, { campaigns: [deleted] }],
+      pageParams: [undefined, "next-page"],
+    });
+    queryClient.setQueryData(campaignUsageRecordQueryKey(deleted.id), { attempts: 1 });
+    queryClient.setQueryData([...threadQueryPrefix(deleted.threadId), "messages"], {
+      pages: [],
+    });
+    queryClient.setQueryData([...campaignPromptSelectionPrefix(deleted.id), "narrator"], {
+      promptKey: "prompt-a",
+    });
+    const mutation = new MutationObserver(
+      queryClient,
+      deleteCampaignMutationOptions(queryClient, deleted),
+    );
+
+    await expect(mutation.mutate()).resolves.toEqual({
+      id: deleted.id,
+      threadId: deleted.threadId,
+    });
+
+    expect(campaignsIpc.delete).toHaveBeenCalledWith(deleted.id);
+    expect(queryClient.getQueryData(campaignQuery(deleted.id).queryKey)).toBeNull();
+    expect(cachedCampaignPage(queryClient)?.pages.map((page) => page.campaigns)).toEqual([
+      [retained],
+      [],
+    ]);
+    expect(queryClient.getQueryData(campaignUsageRecordQueryKey(deleted.id))).toBeNull();
+    expect(queryClient.getQueriesData({ queryKey: threadQueryPrefix(deleted.threadId) })).toEqual(
+      [],
+    );
+    expect(
+      queryClient.getQueriesData({ queryKey: campaignPromptSelectionPrefix(deleted.id) }),
+    ).toEqual([]);
+    expect(queryClient.getQueryState(campaignPagesQuery.queryKey)?.isInvalidated).toBe(true);
+  });
+
+  it("waits for an earlier campaign save before deleting without restoring stale data", async () => {
+    const queryClient = createQueryClient();
+    const original = campaign();
+    const saved = campaign(generationPreferences("saved"));
+    const save = deferred<Campaign>();
+    campaignsIpc.setGenerationPreferences.mockReturnValue(save.promise);
+    campaignsIpc.delete.mockResolvedValue({ id: original.id, threadId: original.threadId });
+    queryClient.setQueryData(campaignQuery(original.id).queryKey, original);
+    cacheCampaignPage(queryClient, original);
+    const saveMutation = observePreferencesMutation(queryClient, original.id);
+    const deleteMutation = new MutationObserver(
+      queryClient,
+      deleteCampaignMutationOptions(queryClient, original),
+    );
+
+    const saving = saveMutation.mutate(generationPreferences("saved"));
+    const deleting = deleteMutation.mutate();
+    await vi.waitFor(() => expect(campaignsIpc.setGenerationPreferences).toHaveBeenCalledOnce());
+    expect(campaignsIpc.delete).not.toHaveBeenCalled();
+
+    save.resolve(saved);
+    await expect(saving).resolves.toEqual(saved);
+    await expect(deleting).resolves.toEqual({ id: original.id, threadId: original.threadId });
+    expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toBeNull();
+    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([]);
+  });
+
+  it("preserves cached campaign state when deletion fails", async () => {
+    const queryClient = createQueryClient();
+    const retained = campaign();
+    const usage = { attempts: 1 };
+    const failure = new Error("Could not delete the campaign.");
+    campaignsIpc.delete.mockRejectedValue(failure);
+    queryClient.setQueryData(campaignQuery(retained.id).queryKey, retained);
+    cacheCampaignPage(queryClient, retained);
+    queryClient.setQueryData(campaignUsageRecordQueryKey(retained.id), usage);
+    const mutation = new MutationObserver(
+      queryClient,
+      deleteCampaignMutationOptions(queryClient, retained),
+    );
+
+    await expect(mutation.mutate()).rejects.toBe(failure);
+
+    expect(queryClient.getQueryData(campaignQuery(retained.id).queryKey)).toEqual(retained);
+    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([retained]);
+    expect(queryClient.getQueryData(campaignUsageRecordQueryKey(retained.id))).toEqual(usage);
+    expect(queryClient.getQueryState(campaignPagesQuery.queryKey)?.isInvalidated).toBe(false);
   });
 });
 

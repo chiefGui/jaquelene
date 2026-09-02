@@ -9,12 +9,14 @@ import {
 } from "@jaquelene/domain";
 import { and, desc, eq, getTableColumns, lt, or } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
+import { generationTable } from "#backend/generation/schema";
 import { ids, type CampaignId, type ThreadId } from "#backend/id";
 import { requireReasoningPreset, type ReasoningPreset } from "#backend/model/reasoning";
 import { decodeCursor, encodeCursor } from "#backend/pagination/cursor";
 import { campaignPromptSelectionTable, promptKindTable, promptTable } from "#backend/prompt/schema";
 import { requireModelSelection, type ModelSelection } from "#backend/provider/provider";
 import { insertThread } from "#backend/thread/threads";
+import { threadTable, turnTable } from "#backend/thread/schema";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
 
 export const campaignPageSize = 50;
@@ -50,6 +52,11 @@ export type Campaign = Readonly<{
 export type CampaignPage = Readonly<{
   campaigns: readonly Campaign[];
   nextCursor?: string;
+}>;
+
+export type CampaignDeletion = Readonly<{
+  id: CampaignId;
+  threadId: ThreadId;
 }>;
 
 function requireCampaignGenerationPreferences(preferences: CampaignGenerationPreferences) {
@@ -280,6 +287,53 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         .where(eq(campaignTable.id, id))
         .get();
       return campaign ? toCampaign(campaign) : null;
+    },
+
+    delete(id: CampaignId): CampaignDeletion | null {
+      return database.transaction((transaction) => {
+        const campaign = transaction
+          .select({ id: campaignTable.id, threadId: campaignTable.threadId })
+          .from(campaignTable)
+          .where(eq(campaignTable.id, id))
+          .get();
+
+        if (!campaign) {
+          return null;
+        }
+
+        const pendingGeneration = transaction
+          .select({ id: generationTable.id })
+          .from(generationTable)
+          .innerJoin(turnTable, eq(turnTable.id, generationTable.turnId))
+          .where(
+            and(eq(turnTable.threadId, campaign.threadId), eq(generationTable.status, "pending")),
+          )
+          .get();
+
+        if (pendingGeneration) {
+          throw new Error("Campaign cannot be deleted while a reply is being generated.");
+        }
+
+        const deletedCampaign = transaction
+          .delete(campaignTable)
+          .where(eq(campaignTable.id, campaign.id))
+          .run();
+
+        if (deletedCampaign.changes !== 1) {
+          throw new Error(`Campaign "${campaign.id}" was not deleted.`);
+        }
+
+        const deletedThread = transaction
+          .delete(threadTable)
+          .where(eq(threadTable.id, campaign.threadId))
+          .run();
+
+        if (deletedThread.changes !== 1) {
+          throw new Error(`Thread "${campaign.threadId}" was not deleted.`);
+        }
+
+        return campaign;
+      });
     },
 
     rename(id: CampaignId, titleInput: unknown) {

@@ -84,6 +84,10 @@ export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
       const campaign = campaigns.get(ids.campaign.parse(id));
       return campaign ? toIpcCampaign(campaign) : null;
     },
+    delete(id) {
+      const deletion = campaigns.delete(ids.campaign.parse(id));
+      return deletion ? { ...deletion } : null;
+    },
     rename({ id, title }) {
       const campaign = campaigns.rename(ids.campaign.parse(id), title);
       return campaign ? toIpcCampaign(campaign) : null;

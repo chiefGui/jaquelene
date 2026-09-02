@@ -1,7 +1,7 @@
 import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { GenerationFailureKind, type ThreadMessage } from "@jaquelene/ipc/renderer";
-import { Button, IconButton, formatTimestamp } from "@jaquelene/ui";
+import { Button, IconButton, Timestamp } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
@@ -47,9 +47,7 @@ function MessageToolbar({
 }: Readonly<{ active?: boolean; children?: ReactNode; createdAt: number }>) {
   return (
     <div data-active={active || undefined} {...stylex.props(styles.toolbar)}>
-      <time dateTime={new Date(createdAt).toISOString()} {...stylex.props(styles.timestamp)}>
-        {formatTimestamp(createdAt)}
-      </time>
+      <Timestamp value={createdAt} style={styles.timestamp} />
       {children}
     </div>
   );

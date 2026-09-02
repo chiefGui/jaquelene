@@ -1,378 +1,361 @@
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { markdownKeymap } from "@codemirror/lang-markdown";
-import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
-import { Annotation, Compartment, EditorState, Transaction } from "@codemirror/state";
-import {
-  drawSelection,
-  dropCursor,
-  EditorView,
-  highlightSpecialChars,
-  keymap,
-  placeholder as editorPlaceholder,
-  type KeyBinding,
-} from "@codemirror/view";
 import CodeIcon from "@hugeicons/core-free-icons/CodeIcon";
+import EyeIcon from "@hugeicons/core-free-icons/EyeIcon";
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import TextBoldIcon from "@hugeicons/core-free-icons/TextBoldIcon";
 import TextItalicIcon from "@hugeicons/core-free-icons/TextItalicIcon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { formatCount, IconButton } from "@jaquelene/ui";
+import { formatCount, IconButton, type IconButtonProps } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import {
   forwardRef,
+  lazy,
+  memo,
+  Suspense,
   useDeferredValue,
   useImperativeHandle,
-  useLayoutEffect,
   useMemo,
-  useRef,
+  type ComponentProps,
+  type ReactNode,
 } from "react";
 import {
-  markdownEditorCommands,
-  type MarkdownEditorCommand as EditorCommand,
-} from "./markdown-editor-command";
-import { markdownEditorLanguage } from "./markdown-editor-language";
+  MarkdownEditorInput,
+  type MarkdownEditorAccessibleName,
+  type MarkdownEditorCommand,
+  type MarkdownEditorHandle,
+} from "./markdown-editor-input";
+import {
+  createMarkdownEditorHandle,
+  MarkdownEditorRoot,
+  useMarkdownEditorConfiguration,
+  useMarkdownEditorDocument,
+  type MarkdownEditorConfiguration,
+  type MarkdownEditorRootProps,
+} from "./markdown-editor-root";
 import { countMarkdownDocument } from "./markdown-editor-statistics";
-import { markdownEditorTheme } from "./markdown-editor-theme";
 
-export type MarkdownEditorCommand = EditorCommand;
+export {
+  MarkdownEditorInput,
+  type MarkdownEditorCommand,
+  type MarkdownEditorHandle,
+  type MarkdownEditorInputProps,
+} from "./markdown-editor-input";
+export {
+  type MarkdownEditorMode,
+  type MarkdownEditorRootProps,
+  type MarkdownEditorState,
+  useMarkdownEditor,
+} from "./markdown-editor-root";
 
-type AccessibleName =
-  | { "aria-label": string; "aria-labelledby"?: never }
-  | { "aria-label"?: never; "aria-labelledby": string };
+type WithoutChildren<Props> = Props extends unknown ? Omit<Props, "children"> : never;
 
-export type MarkdownEditorProps = AccessibleName & {
-  "aria-describedby"?: string;
-  autoFocus?: boolean;
-  disabled?: boolean;
-  invalid?: boolean;
-  onBlur?: () => void;
-  onChange: (value: string) => void;
-  onFocus?: () => void;
-  placeholder?: string;
-  readOnly?: boolean;
+export type MarkdownEditorProps = WithoutChildren<MarkdownEditorRootProps> & {
   style?: StyleXStyles;
-  value: string;
 };
 
-export type MarkdownEditorHandle = Readonly<{
-  focus: () => void;
-  run: (command: EditorCommand) => boolean;
-}>;
+const MarkdownPreview = lazy(async () => {
+  const { Markdown } = await import("../markdown");
+  return { default: Markdown };
+});
 
-type EditorRuntime = Readonly<{
-  configuration: Compartment;
-  view: EditorView;
-}>;
+const formattingActions = {
+  code: { icon: CodeIcon, label: "Inline code" },
+  emphasis: { icon: TextItalicIcon, label: "Italic" },
+  link: { icon: Link01Icon, label: "Link" },
+  strong: { icon: TextBoldIcon, label: "Bold" },
+} satisfies Record<MarkdownEditorCommand, Readonly<{ icon: IconSvgElement; label: string }>>;
 
-type DynamicOptions = Readonly<{
-  ariaDescribedBy: string | undefined;
-  ariaLabel: string | undefined;
-  ariaLabelledBy: string | undefined;
-  disabled: boolean;
-  invalid: boolean;
-  onBlur: (() => void) | undefined;
-  onFocus: (() => void) | undefined;
-  placeholder: string;
-  readOnly: boolean;
-}>;
-
-const externalValue = Annotation.define<boolean>();
-
-const formattingKeymap: readonly KeyBinding[] = [
-  { key: "Mod-b", preventDefault: true, run: markdownEditorCommands.strong },
-  { key: "Mod-i", preventDefault: true, run: markdownEditorCommands.emphasis },
-  { key: "Mod-e", preventDefault: true, run: markdownEditorCommands.code },
-  { key: "Mod-k", preventDefault: true, run: markdownEditorCommands.link },
+const defaultFormattingCommands: readonly MarkdownEditorCommand[] = [
+  "strong",
+  "emphasis",
+  "code",
+  "link",
 ];
 
-const formattingActions: readonly Readonly<{
-  command: EditorCommand;
+function getAccessibleName(
+  configuration: MarkdownEditorConfiguration,
+): MarkdownEditorAccessibleName {
+  if (configuration.ariaLabel !== undefined) {
+    return { "aria-label": configuration.ariaLabel };
+  }
+
+  if (configuration.ariaLabelledBy !== undefined) {
+    return { "aria-labelledby": configuration.ariaLabelledBy };
+  }
+
+  throw new Error("MarkdownEditor.Root requires an accessible name.");
+}
+
+type StyleableDivProps = Omit<ComponentProps<"div">, "className" | "style"> & {
+  style?: StyleXStyles;
+};
+
+function MarkdownEditorFrame({ style, ...props }: StyleableDivProps) {
+  const { disabled, invalid, readOnly } = useMarkdownEditorConfiguration("Frame");
+
+  return (
+    <div
+      {...props}
+      data-disabled={disabled || undefined}
+      data-invalid={invalid || undefined}
+      data-readonly={readOnly || undefined}
+      {...stylex.props(styles.frame, style, stylex.defaultMarker())}
+    />
+  );
+}
+
+function MarkdownEditorToolbar({ "aria-label": ariaLabel, style, ...props }: StyleableDivProps) {
+  return (
+    <div
+      {...props}
+      role="group"
+      aria-label={ariaLabel ?? "Markdown editor controls"}
+      {...stylex.props(styles.toolbar, style, stylex.defaultMarker())}
+    />
+  );
+}
+
+type MarkdownEditorActionProps = Omit<IconButtonProps, "aria-label" | "children"> & {
   icon: IconSvgElement;
   label: string;
-}>[] = [
-  { command: "strong", icon: TextBoldIcon, label: "Bold" },
-  { command: "emphasis", icon: TextItalicIcon, label: "Italic" },
-  { command: "code", icon: CodeIcon, label: "Inline code" },
-  { command: "link", icon: Link01Icon, label: "Link" },
-];
+};
 
-function contentAttributes(options: DynamicOptions) {
-  const attributes: Record<string, string> = {
-    "aria-multiline": "true",
-    autocapitalize: "sentences",
-    autocorrect: "on",
-    role: "textbox",
-    spellcheck: "true",
-    tabindex: options.disabled ? "-1" : "0",
-  };
-
-  if (options.ariaDescribedBy) {
-    attributes["aria-describedby"] = options.ariaDescribedBy;
-  }
-
-  if (options.ariaLabel) {
-    attributes["aria-label"] = options.ariaLabel;
-  }
-
-  if (options.ariaLabelledBy) {
-    attributes["aria-labelledby"] = options.ariaLabelledBy;
-  }
-
-  if (options.disabled) {
-    attributes["aria-disabled"] = "true";
-  }
-
-  if (options.invalid) {
-    attributes["aria-invalid"] = "true";
-  }
-
-  if (options.readOnly) {
-    attributes["aria-readonly"] = "true";
-  }
-
-  return attributes;
+function MarkdownEditorAction({ icon, label, ...props }: MarkdownEditorActionProps) {
+  return (
+    <Tooltip.Root placement="bottom">
+      <Tooltip.Anchor
+        render={
+          <IconButton {...props} aria-label={label}>
+            <HugeiconsIcon icon={icon} size={15} strokeWidth={1.5} aria-hidden="true" />
+          </IconButton>
+        }
+      />
+      <Tooltip>{label}</Tooltip>
+    </Tooltip.Root>
+  );
 }
 
-function dynamicExtensions(options: DynamicOptions) {
-  return [
-    EditorView.contentAttributes.of(contentAttributes(options)),
-    EditorState.readOnly.of(options.disabled || options.readOnly),
-    EditorView.editable.of(!options.disabled && !options.readOnly),
-    editorPlaceholder(options.placeholder),
-  ];
+type MarkdownEditorFormatActionProps = Omit<
+  MarkdownEditorActionProps,
+  "disabled" | "icon" | "label" | "onClick" | "onMouseDown"
+> & {
+  command: MarkdownEditorCommand;
+  icon?: IconSvgElement;
+  label?: string;
+};
+
+function MarkdownEditorFormatAction({
+  command,
+  icon,
+  label,
+  ...props
+}: MarkdownEditorFormatActionProps) {
+  const { disabled, inputRef, mode, readOnly } = useMarkdownEditorConfiguration("FormatAction");
+  const action = formattingActions[command];
+
+  return (
+    <MarkdownEditorAction
+      {...props}
+      label={label ?? action.label}
+      icon={icon ?? action.icon}
+      disabled={disabled || readOnly || mode === "preview"}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => inputRef.current?.run(command)}
+    />
+  );
 }
+
+function MarkdownEditorFormattingActions({
+  commands = defaultFormattingCommands,
+}: {
+  commands?: readonly MarkdownEditorCommand[];
+}) {
+  return commands.map((command) => <MarkdownEditorFormatAction key={command} command={command} />);
+}
+
+type MarkdownEditorPreviewToggleProps = Omit<
+  MarkdownEditorActionProps,
+  "aria-pressed" | "disabled" | "icon" | "label" | "onClick"
+>;
+
+function MarkdownEditorPreviewToggle({ style, ...props }: MarkdownEditorPreviewToggleProps) {
+  const { disabled, mode, setMode } = useMarkdownEditorConfiguration("PreviewToggle");
+  const previewing = mode === "preview";
+
+  return (
+    <MarkdownEditorAction
+      {...props}
+      style={[styles.previewToggle, style]}
+      label="Preview"
+      icon={EyeIcon}
+      aria-pressed={previewing}
+      disabled={disabled}
+      onClick={() => setMode(previewing ? "edit" : "preview")}
+    />
+  );
+}
+
+type MarkdownEditorInputPartProps = Readonly<{
+  hidden?: boolean;
+  style?: StyleXStyles;
+}>;
+
+const MarkdownEditorInputPart = forwardRef<MarkdownEditorHandle, MarkdownEditorInputPartProps>(
+  function MarkdownEditorInputPart({ hidden = false, style }, ref) {
+    const configuration = useMarkdownEditorConfiguration("Input");
+    const document = useMarkdownEditorDocument("Input");
+    const accessibleName = getAccessibleName(configuration);
+
+    useImperativeHandle(ref, () => createMarkdownEditorHandle(configuration.inputRef), [
+      configuration.inputRef,
+    ]);
+
+    return (
+      <MarkdownEditorInput
+        ref={configuration.inputRef}
+        {...accessibleName}
+        {...(configuration.ariaDescribedBy === undefined
+          ? {}
+          : { "aria-describedby": configuration.ariaDescribedBy })}
+        autoFocus={configuration.autoFocus && !hidden}
+        disabled={configuration.disabled}
+        hidden={hidden}
+        invalid={configuration.invalid}
+        {...(configuration.onBlur === undefined ? {} : { onBlur: configuration.onBlur })}
+        onChange={document.setValue}
+        {...(configuration.onFocus === undefined ? {} : { onFocus: configuration.onFocus })}
+        placeholder={configuration.placeholder}
+        readOnly={configuration.readOnly}
+        {...(style === undefined ? {} : { style })}
+        value={document.value}
+      />
+    );
+  },
+);
+
+type MarkdownEditorPreviewProps = StyleableDivProps & {
+  fallback?: ReactNode;
+};
+
+function MarkdownEditorPreview({
+  "aria-label": ariaLabel,
+  fallback,
+  style,
+  ...props
+}: MarkdownEditorPreviewProps) {
+  const { value } = useMarkdownEditorDocument("Preview");
+  const deferredValue = useDeferredValue(value);
+
+  return (
+    <div
+      {...props}
+      role="region"
+      aria-label={ariaLabel ?? "Markdown preview"}
+      {...stylex.props(styles.preview, style, stylex.defaultMarker())}
+    >
+      <Suspense
+        fallback={fallback ?? <span {...stylex.props(styles.muted)}>Loading preview…</span>}
+      >
+        <MarkdownPreview content={deferredValue} />
+      </Suspense>
+    </div>
+  );
+}
+
+function MarkdownEditorContent() {
+  const { mode } = useMarkdownEditorConfiguration("Content");
+
+  return (
+    <>
+      <MarkdownEditorInputPart hidden={mode === "preview"} />
+      {mode === "preview" ? <MarkdownEditorPreview /> : null}
+    </>
+  );
+}
+
+function MarkdownEditorStatus({ "aria-label": ariaLabel, style, ...props }: StyleableDivProps) {
+  return (
+    <div
+      {...props}
+      role="group"
+      aria-label={ariaLabel ?? "Document statistics"}
+      {...stylex.props(styles.status, style, stylex.defaultMarker())}
+    />
+  );
+}
+
+type MarkdownEditorStatisticsProps = Omit<ComponentProps<"span">, "className" | "style"> & {
+  style?: StyleXStyles;
+};
 
 function formatUnit(value: number, singular: string) {
   return `${formatCount(value)} ${singular}${value === 1 ? "" : "s"}`;
 }
 
-function runEditorCommand(view: EditorView | undefined, command: EditorCommand) {
-  if (!view) {
-    return false;
-  }
+function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsProps) {
+  const { value } = useMarkdownEditorDocument("Statistics");
+  const deferredValue = useDeferredValue(value);
+  const statistics = useMemo(() => countMarkdownDocument(deferredValue), [deferredValue]);
 
-  const handled = markdownEditorCommands[command]({ state: view.state, dispatch: view.dispatch });
-
-  if (handled) {
-    view.focus();
-  }
-
-  return handled;
-}
-
-type FormattingActionProps = Readonly<{
-  command: EditorCommand;
-  disabled: boolean;
-  icon: IconSvgElement;
-  label: string;
-  onRun: (command: EditorCommand) => void;
-}>;
-
-function FormattingAction({ command, disabled, icon, label, onRun }: FormattingActionProps) {
   return (
-    <IconButton
-      type="button"
-      size="small"
-      aria-label={label}
-      disabled={disabled}
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={() => onRun(command)}
-    >
-      <HugeiconsIcon icon={icon} size={15} strokeWidth={1.5} aria-hidden="true" />
-    </IconButton>
+    <span {...props} {...stylex.props(styles.statistics, style, stylex.defaultMarker())}>
+      <span>{formatUnit(statistics.lines, "line")}</span>
+      <span aria-hidden="true">·</span>
+      <span>{formatUnit(statistics.words, "word")}</span>
+      <span aria-hidden="true">·</span>
+      <span>{formatUnit(statistics.characters, "character")}</span>
+    </span>
   );
 }
 
-export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
-  function MarkdownEditor(
-    {
-      "aria-describedby": ariaDescribedBy,
-      "aria-label": ariaLabel,
-      "aria-labelledby": ariaLabelledBy,
-      autoFocus = false,
-      disabled = false,
-      invalid = false,
-      onBlur,
-      onChange,
-      onFocus,
-      placeholder = "Write Markdown…",
-      readOnly = false,
-      style,
-      value,
-    },
-    ref,
-  ) {
-    const hostRef = useRef<HTMLDivElement>(null);
-    const runtimeRef = useRef<EditorRuntime | null>(null);
-    const initialValueRef = useRef(value);
-    const autoFocusRef = useRef(autoFocus);
-    const onChangeRef = useRef(onChange);
-    const deferredValue = useDeferredValue(value);
-    const statistics = useMemo(() => countMarkdownDocument(deferredValue), [deferredValue]);
-    const dynamicOptionsRef = useRef<DynamicOptions>({
-      ariaDescribedBy,
-      ariaLabel,
-      ariaLabelledBy,
-      disabled,
-      invalid,
-      onBlur,
-      onFocus,
-      placeholder,
-      readOnly,
-    });
+const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent({
+  style,
+}: {
+  style: StyleXStyles | undefined;
+}) {
+  return (
+    <MarkdownEditorFrame style={style}>
+      <MarkdownEditorToolbar>
+        <MarkdownEditorFormattingActions />
+        <MarkdownEditorPreviewToggle style={styles.previewTogglePlacement} />
+      </MarkdownEditorToolbar>
+      <MarkdownEditorContent />
+      <MarkdownEditorStatus>
+        <MarkdownEditorStatistics />
+      </MarkdownEditorStatus>
+    </MarkdownEditorFrame>
+  );
+});
 
-    onChangeRef.current = onChange;
-    dynamicOptionsRef.current = {
-      ariaDescribedBy,
-      ariaLabel,
-      ariaLabelledBy,
-      disabled,
-      invalid,
-      onBlur,
-      onFocus,
-      placeholder,
-      readOnly,
-    };
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        focus() {
-          runtimeRef.current?.view.focus();
-        },
-        run(command) {
-          return runEditorCommand(runtimeRef.current?.view, command);
-        },
-      }),
-      [],
-    );
-
-    useLayoutEffect(() => {
-      const host = hostRef.current;
-
-      if (!host) {
-        return;
-      }
-
-      const configuration = new Compartment();
-      const options = dynamicOptionsRef.current;
-      const view = new EditorView({
-        doc: initialValueRef.current,
-        parent: host,
-        extensions: [
-          configuration.of(dynamicExtensions(options)),
-          EditorState.tabSize.of(2),
-          EditorView.lineWrapping,
-          EditorView.updateListener.of((update) => {
-            const synchronizedExternally = update.transactions.some(
-              (transaction) => transaction.annotation(externalValue) === true,
-            );
-
-            if (update.docChanged && !synchronizedExternally) {
-              onChangeRef.current(update.state.doc.toString());
-            }
-          }),
-          EditorView.domEventHandlers({
-            blur: () => {
-              dynamicOptionsRef.current.onBlur?.();
-            },
-            focus: () => {
-              dynamicOptionsRef.current.onFocus?.();
-            },
-          }),
-          highlightSpecialChars(),
-          history(),
-          drawSelection(),
-          dropCursor(),
-          highlightSelectionMatches(),
-          keymap.of([
-            ...formattingKeymap,
-            ...markdownKeymap,
-            ...historyKeymap,
-            ...searchKeymap,
-            ...defaultKeymap,
-          ]),
-          markdownEditorLanguage,
-          markdownEditorTheme,
-        ],
-      });
-
-      runtimeRef.current = { configuration, view };
-
-      if (autoFocusRef.current) {
-        view.focus();
-      }
-
-      return () => {
-        runtimeRef.current = null;
-        view.destroy();
-      };
-    }, []);
-
-    useLayoutEffect(() => {
-      const runtime = runtimeRef.current;
-
-      if (!runtime) {
-        return;
-      }
-
-      const options = dynamicOptionsRef.current;
-      runtime.view.dispatch({
-        effects: runtime.configuration.reconfigure(dynamicExtensions(options)),
-      });
-    }, [ariaDescribedBy, ariaLabel, ariaLabelledBy, disabled, invalid, placeholder, readOnly]);
-
-    useLayoutEffect(() => {
-      const view = runtimeRef.current?.view;
-
-      if (!view || view.state.doc.toString() === value) {
-        return;
-      }
-
-      view.dispatch({
-        annotations: [externalValue.of(true), Transaction.addToHistory.of(false)],
-        changes: { from: 0, to: view.state.doc.length, insert: value },
-      });
-    }, [value]);
-
-    function runFormattingAction(command: EditorCommand) {
-      runEditorCommand(runtimeRef.current?.view, command);
-    }
-
+const MarkdownEditorDefault = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
+  function MarkdownEditorDefault({ style, ...props }, ref) {
     return (
-      <div
-        data-disabled={disabled || undefined}
-        data-invalid={invalid || undefined}
-        data-readonly={readOnly || undefined}
-        {...stylex.props(styles.root, style)}
-      >
-        <div role="group" aria-label="Markdown formatting" {...stylex.props(styles.toolbar)}>
-          {formattingActions.map((action) => (
-            <FormattingAction
-              key={action.command}
-              {...action}
-              disabled={disabled || readOnly}
-              onRun={runFormattingAction}
-            />
-          ))}
-        </div>
-        <div ref={hostRef} {...stylex.props(styles.host)} />
-        <div role="group" aria-label="Document statistics" {...stylex.props(styles.status)}>
-          <span>{formatUnit(statistics.lines, "line")}</span>
-          <span aria-hidden="true">·</span>
-          <span>{formatUnit(statistics.words, "word")}</span>
-          <span aria-hidden="true">·</span>
-          <span>{formatUnit(statistics.characters, "character")}</span>
-        </div>
-      </div>
+      <MarkdownEditorRoot {...props} ref={ref}>
+        <MarkdownEditorDefaultContent style={style} />
+      </MarkdownEditorRoot>
     );
   },
 );
 
+export const MarkdownEditor = Object.assign(MarkdownEditorDefault, {
+  Root: MarkdownEditorRoot,
+  Frame: MarkdownEditorFrame,
+  Toolbar: MarkdownEditorToolbar,
+  Action: MarkdownEditorAction,
+  FormatAction: MarkdownEditorFormatAction,
+  FormattingActions: MarkdownEditorFormattingActions,
+  PreviewToggle: MarkdownEditorPreviewToggle,
+  Content: MarkdownEditorContent,
+  Input: MarkdownEditorInputPart,
+  Preview: MarkdownEditorPreview,
+  Status: MarkdownEditorStatus,
+  Statistics: MarkdownEditorStatistics,
+});
+
 const styles = stylex.create({
-  root: {
+  frame: {
     backgroundColor: colors.backgroundNeutralSubtlest,
     borderColor: {
       default: colors.borderDefault,
@@ -397,11 +380,6 @@ const styles = stylex.create({
     overflow: "hidden",
     width: "100%",
   },
-  host: {
-    flexGrow: 1,
-    minHeight: "20rem",
-    minWidth: 0,
-  },
   toolbar: {
     alignItems: "center",
     borderBottomColor: colors.borderSubtle,
@@ -413,6 +391,27 @@ const styles = stylex.create({
     paddingBlock: "0.25rem",
     paddingInline: "0.375rem",
   },
+  previewToggle: {
+    backgroundColor: {
+      default: "transparent",
+      ':is([aria-pressed="true"])': colors.backgroundSelected,
+    },
+    color: {
+      default: colors.foregroundSecondary,
+      ':is([aria-pressed="true"])': colors.foregroundPrimary,
+    },
+  },
+  previewTogglePlacement: {
+    marginLeft: "auto",
+  },
+  preview: {
+    flexGrow: 1,
+    fontSize: tokens.fontSizeBase,
+    lineHeight: tokens.lineHeightBase,
+    minHeight: "20rem",
+    overflow: "auto",
+    padding: "1rem",
+  },
   status: {
     alignItems: "center",
     borderTopColor: colors.borderSubtle,
@@ -422,10 +421,18 @@ const styles = stylex.create({
     display: "flex",
     flexShrink: 0,
     fontSize: tokens.fontSizeXSmall,
-    gap: "0.375rem",
     justifyContent: "flex-end",
     lineHeight: tokens.lineHeightXSmall,
+    minHeight: "2rem",
     paddingBlock: "0.5rem",
     paddingInline: "0.75rem",
+  },
+  statistics: {
+    alignItems: "center",
+    display: "inline-flex",
+    gap: "0.375rem",
+  },
+  muted: {
+    color: colors.foregroundSecondary,
   },
 });

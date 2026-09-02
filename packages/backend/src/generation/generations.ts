@@ -601,5 +601,4 @@ export function createGenerations(
   };
 }
 
-export type Generations = Pick<ReturnType<typeof createGenerations>, "generateReply">;
 export type GenerationEngine = ReturnType<typeof createGenerations>;

@@ -1,4 +1,4 @@
-import type { Generation, TurnAcceptance, TurnSettlement, Turns } from "@jaquelene/backend";
+import type { Generation, TurnAcceptance, TurnSettlement } from "@jaquelene/backend";
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
 import {
@@ -77,7 +77,13 @@ vi.mock("@jaquelene/ipc/main", () => ({
 
 import { createThreadMessaging } from "./ipc";
 
-function exposeSingleRenderer(target: WebFrameMain, turns: Turns, diagnostics: ErrorReporter) {
+type ThreadMessagingTurns = Parameters<typeof createThreadMessaging>[0];
+
+function exposeSingleRenderer(
+  target: WebFrameMain,
+  turns: ThreadMessagingTurns,
+  diagnostics: ErrorReporter,
+) {
   return createThreadMessaging(turns, diagnostics).expose(target);
 }
 
@@ -192,8 +198,8 @@ describe("thread IPC", () => {
   it("maps forward history navigation into the backend contract", async () => {
     const threadId = ids.thread.create();
     const cursor = ids.message.create();
-    const listForThread = vi.fn<Turns["listForThread"]>(emptyPage);
-    const backendTurns: Turns = {
+    const listForThread = vi.fn<ThreadMessagingTurns["listForThread"]>(emptyPage);
+    const backendTurns: ThreadMessagingTurns = {
       listForThread,
       submit: vi.fn(),
       retry: vi.fn(),
@@ -215,14 +221,17 @@ describe("thread IPC", () => {
     const settlement = new Promise<TurnSettlement>((resolve) => {
       settle = resolve;
     });
-    const listForThread = vi.fn<Turns["listForThread"]>(() => ({
+    const listForThread = vi.fn<ThreadMessagingTurns["listForThread"]>(() => ({
       ...emptyPage(),
       messages: [acceptance.userMessage],
       generations: [acceptance.generation],
       contentBytes: 5,
     }));
-    const submit = vi.fn<Turns["submit"]>(async () => ({ acceptance, settlement }));
-    const backendTurns: Turns = {
+    const submit = vi.fn<ThreadMessagingTurns["submit"]>(async () => ({
+      acceptance,
+      settlement,
+    }));
+    const backendTurns: ThreadMessagingTurns = {
       listForThread,
       submit,
       retry: vi.fn(async () => ({ acceptance, settlement })),
@@ -315,7 +324,7 @@ describe("thread IPC", () => {
       ...completed,
       assistantActivated: false,
     };
-    const backendTurns: Turns = {
+    const backendTurns: ThreadMessagingTurns = {
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(inactiveCompletion) })),
       retry: vi.fn(),
@@ -348,7 +357,7 @@ describe("thread IPC", () => {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
     };
-    const backendTurns: Turns = {
+    const backendTurns: ThreadMessagingTurns = {
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(failed) })),
       retry: vi.fn(),
@@ -378,11 +387,11 @@ describe("thread IPC", () => {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
     };
-    const retry = vi.fn<Turns["retry"]>(async () => ({
+    const retry = vi.fn<ThreadMessagingTurns["retry"]>(async () => ({
       acceptance,
       settlement: Promise.resolve(failed),
     }));
-    const backendTurns: Turns = {
+    const backendTurns: ThreadMessagingTurns = {
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(),
       retry,
@@ -412,7 +421,7 @@ describe("thread IPC", () => {
   it("reports a rejected settlement observer without dispatching incomplete state", async () => {
     const { acceptance } = createTurnState();
     const cause = new Error("Settlement ownership failed");
-    const backendTurns: Turns = {
+    const backendTurns: ThreadMessagingTurns = {
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.reject(cause) })),
       retry: vi.fn(),
@@ -448,7 +457,7 @@ describe("thread IPC", () => {
         finishedAt: null,
       },
     };
-    const backendTurns: Turns = {
+    const backendTurns: ThreadMessagingTurns = {
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(interrupted) })),
       retry: vi.fn(),
@@ -468,7 +477,7 @@ describe("thread IPC", () => {
 
   it("does not dispatch settlement state to a destroyed renderer", async () => {
     const { acceptance, completed } = createTurnState();
-    const backendTurns: Turns = {
+    const backendTurns: ThreadMessagingTurns = {
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(completed) })),
       retry: vi.fn(),
@@ -498,7 +507,7 @@ describe("thread IPC", () => {
     const settlement = new Promise<TurnSettlement>((resolve) => {
       settle = resolve;
     });
-    const backendTurns: Turns = {
+    const backendTurns: ThreadMessagingTurns = {
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement })),
       retry: vi.fn(),
@@ -522,7 +531,7 @@ describe("thread IPC", () => {
 
   it("reports settlement dispatch failures for an active renderer", async () => {
     const { acceptance, completed } = createTurnState();
-    const backendTurns: Turns = {
+    const backendTurns: ThreadMessagingTurns = {
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(completed) })),
       retry: vi.fn(),
@@ -552,7 +561,7 @@ describe("thread IPC", () => {
     const listForThread = vi.fn(emptyPage);
     const submit = vi.fn();
     const retry = vi.fn();
-    const backendTurns: Turns = { listForThread, submit, retry };
+    const backendTurns: ThreadMessagingTurns = { listForThread, submit, retry };
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     const ipc = requireImplementations();
     const configuration = {

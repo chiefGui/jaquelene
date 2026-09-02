@@ -2,7 +2,6 @@ import { Cause, Context, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { createCampaigns, type CampaignEngine, type Campaigns } from "#backend/campaign/campaigns";
 import { createCampaignUsage, type CampaignUsageReader } from "#backend/campaign/usage";
 import { DatabaseService, getDatabaseStoragePaths } from "#backend/database/database";
-import type { Generations } from "#backend/generation/generations";
 import { createReplyPreparer } from "#backend/generation/reply-preparation";
 import { createGenerationSubsystem } from "#backend/generation/subsystem";
 import type { ProviderFactory } from "#backend/provider/provider";
@@ -62,7 +61,6 @@ export type Backend = Readonly<{
   turns: Turns;
   providers: Providers;
   models: Models;
-  generations: Generations;
   storage: Storage;
   inspect: () => BackendInspection;
   close: () => Promise<void>;
@@ -79,7 +77,6 @@ type BackendServices = Readonly<{
   turns: Turns;
   providers: Providers;
   models: Models;
-  generations: Generations;
   close: () => Promise<void>;
 }>;
 
@@ -127,7 +124,6 @@ function createBackendServiceLayer() {
             turns,
             providers: providers.providers,
             models: providers.models,
-            generations: generationSubsystem.generations,
             close: generationSubsystem.close,
           });
         }),
@@ -362,16 +358,16 @@ export async function createBackend(
         assertOpen();
         return services.threads.get(id);
       },
-      startTurn(threadId, content) {
-        assertOpen();
-        return services.threads.startTurn(threadId, content);
-      },
       listMessages(request) {
         assertOpen();
         return services.threads.listMessages(request);
       },
     },
     turns: {
+      inspect(threadId) {
+        assertOpen();
+        return services.turns.inspect(threadId);
+      },
       listForThread(request) {
         assertOpen();
         return services.turns.listForThread(request);
@@ -438,15 +434,6 @@ export async function createBackend(
       subscribe(listener) {
         assertOpen();
         return services.models.subscribe(listener);
-      },
-    },
-    generations: {
-      generateReply(request) {
-        if (state !== "open") {
-          return Promise.reject(new Error("Backend is closed."));
-        }
-
-        return services.generations.generateReply(request);
       },
     },
     storage: {

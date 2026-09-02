@@ -5,9 +5,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useDeferredValue, useId, useMemo, useRef, useState } from "react";
 import {
   MarkdownEditor,
+  type MarkdownEditorCommand,
   type MarkdownEditorHandle,
 } from "@/feature/markdown/editor/markdown-editor";
-import type { MarkdownEditorCommand } from "@/feature/markdown/editor/markdown-editor-command";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
@@ -99,7 +99,7 @@ function MarkdownEditorRoute() {
   const editorDescriptionId = useId();
   const previewHeadingId = useId();
   const deferredMarkdown = useDeferredValue(markdown);
-  const counts = useMemo(() => countDocument(markdown), [markdown]);
+  const counts = useMemo(() => countDocument(deferredMarkdown), [deferredMarkdown]);
 
   function runEditorCommand(command: MarkdownEditorCommand) {
     editorRef.current?.run(command);

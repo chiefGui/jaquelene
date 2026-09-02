@@ -15,9 +15,14 @@ import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from "react";
-import { markdownEditorCommands, type MarkdownEditorCommand } from "./markdown-editor-command";
+import {
+  markdownEditorCommands,
+  type MarkdownEditorCommand as EditorCommand,
+} from "./markdown-editor-command";
 import { markdownEditorLanguage } from "./markdown-editor-language";
 import { markdownEditorTheme } from "./markdown-editor-theme";
+
+export type MarkdownEditorCommand = EditorCommand;
 
 type AccessibleName =
   | { "aria-label": string; "aria-labelledby"?: never }
@@ -39,13 +44,11 @@ export type MarkdownEditorProps = AccessibleName & {
 
 export type MarkdownEditorHandle = Readonly<{
   focus: () => void;
-  run: (command: MarkdownEditorCommand) => boolean;
+  run: (command: EditorCommand) => boolean;
 }>;
 
 type EditorRuntime = Readonly<{
-  attributes: Compartment;
-  editability: Compartment;
-  placeholder: Compartment;
+  configuration: Compartment;
   view: EditorView;
 }>;
 
@@ -105,6 +108,15 @@ function contentAttributes(options: DynamicOptions) {
   }
 
   return attributes;
+}
+
+function dynamicExtensions(options: DynamicOptions) {
+  return [
+    EditorView.contentAttributes.of(contentAttributes(options)),
+    EditorState.readOnly.of(options.disabled || options.readOnly),
+    EditorView.editable.of(!options.disabled && !options.readOnly),
+    editorPlaceholder(options.placeholder),
+  ];
 }
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
@@ -191,20 +203,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         return;
       }
 
-      const attributes = new Compartment();
-      const editability = new Compartment();
-      const placeholder = new Compartment();
+      const configuration = new Compartment();
       const options = dynamicOptionsRef.current;
       const view = new EditorView({
         doc: initialValueRef.current,
         parent: host,
         extensions: [
-          attributes.of(EditorView.contentAttributes.of(contentAttributes(options))),
-          editability.of([
-            EditorState.readOnly.of(options.disabled || options.readOnly),
-            EditorView.editable.of(!options.disabled && !options.readOnly),
-          ]),
-          placeholder.of(editorPlaceholder(options.placeholder)),
+          configuration.of(dynamicExtensions(options)),
           EditorState.tabSize.of(2),
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
@@ -241,7 +246,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         ],
       });
 
-      runtimeRef.current = { attributes, editability, placeholder, view };
+      runtimeRef.current = { configuration, view };
 
       if (autoFocusRef.current) {
         view.focus();
@@ -262,16 +267,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
       const options = dynamicOptionsRef.current;
       runtime.view.dispatch({
-        effects: [
-          runtime.attributes.reconfigure(
-            EditorView.contentAttributes.of(contentAttributes(options)),
-          ),
-          runtime.editability.reconfigure([
-            EditorState.readOnly.of(options.disabled || options.readOnly),
-            EditorView.editable.of(!options.disabled && !options.readOnly),
-          ]),
-          runtime.placeholder.reconfigure(editorPlaceholder(options.placeholder)),
-        ],
+        effects: runtime.configuration.reconfigure(dynamicExtensions(options)),
       });
     }, [ariaDescribedBy, ariaLabel, ariaLabelledBy, disabled, invalid, placeholder, readOnly]);
 

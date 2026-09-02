@@ -3,6 +3,7 @@ import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import ConnectIcon from "@hugeicons/core-free-icons/ConnectIcon";
 import ChartHistogramIcon from "@hugeicons/core-free-icons/ChartHistogramIcon";
 import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
+import Edit02Icon from "@hugeicons/core-free-icons/Edit02Icon";
 import PaletteIcon from "@hugeicons/core-free-icons/PaletteIcon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import ToolsIcon from "@hugeicons/core-free-icons/ToolsIcon";
@@ -49,6 +50,13 @@ function SettingsSidebar() {
             label: "Prompts",
             replace: true,
             to: "/settings/prompts",
+          },
+          {
+            id: "markdown-editor",
+            icon: Edit02Icon,
+            label: "Editor lab",
+            replace: true,
+            to: "/settings/markdown-editor",
           },
           {
             id: "usage",

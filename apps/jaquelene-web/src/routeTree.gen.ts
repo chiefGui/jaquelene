@@ -18,6 +18,7 @@ import { Route as CampaignsNewRouteImport } from "./routes/campaigns/new";
 import { Route as SettingsAdvancedRouteImport } from "./routes/settings/advanced";
 import { Route as SettingsAppearanceRouteImport } from "./routes/settings/appearance";
 import { Route as SettingsGeneralRouteImport } from "./routes/settings/general";
+import { Route as SettingsMarkdownEditorRouteImport } from "./routes/settings/markdown-editor";
 import { Route as SettingsPromptsRouteImport } from "./routes/settings/prompts";
 import { Route as SettingsProvidersRouteImport } from "./routes/settings/providers";
 import { Route as SettingsStorageRouteImport } from "./routes/settings/storage";
@@ -68,6 +69,11 @@ const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   path: "/general",
   getParentRoute: () => SettingsRouteRoute,
 } as any);
+const SettingsMarkdownEditorRoute = SettingsMarkdownEditorRouteImport.update({
+  id: "/markdown-editor",
+  path: "/markdown-editor",
+  getParentRoute: () => SettingsRouteRoute,
+} as any);
 const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
   id: "/prompts",
   path: "/prompts",
@@ -98,6 +104,7 @@ export interface FileRoutesByFullPath {
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
+  "/settings/markdown-editor": typeof SettingsMarkdownEditorRoute;
   "/settings/prompts": typeof SettingsPromptsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
@@ -112,6 +119,7 @@ export interface FileRoutesByTo {
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
+  "/settings/markdown-editor": typeof SettingsMarkdownEditorRoute;
   "/settings/prompts": typeof SettingsPromptsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
@@ -128,6 +136,7 @@ export interface FileRoutesById {
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
+  "/settings/markdown-editor": typeof SettingsMarkdownEditorRoute;
   "/settings/prompts": typeof SettingsPromptsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
@@ -145,6 +154,7 @@ export interface FileRouteTypes {
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
+    | "/settings/markdown-editor"
     | "/settings/prompts"
     | "/settings/providers"
     | "/settings/storage"
@@ -159,6 +169,7 @@ export interface FileRouteTypes {
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
+    | "/settings/markdown-editor"
     | "/settings/prompts"
     | "/settings/providers"
     | "/settings/storage"
@@ -174,6 +185,7 @@ export interface FileRouteTypes {
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
+    | "/settings/markdown-editor"
     | "/settings/prompts"
     | "/settings/providers"
     | "/settings/storage"
@@ -252,6 +264,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SettingsGeneralRouteImport;
       parentRoute: typeof SettingsRouteRoute;
     };
+    "/settings/markdown-editor": {
+      id: "/settings/markdown-editor";
+      path: "/markdown-editor";
+      fullPath: "/settings/markdown-editor";
+      preLoaderRoute: typeof SettingsMarkdownEditorRouteImport;
+      parentRoute: typeof SettingsRouteRoute;
+    };
     "/settings/prompts": {
       id: "/settings/prompts";
       path: "/prompts";
@@ -303,6 +322,7 @@ interface SettingsRouteRouteChildren {
   SettingsAdvancedRoute: typeof SettingsAdvancedRoute;
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
   SettingsGeneralRoute: typeof SettingsGeneralRoute;
+  SettingsMarkdownEditorRoute: typeof SettingsMarkdownEditorRoute;
   SettingsPromptsRoute: typeof SettingsPromptsRoute;
   SettingsProvidersRoute: typeof SettingsProvidersRoute;
   SettingsStorageRoute: typeof SettingsStorageRoute;
@@ -313,6 +333,7 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsAdvancedRoute: SettingsAdvancedRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
+  SettingsMarkdownEditorRoute: SettingsMarkdownEditorRoute,
   SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProvidersRoute: SettingsProvidersRoute,
   SettingsStorageRoute: SettingsStorageRoute,

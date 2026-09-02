@@ -86,7 +86,7 @@ const styles = stylex.create({
   },
   actions: {
     display: "flex",
-    gap: "0.5rem",
+    gap: "0.25rem",
     justifyContent: "flex-end",
     marginTop: "1.25rem",
   },

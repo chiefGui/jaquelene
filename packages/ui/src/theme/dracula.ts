@@ -38,7 +38,6 @@ export const draculaTheme = stylex.createTheme(colors, {
   // Control backgrounds
   backgroundControlChecked: "oklch(0.58172 0.22593 284.37)",
   backgroundControlThumb: "oklch(0.86523 0.01381 295.28)",
-  backgroundControlThumbChecked: "oklch(0.86523 0.01381 295.28)",
 
   // Product backgrounds
   backgroundReasoningSubtle: "oklch(0.69616 0.20719 353.11 / 10%)",

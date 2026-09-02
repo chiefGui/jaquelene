@@ -33,7 +33,6 @@ export const colors = stylex.defineVars({
   // Control backgrounds
   backgroundControlChecked: "oklch(0.55 0.06 276)",
   backgroundControlThumb: "oklch(0.925 0.014 282)",
-  backgroundControlThumbChecked: "oklch(0.135 0.01 272)",
 
   // Product backgrounds
   backgroundReasoningSubtle: "oklch(0.75 0.1 305 / 14%)",

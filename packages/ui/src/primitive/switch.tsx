@@ -91,7 +91,6 @@ const styles = stylex.create({
     width: "0.875rem",
   },
   thumbChecked: {
-    backgroundColor: colors.backgroundControlThumbChecked,
     transform: "translateX(0.875rem)",
   },
 });

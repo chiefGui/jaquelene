@@ -6,6 +6,7 @@ import { useId } from "react";
 import { CampaignNarratorControl } from "@/feature/prompt/campaign-control";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
 import { summarizeCosts } from "@/feature/usage/presentation";
+import { CampaignDeleteControl } from "./delete-control";
 import { CampaignTitleControl } from "./title-control";
 
 function MetricRow({ label, value }: { label: string; value: string }) {
@@ -69,6 +70,10 @@ export function CampaignDetailsSidebar({
           </section>
         </SecondarySidebar.Body>
       </SecondarySidebar.Viewport>
+
+      <SecondarySidebar.Footer>
+        <CampaignDeleteControl campaign={campaign} replyActive={activeAttempts > 0} />
+      </SecondarySidebar.Footer>
     </SecondarySidebar.Content>
   );
 }

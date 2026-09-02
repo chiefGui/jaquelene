@@ -258,6 +258,20 @@ export async function createBackend(
         assertOpen();
         return services.campaigns.get(id);
       },
+      delete(id) {
+        assertOpen();
+        const campaign = services.campaigns.get(id);
+
+        if (!campaign) {
+          return null;
+        }
+
+        if (services.turns.inspect(campaign.threadId).state !== "idle") {
+          throw new Error("Campaign cannot be deleted while its thread has an active operation.");
+        }
+
+        return services.campaigns.delete(id);
+      },
       rename(id, title) {
         assertOpen();
         return services.campaigns.rename(id, title);

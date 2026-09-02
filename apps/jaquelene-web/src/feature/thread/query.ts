@@ -15,6 +15,7 @@ import {
 } from "@tanstack/react-query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { invalidateCampaignUsage } from "@/feature/campaign/usage-query";
+import { threadQueryKey } from "@/feature/cache-keys";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 import {
   THREAD_HISTORY_RETAINED_PAGE_LIMIT,
@@ -37,7 +38,7 @@ const onHistoryDeleted = requireIpcMethod(Turns?.onHistoryDeleted);
 const onReplyFailed = requireIpcMethod(Turns?.onReplyFailed);
 const onReplyCompleted = requireIpcMethod(Turns?.onReplyCompleted);
 const onReplySuperseded = requireIpcMethod(Turns?.onReplySuperseded);
-export const threadQueryKey = ["threads"] as const;
+export { threadQueryKey } from "@/feature/cache-keys";
 
 export type SubmitTurnVariables = {
   clientId: string;

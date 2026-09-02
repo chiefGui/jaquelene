@@ -11,7 +11,7 @@ import {
 import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { IconButton, type IconButtonProps } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps, ReactNode } from "react";
@@ -117,6 +117,10 @@ function SecondarySidebarBody({ style, ...props }: StyleableProps<ComponentProps
   return <div {...props} {...stylex.props(styles.body, style)} />;
 }
 
+function SecondarySidebarFooter({ style, ...props }: StyleableProps<ComponentProps<"footer">>) {
+  return <footer {...props} {...stylex.props(styles.footer, style)} />;
+}
+
 function SecondarySidebarClose({
   "aria-label": ariaLabel = "Close secondary sidebar",
   ...props
@@ -147,6 +151,7 @@ export const SecondarySidebar = {
   Description: DialogDescription,
   Viewport: SecondarySidebarViewport,
   Body: SecondarySidebarBody,
+  Footer: SecondarySidebarFooter,
   Close: SecondarySidebarClose,
   Dismiss: DialogDismiss,
 } as const;
@@ -177,5 +182,12 @@ const styles = stylex.create({
   },
   body: {
     padding: "1rem",
+  },
+  footer: {
+    borderBlockStartColor: colors.borderSubtle,
+    borderBlockStartStyle: "solid",
+    borderBlockStartWidth: 1,
+    flexShrink: 0,
+    padding: "0.5rem",
   },
 });

@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { installUnhandledErrorReporting, reportError } from "@/feature/diagnostics/diagnostics";
 import { installModelCatalogEvents } from "@/feature/model/catalog-events";
 import { installThreadSettlementReconciliation } from "@/feature/thread/query";
+import { installUsageEvents } from "@/feature/usage/events";
 import { RendererErrorBoundary } from "@/layout/renderer-error";
 import { routeTree } from "../routeTree.gen";
 
@@ -90,6 +91,7 @@ export function bootstrapRendererApplication(): RendererApplication {
     const queryClient = new QueryClient();
     resources.defer(() => queryClient.clear());
     resources.defer(installThreadSettlementReconciliation(queryClient));
+    resources.defer(installUsageEvents(queryClient));
     resources.defer(installModelCatalogEvents(queryClient));
 
     const router = createApplicationRouter(queryClient);

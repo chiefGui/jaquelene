@@ -6,6 +6,7 @@ import type {
   Scenarios,
   Storage,
   Turns,
+  Usage,
 } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { Effect, Exit, Scope } from "effect";
@@ -28,6 +29,7 @@ import { exposeProviders } from "../feature/provider/ipc";
 import { exposeScenarios } from "../feature/scenario/ipc";
 import { exposeInstructions } from "../feature/instruction/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
+import { exposeUsage } from "../feature/usage/ipc";
 import type { LocalState } from "../local-state";
 import type { Preferences } from "../preferences/preferences";
 import { exposeStorage } from "../storage/ipc";
@@ -110,6 +112,7 @@ export function createMainWindowManager({
   preferences,
   providers,
   storage,
+  usage,
 }: {
   rendererUrl: string;
   diagnostics: ApplicationDiagnostics;
@@ -124,6 +127,7 @@ export function createMainWindowManager({
   preferences: Preferences;
   providers: Providers;
   storage: Storage;
+  usage: Usage;
 }): MainWindowManager {
   const threadMessaging = createThreadMessaging(turns, diagnostics);
   let state: "open" | "closing" | "closed" = "open";
@@ -223,6 +227,7 @@ export function createMainWindowManager({
       );
       exposeProviders(browserWindow.webContents.mainFrame, providers);
       exposeStorage(browserWindow.webContents.mainFrame, storage);
+      addFinalizer(scope, exposeUsage(browserWindow.webContents, usage));
 
       const saveWindowState = () => {
         localState.saveMainWindowState({

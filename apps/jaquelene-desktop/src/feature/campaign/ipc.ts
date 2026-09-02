@@ -6,10 +6,10 @@ import {
   type CampaignUsageReader,
 } from "@jaquelene/backend";
 import {
-  CampaignCostSource,
   CampaignPreferences as CampaignPreferencesIpc,
   Campaigns as CampaignsIpc,
   CampaignUsage as CampaignUsageIpc,
+  UsageCostSource,
   type CampaignGenerationPreferences as IpcCampaignGenerationPreferences,
   type Campaign as IpcCampaign,
 } from "@jaquelene/ipc/main";
@@ -20,9 +20,9 @@ import type { CampaignPreferences } from "./preferences";
 function toIpcCostSource(source: BackendCampaignUsage["costs"][number]["source"]) {
   switch (source) {
     case "provider-reported":
-      return CampaignCostSource.ProviderReported;
+      return UsageCostSource.ProviderReported;
     case "estimated":
-      return CampaignCostSource.Estimated;
+      return UsageCostSource.Estimated;
   }
 
   const unsupportedSource: never = source;

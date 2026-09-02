@@ -22,6 +22,7 @@ import { Route as SettingsGeneralRouteImport } from "./routes/settings/general";
 import { Route as SettingsInstructionsRouteImport } from "./routes/settings/instructions";
 import { Route as SettingsProvidersRouteImport } from "./routes/settings/providers";
 import { Route as SettingsStorageRouteImport } from "./routes/settings/storage";
+import { Route as SettingsUsageRouteImport } from "./routes/settings/usage";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -88,6 +89,11 @@ const SettingsStorageRoute = SettingsStorageRouteImport.update({
   path: "/storage",
   getParentRoute: () => SettingsRouteRoute,
 } as any);
+const SettingsUsageRoute = SettingsUsageRouteImport.update({
+  id: "/usage",
+  path: "/usage",
+  getParentRoute: () => SettingsRouteRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   "/settings/instructions": typeof SettingsInstructionsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
+  "/settings/usage": typeof SettingsUsageRoute;
   "/scenarios/": typeof ScenariosIndexRoute;
 }
 export interface FileRoutesByTo {
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   "/settings/instructions": typeof SettingsInstructionsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
+  "/settings/usage": typeof SettingsUsageRoute;
   "/scenarios": typeof ScenariosIndexRoute;
 }
 export interface FileRoutesById {
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   "/settings/instructions": typeof SettingsInstructionsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
+  "/settings/usage": typeof SettingsUsageRoute;
   "/scenarios/": typeof ScenariosIndexRoute;
 }
 export interface FileRouteTypes {
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | "/settings/instructions"
     | "/settings/providers"
     | "/settings/storage"
+    | "/settings/usage"
     | "/scenarios/";
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | "/settings/instructions"
     | "/settings/providers"
     | "/settings/storage"
+    | "/settings/usage"
     | "/scenarios";
   id:
     | "__root__"
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | "/settings/instructions"
     | "/settings/providers"
     | "/settings/storage"
+    | "/settings/usage"
     | "/scenarios/";
   fileRoutesById: FileRoutesById;
 }
@@ -281,6 +293,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SettingsStorageRouteImport;
       parentRoute: typeof SettingsRouteRoute;
     };
+    "/settings/usage": {
+      id: "/settings/usage";
+      path: "/usage";
+      fullPath: "/settings/usage";
+      preLoaderRoute: typeof SettingsUsageRouteImport;
+      parentRoute: typeof SettingsRouteRoute;
+    };
   }
 }
 
@@ -307,6 +326,7 @@ interface SettingsRouteRouteChildren {
   SettingsInstructionsRoute: typeof SettingsInstructionsRoute;
   SettingsProvidersRoute: typeof SettingsProvidersRoute;
   SettingsStorageRoute: typeof SettingsStorageRoute;
+  SettingsUsageRoute: typeof SettingsUsageRoute;
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
@@ -316,6 +336,7 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsInstructionsRoute: SettingsInstructionsRoute,
   SettingsProvidersRoute: SettingsProvidersRoute,
   SettingsStorageRoute: SettingsStorageRoute,
+  SettingsUsageRoute: SettingsUsageRoute,
 };
 
 const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(

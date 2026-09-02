@@ -29,6 +29,7 @@ import {
 } from "#backend/instruction/registry";
 import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
 import { createTurns, type Turns } from "#backend/turn/turns";
+import { createUsageHistory, type Usage } from "#backend/usage/history";
 
 export type BackendOptions = Readonly<{
   databasePath: string;
@@ -49,6 +50,7 @@ export type Backend = Readonly<{
   scenarios: Scenarios;
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
+  usage: Usage;
   instructions: InstructionCatalog;
   threads: Threads;
   turns: Turns;
@@ -65,6 +67,7 @@ type BackendServices = Readonly<{
   scenarios: Scenarios;
   campaigns: CampaignEngine;
   campaignUsage: CampaignUsageReader;
+  usage: Usage;
   instructions: InstructionRegistry;
   threads: ThreadEngine;
   turns: Turns;
@@ -90,6 +93,7 @@ function createBackendServiceLayer() {
           const scenarios = createScenarios(database);
           const campaigns = createCampaigns(database);
           const campaignUsage = createCampaignUsage(database);
+          const usage = createUsageHistory(database);
           const instructions = createInstructionRegistry([factoryRoleplay]);
           const threads = createThreads(database);
           const generationSubsystem = createGenerationSubsystem({
@@ -97,6 +101,7 @@ function createBackendServiceLayer() {
             replyPreparer: createReplyPreparer(threads, campaigns, instructions),
             models: providers.models,
             providers: providers.generations,
+            attempts: usage.attempts,
           });
           const turns = createTurns(database, threads, generationSubsystem.replies);
 
@@ -104,6 +109,7 @@ function createBackendServiceLayer() {
             scenarios,
             campaigns,
             campaignUsage,
+            usage,
             instructions,
             threads,
             turns,
@@ -285,6 +291,20 @@ export async function createBackend(
       get(id) {
         assertOpen();
         return services.campaignUsage.get(id);
+      },
+    },
+    usage: {
+      getOverview(period) {
+        assertOpen();
+        return services.usage.getOverview(period);
+      },
+      clear() {
+        assertOpen();
+        return services.usage.clear();
+      },
+      subscribe(listener) {
+        assertOpen();
+        return services.usage.subscribe(listener);
       },
     },
     instructions: {

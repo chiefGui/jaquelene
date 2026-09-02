@@ -1,31 +1,10 @@
 import type { CampaignUsageSnapshot } from "@jaquelene/ipc/renderer";
-import { formatCount, formatUsd } from "@jaquelene/ui";
+import { formatCount, formatCurrencyNanos } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId } from "react";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
-
-function formatUsdNanos(amountNanos: number) {
-  return formatUsd(amountNanos / 1_000_000_000);
-}
-
-function totalCostNanos(costs: CampaignUsageSnapshot["costs"]) {
-  let total = 0;
-
-  for (const cost of costs) {
-    if (cost.currency !== "USD") {
-      throw new TypeError(`Unsupported campaign cost currency: ${cost.currency}.`);
-    }
-
-    total += cost.amountNanos;
-
-    if (!Number.isSafeInteger(total)) {
-      throw new RangeError("Campaign cost exceeds the supported amount.");
-    }
-  }
-
-  return total;
-}
+import { summarizeCosts } from "@/feature/usage/presentation";
 
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
@@ -45,13 +24,15 @@ export function CampaignDetailsSidebar({ usage }: { usage: CampaignUsageSnapshot
     : hasActivity
       ? "—"
       : "0";
-  const costs = totalCostNanos(usage.costs);
+  const costs = summarizeCosts(usage.costs);
   const costValue =
-    usage.costs.length > 0
-      ? `${formatUsdNanos(costs)}${usage.costCoverage.unknown > 0 ? "+" : ""}`
-      : hasActivity
-        ? "—"
-        : formatUsdNanos(0);
+    costs.kind === "single-currency"
+      ? `${costs.estimated ? "~" : ""}${formatCurrencyNanos(costs.amountNanos, costs.currency)}${usage.costCoverage.unknown > 0 ? "+" : ""}`
+      : costs.kind === "multiple-currencies"
+        ? "Multiple currencies"
+        : hasActivity
+          ? "—"
+          : formatCurrencyNanos(0, "USD");
 
   return (
     <SecondarySidebar.Content aria-labelledby={headingId}>

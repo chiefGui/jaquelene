@@ -23,6 +23,7 @@ export const ids = {
   turn: defineId("turn"),
   message: defineId("message"),
   generation: defineId("generation"),
+  providerAttempt: defineId("attempt"),
 } as const;
 
 export type ScenarioId = ReturnType<typeof ids.scenario.create>;
@@ -31,3 +32,4 @@ export type ThreadId = ReturnType<typeof ids.thread.create>;
 export type TurnId = ReturnType<typeof ids.turn.create>;
 export type MessageId = ReturnType<typeof ids.message.create>;
 export type GenerationId = ReturnType<typeof ids.generation.create>;
+export type ProviderAttemptId = ReturnType<typeof ids.providerAttempt.create>;

@@ -7,6 +7,7 @@ import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
 import { createScenarios } from "#backend/scenario/scenarios";
 import { createThreads } from "#backend/thread/threads";
+import { providerAttemptTable } from "#backend/usage/schema";
 import { createCampaigns } from "./campaigns";
 import { createCampaignUsage } from "./usage";
 
@@ -66,15 +67,21 @@ describe("campaign usage", () => {
           startedAt: 100,
           finishedAt: 101,
         },
+      ])
+      .run();
+    database
+      .insert(providerAttemptTable)
+      .values([
         {
-          id: ids.generation.create(),
-          turnId: turn.id,
+          id: ids.providerAttempt.create(),
+          generationId: ids.generation.create(),
+          threadId: campaign.threadId,
+          campaignId: campaign.id,
           providerId: "openrouter",
-          modelId: "maker/model-a",
+          requestedModelId: "maker/model-a",
           resolvedModelId: "maker/model-a-v2",
           upstreamProviderId: "upstream-a",
-          status: "failed",
-          failureKind: "invalid-output",
+          status: "completed",
           inputTokens: 10,
           cacheReadInputTokens: 0,
           outputTokens: 4,
@@ -83,53 +90,54 @@ describe("campaign usage", () => {
           costCurrency: "USD",
           costAmountNanos: 12_000,
           costSource: "provider-reported",
-          startedAt: 110,
-          providerStartedAt: 111,
+          startedAt: 111,
           finishedAt: 112,
         },
         {
-          id: ids.generation.create(),
-          turnId: turn.id,
+          id: ids.providerAttempt.create(),
+          generationId: ids.generation.create(),
+          threadId: campaign.threadId,
+          campaignId: campaign.id,
           providerId: "openrouter",
-          modelId: "maker/model-a",
+          requestedModelId: "maker/model-a",
           status: "failed",
           failureKind: "provider",
-          startedAt: 120,
-          providerStartedAt: 121,
+          startedAt: 121,
           finishedAt: 122,
         },
         {
-          id: ids.generation.create(),
-          turnId: turn.id,
+          id: ids.providerAttempt.create(),
+          generationId: ids.generation.create(),
+          threadId: campaign.threadId,
+          campaignId: campaign.id,
           providerId: "provider-b",
-          modelId: "model-b",
-          status: "failed",
-          failureKind: "invalid-output",
+          requestedModelId: "model-b",
+          status: "completed",
           inputTokens: 20,
           outputTokens: 5,
           totalTokens: 25,
           costCurrency: "USD",
           costAmountNanos: 20_000,
           costSource: "estimated",
-          startedAt: 130,
-          providerStartedAt: 131,
+          startedAt: 131,
           finishedAt: 132,
         },
         {
-          id: ids.generation.create(),
-          turnId: turn.id,
+          id: ids.providerAttempt.create(),
+          generationId: ids.generation.create(),
+          threadId: campaign.threadId,
+          campaignId: campaign.id,
           providerId: "openrouter",
-          modelId: "maker/model-a",
+          requestedModelId: "maker/model-a",
           status: "pending",
-          startedAt: 140,
-          providerStartedAt: 141,
+          startedAt: 141,
         },
       ])
       .run();
 
     expect(usage.get(campaign.id)).toEqual({
       campaignId: campaign.id,
-      attempts: { provider: 4, preparing: 1, pending: 1, completed: 0, failed: 3 },
+      attempts: { provider: 4, preparing: 1, pending: 1, completed: 2, failed: 1 },
       tokenCoverage: { reported: 2, unknown: 1 },
       tokens: {
         input: 30,

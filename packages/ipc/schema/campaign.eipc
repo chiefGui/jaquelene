@@ -13,43 +13,12 @@ structure Campaign {
   generationPreferences?: CampaignGenerationPreferences
 }
 
-subtype CampaignUsageCount = number(
-  minValue: 0
-  maxValue: 9007199254740991
-)
-
-enum CampaignCostSource {
-  ProviderReported = "provider-reported"
-  Estimated = "estimated"
-}
-
 structure CampaignUsageAttempts {
-  provider: CampaignUsageCount
-  preparing: CampaignUsageCount
-  pending: CampaignUsageCount
-  completed: CampaignUsageCount
-  failed: CampaignUsageCount
-}
-
-structure CampaignUsageCoverage {
-  reported: CampaignUsageCount
-  unknown: CampaignUsageCount
-}
-
-structure CampaignTokenUsage {
-  input: CampaignUsageCount
-  output: CampaignUsageCount
-  total: CampaignUsageCount
-  cacheReadInput?: CampaignUsageCount
-  cacheWriteInput?: CampaignUsageCount
-  reasoningOutput?: CampaignUsageCount
-}
-
-structure CampaignCostUsage {
-  currency: string
-  source: CampaignCostSource
-  amountNanos: CampaignUsageCount
-  attempts: CampaignUsageCount
+  provider: UsageCount
+  preparing: UsageCount
+  pending: UsageCount
+  completed: UsageCount
+  failed: UsageCount
 }
 
 structure CampaignModelUsage {
@@ -57,16 +26,16 @@ structure CampaignModelUsage {
   requestedModelId: string
   resolvedModelId?: string
   upstreamProviderId?: string
-  attempts: CampaignUsageCount
+  attempts: UsageCount
 }
 
 structure CampaignUsageSnapshot {
   campaignId: string
   attempts: CampaignUsageAttempts
-  tokenCoverage: CampaignUsageCoverage
-  tokens?: CampaignTokenUsage
-  costCoverage: CampaignUsageCoverage
-  costs: CampaignCostUsage[]
+  tokenCoverage: UsageCoverage
+  tokens?: UsageTokens
+  costCoverage: UsageCoverage
+  costs: UsageCost[]
   models: CampaignModelUsage[]
 }
 

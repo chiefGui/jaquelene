@@ -237,6 +237,7 @@ describe("backend", () => {
     expect(() => first.scenarios.list()).toThrow("Backend is closed.");
     expect(() => first.instructions.listGroups()).toThrow("Backend is closed.");
     expect(() => first.campaignUsage.get(campaign.id)).toThrow("Backend is closed.");
+    expect(() => first.turns.inspect(campaign.threadId)).toThrow("Backend is closed.");
     await expect(first.storage.measureUsage()).rejects.toThrow("Backend is closed.");
     await expect(first.storage.deleteArea("content")).rejects.toThrow("Backend is closed.");
     await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(
@@ -518,18 +519,5 @@ describe("backend", () => {
       'Provider "duplicate-provider" is registered more than once.',
     );
     expect(() => rmSync(databasePath, { force: true })).not.toThrow();
-  });
-
-  it("rejects generation work once closing begins", async () => {
-    const backend = await createBackend(backendOptions(createDatabasePath()));
-    const closing = backend.close();
-
-    await expect(
-      backend.generations.generateReply({
-        turnId: ids.turn.create(),
-        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
-      }),
-    ).rejects.toThrow("Backend is closed.");
-    await closing;
   });
 });

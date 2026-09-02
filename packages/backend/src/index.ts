@@ -16,7 +16,6 @@ export {
   type GenerationConfiguration,
   type GenerationConfigurationSelection,
 } from "#backend/generation/configuration";
-export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
 export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
 export {
   reasoningEfforts,
@@ -103,5 +102,6 @@ export type {
   Turns,
   TurnAcceptance,
   TurnOperation,
+  TurnOperationInspection,
   TurnSettlement,
 } from "#backend/turn/turns";

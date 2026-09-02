@@ -1,5 +1,10 @@
 module jaquelene
 
+enum UiTheme {
+  Jaquelene = "jaquelene"
+  Dracula = "dracula"
+}
+
 enum UiFont {
   System = "system"
   Inter = "inter"
@@ -20,6 +25,7 @@ enum MotionPreference {
 }
 
 structure UserInterfacePreferenceValues {
+  theme: UiTheme
   font: UiFont
   scale: InterfaceScale
   motion: MotionPreference
@@ -30,6 +36,7 @@ structure UserInterfacePreferenceValues {
 [ContextBridge]
 interface UserInterfacePreferences {
   get() -> UserInterfacePreferenceValues
+  setTheme(theme: UiTheme) -> UserInterfacePreferenceValues
   setFont(font: UiFont) -> UserInterfacePreferenceValues
   setScale(scale: InterfaceScale) -> UserInterfacePreferenceValues
   setMotion(motion: MotionPreference) -> UserInterfacePreferenceValues

@@ -3,7 +3,7 @@ import PanelRightCloseIcon from "@hugeicons/core-free-icons/PanelRightCloseIcon"
 import PanelRightOpenIcon from "@hugeicons/core-free-icons/PanelRightOpenIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { IconButton } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";

@@ -1,5 +1,12 @@
 import type { Schema } from "electron-store";
 
+export const UiTheme = {
+  Jaquelene: "jaquelene",
+  Dracula: "dracula",
+} as const;
+
+export type UiTheme = (typeof UiTheme)[keyof typeof UiTheme];
+
 export const UiFont = {
   System: "system",
   Inter: "inter",
@@ -26,6 +33,7 @@ export const MotionPreference = {
 export type MotionPreference = (typeof MotionPreference)[keyof typeof MotionPreference];
 
 export type UserInterfacePreferenceValues = {
+  theme: UiTheme;
   font: UiFont;
   scale: InterfaceScale;
   motion: MotionPreference;
@@ -38,6 +46,7 @@ type UserInterfacePreferencesStorage = {
 };
 
 const defaultValues = {
+  theme: UiTheme.Jaquelene,
   font: UiFont.Inter,
   scale: InterfaceScale.Percent100,
   motion: MotionPreference.System,
@@ -47,6 +56,10 @@ export const userInterfacePreferencesSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
+    theme: {
+      type: "string",
+      enum: [UiTheme.Jaquelene, UiTheme.Dracula],
+    },
     font: {
       type: "string",
       enum: [UiFont.System, UiFont.Inter, UiFont.Geist],
@@ -65,8 +78,14 @@ export const userInterfacePreferencesSchema = {
       enum: [MotionPreference.System, MotionPreference.Reduced, MotionPreference.Full],
     },
   },
-  required: ["font", "scale", "motion"],
+  required: ["theme", "font", "scale", "motion"],
 } satisfies Schema<{ userInterface: UserInterfacePreferenceValues }>["userInterface"];
+
+function requireTheme(theme: UiTheme) {
+  if (theme !== UiTheme.Jaquelene && theme !== UiTheme.Dracula) {
+    throw new TypeError(`Unknown UI theme "${theme}".`);
+  }
+}
 
 function requireFont(font: UiFont) {
   if (font !== UiFont.System && font !== UiFont.Inter && font !== UiFont.Geist) {
@@ -105,6 +124,13 @@ export function createUserInterfacePreferences(storage: UserInterfacePreferences
 
     subscribe(listener: (values: UserInterfacePreferenceValues) => void) {
       return storage.subscribe(() => listener(get()));
+    },
+
+    setTheme(theme: UiTheme) {
+      requireTheme(theme);
+      const values = { ...get(), theme };
+      storage.write(values);
+      return { ...values };
     },
 
     setFont(font: UiFont) {

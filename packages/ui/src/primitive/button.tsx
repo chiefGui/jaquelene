@@ -5,7 +5,7 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
-import { tokens } from "../theme.stylex";
+import { colors, tokens } from "../tokens.stylex";
 
 type ButtonVariant = "ghost" | "soft" | "solid";
 type ButtonTone = "danger" | "neutral";
@@ -64,7 +64,7 @@ const styles = stylex.create({
     },
     outlineColor: {
       default: null,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 60%, transparent)`,
+      ":is([data-focus-visible])": colors.focusRing,
     },
     outlineOffset: {
       default: null,
@@ -82,64 +82,68 @@ const styles = stylex.create({
   },
   solid: {
     backgroundColor: {
-      default: `color-mix(in oklch, ${tokens.foreground} 90%, transparent)`,
-      ":not(:disabled):hover": tokens.foreground,
+      default: colors.buttonSolidBackground,
+      ":not(:disabled):hover": colors.buttonSolidBackgroundHover,
     },
-    color: tokens.canvas,
+    color: colors.buttonSolidForeground,
   },
   ghost: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 10%, transparent)`,
+      ":not(:disabled):hover": colors.backgroundNeutralSubtler,
+      ":not(:disabled):active": colors.backgroundNeutralSubtle,
+      ":is([data-focus-visible])": colors.backgroundNeutralSubtler,
     },
     color: {
-      default: tokens.muted,
-      ":not(:disabled):hover": tokens.foreground,
-      ":is([data-focus-visible])": tokens.foreground,
+      default: colors.foregroundSecondary,
+      ":not(:disabled):hover": colors.foregroundPrimary,
+      ":is([data-focus-visible])": colors.foregroundPrimary,
     },
   },
   soft: {
     backgroundColor: {
-      default: `color-mix(in oklch, ${tokens.accent} 8%, transparent)`,
-      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.accent} 12%, transparent)`,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.accent} 12%, transparent)`,
+      default: colors.backgroundNeutralSubtlest,
+      ":not(:disabled):hover": colors.backgroundNeutralSubtler,
+      ":not(:disabled):active": colors.backgroundNeutralSubtle,
+      ":is([data-focus-visible])": colors.backgroundNeutralSubtler,
     },
     color: {
-      default: tokens.muted,
-      ":not(:disabled):hover": tokens.foreground,
-      ":is([data-focus-visible])": tokens.foreground,
+      default: colors.foregroundSecondary,
+      ":not(:disabled):hover": colors.foregroundPrimary,
+      ":is([data-focus-visible])": colors.foregroundPrimary,
     },
   },
   solidDanger: {
     backgroundColor: {
-      default: `color-mix(in oklch, ${tokens.danger} 82%, ${tokens.canvas})`,
-      ":not(:disabled):hover": tokens.danger,
+      default: colors.buttonDangerSolidBackground,
+      ":not(:disabled):hover": colors.buttonDangerSolidBackgroundHover,
     },
-    color: tokens.canvas,
+    color: colors.buttonDangerSolidForeground,
   },
   ghostDanger: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
+      ":not(:disabled):hover": colors.buttonDangerSubtleBackground,
+      ":not(:disabled):active": colors.buttonDangerSubtleBackgroundStrong,
+      ":is([data-focus-visible])": colors.buttonDangerSubtleBackground,
     },
     color: {
-      default: `color-mix(in oklab, ${tokens.danger} 72%, ${tokens.muted})`,
-      ":not(:disabled):hover": tokens.danger,
-      ":is([data-focus-visible])": tokens.danger,
+      default: colors.foregroundDanger,
+      ":not(:disabled):hover": colors.foregroundDanger,
+      ":is([data-focus-visible])": colors.foregroundDanger,
     },
   },
   softDanger: {
     backgroundColor: {
-      default: `color-mix(in oklch, ${tokens.danger} 8%, transparent)`,
-      ":not(:disabled):hover": `color-mix(in oklch, ${tokens.danger} 12%, transparent)`,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${tokens.danger} 12%, transparent)`,
+      default: colors.buttonDangerSubtleBackground,
+      ":not(:disabled):hover": colors.buttonDangerSubtleBackgroundStrong,
+      ":not(:disabled):active": colors.buttonDangerSubtleBackgroundStrong,
+      ":is([data-focus-visible])": colors.buttonDangerSubtleBackgroundStrong,
     },
     color: {
-      default: tokens.danger,
-      ":not(:disabled):hover": `color-mix(in oklab, ${tokens.danger} 82%, ${tokens.foreground})`,
-      ":is([data-focus-visible])": `color-mix(in oklab, ${tokens.danger} 82%, ${tokens.foreground})`,
+      default: colors.foregroundDanger,
+      ":not(:disabled):hover": colors.foregroundDanger,
+      ":is([data-focus-visible])": colors.foregroundDanger,
     },
   },
   label: {

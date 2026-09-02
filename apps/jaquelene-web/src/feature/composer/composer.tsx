@@ -3,7 +3,7 @@ import Loading02Icon from "@hugeicons/core-free-icons/Loading02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, type ButtonProps } from "@jaquelene/ui";
 import { useReducedMotion } from "@jaquelene/ui/motion";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
@@ -126,10 +126,10 @@ const spin = stylex.keyframes({
 
 const styles = stylex.create({
   root: {
-    backgroundColor: tokens.surfaceRaised,
+    backgroundColor: colors.backgroundSurfaceRaised,
     borderColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 9%, transparent)`,
-      ":focus-within": `color-mix(in oklab, ${tokens.accent} 38%, transparent)`,
+      default: colors.borderDefault,
+      ":focus-within": colors.borderFocus,
     },
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
@@ -154,8 +154,8 @@ const styles = stylex.create({
     appearance: "none",
     backgroundColor: "transparent",
     borderWidth: 0,
-    caretColor: tokens.accent,
-    color: tokens.foreground,
+    caretColor: colors.foregroundAccent,
+    color: colors.foregroundPrimary,
     fieldSizing: "content",
     fontFamily: "inherit",
     fontSize: tokens.fontSizeBase,
@@ -171,7 +171,7 @@ const styles = stylex.create({
     width: "100%",
     zIndex: 1,
     "::placeholder": {
-      color: tokens.muted,
+      color: colors.foregroundSecondary,
     },
   },
   footer: {
@@ -191,12 +191,12 @@ const styles = stylex.create({
     minWidth: 0,
   },
   status: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
   },
   dangerStatus: {
-    color: tokens.danger,
+    color: colors.foregroundDanger,
   },
   submit: {
     borderRadius: "9999px",

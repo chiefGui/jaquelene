@@ -17,7 +17,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
-import { tokens } from "../theme.stylex";
+
+import { colors, tokens } from "../tokens.stylex";
 import { Popover } from "./popover";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
@@ -123,8 +124,8 @@ export const Select = Object.assign(SelectTrigger, {
   Indicator: SelectIndicator,
 });
 
-const activeBackground = `color-mix(in oklab, ${tokens.accent} 10%, transparent)`;
-const focusRing = `inset 0 0 0 1px color-mix(in oklab, ${tokens.accent} 45%, transparent)`;
+const activeBackground = colors.backgroundNeutralSubtler;
+const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
 
 const styles = stylex.create({
   trigger: {
@@ -135,7 +136,7 @@ const styles = stylex.create({
       ':is([aria-expanded="true"])': focusRing,
       ":is([data-focus-visible])": focusRing,
     },
-    color: `color-mix(in oklab, ${tokens.foreground} 80%, transparent)`,
+    color: colors.foregroundPrimary,
     display: "inline-flex",
     flexShrink: 0,
     fontSize: tokens.fontSizeSmall,
@@ -153,7 +154,7 @@ const styles = stylex.create({
   },
   filled: {
     backgroundColor: {
-      default: `color-mix(in oklab, ${tokens.foreground} 3.5%, transparent)`,
+      default: colors.backgroundNeutralSubtlest,
       ":not(:disabled):hover": activeBackground,
     },
   },
@@ -166,9 +167,9 @@ const styles = stylex.create({
   },
   chevron: {
     color: {
-      default: tokens.muted,
-      [stylex.when.ancestor("[data-focus-visible]")]: tokens.accent,
-      [stylex.when.ancestor('[aria-expanded="true"]')]: tokens.accent,
+      default: colors.foregroundSecondary,
+      [stylex.when.ancestor("[data-focus-visible]")]: colors.foregroundAccent,
+      [stylex.when.ancestor('[aria-expanded="true"]')]: colors.foregroundAccent,
     },
     flexShrink: 0,
     height: "0.875rem",
@@ -184,13 +185,13 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   content: {
-    backgroundColor: tokens.surfaceRaised,
-    borderColor: tokens.surfaceRaisedBorder,
+    backgroundColor: colors.backgroundSurfaceOverlay,
+    borderColor: colors.borderDefault,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
     boxShadow: tokens.shadowXLarge,
-    color: tokens.foreground,
+    color: colors.foregroundPrimary,
     display: "flex",
     flexDirection: "column",
     gap: "0.25rem",
@@ -209,16 +210,17 @@ const styles = stylex.create({
       default: "transparent",
       ":focus": activeBackground,
       ":hover": activeBackground,
-      ':is([aria-selected="true"])': activeBackground,
       ":is([data-active-item])": activeBackground,
+      ':is([aria-selected="true"])': colors.backgroundSelected,
+      ':is([aria-selected="true"]):hover': colors.backgroundSelectedHover,
     },
     borderRadius: tokens.radiusMedium,
     color: {
-      default: tokens.muted,
-      ":focus": tokens.foreground,
-      ":hover": tokens.foreground,
-      ':is([aria-selected="true"])': tokens.foreground,
-      ":is([data-active-item])": tokens.foreground,
+      default: colors.foregroundSecondary,
+      ":focus": colors.foregroundPrimary,
+      ":hover": colors.foregroundPrimary,
+      ':is([aria-selected="true"])': colors.foregroundPrimary,
+      ":is([data-active-item])": colors.foregroundPrimary,
     },
     display: "flex",
     fontSize: tokens.fontSizeSmall,
@@ -234,7 +236,7 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   indicator: {
-    color: tokens.accent,
+    color: colors.foregroundAccent,
     flexShrink: 0,
     height: "1rem",
     opacity: {

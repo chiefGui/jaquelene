@@ -1,4 +1,4 @@
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { MarkdownToJSX } from "markdown-to-jsx/react";
 import type { ComponentProps, ReactNode } from "react";
@@ -134,7 +134,7 @@ export const markdownOverrides = {
   ul: MarkdownUnorderedList,
 } satisfies MarkdownToJSX.Overrides;
 
-const focusOutline = `color-mix(in oklab, ${tokens.accent} 60%, transparent)`;
+const focusOutline = colors.focusRing;
 
 const styles = stylex.create({
   paragraph: {
@@ -162,10 +162,10 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightBase,
   },
   blockquote: {
-    borderInlineStartColor: tokens.surfaceRaisedBorder,
+    borderInlineStartColor: colors.borderDefault,
     borderInlineStartStyle: "solid",
     borderInlineStartWidth: 2,
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     marginBlockStart: {
       default: "0.75rem",
       ":first-child": 0,
@@ -190,7 +190,10 @@ const styles = stylex.create({
   },
   link: {
     borderRadius: tokens.radiusSmall,
-    color: tokens.accent,
+    color: {
+      default: colors.foregroundLink,
+      ":hover": colors.foregroundLinkHover,
+    },
     outlineColor: {
       default: null,
       ":focus-visible": focusOutline,
@@ -213,7 +216,7 @@ const styles = stylex.create({
     textUnderlineOffset: 3,
   },
   imageFallback: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontStyle: "italic",
   },
   code: {
@@ -221,7 +224,7 @@ const styles = stylex.create({
     overflowWrap: "anywhere",
   },
   codeBlock: {
-    backgroundColor: `color-mix(in oklab, ${tokens.canvas} 72%, transparent)`,
+    backgroundColor: colors.backgroundCanvas,
     borderRadius: tokens.radiusMedium,
     marginBlockStart: {
       default: "0.75rem",
@@ -233,7 +236,7 @@ const styles = stylex.create({
     whiteSpace: "pre",
   },
   thematicBreak: {
-    borderBlockStartColor: tokens.surfaceRaisedBorder,
+    borderBlockStartColor: colors.borderDefault,
     borderBlockStartStyle: "solid",
     borderBlockStartWidth: 1,
     marginBlockStart: {
@@ -242,7 +245,7 @@ const styles = stylex.create({
     },
   },
   taskMarker: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontFamily: tokens.fontMono,
     marginInlineEnd: "0.25rem",
   },
@@ -255,10 +258,10 @@ const styles = stylex.create({
     overflowX: "auto",
   },
   footnotes: {
-    borderBlockStartColor: tokens.surfaceRaisedBorder,
+    borderBlockStartColor: colors.borderDefault,
     borderBlockStartStyle: "solid",
     borderBlockStartWidth: 1,
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginBlockStart: "0.875rem",

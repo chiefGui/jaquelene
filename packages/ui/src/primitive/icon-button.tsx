@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ReactNode } from "react";
-import { tokens } from "../theme.stylex";
+import { tokens } from "../tokens.stylex";
 import { Button, type ButtonProps } from "./button";
 
 export type IconButtonProps = Omit<ButtonProps, "aria-label" | "children" | "style" | "variant"> & {

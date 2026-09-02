@@ -15,7 +15,7 @@ import {
   type ScenarioTitleInput,
 } from "@jaquelene/domain";
 import { Button, Field, Form as FormLayout, Input, formatTimestamp } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -251,7 +251,7 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightLarge,
   },
   description: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.25rem",
@@ -268,7 +268,7 @@ const styles = stylex.create({
     minWidth: "4.5rem",
   },
   error: {
-    color: tokens.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.5rem",
@@ -285,13 +285,13 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightSmall,
   },
   empty: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.75rem",
   },
   list: {
-    borderColor: tokens.border,
+    borderColor: colors.borderSubtle,
     borderRadius: tokens.radiusLarge,
     borderStyle: "solid",
     borderWidth: 1,
@@ -299,7 +299,7 @@ const styles = stylex.create({
     overflow: "hidden",
   },
   listItem: {
-    borderColor: tokens.border,
+    borderColor: colors.borderSubtle,
     borderStyle: "solid",
     borderTopWidth: {
       default: 0,
@@ -309,14 +309,14 @@ const styles = stylex.create({
   listLink: {
     backgroundColor: {
       default: "transparent",
-      ":hover": `color-mix(in oklab, ${tokens.accent} 10%, transparent)`,
+      ":hover": colors.backgroundNeutralSubtler,
     },
     display: "block",
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     outlineColor: {
       default: null,
-      ":focus-visible": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
+      ":focus-visible": colors.focusRing,
     },
     outlineOffset: {
       default: null,

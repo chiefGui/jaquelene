@@ -11,7 +11,8 @@ import {
 import { useStoreState } from "@ariakit/react/store";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { tokens } from "../theme.stylex";
+
+import { colors, tokens } from "../tokens.stylex";
 import { Popover } from "./popover";
 
 export type TooltipProps = Omit<
@@ -59,13 +60,13 @@ export type { TooltipAnchorProps, TooltipProviderProps as TooltipRootProps };
 
 const styles = stylex.create({
   content: {
-    backgroundColor: tokens.surfaceRaised,
-    borderColor: tokens.surfaceRaisedBorder,
+    backgroundColor: colors.backgroundSurfaceOverlay,
+    borderColor: colors.borderDefault,
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",
     borderWidth: 1,
     boxShadow: tokens.shadowLarge,
-    color: tokens.foreground,
+    color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     maxWidth: "16rem",

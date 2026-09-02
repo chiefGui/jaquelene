@@ -47,6 +47,8 @@ export type Campaign = Readonly<{
   title: CampaignTitle;
   threadId: ThreadId;
   startedAt: number;
+  lastActivityAt: number;
+  turnCount: number;
   generationPreferences?: CampaignGenerationPreferences;
 }>;
 
@@ -55,7 +57,6 @@ export type CampaignSummary = Readonly<{
   title: CampaignTitle;
   threadId: ThreadId;
   lastActivityAt: number;
-  turnCount: number;
 }>;
 
 export type CampaignPage = Readonly<{
@@ -136,6 +137,8 @@ function parseStartCampaignInput(value: StartCampaignInput) {
 }
 
 type StoredCampaign = typeof campaignTable.$inferSelect & {
+  lastActivityAt: number;
+  turnCount: number;
   generationPreferences: Omit<
     typeof campaignGenerationPreferencesTable.$inferSelect,
     "campaignId"
@@ -144,6 +147,8 @@ type StoredCampaign = typeof campaignTable.$inferSelect & {
 
 const campaignSelection = {
   ...getTableColumns(campaignTable),
+  lastActivityAt: threadTable.lastActivityAt,
+  turnCount: threadTable.turnCount,
   generationPreferences: {
     providerId: campaignGenerationPreferencesTable.providerId,
     modelId: campaignGenerationPreferencesTable.modelId,
@@ -199,6 +204,20 @@ function parseCampaignCursor(cursor: string) {
   }
 }
 
+function getCampaign(database: Database, id: CampaignId) {
+  const campaign = database
+    .select(campaignSelection)
+    .from(campaignTable)
+    .innerJoin(threadTable, eq(threadTable.id, campaignTable.threadId))
+    .leftJoin(
+      campaignGenerationPreferencesTable,
+      eq(campaignGenerationPreferencesTable.campaignId, campaignTable.id),
+    )
+    .where(eq(campaignTable.id, id))
+    .get();
+  return campaign ? toCampaign(campaign) : null;
+}
+
 export function createCampaigns(database: Database, now: () => number = Date.now) {
   return {
     start(input: StartCampaignInput) {
@@ -236,8 +255,18 @@ export function createCampaigns(database: Database, now: () => number = Date.now
           title,
           threadId: thread.id,
           startedAt,
+          lastActivityAt: startedAt,
+          turnCount: 0,
         };
-        transaction.insert(campaignTable).values(campaign).run();
+        transaction
+          .insert(campaignTable)
+          .values({
+            id: campaign.id,
+            title: campaign.title,
+            threadId: campaign.threadId,
+            startedAt: campaign.startedAt,
+          })
+          .run();
 
         for (const { kind, promptKey } of composition) {
           if (promptKey === undefined) {
@@ -271,7 +300,6 @@ export function createCampaigns(database: Database, now: () => number = Date.now
           title: campaignTable.title,
           threadId: campaignTable.threadId,
           lastActivityAt: threadTable.lastActivityAt,
-          turnCount: threadTable.turnCount,
         })
         .from(threadTable)
         .innerJoin(campaignTable, eq(campaignTable.threadId, threadTable.id))
@@ -293,16 +321,7 @@ export function createCampaigns(database: Database, now: () => number = Date.now
     },
 
     get(id: CampaignId) {
-      const campaign = database
-        .select(campaignSelection)
-        .from(campaignTable)
-        .leftJoin(
-          campaignGenerationPreferencesTable,
-          eq(campaignGenerationPreferencesTable.campaignId, campaignTable.id),
-        )
-        .where(eq(campaignTable.id, id))
-        .get();
-      return campaign ? toCampaign(campaign) : null;
+      return getCampaign(database, id);
     },
 
     delete(id: CampaignId): CampaignDeletion | null {
@@ -354,29 +373,14 @@ export function createCampaigns(database: Database, now: () => number = Date.now
 
     rename(id: CampaignId, titleInput: unknown) {
       const { title } = parseCampaignTitleInput({ title: titleInput });
-      const campaign = database
+      const renamed = database
         .update(campaignTable)
         .set({ title })
         .where(eq(campaignTable.id, id))
-        .returning()
+        .returning({ id: campaignTable.id })
         .get();
 
-      if (!campaign) {
-        return null;
-      }
-
-      const generationPreferences = database
-        .select({
-          providerId: campaignGenerationPreferencesTable.providerId,
-          modelId: campaignGenerationPreferencesTable.modelId,
-          name: campaignGenerationPreferencesTable.name,
-          brandId: campaignGenerationPreferencesTable.brandId,
-          reasoningPreset: campaignGenerationPreferencesTable.reasoningPreset,
-        })
-        .from(campaignGenerationPreferencesTable)
-        .where(eq(campaignGenerationPreferencesTable.campaignId, id))
-        .get();
-      return toCampaign({ ...campaign, generationPreferences: generationPreferences ?? null });
+      return renamed ? getCampaign(database, id) : null;
     },
 
     getContextForThread(threadId: ThreadId) {
@@ -396,8 +400,13 @@ export function createCampaigns(database: Database, now: () => number = Date.now
 
       return database.transaction((transaction) => {
         const campaign = transaction
-          .select()
+          .select({
+            ...getTableColumns(campaignTable),
+            lastActivityAt: threadTable.lastActivityAt,
+            turnCount: threadTable.turnCount,
+          })
           .from(campaignTable)
+          .innerJoin(threadTable, eq(threadTable.id, campaignTable.threadId))
           .where(eq(campaignTable.id, id))
           .get();
 

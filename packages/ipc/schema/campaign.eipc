@@ -10,6 +10,8 @@ structure Campaign {
   title: CampaignTitle
   threadId: string
   startedAt: UnixTimeMilliseconds
+  lastActivityAt: UnixTimeMilliseconds
+  turnCount: ThreadTurnCount
   generationPreferences?: CampaignGenerationPreferences
 }
 
@@ -18,7 +20,6 @@ structure CampaignSummary {
   title: CampaignTitle
   threadId: string
   lastActivityAt: UnixTimeMilliseconds
-  turnCount: ThreadTurnCount
 }
 
 subtype CampaignTitle = string(

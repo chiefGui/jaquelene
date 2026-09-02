@@ -54,17 +54,12 @@ function start(campaigns: ReturnType<typeof createCampaigns>, title: string) {
   return campaigns.start({ title, composition: [{ kind: narratorPromptKind.key }] });
 }
 
-function summary(
-  campaign: Campaign,
-  lastActivityAt = campaign.startedAt,
-  turnCount = 0,
-): CampaignSummary {
+function summary(campaign: Campaign, lastActivityAt = campaign.lastActivityAt): CampaignSummary {
   return {
     id: campaign.id,
     title: campaign.title,
     threadId: campaign.threadId,
     lastActivityAt,
-    turnCount,
   };
 }
 
@@ -108,6 +103,8 @@ describe("campaigns", () => {
       title: "First campaign",
       threadId: expect.stringMatching(/^thread_/),
       startedAt: 100,
+      lastActivityAt: 100,
+      turnCount: 0,
     });
     expect(threads.get(first.threadId)).toEqual({ id: first.threadId, createdAt: 100 });
     expect(campaigns.list().campaigns).toEqual([summary(second), summary(first)]);
@@ -126,9 +123,14 @@ describe("campaigns", () => {
     const activity = threads.startTurn(first.threadId, "Bring this campaign forward");
 
     expect(campaigns.list().campaigns).toEqual([
-      summary(first, activity.message.createdAt, 1),
+      summary(first, activity.message.createdAt),
       summary(second),
     ]);
+    expect(campaigns.get(first.id)).toEqual({
+      ...first,
+      lastActivityAt: activity.message.createdAt,
+      turnCount: 1,
+    });
   });
 
   it("uses the activity index for the bounded sidebar read", () => {
@@ -236,11 +238,18 @@ describe("campaigns", () => {
     const path = createDatabasePath();
     const first = openCampaigns(path, () => 200);
     const campaign = start(first.campaigns, "Original");
-    expect(first.campaigns.rename(campaign.id, "  Renamed  ")?.title).toBe("Renamed");
+    const activity = first.threads.startTurn(campaign.threadId, "Remember this turn");
+    const renamed = {
+      ...campaign,
+      title: "Renamed",
+      lastActivityAt: activity.message.createdAt,
+      turnCount: 1,
+    };
+    expect(first.campaigns.rename(campaign.id, "  Renamed  ")).toEqual(renamed);
     closeDatabase(first.database);
 
     const second = openCampaigns(path);
-    expect(second.campaigns.get(campaign.id)?.title).toBe("Renamed");
+    expect(second.campaigns.get(campaign.id)).toEqual(renamed);
     expect(second.campaigns.getContextForThread(campaign.threadId)).toEqual({ id: campaign.id });
   });
 

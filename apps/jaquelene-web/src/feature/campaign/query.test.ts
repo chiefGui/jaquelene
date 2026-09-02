@@ -72,6 +72,8 @@ function campaign(generationPreferences?: CampaignGenerationPreferences): Campai
     title: "Campaign A",
     threadId: "thread-a",
     startedAt: 100,
+    lastActivityAt: 100,
+    turnCount: 0,
     ...(generationPreferences ? { generationPreferences } : {}),
   };
 }
@@ -81,8 +83,7 @@ function campaignSummary(value: Campaign): CampaignSummary {
     id: value.id,
     title: value.title,
     threadId: value.threadId,
-    lastActivityAt: value.startedAt,
-    turnCount: 0,
+    lastActivityAt: value.lastActivityAt,
   };
 }
 
@@ -136,6 +137,8 @@ describe("campaign start mutation", () => {
       title: "New campaign",
       threadId: "thread-new",
       startedAt: 200,
+      lastActivityAt: 200,
+      turnCount: 0,
     };
     const request = { title: started.title, composition: [] };
     campaignsIpc.start.mockResolvedValue(started);
@@ -256,7 +259,7 @@ describe("campaign deletion mutation", () => {
 describe("campaign generation preferences mutation", () => {
   it("shows the preferences immediately and reconciles campaign caches", async () => {
     const queryClient = createQueryClient();
-    const original = campaign();
+    const original = { ...campaign(), lastActivityAt: 500, turnCount: 4 };
     const requestedPreferences = generationPreferences("requested", ReasoningPreset.High);
     const saved = campaign({
       ...requestedPreferences,
@@ -271,9 +274,11 @@ describe("campaign generation preferences mutation", () => {
     const result = mutation.mutate(requestedPreferences);
 
     await vi.waitFor(() => {
-      expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(
-        campaign(requestedPreferences),
-      );
+      expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual({
+        ...campaign(requestedPreferences),
+        lastActivityAt: 500,
+        turnCount: 4,
+      });
     });
 
     save.resolve(saved);
@@ -283,7 +288,11 @@ describe("campaign generation preferences mutation", () => {
       original.id,
       requestedPreferences,
     );
-    expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual(saved);
+    expect(queryClient.getQueryData(campaignQuery(original.id).queryKey)).toEqual({
+      ...saved,
+      lastActivityAt: 500,
+      turnCount: 4,
+    });
     expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([
       campaignSummary(original),
     ]);
@@ -467,7 +476,7 @@ describe("campaign generation preferences mutation", () => {
 });
 
 describe("campaign activity cache", () => {
-  it("reorders loaded pages and updates turn counts immediately", () => {
+  it("reorders loaded pages and updates campaign details immediately", () => {
     const queryClient = createQueryClient();
     const older = campaignSummary(campaign());
     const newer: CampaignSummary = {
@@ -475,12 +484,12 @@ describe("campaign activity cache", () => {
       title: "Campaign B",
       threadId: "thread-b",
       lastActivityAt: 200,
-      turnCount: 4,
     };
     queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, {
       pages: [{ campaigns: [newer] }, { campaigns: [older] }],
       pageParams: [undefined, "next-page"],
     });
+    queryClient.setQueryData(campaignQuery(older.id).queryKey, campaign());
 
     expect(
       updateCampaignActivity(queryClient, {
@@ -491,9 +500,14 @@ describe("campaign activity cache", () => {
     ).toBe(true);
 
     expect(cachedCampaignPage(queryClient)?.pages.map((page) => page.campaigns)).toEqual([
-      [{ ...older, lastActivityAt: 300, turnCount: 1 }],
+      [{ ...older, lastActivityAt: 300 }],
       [newer],
     ]);
+    expect(queryClient.getQueryData(campaignQuery(older.id).queryKey)).toEqual({
+      ...campaign(),
+      lastActivityAt: 300,
+      turnCount: 1,
+    });
   });
 
   it("does not rewind activity when settlement arrives before submission acknowledgement", () => {
@@ -520,28 +534,32 @@ describe("campaign activity cache", () => {
     ).toBe(false);
 
     expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([
-      { ...cached, lastActivityAt: 300, turnCount: 1 },
+      { ...cached, lastActivityAt: 300 },
     ]);
   });
 
-  it("applies an authoritative count when deletion moves a campaign down", () => {
+  it("applies authoritative activity when deletion moves a campaign down", () => {
     const queryClient = createQueryClient();
     const active: CampaignSummary = {
       ...campaignSummary(campaign()),
       lastActivityAt: 300,
-      turnCount: 5,
     };
     const other: CampaignSummary = {
       id: "campaign-b",
       title: "Campaign B",
       threadId: "thread-b",
       lastActivityAt: 200,
-      turnCount: 2,
+    };
+    const activeCampaign: Campaign = {
+      ...campaign(),
+      lastActivityAt: 300,
+      turnCount: 5,
     };
     queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, {
       pages: [{ campaigns: [active, other] }],
       pageParams: [undefined],
     });
+    queryClient.setQueryData(campaignQuery(active.id).queryKey, activeCampaign);
 
     updateCampaignActivity(queryClient, {
       threadId: active.threadId,
@@ -552,7 +570,12 @@ describe("campaign activity cache", () => {
 
     expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([
       other,
-      { ...active, lastActivityAt: 100, turnCount: 1 },
+      { ...active, lastActivityAt: 100 },
     ]);
+    expect(queryClient.getQueryData(campaignQuery(active.id).queryKey)).toEqual({
+      ...campaign(),
+      lastActivityAt: 100,
+      turnCount: 1,
+    });
   });
 });

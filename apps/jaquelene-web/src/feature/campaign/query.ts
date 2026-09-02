@@ -79,7 +79,15 @@ function withoutGenerationPreferences(campaign: Campaign): Campaign {
 }
 
 function cacheCampaign(queryClient: QueryClient, campaign: Campaign) {
-  queryClient.setQueryData(campaignQuery(campaign.id).queryKey, campaign);
+  queryClient.setQueryData<Campaign | null>(campaignQuery(campaign.id).queryKey, (current) =>
+    current
+      ? {
+          ...campaign,
+          lastActivityAt: current.lastActivityAt,
+          turnCount: current.turnCount,
+        }
+      : campaign,
+  );
 }
 
 function updateCampaignSummaries(
@@ -123,6 +131,23 @@ export function updateCampaignActivity(
   const data = queryClient.getQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey);
   let campaignFound = false;
 
+  queryClient.setQueriesData<Campaign | null>(
+    {
+      queryKey: campaignQueryKey,
+      predicate: (query) => query.queryKey.length === 2 && query.queryKey[1] !== "list",
+    },
+    (campaign) =>
+      campaign?.threadId === update.threadId
+        ? {
+            ...campaign,
+            lastActivityAt: update.allowActivityRewind
+              ? update.lastActivityAt
+              : Math.max(campaign.lastActivityAt, update.lastActivityAt),
+            turnCount: update.turnCount,
+          }
+        : campaign,
+  );
+
   updateCampaignSummaries(queryClient, (campaigns) => {
     const campaign = campaigns.find((candidate) => candidate.threadId === update.threadId);
 
@@ -137,7 +162,6 @@ export function updateCampaignActivity(
       lastActivityAt: update.allowActivityRewind
         ? update.lastActivityAt
         : Math.max(campaign.lastActivityAt, update.lastActivityAt),
-      turnCount: update.turnCount,
     };
 
     return [
@@ -379,8 +403,7 @@ export function startCampaignMutationOptions(queryClient: QueryClient) {
         id: campaign.id,
         title: campaign.title,
         threadId: campaign.threadId,
-        lastActivityAt: campaign.startedAt,
-        turnCount: 0,
+        lastActivityAt: campaign.lastActivityAt,
       };
       const list = queryClient.getQueryData<InfiniteData<CampaignPage>>(
         campaignPagesQuery.queryKey,

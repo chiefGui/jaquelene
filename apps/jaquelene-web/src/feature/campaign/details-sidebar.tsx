@@ -1,21 +1,25 @@
 import type { Campaign, CampaignUsageSnapshot } from "@jaquelene/ipc/renderer";
-import { formatCount, formatCurrencyNanos } from "@jaquelene/ui";
+import { formatCount, formatCurrencyNanos, formatTimestamp } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { CampaignNarratorControl } from "@/feature/prompt/campaign-control";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
 import { summarizeCosts } from "@/feature/usage/presentation";
 import { CampaignDeleteControl } from "./delete-control";
 import { CampaignTitleControl } from "./title-control";
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function MetricRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <p {...stylex.props(styles.metric)}>
       <span {...stylex.props(styles.label)}>{label}</span>
       <span {...stylex.props(styles.value)}>{value}</span>
     </p>
   );
+}
+
+function Timestamp({ value }: { value: number }) {
+  return <time dateTime={new Date(value).toISOString()}>{formatTimestamp(value)}</time>;
 }
 
 export function CampaignDetailsSidebar({
@@ -64,6 +68,12 @@ export function CampaignDetailsSidebar({
             </h2>
 
             <div {...stylex.props(styles.metrics)}>
+              <MetricRow value={formatCount(campaign.turnCount)} label="Turns" />
+              <MetricRow
+                value={<Timestamp value={campaign.lastActivityAt} />}
+                label="Last activity"
+              />
+              <MetricRow value={<Timestamp value={campaign.startedAt} />} label="Started" />
               <MetricRow value={tokensValue} label="Tokens" />
               <MetricRow value={costValue} label="Cost" />
             </div>

@@ -177,7 +177,7 @@ function UsageRoute() {
       </ContentPane.Header>
 
       <ContentPane.Viewport>
-        <ContentPane.Body style={!overview.hasHistory && styles.emptyBody}>
+        <ContentPane.Body style={[styles.body, !overview.hasHistory && styles.emptyBody]}>
           {overview.hasHistory ? (
             <>
               <section
@@ -249,7 +249,7 @@ function UsageRoute() {
                 {reportingNote ? <p {...stylex.props(styles.note)}>{reportingNote}</p> : null}
               </section>
 
-              <section aria-labelledby="usage-history-heading" {...stylex.props(styles.history)}>
+              <section aria-labelledby="usage-history-heading">
                 <Item.Group>
                   <Item.Root>
                     <Item.Content>
@@ -299,9 +299,13 @@ function UsageRoute() {
 }
 
 const styles = stylex.create({
+  body: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1.5rem",
+  },
   emptyBody: {
     alignItems: "center",
-    display: "flex",
     height: "100%",
     justifyContent: "center",
   },
@@ -353,8 +357,5 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.75rem",
-  },
-  history: {
-    marginTop: "4rem",
   },
 });

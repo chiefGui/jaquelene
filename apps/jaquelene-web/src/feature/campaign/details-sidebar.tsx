@@ -1,5 +1,5 @@
 import type { CampaignUsageSnapshot } from "@jaquelene/ipc/renderer";
-import { formatCount, formatCurrencyNanos } from "@jaquelene/ui";
+import { formatCount, formatCurrencyNanos, formatTimestamp } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId } from "react";
@@ -18,9 +18,11 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 
 export function CampaignDetailsSidebar({
   campaignId,
+  startedAt,
   usage,
 }: {
   campaignId: string;
+  startedAt: number;
   usage: CampaignUsageSnapshot;
 }) {
   const headingId = useId();
@@ -61,6 +63,7 @@ export function CampaignDetailsSidebar({
             </h2>
 
             <div {...stylex.props(styles.metrics)}>
+              <MetricRow value={formatTimestamp(startedAt)} label="Started on" />
               <MetricRow value={tokensValue} label="Tokens" />
               <MetricRow value={costValue} label="Cost" />
             </div>

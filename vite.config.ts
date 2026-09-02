@@ -8,6 +8,14 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: mode === "test" ? [createStylexTestPlugin()] : [],
   fmt: {
-    ignorePatterns: ["apps/jaquelene-web/src/routeTree.gen.ts", "**/generated/**"],
+    ignorePatterns: [
+      "apps/jaquelene-web/src/routeTree.gen.ts",
+      "packages/backend/src/migrations/**/snapshot.json",
+      "**/generated/**",
+      "CHANGELOG.md",
+    ],
+  },
+  staged: {
+    "*": "vp fmt --write --no-error-on-unmatched-pattern",
   },
 }));

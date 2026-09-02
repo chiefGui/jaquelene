@@ -6,3 +6,23 @@ import SiteDocument from "../layouts/site-document.astro";
 <SiteDocument description={landingPitch} title="Jaquelene">
   <Home />
 </SiteDocument>
+
+<script>
+  const edge = document.querySelector<HTMLCanvasElement>("[data-symbol-edge]");
+
+  if (edge) {
+    if (!("gpu" in navigator)) {
+      edge.dataset.symbolEdge = "unsupported";
+    } else {
+      void import("./_home/symbol-edge").then(({ mountSymbolEdge }) => {
+        const dispose = mountSymbolEdge(edge);
+        window.addEventListener("pagehide", (event) => {
+          if (!event.persisted) dispose();
+        });
+      }).catch((error: unknown) => {
+        edge.dataset.symbolEdge = "unavailable";
+        console.warn("The symbol edge renderer could not load.", error);
+      });
+    }
+  }
+</script>

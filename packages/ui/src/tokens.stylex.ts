@@ -95,6 +95,7 @@ export const colors = stylex.defineVars({
 export const tokens = stylex.defineConsts({
   // Control geometry
   controlHeight: "2rem",
+  controlHeightSmall: "1.75rem",
   radiusSmall: "0.25rem",
   radiusMedium: "0.5rem",
   radiusLarge: "0.625rem",

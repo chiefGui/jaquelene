@@ -127,16 +127,12 @@ export const Select = Object.assign(SelectTrigger, {
 const activeBackground = colors.backgroundAccentSubtle;
 const controlShadow = `inset 0 0.0625rem 0 color-mix(in oklch, ${colors.foregroundPrimary} 5%, transparent), 0 0.0625rem 0.125rem color-mix(in oklch, ${colors.backgroundCanvas} 45%, transparent)`;
 const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
+const focusedControlShadow = `${focusRing}, ${controlShadow}`;
 
 const styles = stylex.create({
   trigger: {
     alignItems: "center",
     borderRadius: tokens.radiusLarge,
-    boxShadow: {
-      default: null,
-      ':is([aria-expanded="true"])': focusRing,
-      ":is([data-focus-visible])": focusRing,
-    },
     color: {
       default: colors.foregroundSecondary,
       ":not(:disabled):hover": colors.foregroundPrimary,
@@ -165,13 +161,22 @@ const styles = stylex.create({
     borderColor: colors.borderDefault,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: controlShadow,
+    boxShadow: {
+      default: controlShadow,
+      ':is([aria-expanded="true"])': focusedControlShadow,
+      ":is([data-focus-visible])": focusedControlShadow,
+    },
   },
   ghost: {
     backgroundColor: {
       default: "transparent",
       ":not(:disabled):hover": activeBackground,
       ':is([aria-expanded="true"])': activeBackground,
+    },
+    boxShadow: {
+      default: null,
+      ':is([aria-expanded="true"])': focusRing,
+      ":is([data-focus-visible])": focusRing,
     },
   },
   chevron: {

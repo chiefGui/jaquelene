@@ -1,4 +1,7 @@
 ---
+import "@fontsource-variable/geist/wght.css";
+import geistLatinUrl from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
+import { palette } from "@jaquelene/ui/theme.stylex";
 import { documentClassNames } from "./site-document.stylex";
 
 interface Props {
@@ -7,7 +10,12 @@ interface Props {
 }
 
 const { description, title } = Astro.props;
-const stylexStylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : "/assets/stylex.css";
+
+if (!Astro.site) {
+  throw new Error("The public site URL must be configured.");
+}
+
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 ---
 
 <!doctype html>
@@ -15,9 +23,20 @@ const stylexStylesheet = import.meta.env.DEV ? "/virtual:stylex.css" : "/assets/
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
-    <meta name="viewport" content="width=device-width" />
+    <meta name="theme-color" content={palette.canvas} />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta property="og:description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:title" content={title} />
     <title>{title}</title>
-    <link rel="stylesheet" href={stylexStylesheet} />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preload" href={geistLatinUrl} as="font" type="font/woff2" crossorigin="anonymous" />
+    {import.meta.env.DEV && <link rel="stylesheet" href="/virtual:stylex.css" />}
     {
       import.meta.env.DEV && (
         <script type="module" src="/@id/virtual:stylex:runtime" is:inline></script>

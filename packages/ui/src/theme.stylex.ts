@@ -1,22 +1,41 @@
 import * as stylex from "@stylexjs/stylex";
 
-export const tokens = stylex.defineVars({
+export const palette = {
   accent: "oklch(0.71 0.08 276)",
   backdrop: "oklch(0 0 0 / 55%)",
   border: "oklch(0.225 0.016 274)",
   canvas: "oklch(0.135 0.01 272)",
   danger: "oklch(0.7 0.16 22)",
-  foreground: "oklch(0.925 0.014 282)",
+  foreground: "oklch(0.975 0.012 278)",
   muted: "oklch(0.68 0.03 280)",
   reasoning: "oklch(0.75 0.1 305)",
-  success: "oklch(0.75 0.13 158)",
   storageAppData: "oklch(0.74 0.1 215)",
   storageCache: "oklch(0.72 0.025 250)",
   storageContent: "oklch(0.73 0.11 276)",
   storageLogs: "oklch(0.76 0.1 82)",
+  success: "oklch(0.75 0.13 158)",
   surface: "oklch(0.17 0.012 272)",
   surfaceRaised: "oklch(0.215 0.016 274)",
   surfaceRaisedBorder: "oklch(0.29 0.02 276)",
+} as const;
+
+export const tokens = stylex.defineVars({
+  accent: palette.accent,
+  backdrop: palette.backdrop,
+  border: palette.border,
+  canvas: palette.canvas,
+  danger: palette.danger,
+  foreground: palette.foreground,
+  muted: palette.muted,
+  reasoning: palette.reasoning,
+  success: palette.success,
+  storageAppData: palette.storageAppData,
+  storageCache: palette.storageCache,
+  storageContent: palette.storageContent,
+  storageLogs: palette.storageLogs,
+  surface: palette.surface,
+  surfaceRaised: palette.surfaceRaised,
+  surfaceRaisedBorder: palette.surfaceRaisedBorder,
 
   controlHeight: "2rem",
   radiusLarge: "0.625rem",

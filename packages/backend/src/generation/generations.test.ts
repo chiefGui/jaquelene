@@ -12,14 +12,12 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
-import { createPromptApplicationRegistry } from "#backend/prompt/application-registry";
 import {
   jaqueleneNarratorPrompt,
   narratorPromptKind,
-  narratorPromptRegistration,
-} from "#backend/prompt/factory/narrator";
-import { createNarratorPromptApplication } from "#backend/prompt/narrator-application";
-import { createPrompts } from "#backend/prompt/prompts";
+  narratorPromptModule,
+} from "#backend/prompt/narrator";
+import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import { threadMessageTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
 import {
@@ -92,12 +90,11 @@ function generationRouter(provider?: TestGenerationProvider): ProviderGeneration
 
 function openGenerationEnvironment(provider: TestGenerationProvider, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
-  const prompts = createPrompts(database, [narratorPromptRegistration]);
+  const { applications: promptApplications, prompts } = createPromptSubsystem(database, [
+    narratorPromptModule,
+  ]);
   const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
-  const promptApplications = createPromptApplicationRegistry([
-    createNarratorPromptApplication(prompts),
-  ]);
   const generations = createGenerations(
     database,
     createReplyPreparer(threads, campaigns, promptApplications),
@@ -106,7 +103,7 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
     now,
   );
   databases.push(database);
-  return { campaigns, database, generations, prompts, threads };
+  return { campaigns, database, generations, promptApplications, prompts, threads };
 }
 
 function deferred<Result>() {
@@ -927,14 +924,11 @@ describe("generations", () => {
 
   it("rejects an unknown provider identity before persisting an attempt", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { campaigns, database, prompts, threads } = openGenerationEnvironment(provider);
+    const { campaigns, database, promptApplications, threads } =
+      openGenerationEnvironment(provider);
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
-    const preparer = createReplyPreparer(
-      threads,
-      campaigns,
-      createPromptApplicationRegistry([createNarratorPromptApplication(prompts)]),
-    );
+    const preparer = createReplyPreparer(threads, campaigns, promptApplications);
 
     const generations = createGenerations(database, preparer, modelResolver(), generationRouter());
     await expect(

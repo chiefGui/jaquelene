@@ -7,7 +7,7 @@ import { campaignTable } from "#backend/campaign/schema";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
-import { narratorPromptKind, narratorPromptRegistration } from "#backend/prompt/factory/narrator";
+import { narratorPromptKind, narratorPromptModule } from "#backend/prompt/narrator";
 import { createPrompts } from "#backend/prompt/prompts";
 import { promptTable } from "#backend/prompt/schema";
 import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
@@ -40,7 +40,7 @@ afterEach(() => {
 describe("content storage area", () => {
   it("deletes every content record through one transaction", async () => {
     const { database, path } = createTestDatabase();
-    const prompts = createPrompts(database, [narratorPromptRegistration]);
+    const prompts = createPrompts(database, [narratorPromptModule]);
     const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
     prompts.create({ kind: narratorPromptKind.key, title: "Noir", body: "Keep it dark." });
     const { turn } = createThreads(database).startTurn(campaign.threadId, "Begin the story.");
@@ -74,7 +74,7 @@ describe("content storage area", () => {
 
   it("preserves content while a reply is being generated", () => {
     const { database, path } = createTestDatabase();
-    const prompts = createPrompts(database, [narratorPromptRegistration]);
+    const prompts = createPrompts(database, [narratorPromptModule]);
     const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
     prompts.create({ kind: narratorPromptKind.key, title: "Noir", body: "Keep it dark." });
     const { turn } = createThreads(database).startTurn(campaign.threadId, "Begin the story.");
@@ -102,7 +102,7 @@ describe("content storage area", () => {
 
   it("preserves content while an orphaned provider attempt is active", () => {
     const { database, path } = createTestDatabase();
-    createPrompts(database, [narratorPromptRegistration]);
+    createPrompts(database, [narratorPromptModule]);
     const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
     createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
@@ -127,7 +127,7 @@ describe("content storage area", () => {
 
   it("rolls back every content deletion when an owner operation fails", () => {
     const { database, path } = createTestDatabase();
-    createPrompts(database, [narratorPromptRegistration]);
+    createPrompts(database, [narratorPromptModule]);
     const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
     createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database

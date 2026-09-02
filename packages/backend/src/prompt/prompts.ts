@@ -5,7 +5,7 @@ import {
   type PromptKey,
   type PromptKindKey,
 } from "@jaquelene/domain";
-import { and, asc, eq, gt, inArray, notInArray, or } from "drizzle-orm";
+import { and, asc, eq, gt, notInArray, or } from "drizzle-orm";
 import { campaignTable } from "#backend/campaign/schema";
 import type { Database } from "#backend/database/database";
 import { ids, type CampaignId } from "#backend/id";
@@ -131,20 +131,6 @@ function installPromptKinds(database: Database, registrations: readonly PromptKi
       transaction.delete(promptTable).where(obsoleteFactoryPrompt).run();
     }
   });
-}
-
-function getKind(database: DatabaseReader, kind: PromptKindKey) {
-  return database.select().from(promptKindTable).where(eq(promptKindTable.key, kind)).get() ?? null;
-}
-
-function requireKind(database: DatabaseReader, kind: PromptKindKey) {
-  const definition = getKind(database, kind);
-
-  if (!definition) {
-    throw new RangeError(`Prompt kind "${kind}" does not exist.`);
-  }
-
-  return definition;
 }
 
 function getPromptForKind(database: DatabaseReader, kind: PromptKindKey, promptKey: PromptKey) {
@@ -277,25 +263,22 @@ export function createPrompts(
   now: () => number = Date.now,
 ) {
   installPromptKinds(database, registrations);
-  const registeredKindKeys = registrations.map(({ definition }) => definition.key);
+  const registeredKinds = registrations.map(({ definition }) => definition);
+  const registeredKindKeys = new Set(registeredKinds.map(({ key }) => key));
+
+  function requireKind(kind: PromptKindKey) {
+    if (!registeredKindKeys.has(kind)) {
+      throw new RangeError(`Prompt kind "${kind}" does not exist.`);
+    }
+  }
 
   return {
     listKinds(): readonly PromptKind[] {
-      if (registeredKindKeys.length === 0) {
-        return [];
-      }
-
-      return database
-        .select()
-        .from(promptKindTable)
-        .where(inArray(promptKindTable.key, registeredKindKeys))
-        .orderBy(asc(promptKindTable.key))
-        .all()
-        .map((kind) => ({ ...kind }));
+      return registeredKinds;
     },
 
     list({ kind, cursor }: PromptPageRequest) {
-      requireKind(database, kind);
+      requireKind(kind);
       const cursorPrompt = cursor === undefined ? undefined : parsePromptCursor(cursor, kind);
 
       const afterCursor = cursorPrompt
@@ -334,7 +317,7 @@ export function createPrompts(
 
     create(input: unknown) {
       const { kind, title, body } = parseCreatePromptInput(input);
-      requireKind(database, kind);
+      requireKind(kind);
       const prompt = {
         key: parsePromptKey(ids.prompt.create()),
         kind,
@@ -359,27 +342,22 @@ export function createPrompts(
     },
 
     delete(key: PromptKey) {
-      return database.transaction((transaction) => {
-        const deleted = transaction
+      return (
+        database
           .delete(promptTable)
           .where(and(eq(promptTable.key, key), eq(promptTable.origin, "custom")))
           .returning({ kind: promptTable.kind })
-          .get();
-
-        if (!deleted) {
-          return null;
-        }
-
-        const nextDefault = readDefault(transaction, deleted.kind);
-        return { kind: deleted.kind, defaultPromptKey: nextDefault.promptKey };
-      });
+          .get() ?? null
+      );
     },
 
     getDefault(kind: PromptKindKey) {
+      requireKind(kind);
       return readDefault(database, kind);
     },
 
     setDefault(kind: PromptKindKey, promptKey: PromptKey) {
+      requireKind(kind);
       requirePromptForKind(database, kind, promptKey);
       const fallback = database
         .select({ promptKey: promptKindFallbackTable.promptKey })
@@ -407,7 +385,7 @@ export function createPrompts(
     },
 
     getCampaignSelection(campaignId: CampaignId, kind: PromptKindKey) {
-      requireKind(database, kind);
+      requireKind(kind);
       return readCampaignSelection(database, campaignId, kind);
     },
 
@@ -423,7 +401,7 @@ export function createPrompts(
           return null;
         }
 
-        requireKind(transaction, kind);
+        requireKind(kind);
 
         if (promptKey === undefined) {
           transaction
@@ -452,6 +430,7 @@ export function createPrompts(
     },
 
     resolveCampaignPrompt(campaignId: CampaignId, kind: PromptKindKey) {
+      requireKind(kind);
       const selection = readCampaignSelection(database, campaignId, kind);
 
       if (!selection?.effectivePromptKey) {

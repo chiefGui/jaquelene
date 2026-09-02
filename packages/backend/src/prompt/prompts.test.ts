@@ -1,19 +1,14 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parsePromptKey } from "@jaquelene/domain";
+import { parsePromptKey, parsePromptKindKey } from "@jaquelene/domain";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
-import { createPromptApplicationRegistry } from "./application-registry";
-import { createNarratorPromptApplication } from "./narrator-application";
-import {
-  jaqueleneNarratorPrompt,
-  narratorPromptKind,
-  narratorPromptRegistration,
-} from "./factory/narrator";
-import { createPrompts, promptPageSize } from "./prompts";
+import { jaqueleneNarratorPrompt, narratorPromptKind, narratorPromptModule } from "./narrator";
+import { promptPageSize } from "./prompts";
+import { createPromptSubsystem, type PromptKindModule } from "./subsystem";
 
 const directories: string[] = [];
 const databases: Database[] = [];
@@ -27,11 +22,12 @@ function createDatabasePath() {
 function openEnvironment(path = createDatabasePath(), now?: () => number) {
   const database = openDatabase(path);
   databases.push(database);
-  const prompts = createPrompts(database, [narratorPromptRegistration], now);
+  const { applications: promptApplications, prompts } = createPromptSubsystem(
+    database,
+    [narratorPromptModule],
+    now,
+  );
   const campaigns = createCampaigns(database, now);
-  const promptApplications = createPromptApplicationRegistry([
-    createNarratorPromptApplication(prompts),
-  ]);
   return { campaigns, database, promptApplications, prompts };
 }
 
@@ -49,6 +45,26 @@ afterEach(() => {
 });
 
 describe("prompts", () => {
+  it("keeps registered prompt kinds authoritative and ordered", () => {
+    const database = openDatabase(createDatabasePath());
+    databases.push(database);
+    const setting = {
+      definition: {
+        key: parsePromptKindKey("setting"),
+        name: "Setting",
+        description: "Defines the world in which the campaign takes place.",
+      },
+      factoryPrompts: [],
+      createApplication: () => ({ apply: () => [] }),
+    } satisfies PromptKindModule;
+    const { prompts } = createPromptSubsystem(database, [setting, narratorPromptModule]);
+
+    expect(prompts.listKinds()).toEqual([setting.definition, narratorPromptKind]);
+    expect(() => prompts.list({ kind: parsePromptKindKey("unregistered") })).toThrow(
+      'Prompt kind "unregistered" does not exist.',
+    );
+  });
+
   it("installs and repairs the built-in narrator catalog", () => {
     const path = createDatabasePath();
     const first = openEnvironment(path);
@@ -187,7 +203,6 @@ describe("prompts", () => {
 
     expect(prompts.delete(custom.key)).toEqual({
       kind: narratorPromptKind.key,
-      defaultPromptKey: jaqueleneNarratorPrompt.key,
     });
     expect(prompts.getDefault(narratorPromptKind.key)).toEqual({
       kind: narratorPromptKind.key,

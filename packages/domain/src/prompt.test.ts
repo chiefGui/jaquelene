@@ -4,6 +4,7 @@ import {
   PROMPT_TITLE_MAX_LENGTH,
   parseCreatePromptInput,
   parsePromptKey,
+  parsePromptKindKey,
   parseUpdatePromptInput,
 } from "./prompt";
 
@@ -11,6 +12,11 @@ describe("prompt input", () => {
   it("parses opaque prompt keys", () => {
     expect(parsePromptKey("factory.narrator.jaquelene")).toBe("factory.narrator.jaquelene");
     expect(() => parsePromptKey("")).toThrow("Prompt key is invalid.");
+  });
+
+  it("parses stable prompt kind keys", () => {
+    expect(parsePromptKindKey("narrator-behavior")).toBe("narrator-behavior");
+    expect(() => parsePromptKindKey("Narrator")).toThrow("Prompt kind key is invalid.");
   });
 
   it("normalizes titles and preserves bodies", () => {

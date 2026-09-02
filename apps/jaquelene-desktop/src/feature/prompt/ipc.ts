@@ -97,12 +97,7 @@ export function exposePrompts(target: WebFrameMain, prompts: Prompts) {
     },
     delete: (key) => {
       const deletion = prompts.delete(promptKeySchema.parse(key));
-      return deletion
-        ? {
-            kind: deletion.kind,
-            ...(deletion.defaultPromptKey ? { defaultPromptKey: deletion.defaultPromptKey } : {}),
-          }
-        : null;
+      return deletion ? { kind: deletion.kind } : null;
     },
     getDefault: (kind) => toIpcPromptDefault(prompts.getDefault(promptKindKeySchema.parse(kind))),
     setDefault: ({ kind, promptKey }) =>

@@ -28,6 +28,7 @@ export {
   createPromptInputSchema,
   parseCreatePromptInput,
   parsePromptKey,
+  parsePromptKindKey,
   parseUpdatePromptInput,
   promptBodySchema,
   promptKindKeySchema,

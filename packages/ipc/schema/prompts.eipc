@@ -86,7 +86,6 @@ structure UpdatePromptRequest {
 
 structure PromptDeletion {
   kind: PromptKindKey
-  defaultPromptKey?: PromptKey
 }
 
 structure PromptDefault {

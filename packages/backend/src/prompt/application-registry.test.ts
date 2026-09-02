@@ -1,10 +1,11 @@
-import type { PromptKindKey } from "@jaquelene/domain";
+import { parsePromptKindKey, type PromptKindKey } from "@jaquelene/domain";
 import { describe, expect, it } from "vite-plus/test";
 import { ids } from "#backend/id";
 import { createPromptApplicationRegistry, type PromptApplication } from "./application-registry";
-import { narratorPromptKind } from "./factory/narrator";
 
-function application(kind: PromptKindKey = narratorPromptKind.key): PromptApplication {
+const narratorPromptKind = parsePromptKindKey("narrator");
+
+function application(kind: PromptKindKey = narratorPromptKind): PromptApplication {
   return {
     kind,
     apply: ({ campaign }) =>
@@ -16,7 +17,7 @@ describe("prompt application registry", () => {
   it("applies registered prompt kinds in deterministic order", () => {
     const registry = createPromptApplicationRegistry([
       application(),
-      application("setting" as PromptKindKey),
+      application(parsePromptKindKey("setting")),
     ]);
 
     expect(

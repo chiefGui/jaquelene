@@ -69,6 +69,10 @@ export function parsePromptKey(value: unknown) {
   return parsePromptInput(promptKeySchema, value, "Prompt key is invalid.");
 }
 
+export function parsePromptKindKey(value: unknown) {
+  return parsePromptInput(promptKindKeySchema, value, "Prompt kind key is invalid.");
+}
+
 export function parseUpdatePromptInput(value: unknown) {
   return parsePromptInput(updatePromptInputSchema, value, "Prompt update input is invalid.");
 }

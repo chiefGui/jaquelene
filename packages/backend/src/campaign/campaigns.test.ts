@@ -11,8 +11,8 @@ import type { ReasoningPreset } from "#backend/model/reasoning";
 import {
   jaqueleneNarratorPrompt,
   narratorPromptKind,
-  narratorPromptRegistration,
-} from "#backend/prompt/factory/narrator";
+  narratorPromptModule,
+} from "#backend/prompt/narrator";
 import { createPrompts } from "#backend/prompt/prompts";
 import { campaignPromptSelectionTable } from "#backend/prompt/schema";
 import type { ModelSelection } from "#backend/provider/provider";
@@ -33,7 +33,7 @@ function createDatabasePath() {
 function openCampaigns(path: string, now?: () => number) {
   const database = openDatabase(path);
   databases.push(database);
-  const prompts = createPrompts(database, [narratorPromptRegistration]);
+  const prompts = createPrompts(database, [narratorPromptModule]);
   return {
     database,
     campaigns: createCampaigns(database, now),

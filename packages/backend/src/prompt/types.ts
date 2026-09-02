@@ -71,7 +71,6 @@ export type SetCampaignPromptSelectionInput = Readonly<{
 
 export type PromptDeletion = Readonly<{
   kind: PromptKindKey;
-  defaultPromptKey: PromptKey | null;
 }>;
 
 export type PromptCatalog = Readonly<{

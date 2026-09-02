@@ -19,13 +19,10 @@ import {
   type StorageAreaId,
   type StorageCategory,
 } from "#backend/storage/storage";
-import {
-  createPromptApplicationRegistry,
-  type PromptApplicationRegistry,
-} from "#backend/prompt/application-registry";
-import { narratorPromptRegistration } from "#backend/prompt/factory/narrator";
-import { createNarratorPromptApplication } from "#backend/prompt/narrator-application";
-import { createPrompts, type PromptEngine } from "#backend/prompt/prompts";
+import type { PromptApplicationRegistry } from "#backend/prompt/application-registry";
+import { narratorPromptModule } from "#backend/prompt/narrator";
+import type { PromptEngine } from "#backend/prompt/prompts";
+import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import type { Prompts } from "#backend/prompt/types";
 import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
 import { createTurns, type Turns } from "#backend/turn/turns";
@@ -87,13 +84,12 @@ function createBackendServiceLayer() {
 
       return yield* Effect.acquireRelease(
         Effect.sync(() => {
-          const prompts = createPrompts(database, [narratorPromptRegistration]);
+          const { applications: promptApplications, prompts } = createPromptSubsystem(database, [
+            narratorPromptModule,
+          ]);
           const campaigns = createCampaigns(database);
           const campaignUsage = createCampaignUsage(database);
           const usage = createUsageHistory(database);
-          const promptApplications = createPromptApplicationRegistry([
-            createNarratorPromptApplication(prompts),
-          ]);
           const threads = createThreads(database);
           const generationSubsystem = createGenerationSubsystem({
             database,

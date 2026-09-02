@@ -16,7 +16,7 @@ import type { Campaign } from "@jaquelene/ipc/renderer";
 import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
 import { useCampaignTitleFormValidation } from "@/feature/campaign/form";
 import { useStartCampaign } from "@/feature/campaign/query";
@@ -158,9 +158,6 @@ function NewCampaignRoute() {
       <ContentPane.Header>
         <Breadcrumb.Root>
           <Breadcrumb.List>
-            <Breadcrumb.Item>
-              <Breadcrumb.Link render={<Link to="/campaigns" />}>Campaigns</Breadcrumb.Link>
-            </Breadcrumb.Item>
             <Breadcrumb.Item>
               <Breadcrumb.Page id="start-campaign-page">Start campaign</Breadcrumb.Page>
             </Breadcrumb.Item>

@@ -224,16 +224,44 @@ export function useIsCampaignGenerationPreferencesPending(id: string) {
   return useIsMutating({ mutationKey: setCampaignGenerationPreferencesMutationKey(id) }) > 0;
 }
 
-export function useStartCampaign() {
-  const queryClient = useQueryClient();
-  return useMutation<Campaign, Error, StartCampaignRequest>({
+export function startCampaignMutationOptions(queryClient: QueryClient) {
+  return mutationOptions<Campaign, Error, StartCampaignRequest>({
     ...ipcMutationOptions,
     mutationFn: startCampaign,
     onSuccess(campaign) {
       queryClient.setQueryData(campaignQuery(campaign.id).queryKey, campaign);
-      return queryClient.invalidateQueries({ queryKey: campaignPagesQuery.queryKey, exact: true });
+      const list = queryClient.getQueryData<InfiniteData<CampaignPage>>(
+        campaignPagesQuery.queryKey,
+      );
+      const firstPage = list?.pages[0];
+
+      if (list && firstPage) {
+        queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, {
+          ...list,
+          pages: [
+            {
+              ...firstPage,
+              campaigns: [
+                campaign,
+                ...firstPage.campaigns.filter((candidate) => candidate.id !== campaign.id),
+              ],
+            },
+            ...list.pages.slice(1),
+          ],
+        });
+      }
+
+      void queryClient.invalidateQueries({
+        queryKey: campaignPagesQuery.queryKey,
+        exact: true,
+      });
     },
   });
+}
+
+export function useStartCampaign() {
+  const queryClient = useQueryClient();
+  return useMutation(startCampaignMutationOptions(queryClient));
 }
 
 export function useRenameCampaign() {

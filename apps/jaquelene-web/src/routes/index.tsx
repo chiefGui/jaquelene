@@ -1,6 +1,6 @@
-import { tokens } from "@jaquelene/ui/tokens.stylex";
+import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
@@ -22,7 +22,7 @@ function HomeRoute() {
       </ContentPane.Header>
 
       <ContentPane.Viewport style={styles.viewport}>
-        <h1 {...stylex.props(styles.heading)}>Hello world</h1>
+        <Button render={<Link to="/campaigns/new" />}>Start campaign</Button>
       </ContentPane.Viewport>
     </>
   );
@@ -32,10 +32,5 @@ const styles = stylex.create({
   viewport: {
     display: "grid",
     placeItems: "center",
-  },
-  heading: {
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
-    lineHeight: tokens.lineHeightSmall,
   },
 });

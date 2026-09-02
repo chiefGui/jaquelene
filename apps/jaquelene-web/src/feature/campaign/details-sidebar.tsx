@@ -118,7 +118,7 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightSmall,
   },
   value: {
-    color: colors.foregroundPrimary,
+    color: `color-mix(in oklch, ${colors.foregroundPrimary} 60%, ${colors.foregroundSecondary})`,
     fontVariantNumeric: "tabular-nums",
     textAlign: "end",
   },

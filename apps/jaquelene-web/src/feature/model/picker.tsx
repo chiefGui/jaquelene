@@ -840,7 +840,7 @@ export const ModelPicker = {
   Content: ModelPickerContent,
 } as const;
 
-const activeBackground = colors.backgroundAccentSubtle;
+const interactiveBackground = colors.backgroundInteractive;
 const focusOutline = colors.focusRing;
 
 const styles = stylex.create({
@@ -907,9 +907,9 @@ const styles = stylex.create({
   interactiveModelRow: {
     backgroundColor: {
       default: "transparent",
-      ":focus-within": activeBackground,
-      ":hover": activeBackground,
-      ":is([data-active-item])": activeBackground,
+      ":focus-within": interactiveBackground,
+      ":hover": interactiveBackground,
+      ":is([data-active-item])": interactiveBackground,
     },
     borderRadius: tokens.radiusLarge,
     fontSize: tokens.fontSizeSmall,
@@ -1024,7 +1024,7 @@ const styles = stylex.create({
   favoriteButton: {
     backgroundColor: {
       default: "transparent",
-      ":hover": activeBackground,
+      ":hover": interactiveBackground,
     },
     color: {
       default: null,
@@ -1205,7 +1205,7 @@ const styles = stylex.create({
   tabButton: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": activeBackground,
+      ":not(:disabled):hover": interactiveBackground,
       ':is([aria-selected="true"])': colors.backgroundSelected,
       ':is([aria-selected="true"]):not(:disabled):hover': colors.backgroundSelectedHover,
     },

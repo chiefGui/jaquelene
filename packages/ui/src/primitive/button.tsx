@@ -90,9 +90,9 @@ const styles = stylex.create({
   ghost: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": colors.backgroundAccentSubtle,
+      ":not(:disabled):hover": colors.backgroundInteractive,
       ":not(:disabled):active": colors.backgroundSelected,
-      ":is([data-focus-visible])": colors.backgroundAccentSubtle,
+      ":is([data-focus-visible])": colors.backgroundInteractive,
     },
     color: {
       default: colors.foregroundSecondary,

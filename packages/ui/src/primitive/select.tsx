@@ -124,7 +124,7 @@ export const Select = Object.assign(SelectTrigger, {
   Indicator: SelectIndicator,
 });
 
-const activeBackground = colors.backgroundAccentSubtle;
+const interactiveBackground = colors.backgroundInteractive;
 const controlShadow = `inset 0 0.0625rem 0 color-mix(in oklch, ${colors.foregroundPrimary} 5%, transparent), 0 0.0625rem 0.125rem color-mix(in oklch, ${colors.backgroundCanvas} 45%, transparent)`;
 const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
 const focusedControlShadow = `${focusRing}, ${controlShadow}`;
@@ -156,7 +156,7 @@ const styles = stylex.create({
   filled: {
     backgroundColor: {
       default: colors.backgroundNeutralSubtlest,
-      ":not(:disabled):hover": activeBackground,
+      ":not(:disabled):hover": interactiveBackground,
     },
     borderColor: colors.borderDefault,
     borderStyle: "solid",
@@ -170,8 +170,8 @@ const styles = stylex.create({
   ghost: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": activeBackground,
-      ':is([aria-expanded="true"])': activeBackground,
+      ":not(:disabled):hover": interactiveBackground,
+      ':is([aria-expanded="true"])': interactiveBackground,
     },
     boxShadow: {
       default: null,
@@ -222,9 +222,9 @@ const styles = stylex.create({
     alignItems: "center",
     backgroundColor: {
       default: "transparent",
-      ":focus": activeBackground,
-      ":hover": activeBackground,
-      ":is([data-active-item])": activeBackground,
+      ":focus": interactiveBackground,
+      ":hover": interactiveBackground,
+      ":is([data-active-item])": interactiveBackground,
       ':is([aria-selected="true"])': colors.backgroundSelected,
       ':is([aria-selected="true"]):hover': colors.backgroundSelectedHover,
     },

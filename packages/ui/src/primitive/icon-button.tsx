@@ -1,7 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ReactNode } from "react";
-import { tokens } from "../tokens.stylex";
 import { Button, type ButtonProps } from "./button";
 
 export type IconButtonProps = Omit<ButtonProps, "aria-label" | "children" | "style" | "variant"> & {
@@ -16,7 +15,7 @@ export function IconButton({ style, ...props }: IconButtonProps) {
 
 const styles = stylex.create({
   root: {
+    aspectRatio: "1",
     paddingInline: 0,
-    width: tokens.controlHeight,
   },
 });

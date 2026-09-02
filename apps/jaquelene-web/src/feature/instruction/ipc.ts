@@ -3,4 +3,19 @@ import { requireIpcMethod } from "@/ipc";
 
 export const instructionIpc = {
   listGroups: requireIpcMethod(Instructions?.listGroups),
+  createRoleplayInstruction: requireIpcMethod(Instructions?.createRoleplayInstruction),
+  updateRoleplayInstruction: requireIpcMethod(Instructions?.updateRoleplayInstruction),
+  deleteRoleplayInstruction: requireIpcMethod(Instructions?.deleteRoleplayInstruction),
+  getDefaultRoleplayInstructionKey: requireIpcMethod(
+    Instructions?.getDefaultRoleplayInstructionKey,
+  ),
+  setDefaultRoleplayInstructionKey: requireIpcMethod(
+    Instructions?.setDefaultRoleplayInstructionKey,
+  ),
+  getCampaignRoleplayInstructionKey: requireIpcMethod(
+    Instructions?.getCampaignRoleplayInstructionKey,
+  ),
+  setCampaignRoleplayInstructionKey: requireIpcMethod(
+    Instructions?.setCampaignRoleplayInstructionKey,
+  ),
 };

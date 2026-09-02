@@ -17,6 +17,10 @@ import { campaignQuery, useIsCampaignGenerationPreferencesPending } from "@/feat
 import { campaignUsageQuery } from "@/feature/campaign/usage-query";
 import { CampaignDetailsSidebar } from "@/feature/campaign/details-sidebar";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
+import {
+  campaignRoleplayInstructionKeyQuery,
+  instructionGroupsQuery,
+} from "@/feature/instruction/query";
 import { scenariosQuery } from "@/feature/scenario/query";
 import { ScenariosSidebar } from "@/feature/scenario/sidebar";
 import { threadMessagesQuery } from "@/feature/thread/query";
@@ -38,6 +42,8 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
       context.queryClient.query({ ...scenariosQuery, staleTime: "static" }),
       context.queryClient.query(defaultCampaignModelQuery),
       context.queryClient.query(modelProvidersQuery),
+      context.queryClient.query(instructionGroupsQuery),
+      context.queryClient.query(campaignRoleplayInstructionKeyQuery(params.campaignId)),
       campaignPromise.then((result) =>
         result
           ? context.queryClient.infiniteQuery(threadMessagesQuery(result.threadId))
@@ -147,7 +153,7 @@ function CampaignRoute() {
         )}
       </ContentPane.Viewport>
 
-      {usage ? <CampaignDetailsSidebar usage={usage} /> : null}
+      {campaign && usage ? <CampaignDetailsSidebar campaignId={campaign.id} usage={usage} /> : null}
     </SecondarySidebar.Root>
   );
 }

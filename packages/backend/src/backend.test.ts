@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
+import type { ModelInput } from "#backend/model/input";
 import type {
   ProviderAdapter,
   ProviderFactory,
@@ -12,7 +13,10 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import { StorageCategory } from "#backend/storage/storage";
-import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
+import {
+  jaqueleneRoleplayInstruction,
+  roleplayInstructionGroup,
+} from "#backend/instruction/factory/roleplay";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
@@ -198,7 +202,12 @@ describe("backend", () => {
       },
     });
     const first = await createBackend(backendOptions(databasePath, [provider]));
-    expect(first.instructions.listGroups()).toEqual(factoryRoleplay.listGroups());
+    expect(first.instructions.listGroups()).toEqual([
+      {
+        ...roleplayInstructionGroup,
+        instructions: [jaqueleneRoleplayInstruction],
+      },
+    ]);
     const scenario = first.scenarios.create({ title: "Voyage" });
     const campaign = first.campaigns.start(scenario.id);
     const submittedOperation = await first.turns.submit({
@@ -266,6 +275,54 @@ describe("backend", () => {
       ...threadPageMetadata([submitted.userMessage, submitted.assistantMessage]),
     });
     await reopened.close();
+  });
+
+  it("uses an edited roleplay body on the next turn of an existing campaign", async () => {
+    const inputs: ModelInput[] = [];
+    const provider = providerAdapter("provider-a", {
+      async generate({ input }) {
+        inputs.push(input);
+        return { text: `Reply ${inputs.length}` };
+      },
+    });
+    await using backend = await createBackend(backendOptions(createDatabasePath(), [provider]));
+    const campaign = backend.campaigns.start(
+      backend.scenarios.create({ title: "Changing direction" }).id,
+    );
+    const instruction = backend.instructions.create({
+      title: "Private organizer",
+      body: "Use a hopeful tone.",
+    });
+    const instructionId = ids.instruction.parse(instruction.key);
+    backend.instructions.setCampaignSelection(campaign.id, instruction.key);
+    const configuration = {
+      model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+    };
+
+    await (
+      await backend.turns.submit({
+        threadId: campaign.threadId,
+        content: "Begin",
+        configuration,
+      })
+    ).settlement;
+    backend.instructions.update(instructionId, {
+      title: "Still private",
+      body: "Use an ominous tone.",
+    });
+    await (
+      await backend.turns.submit({
+        threadId: campaign.threadId,
+        content: "Continue",
+        configuration,
+      })
+    ).settlement;
+
+    expect(inputs.map(({ instructions }) => instructions)).toEqual([
+      [{ sourceKey: instruction.key, content: "Use a hopeful tone." }],
+      [{ sourceKey: instruction.key, content: "Use an ominous tone." }],
+    ]);
+    expect(JSON.stringify(inputs)).not.toContain("Private");
   });
 
   it("closes provider adapters in reverse acquisition order", async () => {

@@ -9,8 +9,10 @@ import { colors, radii, tokens } from "../tokens.stylex";
 
 type ButtonVariant = "ghost" | "soft" | "solid";
 type ButtonTone = "danger" | "neutral";
+type ButtonSize = "medium" | "small";
 
 export type ButtonProps = Omit<AriakitButtonProps, "className" | "style"> & {
+  size?: ButtonSize;
   style?: StyleXStyles;
   tone?: ButtonTone;
   variant?: ButtonVariant;
@@ -26,15 +28,17 @@ function ButtonLabel({ style, ...props }: ButtonLabelProps) {
 
 function ButtonRoot({
   children,
+  size = "medium",
   style,
   tone = "neutral",
   variant = "solid",
   ...props
 }: ButtonProps) {
-  const toneStyle = tone === "danger" ? dangerStyles[variant] : undefined;
-
   return (
-    <AriakitButton {...props} {...stylex.props(styles.root, styles[variant], toneStyle, style)}>
+    <AriakitButton
+      {...props}
+      {...stylex.props(styles.root, sizeStyles[size], variantStyles[tone][variant], style)}
+    >
       {typeof children === "string" || typeof children === "number" ? (
         <ButtonLabel>{children}</ButtonLabel>
       ) : (
@@ -52,11 +56,9 @@ const styles = stylex.create({
     borderRadius: radii.control,
     display: "inline-flex",
     flexShrink: 0,
-    fontSize: tokens.fontSizeSmall,
     fontWeight: 500,
-    height: tokens.controlHeight,
+    gap: "0.375rem",
     justifyContent: "center",
-    lineHeight: tokens.lineHeightSmall,
     opacity: {
       default: 1,
       ":disabled": 0.5,
@@ -78,7 +80,18 @@ const styles = stylex.create({
       default: null,
       ":is([data-focus-visible])": 1,
     },
+  },
+  medium: {
+    fontSize: tokens.fontSizeSmall,
+    height: tokens.controlHeight,
+    lineHeight: tokens.lineHeightSmall,
     paddingInline: "0.75rem",
+  },
+  small: {
+    fontSize: tokens.fontSizeXSmall,
+    height: tokens.controlHeightSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    paddingInline: "0.5rem",
   },
   solid: {
     backgroundColor: {
@@ -151,8 +164,20 @@ const styles = stylex.create({
   },
 });
 
-const dangerStyles = {
-  ghost: styles.ghostDanger,
-  soft: styles.softDanger,
-  solid: styles.solidDanger,
-} satisfies Record<ButtonVariant, StyleXStyles>;
+const sizeStyles = {
+  medium: styles.medium,
+  small: styles.small,
+} satisfies Record<ButtonSize, StyleXStyles>;
+
+const variantStyles = {
+  neutral: {
+    ghost: styles.ghost,
+    soft: styles.soft,
+    solid: styles.solid,
+  },
+  danger: {
+    ghost: styles.ghostDanger,
+    soft: styles.softDanger,
+    solid: styles.solidDanger,
+  },
+} satisfies Record<ButtonTone, Record<ButtonVariant, StyleXStyles>>;

@@ -1,4 +1,9 @@
-import type { CatalogInstruction, InstructionCatalog, InstructionGroup } from "@jaquelene/backend";
+import {
+  ids,
+  type CatalogInstruction,
+  type InstructionGroup,
+  type Instructions,
+} from "@jaquelene/backend";
 import {
   InstructionOrigin,
   Instructions as InstructionsIpc,
@@ -11,14 +16,16 @@ function toIpcOrigin(origin: CatalogInstruction["origin"]) {
   switch (origin) {
     case "factory":
       return InstructionOrigin.Factory;
+    case "custom":
+      return InstructionOrigin.Custom;
   }
 }
 
 function toIpcInstruction(instruction: CatalogInstruction): IpcInstruction {
   return {
     key: instruction.key,
-    name: instruction.name,
-    content: instruction.content,
+    title: instruction.title,
+    body: instruction.body,
     origin: toIpcOrigin(instruction.origin),
   };
 }
@@ -32,8 +39,20 @@ function toIpcGroup(group: InstructionGroup): IpcInstructionGroup {
   };
 }
 
-export function exposeInstructions(target: WebFrameMain, instructions: InstructionCatalog) {
+export function exposeInstructions(target: WebFrameMain, instructions: Instructions) {
   InstructionsIpc.for(target).setImplementation({
     listGroups: () => instructions.listGroups().map(toIpcGroup),
+    createRoleplayInstruction: (input) => toIpcInstruction(instructions.create(input)),
+    updateRoleplayInstruction: ({ key, input }) => {
+      const instruction = instructions.update(ids.instruction.parse(key), input);
+      return instruction ? toIpcInstruction(instruction) : null;
+    },
+    deleteRoleplayInstruction: (key) => instructions.delete(ids.instruction.parse(key)),
+    getDefaultRoleplayInstructionKey: instructions.getDefaultSelection,
+    setDefaultRoleplayInstructionKey: instructions.setDefaultSelection,
+    getCampaignRoleplayInstructionKey: (campaignId) =>
+      instructions.getCampaignSelection(ids.campaign.parse(campaignId)),
+    setCampaignRoleplayInstructionKey: ({ campaignId, instructionKey }) =>
+      instructions.setCampaignSelection(ids.campaign.parse(campaignId), instructionKey),
   });
 }

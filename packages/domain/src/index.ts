@@ -21,3 +21,19 @@ export {
   type ModelIdentity,
   type ModelReasoningOptions,
 } from "./generation-configuration";
+export {
+  ROLEPLAY_INSTRUCTION_BODY_MAX_LENGTH,
+  ROLEPLAY_INSTRUCTION_BODY_MAX_UTF16_LENGTH,
+  ROLEPLAY_INSTRUCTION_TITLE_MAX_LENGTH,
+  ROLEPLAY_INSTRUCTION_TITLE_MAX_UTF16_LENGTH,
+  composeCampaignRoleplayInstructionKey,
+  parseRoleplayInstructionInput,
+  roleplayInstructionBodySchema,
+  roleplayInstructionInputSchema,
+  roleplayInstructionTitleSchema,
+  setCampaignRoleplayInstructionPreference,
+  type CampaignRoleplayInstructionPreference,
+  type RoleplayInstructionBody,
+  type RoleplayInstructionInput,
+  type RoleplayInstructionTitle,
+} from "./roleplay-instruction";

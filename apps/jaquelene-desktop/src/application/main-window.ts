@@ -1,7 +1,7 @@
 import type {
   Campaigns,
   CampaignUsageReader,
-  InstructionCatalog,
+  Instructions,
   Providers,
   Scenarios,
   Storage,
@@ -120,7 +120,7 @@ export function createMainWindowManager({
   scenarios: Scenarios;
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
-  instructions: InstructionCatalog;
+  instructions: Instructions;
   turns: Turns;
   modelCatalog: ModelCatalog;
   favoriteModels: FavoriteModels;

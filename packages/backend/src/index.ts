@@ -1,5 +1,5 @@
 export { createBackend } from "#backend/backend";
-export type { Backend, BackendInspection, BackendOptions } from "#backend/backend";
+export type { Backend, BackendInspection, BackendOptions, Instructions } from "#backend/backend";
 export type {
   ResourceCacheFailure,
   ResourceCacheInspection,
@@ -71,6 +71,7 @@ export {
   ids,
   type CampaignId,
   type GenerationId,
+  type InstructionId,
   type ProviderAttemptId,
   type MessageId,
   type ScenarioId,

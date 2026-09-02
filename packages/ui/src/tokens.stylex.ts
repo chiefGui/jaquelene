@@ -100,6 +100,7 @@ export const colors = stylex.defineVars({
 export const tokens = stylex.defineConsts({
   // Control geometry
   controlHeight: "2rem",
+  controlHeightSmall: "1.75rem",
 
   // Typography
   fontGeist: '"Geist Variable", ui-sans-serif, system-ui, sans-serif',

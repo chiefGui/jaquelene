@@ -13,8 +13,9 @@ import type {
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import { createScenarios } from "#backend/scenario/scenarios";
-import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
+import { jaqueleneRoleplayInstruction } from "#backend/instruction/factory/roleplay";
 import { createInstructionRegistry } from "#backend/instruction/registry";
+import { createRoleplayInstructions } from "#backend/instruction/roleplay-instructions";
 import { threadMessageTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
 import {
@@ -90,7 +91,7 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   const campaigns = createCampaigns(database, now);
   const scenarios = createScenarios(database);
   const threads = createThreads(database, now);
-  const instructions = createInstructionRegistry([factoryRoleplay]);
+  const instructions = createInstructionRegistry([createRoleplayInstructions(database)]);
   const generations = createGenerations(
     database,
     createReplyPreparer(threads, campaigns, instructions),
@@ -305,7 +306,7 @@ describe("generations", () => {
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
-    const defaultRoleplay = factoryRoleplay.listGroups()[0]!.instructions[0]!;
+    const defaultRoleplay = jaqueleneRoleplayInstruction;
 
     expect(provider.generate).toHaveBeenCalledWith({
       generationId: expect.stringMatching(/^generation_/),
@@ -315,7 +316,7 @@ describe("generations", () => {
         instructions: [
           {
             sourceKey: defaultRoleplay.key,
-            content: defaultRoleplay.content,
+            content: defaultRoleplay.body,
           },
         ],
         dialogue: [{ messageId: started.message.id, role: "user", content: "Begin" }],
@@ -926,7 +927,7 @@ describe("generations", () => {
     const preparer = createReplyPreparer(
       threads,
       campaigns,
-      createInstructionRegistry([factoryRoleplay]),
+      createInstructionRegistry([createRoleplayInstructions(database)]),
     );
 
     const generations = createGenerations(database, preparer, modelResolver(), generationRouter());

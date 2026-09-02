@@ -840,7 +840,7 @@ export const ModelPicker = {
   Content: ModelPickerContent,
 } as const;
 
-const activeBackground = colors.backgroundNeutralSubtler;
+const activeBackground = colors.backgroundAccentSubtle;
 const activeModelName = colors.foregroundPrimary;
 const focusOutline = colors.focusRing;
 

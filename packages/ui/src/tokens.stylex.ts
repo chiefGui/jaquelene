@@ -14,6 +14,9 @@ export const colors = stylex.defineVars({
   backgroundNeutralSubtlest: "oklch(0.925 0.014 282 / 3.5%)",
   backgroundNeutralSubtler: "oklch(0.925 0.014 282 / 6%)",
   backgroundNeutralSubtle: "oklch(0.925 0.014 282 / 9%)",
+
+  // Accent backgrounds, from interaction to selection
+  backgroundAccentSubtle: "oklch(0.71 0.08 276 / 10%)",
   backgroundSelected: "oklch(0.71 0.08 276 / 19%)",
   backgroundSelectedHover: "oklch(0.71 0.08 276 / 24%)",
 

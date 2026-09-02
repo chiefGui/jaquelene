@@ -124,7 +124,7 @@ export const Select = Object.assign(SelectTrigger, {
   Indicator: SelectIndicator,
 });
 
-const activeBackground = colors.backgroundNeutralSubtler;
+const activeBackground = colors.backgroundAccentSubtle;
 const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
 
 const styles = stylex.create({

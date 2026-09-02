@@ -19,6 +19,9 @@ export const draculaTheme = stylex.createTheme(colors, {
   backgroundNeutralSubtlest: "oklch(0.86523 0.01381 295.28 / 4%)",
   backgroundNeutralSubtler: "oklch(0.86523 0.01381 295.28 / 7%)",
   backgroundNeutralSubtle: "oklch(0.86523 0.01381 295.28 / 10%)",
+
+  // Accent backgrounds, from interaction to selection
+  backgroundAccentSubtle: "oklch(0.58172 0.22593 284.37 / 12%)",
   backgroundSelected: "oklch(0.58172 0.22593 284.37 / 22%)",
   backgroundSelectedHover: "oklch(0.58172 0.22593 284.37 / 30%)",
 

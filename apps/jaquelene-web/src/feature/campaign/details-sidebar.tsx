@@ -11,10 +11,10 @@ import { CampaignTitleControl } from "./title-control";
 
 function MetricRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <p {...stylex.props(styles.metric)}>
-      <span {...stylex.props(styles.label)}>{label}</span>
-      <span {...stylex.props(styles.value)}>{value}</span>
-    </p>
+    <div {...stylex.props(styles.metric)}>
+      <dt {...stylex.props(styles.label)}>{label}</dt>
+      <dd {...stylex.props(styles.value)}>{value}</dd>
+    </div>
   );
 }
 
@@ -63,7 +63,7 @@ export function CampaignDetailsSidebar({
               Metadata
             </h2>
 
-            <div {...stylex.props(styles.metrics)}>
+            <dl {...stylex.props(styles.metrics)}>
               <MetricRow value={formatCount(campaign.turnCount)} label="Turns" />
               <MetricRow value={tokensValue} label="Tokens" />
               <MetricRow value={costValue} label="Cost" />
@@ -72,7 +72,7 @@ export function CampaignDetailsSidebar({
                 label="Last activity"
               />
               <MetricRow value={<Timestamp value={campaign.startedAt} />} label="Started" />
-            </div>
+            </dl>
           </section>
         </SecondarySidebar.Body>
       </SecondarySidebar.Viewport>
@@ -107,7 +107,7 @@ const styles = stylex.create({
   metrics: {
     display: "grid",
     gap: "0.75rem",
-    marginTop: "1rem",
+    marginBlock: "1rem 0",
   },
   metric: {
     alignItems: "baseline",
@@ -120,6 +120,7 @@ const styles = stylex.create({
   value: {
     color: `color-mix(in oklch, ${colors.foregroundPrimary} 60%, ${colors.foregroundSecondary})`,
     fontVariantNumeric: "tabular-nums",
+    margin: 0,
     textAlign: "end",
   },
   label: {

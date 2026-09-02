@@ -11,15 +11,29 @@ import {
   placeholder as editorPlaceholder,
   type KeyBinding,
 } from "@codemirror/view";
+import CodeIcon from "@hugeicons/core-free-icons/CodeIcon";
+import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
+import TextBoldIcon from "@hugeicons/core-free-icons/TextBoldIcon";
+import TextItalicIcon from "@hugeicons/core-free-icons/TextItalicIcon";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { formatCount, IconButton } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from "react";
+import {
+  forwardRef,
+  useDeferredValue,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import {
   markdownEditorCommands,
   type MarkdownEditorCommand as EditorCommand,
 } from "./markdown-editor-command";
 import { markdownEditorLanguage } from "./markdown-editor-language";
+import { countMarkdownDocument } from "./markdown-editor-statistics";
 import { markdownEditorTheme } from "./markdown-editor-theme";
 
 export type MarkdownEditorCommand = EditorCommand;
@@ -73,6 +87,17 @@ const formattingKeymap: readonly KeyBinding[] = [
   { key: "Mod-k", preventDefault: true, run: markdownEditorCommands.link },
 ];
 
+const formattingActions: readonly Readonly<{
+  command: EditorCommand;
+  icon: IconSvgElement;
+  label: string;
+}>[] = [
+  { command: "strong", icon: TextBoldIcon, label: "Bold" },
+  { command: "emphasis", icon: TextItalicIcon, label: "Italic" },
+  { command: "code", icon: CodeIcon, label: "Inline code" },
+  { command: "link", icon: Link01Icon, label: "Link" },
+];
+
 function contentAttributes(options: DynamicOptions) {
   const attributes: Record<string, string> = {
     "aria-multiline": "true",
@@ -119,6 +144,47 @@ function dynamicExtensions(options: DynamicOptions) {
   ];
 }
 
+function formatUnit(value: number, singular: string) {
+  return `${formatCount(value)} ${singular}${value === 1 ? "" : "s"}`;
+}
+
+function runEditorCommand(view: EditorView | undefined, command: EditorCommand) {
+  if (!view) {
+    return false;
+  }
+
+  const handled = markdownEditorCommands[command]({ state: view.state, dispatch: view.dispatch });
+
+  if (handled) {
+    view.focus();
+  }
+
+  return handled;
+}
+
+type FormattingActionProps = Readonly<{
+  command: EditorCommand;
+  disabled: boolean;
+  icon: IconSvgElement;
+  label: string;
+  onRun: (command: EditorCommand) => void;
+}>;
+
+function FormattingAction({ command, disabled, icon, label, onRun }: FormattingActionProps) {
+  return (
+    <IconButton
+      type="button"
+      size="small"
+      aria-label={label}
+      disabled={disabled}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => onRun(command)}
+    >
+      <HugeiconsIcon icon={icon} size={15} strokeWidth={1.5} aria-hidden="true" />
+    </IconButton>
+  );
+}
+
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
   function MarkdownEditor(
     {
@@ -143,6 +209,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const initialValueRef = useRef(value);
     const autoFocusRef = useRef(autoFocus);
     const onChangeRef = useRef(onChange);
+    const deferredValue = useDeferredValue(value);
+    const statistics = useMemo(() => countMarkdownDocument(deferredValue), [deferredValue]);
     const dynamicOptionsRef = useRef<DynamicOptions>({
       ariaDescribedBy,
       ariaLabel,
@@ -175,22 +243,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           runtimeRef.current?.view.focus();
         },
         run(command) {
-          const view = runtimeRef.current?.view;
-
-          if (!view) {
-            return false;
-          }
-
-          const handled = markdownEditorCommands[command]({
-            state: view.state,
-            dispatch: view.dispatch,
-          });
-
-          if (handled) {
-            view.focus();
-          }
-
-          return handled;
+          return runEditorCommand(runtimeRef.current?.view, command);
         },
       }),
       [],
@@ -284,6 +337,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       });
     }, [value]);
 
+    function runFormattingAction(command: EditorCommand) {
+      runEditorCommand(runtimeRef.current?.view, command);
+    }
+
     return (
       <div
         data-disabled={disabled || undefined}
@@ -291,7 +348,24 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         data-readonly={readOnly || undefined}
         {...stylex.props(styles.root, style)}
       >
+        <div role="group" aria-label="Markdown formatting" {...stylex.props(styles.toolbar)}>
+          {formattingActions.map((action) => (
+            <FormattingAction
+              key={action.command}
+              {...action}
+              disabled={disabled || readOnly}
+              onRun={runFormattingAction}
+            />
+          ))}
+        </div>
         <div ref={hostRef} {...stylex.props(styles.host)} />
+        <div role="group" aria-label="Document statistics" {...stylex.props(styles.status)}>
+          <span>{formatUnit(statistics.lines, "line")}</span>
+          <span aria-hidden="true">·</span>
+          <span>{formatUnit(statistics.words, "word")}</span>
+          <span aria-hidden="true">·</span>
+          <span>{formatUnit(statistics.characters, "character")}</span>
+        </div>
       </div>
     );
   },
@@ -310,6 +384,8 @@ const styles = stylex.create({
     borderStyle: "solid",
     borderWidth: 1,
     color: colors.foregroundPrimary,
+    display: "flex",
+    flexDirection: "column",
     fontFamily: "inherit",
     fontSize: tokens.fontSizeBase,
     lineHeight: tokens.lineHeightLarge,
@@ -322,7 +398,34 @@ const styles = stylex.create({
     width: "100%",
   },
   host: {
-    height: "100%",
-    minHeight: "inherit",
+    flexGrow: 1,
+    minHeight: "20rem",
+    minWidth: 0,
+  },
+  toolbar: {
+    alignItems: "center",
+    borderBottomColor: colors.borderSubtle,
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    display: "flex",
+    flexShrink: 0,
+    gap: "0.125rem",
+    paddingBlock: "0.25rem",
+    paddingInline: "0.375rem",
+  },
+  status: {
+    alignItems: "center",
+    borderTopColor: colors.borderSubtle,
+    borderTopStyle: "solid",
+    borderTopWidth: 1,
+    color: colors.foregroundSecondary,
+    display: "flex",
+    flexShrink: 0,
+    fontSize: tokens.fontSizeXSmall,
+    gap: "0.375rem",
+    justifyContent: "flex-end",
+    lineHeight: tokens.lineHeightXSmall,
+    paddingBlock: "0.5rem",
+    paddingInline: "0.75rem",
   },
 });

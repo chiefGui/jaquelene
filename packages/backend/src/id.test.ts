@@ -4,20 +4,19 @@ import {
   type CampaignId,
   type GenerationId,
   type MessageId,
-  type InstructionId,
-  type ScenarioId,
   type ThreadId,
   type TurnId,
 } from "./id";
 
+type PromptId = ReturnType<typeof ids.prompt.create>;
+
 const identities = [
-  ["scenario", ids.scenario],
   ["campaign", ids.campaign],
   ["thread", ids.thread],
   ["turn", ids.turn],
   ["message", ids.message],
   ["generation", ids.generation],
-  ["instruction", ids.instruction],
+  ["prompt", ids.prompt],
 ] as const;
 
 describe("IDs", () => {
@@ -31,13 +30,12 @@ describe("IDs", () => {
   });
 
   it("keeps owned identity types non-interchangeable", () => {
-    expectTypeOf<ScenarioId>().not.toExtend<CampaignId>();
     expectTypeOf<CampaignId>().not.toExtend<ThreadId>();
     expectTypeOf<ThreadId>().not.toExtend<TurnId>();
     expectTypeOf<TurnId>().not.toExtend<MessageId>();
     expectTypeOf<MessageId>().not.toExtend<GenerationId>();
-    expectTypeOf<GenerationId>().not.toExtend<ScenarioId>();
-    expectTypeOf<InstructionId>().not.toExtend<ScenarioId>();
+    expectTypeOf<GenerationId>().not.toExtend<PromptId>();
+    expectTypeOf<PromptId>().not.toExtend<CampaignId>();
   });
 
   it("rejects malformed and differently prefixed identities", () => {

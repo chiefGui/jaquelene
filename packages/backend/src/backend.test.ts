@@ -13,10 +13,7 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import { StorageCategory } from "#backend/storage/storage";
-import {
-  jaqueleneRoleplayInstruction,
-  roleplayInstructionGroup,
-} from "#backend/instruction/factory/roleplay";
+import { jaqueleneNarratorPrompt, narratorPromptKind } from "#backend/prompt/narrator";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
@@ -202,14 +199,14 @@ describe("backend", () => {
       },
     });
     const first = await createBackend(backendOptions(databasePath, [provider]));
-    expect(first.instructions.listGroups()).toEqual([
-      {
-        ...roleplayInstructionGroup,
-        instructions: [jaqueleneRoleplayInstruction],
-      },
+    expect(first.prompts.listKinds()).toEqual([narratorPromptKind]);
+    expect(first.prompts.list({ kind: narratorPromptKind.key }).prompts).toEqual([
+      jaqueleneNarratorPrompt,
     ]);
-    const scenario = first.scenarios.create({ title: "Voyage" });
-    const campaign = first.campaigns.start(scenario.id);
+    const campaign = first.campaigns.start({
+      title: "Voyage",
+      composition: [{ kind: narratorPromptKind.key }],
+    });
     const submittedOperation = await first.turns.submit({
       threadId: campaign.threadId,
       content: "Begin",
@@ -243,8 +240,7 @@ describe("backend", () => {
     expect(first.close()).toBe(firstClose);
     await firstClose;
 
-    expect(() => first.scenarios.list()).toThrow("Backend is closed.");
-    expect(() => first.instructions.listGroups()).toThrow("Backend is closed.");
+    expect(() => first.prompts.listKinds()).toThrow("Backend is closed.");
     expect(() => first.campaignUsage.get(campaign.id)).toThrow("Backend is closed.");
     expect(() => first.turns.inspect(campaign.threadId)).toThrow("Backend is closed.");
     await expect(first.storage.measureUsage()).rejects.toThrow("Backend is closed.");
@@ -264,7 +260,6 @@ describe("backend", () => {
 
     const reopened = await createBackend(backendOptions(databasePath));
 
-    expect(reopened.scenarios.get(scenario.id)).toEqual(scenario);
     expect(reopened.campaigns.get(campaign.id)).toEqual(campaign);
     expect(reopened.campaignUsage.get(campaign.id)).toEqual(campaignUsage);
     expect(
@@ -277,7 +272,7 @@ describe("backend", () => {
     await reopened.close();
   });
 
-  it("uses an edited roleplay body on the next turn of an existing campaign", async () => {
+  it("uses an edited narrator prompt on the next turn of an existing campaign", async () => {
     const inputs: ModelInput[] = [];
     const provider = providerAdapter("provider-a", {
       async generate({ input }) {
@@ -286,15 +281,15 @@ describe("backend", () => {
       },
     });
     await using backend = await createBackend(backendOptions(createDatabasePath(), [provider]));
-    const campaign = backend.campaigns.start(
-      backend.scenarios.create({ title: "Changing direction" }).id,
-    );
-    const instruction = backend.instructions.create({
+    const prompt = backend.prompts.create({
+      kind: narratorPromptKind.key,
       title: "Private organizer",
       body: "Use a hopeful tone.",
     });
-    const instructionId = ids.instruction.parse(instruction.key);
-    backend.instructions.setCampaignSelection(campaign.id, instruction.key);
+    const campaign = backend.campaigns.start({
+      title: "Changing direction",
+      composition: [{ kind: narratorPromptKind.key, promptKey: prompt.key }],
+    });
     const configuration = {
       model: { providerId: provider.descriptor.id, modelId: "maker/model" },
     };
@@ -306,7 +301,7 @@ describe("backend", () => {
         configuration,
       })
     ).settlement;
-    backend.instructions.update(instructionId, {
+    backend.prompts.update(prompt.key, {
       title: "Still private",
       body: "Use an ominous tone.",
     });
@@ -319,8 +314,8 @@ describe("backend", () => {
     ).settlement;
 
     expect(inputs.map(({ instructions }) => instructions)).toEqual([
-      [{ sourceKey: instruction.key, content: "Use a hopeful tone." }],
-      [{ sourceKey: instruction.key, content: "Use an ominous tone." }],
+      [{ sourceKey: prompt.key, content: "Use a hopeful tone." }],
+      [{ sourceKey: prompt.key, content: "Use an ominous tone." }],
     ]);
     expect(JSON.stringify(inputs)).not.toContain("Private");
   });

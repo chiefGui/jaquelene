@@ -7,10 +7,44 @@ structure CampaignGenerationPreferences {
 
 structure Campaign {
   id: string
-  scenarioId: string
+  title: CampaignTitle
   threadId: string
   startedAt: UnixTimeMilliseconds
   generationPreferences?: CampaignGenerationPreferences
+}
+
+subtype CampaignTitle = string(
+  minLength: 1
+  maxLength: 240
+)
+
+subtype CampaignPageCursor = string(
+  minLength: 1
+  maxLength: 512
+)
+
+structure CampaignPromptSelectionInput {
+  kind: PromptKindKey
+  promptKey?: PromptKey
+}
+
+structure StartCampaignRequest {
+  title: CampaignTitle
+  composition: CampaignPromptSelectionInput[]
+}
+
+structure CampaignPageRequest {
+  cursor?: CampaignPageCursor
+}
+
+structure CampaignPage {
+  campaigns: Campaign[]
+  nextCursor?: CampaignPageCursor
+}
+
+structure RenameCampaignRequest {
+  id: string
+  title: CampaignTitle
 }
 
 structure CampaignUsageAttempts {
@@ -43,9 +77,10 @@ structure CampaignUsageSnapshot {
 [Validator=TrustedRenderer]
 [ContextBridge]
 interface Campaigns {
-  start(scenarioId: string) -> Campaign
-  listForScenario(scenarioId: string) -> Campaign[]
+  start(request: StartCampaignRequest) -> Campaign
+  list(request: CampaignPageRequest) -> CampaignPage
   get(id: string) -> Campaign?
+  rename(request: RenameCampaignRequest) -> Campaign?
   setGenerationPreferences(id: string, preferences: CampaignGenerationPreferences?) -> Campaign?
 }
 

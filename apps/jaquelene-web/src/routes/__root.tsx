@@ -19,10 +19,10 @@ function HomeSidebar() {
             to: "/",
           },
           {
-            id: "scenarios",
+            id: "campaigns",
             icon: BookOpen01Icon,
-            label: "Scenarios",
-            to: "/scenarios",
+            label: "Campaigns",
+            to: "/campaigns",
           },
         ],
       }}

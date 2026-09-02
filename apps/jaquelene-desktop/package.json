@@ -26,6 +26,7 @@
     "@electron/asar": "3.4.1",
     "@jaquelene/backend": "workspace:*",
     "@jaquelene/diagnostics": "workspace:*",
+    "@jaquelene/domain": "workspace:*",
     "@jaquelene/ipc": "workspace:*",
     "@openrouter/sdk": "^1.2.78",
     "@types/node": "^26.3.0",

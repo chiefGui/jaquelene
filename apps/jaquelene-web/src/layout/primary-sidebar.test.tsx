@@ -16,13 +16,13 @@ type PrimarySidebarNavigation = ComponentProps<typeof PrimarySidebar>["navigatio
 function renderSidebar(navigation: PrimarySidebarNavigation, initialEntry: string) {
   const rootRoute = createRootRoute();
   const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/" });
-  const scenariosRoute = createRoute({ getParentRoute: () => rootRoute, path: "scenarios" });
+  const campaignsRoute = createRoute({ getParentRoute: () => rootRoute, path: "campaigns" });
   const settingsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "settings/general",
   });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([homeRoute, scenariosRoute, settingsRoute]),
+    routeTree: rootRoute.addChildren([homeRoute, campaignsRoute, settingsRoute]),
     history: createMemoryHistory({ initialEntries: [initialEntry] }),
   });
 
@@ -37,17 +37,17 @@ describe("primary sidebar", () => {
   it("renders the persistent Settings action outside Settings", () => {
     const markup = renderSidebar(
       {
-        navigationLabel: "Scenarios",
+        navigationLabel: "Campaigns",
         items: [
           {
-            id: "scenarios",
+            id: "campaigns",
             icon: Home01Icon,
-            label: "Scenarios",
-            to: "/scenarios",
+            label: "Campaigns",
+            to: "/campaigns",
           },
         ],
       },
-      "/scenarios",
+      "/campaigns",
     );
 
     expect(markup).toContain("<footer");

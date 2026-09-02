@@ -1,7 +1,7 @@
 import type { CampaignEngine } from "#backend/campaign/campaigns";
 import type { MessageId, ThreadId, TurnId } from "#backend/id";
-import type { InstructionRegistry } from "#backend/instruction/registry";
 import { requireModelInput, type ModelInput } from "#backend/model/input";
+import type { PromptApplicationRegistry } from "#backend/prompt/application-registry";
 import type { ThreadEngine } from "#backend/thread/threads";
 
 export type ReplyAnchor = Readonly<{
@@ -28,7 +28,7 @@ export function requireReplyInput(prepared: ModelInput, anchor: ReplyAnchor): Mo
 export function createReplyPreparer(
   threads: Pick<ThreadEngine, "getTurnContext">,
   campaigns: Pick<CampaignEngine, "getContextForThread">,
-  instructions: Pick<InstructionRegistry, "resolve">,
+  promptApplications: Pick<PromptApplicationRegistry, "resolve">,
 ): ReplyPreparer {
   return {
     prepare(anchor) {
@@ -44,7 +44,7 @@ export function createReplyPreparer(
       const campaign = campaigns.getContextForThread(anchor.threadId);
 
       return {
-        instructions: instructions.resolve({
+        instructions: promptApplications.resolve({
           threadId: anchor.threadId,
           campaign,
         }),

@@ -10,16 +10,15 @@
 
 import { Route as rootRouteImport } from "./routes/__root";
 import { Route as IndexRouteImport } from "./routes/index";
-import { Route as ScenariosRouteRouteImport } from "./routes/scenarios/route";
+import { Route as CampaignsRouteRouteImport } from "./routes/campaigns/route";
 import { Route as SettingsRouteRouteImport } from "./routes/settings/route";
+import { Route as CampaignsIndexRouteImport } from "./routes/campaigns/index";
 import { Route as CampaignsCampaignIdRouteImport } from "./routes/campaigns/$campaignId";
-import { Route as ScenariosIndexRouteImport } from "./routes/scenarios/index";
-import { Route as ScenariosScenarioIdRouteImport } from "./routes/scenarios/$scenarioId";
-import { Route as ScenariosNewRouteImport } from "./routes/scenarios/new";
+import { Route as CampaignsNewRouteImport } from "./routes/campaigns/new";
 import { Route as SettingsAdvancedRouteImport } from "./routes/settings/advanced";
 import { Route as SettingsAppearanceRouteImport } from "./routes/settings/appearance";
 import { Route as SettingsGeneralRouteImport } from "./routes/settings/general";
-import { Route as SettingsInstructionsRouteImport } from "./routes/settings/instructions";
+import { Route as SettingsPromptsRouteImport } from "./routes/settings/prompts";
 import { Route as SettingsProvidersRouteImport } from "./routes/settings/providers";
 import { Route as SettingsStorageRouteImport } from "./routes/settings/storage";
 import { Route as SettingsUsageRouteImport } from "./routes/settings/usage";
@@ -29,9 +28,9 @@ const IndexRoute = IndexRouteImport.update({
   path: "/",
   getParentRoute: () => rootRouteImport,
 } as any);
-const ScenariosRouteRoute = ScenariosRouteRouteImport.update({
-  id: "/scenarios",
-  path: "/scenarios",
+const CampaignsRouteRoute = CampaignsRouteRouteImport.update({
+  id: "/campaigns",
+  path: "/campaigns",
   getParentRoute: () => rootRouteImport,
 } as any);
 const SettingsRouteRoute = SettingsRouteRouteImport.update({
@@ -39,25 +38,20 @@ const SettingsRouteRoute = SettingsRouteRouteImport.update({
   path: "/settings",
   getParentRoute: () => rootRouteImport,
 } as any);
-const CampaignsCampaignIdRoute = CampaignsCampaignIdRouteImport.update({
-  id: "/campaigns/$campaignId",
-  path: "/campaigns/$campaignId",
-  getParentRoute: () => rootRouteImport,
-} as any);
-const ScenariosIndexRoute = ScenariosIndexRouteImport.update({
+const CampaignsIndexRoute = CampaignsIndexRouteImport.update({
   id: "/",
   path: "/",
-  getParentRoute: () => ScenariosRouteRoute,
+  getParentRoute: () => CampaignsRouteRoute,
 } as any);
-const ScenariosScenarioIdRoute = ScenariosScenarioIdRouteImport.update({
-  id: "/$scenarioId",
-  path: "/$scenarioId",
-  getParentRoute: () => ScenariosRouteRoute,
+const CampaignsCampaignIdRoute = CampaignsCampaignIdRouteImport.update({
+  id: "/$campaignId",
+  path: "/$campaignId",
+  getParentRoute: () => CampaignsRouteRoute,
 } as any);
-const ScenariosNewRoute = ScenariosNewRouteImport.update({
+const CampaignsNewRoute = CampaignsNewRouteImport.update({
   id: "/new",
   path: "/new",
-  getParentRoute: () => ScenariosRouteRoute,
+  getParentRoute: () => CampaignsRouteRoute,
 } as any);
 const SettingsAdvancedRoute = SettingsAdvancedRouteImport.update({
   id: "/advanced",
@@ -74,9 +68,9 @@ const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   path: "/general",
   getParentRoute: () => SettingsRouteRoute,
 } as any);
-const SettingsInstructionsRoute = SettingsInstructionsRouteImport.update({
-  id: "/instructions",
-  path: "/instructions",
+const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
+  id: "/prompts",
+  path: "/prompts",
   getParentRoute: () => SettingsRouteRoute,
 } as any);
 const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
@@ -97,107 +91,100 @@ const SettingsUsageRoute = SettingsUsageRouteImport.update({
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
-  "/scenarios": typeof ScenariosRouteRouteWithChildren;
+  "/campaigns": typeof CampaignsRouteRouteWithChildren;
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
-  "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
-  "/scenarios/new": typeof ScenariosNewRoute;
+  "/campaigns/new": typeof CampaignsNewRoute;
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
-  "/settings/instructions": typeof SettingsInstructionsRoute;
+  "/settings/prompts": typeof SettingsPromptsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/settings/usage": typeof SettingsUsageRoute;
-  "/scenarios/": typeof ScenariosIndexRoute;
+  "/campaigns/": typeof CampaignsIndexRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
-  "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
-  "/scenarios/new": typeof ScenariosNewRoute;
+  "/campaigns/new": typeof CampaignsNewRoute;
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
-  "/settings/instructions": typeof SettingsInstructionsRoute;
+  "/settings/prompts": typeof SettingsPromptsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/settings/usage": typeof SettingsUsageRoute;
-  "/scenarios": typeof ScenariosIndexRoute;
+  "/campaigns": typeof CampaignsIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
-  "/scenarios": typeof ScenariosRouteRouteWithChildren;
+  "/campaigns": typeof CampaignsRouteRouteWithChildren;
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
-  "/scenarios/$scenarioId": typeof ScenariosScenarioIdRoute;
-  "/scenarios/new": typeof ScenariosNewRoute;
+  "/campaigns/new": typeof CampaignsNewRoute;
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
-  "/settings/instructions": typeof SettingsInstructionsRoute;
+  "/settings/prompts": typeof SettingsPromptsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/settings/usage": typeof SettingsUsageRoute;
-  "/scenarios/": typeof ScenariosIndexRoute;
+  "/campaigns/": typeof CampaignsIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | "/"
-    | "/scenarios"
+    | "/campaigns"
     | "/settings"
     | "/campaigns/$campaignId"
-    | "/scenarios/$scenarioId"
-    | "/scenarios/new"
+    | "/campaigns/new"
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
-    | "/settings/instructions"
+    | "/settings/prompts"
     | "/settings/providers"
     | "/settings/storage"
     | "/settings/usage"
-    | "/scenarios/";
+    | "/campaigns/";
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
     | "/settings"
     | "/campaigns/$campaignId"
-    | "/scenarios/$scenarioId"
-    | "/scenarios/new"
+    | "/campaigns/new"
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
-    | "/settings/instructions"
+    | "/settings/prompts"
     | "/settings/providers"
     | "/settings/storage"
     | "/settings/usage"
-    | "/scenarios";
+    | "/campaigns";
   id:
     | "__root__"
     | "/"
-    | "/scenarios"
+    | "/campaigns"
     | "/settings"
     | "/campaigns/$campaignId"
-    | "/scenarios/$scenarioId"
-    | "/scenarios/new"
+    | "/campaigns/new"
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
-    | "/settings/instructions"
+    | "/settings/prompts"
     | "/settings/providers"
     | "/settings/storage"
     | "/settings/usage"
-    | "/scenarios/";
+    | "/campaigns/";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
-  ScenariosRouteRoute: typeof ScenariosRouteRouteWithChildren;
+  CampaignsRouteRoute: typeof CampaignsRouteRouteWithChildren;
   SettingsRouteRoute: typeof SettingsRouteRouteWithChildren;
-  CampaignsCampaignIdRoute: typeof CampaignsCampaignIdRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -209,11 +196,11 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
-    "/scenarios": {
-      id: "/scenarios";
-      path: "/scenarios";
-      fullPath: "/scenarios";
-      preLoaderRoute: typeof ScenariosRouteRouteImport;
+    "/campaigns": {
+      id: "/campaigns";
+      path: "/campaigns";
+      fullPath: "/campaigns";
+      preLoaderRoute: typeof CampaignsRouteRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/settings": {
@@ -223,33 +210,26 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SettingsRouteRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/campaigns/": {
+      id: "/campaigns/";
+      path: "/";
+      fullPath: "/campaigns/";
+      preLoaderRoute: typeof CampaignsIndexRouteImport;
+      parentRoute: typeof CampaignsRouteRoute;
+    };
     "/campaigns/$campaignId": {
       id: "/campaigns/$campaignId";
-      path: "/campaigns/$campaignId";
+      path: "/$campaignId";
       fullPath: "/campaigns/$campaignId";
       preLoaderRoute: typeof CampaignsCampaignIdRouteImport;
-      parentRoute: typeof rootRouteImport;
+      parentRoute: typeof CampaignsRouteRoute;
     };
-    "/scenarios/": {
-      id: "/scenarios/";
-      path: "/";
-      fullPath: "/scenarios/";
-      preLoaderRoute: typeof ScenariosIndexRouteImport;
-      parentRoute: typeof ScenariosRouteRoute;
-    };
-    "/scenarios/$scenarioId": {
-      id: "/scenarios/$scenarioId";
-      path: "/$scenarioId";
-      fullPath: "/scenarios/$scenarioId";
-      preLoaderRoute: typeof ScenariosScenarioIdRouteImport;
-      parentRoute: typeof ScenariosRouteRoute;
-    };
-    "/scenarios/new": {
-      id: "/scenarios/new";
+    "/campaigns/new": {
+      id: "/campaigns/new";
       path: "/new";
-      fullPath: "/scenarios/new";
-      preLoaderRoute: typeof ScenariosNewRouteImport;
-      parentRoute: typeof ScenariosRouteRoute;
+      fullPath: "/campaigns/new";
+      preLoaderRoute: typeof CampaignsNewRouteImport;
+      parentRoute: typeof CampaignsRouteRoute;
     };
     "/settings/advanced": {
       id: "/settings/advanced";
@@ -272,11 +252,11 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SettingsGeneralRouteImport;
       parentRoute: typeof SettingsRouteRoute;
     };
-    "/settings/instructions": {
-      id: "/settings/instructions";
-      path: "/instructions";
-      fullPath: "/settings/instructions";
-      preLoaderRoute: typeof SettingsInstructionsRouteImport;
+    "/settings/prompts": {
+      id: "/settings/prompts";
+      path: "/prompts";
+      fullPath: "/settings/prompts";
+      preLoaderRoute: typeof SettingsPromptsRouteImport;
       parentRoute: typeof SettingsRouteRoute;
     };
     "/settings/providers": {
@@ -303,27 +283,27 @@ declare module "@tanstack/react-router" {
   }
 }
 
-interface ScenariosRouteRouteChildren {
-  ScenariosScenarioIdRoute: typeof ScenariosScenarioIdRoute;
-  ScenariosNewRoute: typeof ScenariosNewRoute;
-  ScenariosIndexRoute: typeof ScenariosIndexRoute;
+interface CampaignsRouteRouteChildren {
+  CampaignsCampaignIdRoute: typeof CampaignsCampaignIdRoute;
+  CampaignsNewRoute: typeof CampaignsNewRoute;
+  CampaignsIndexRoute: typeof CampaignsIndexRoute;
 }
 
-const ScenariosRouteRouteChildren: ScenariosRouteRouteChildren = {
-  ScenariosScenarioIdRoute: ScenariosScenarioIdRoute,
-  ScenariosNewRoute: ScenariosNewRoute,
-  ScenariosIndexRoute: ScenariosIndexRoute,
+const CampaignsRouteRouteChildren: CampaignsRouteRouteChildren = {
+  CampaignsCampaignIdRoute: CampaignsCampaignIdRoute,
+  CampaignsNewRoute: CampaignsNewRoute,
+  CampaignsIndexRoute: CampaignsIndexRoute,
 };
 
-const ScenariosRouteRouteWithChildren = ScenariosRouteRoute._addFileChildren(
-  ScenariosRouteRouteChildren,
+const CampaignsRouteRouteWithChildren = CampaignsRouteRoute._addFileChildren(
+  CampaignsRouteRouteChildren,
 );
 
 interface SettingsRouteRouteChildren {
   SettingsAdvancedRoute: typeof SettingsAdvancedRoute;
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
   SettingsGeneralRoute: typeof SettingsGeneralRoute;
-  SettingsInstructionsRoute: typeof SettingsInstructionsRoute;
+  SettingsPromptsRoute: typeof SettingsPromptsRoute;
   SettingsProvidersRoute: typeof SettingsProvidersRoute;
   SettingsStorageRoute: typeof SettingsStorageRoute;
   SettingsUsageRoute: typeof SettingsUsageRoute;
@@ -333,7 +313,7 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsAdvancedRoute: SettingsAdvancedRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
-  SettingsInstructionsRoute: SettingsInstructionsRoute,
+  SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProvidersRoute: SettingsProvidersRoute,
   SettingsStorageRoute: SettingsStorageRoute,
   SettingsUsageRoute: SettingsUsageRoute,
@@ -345,9 +325,8 @@ const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ScenariosRouteRoute: ScenariosRouteRouteWithChildren,
+  CampaignsRouteRoute: CampaignsRouteRouteWithChildren,
   SettingsRouteRoute: SettingsRouteRouteWithChildren,
-  CampaignsCampaignIdRoute: CampaignsCampaignIdRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

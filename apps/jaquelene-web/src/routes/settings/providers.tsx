@@ -116,7 +116,6 @@ function ProviderSettings({ provider }: { provider: Provider }) {
                 </>
               ) : null}
             </div>
-            {keyLabel ? <Item.Description style={styles.mono}>{keyLabel}</Item.Description> : null}
           </Item.Content>
         </div>
 
@@ -252,9 +251,6 @@ const styles = stylex.create({
   },
   connected: {
     color: colors.foregroundSuccess,
-  },
-  mono: {
-    fontFamily: tokens.fontMono,
   },
   actions: {
     alignItems: "center",

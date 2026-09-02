@@ -10,11 +10,15 @@ describe("Markdown document statistics", () => {
     expect(countMarkdownDocument("# First line\n\nSecond\tline")).toEqual({
       characters: 25,
       lines: 3,
-      words: 5,
+      words: 4,
     });
   });
 
-  it("counts Unicode code points rather than UTF-16 units", () => {
-    expect(countMarkdownDocument("Hi 👋")).toEqual({ characters: 4, lines: 1, words: 2 });
+  it("counts user-perceived characters across Unicode sequences", () => {
+    expect(countMarkdownDocument("Cafe\u0301 👨‍👩‍👧‍👦")).toEqual({
+      characters: 6,
+      lines: 1,
+      words: 1,
+    });
   });
 });

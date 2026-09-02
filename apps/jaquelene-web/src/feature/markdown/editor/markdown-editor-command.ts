@@ -2,6 +2,24 @@ import { EditorSelection, type StateCommand } from "@codemirror/state";
 
 export type MarkdownEditorCommand = "code" | "emphasis" | "link" | "strong";
 
+function splitBoundaryWhitespace(value: string, emptySelectionText: string) {
+  if (!value) {
+    return { content: emptySelectionText, leading: "", trailing: "" };
+  }
+
+  const leading = value.match(/^\s+/u)?.[0] ?? "";
+
+  if (leading.length === value.length) {
+    return { content: value, leading: "", trailing: "" };
+  }
+
+  const withoutLeading = value.slice(leading.length);
+  const trailing = withoutLeading.match(/\s+$/u)?.[0] ?? "";
+  const content = withoutLeading.slice(0, withoutLeading.length - trailing.length);
+
+  return { content, leading, trailing };
+}
+
 function surroundSelection(
   opening: string,
   closing: string,
@@ -14,14 +32,17 @@ function surroundSelection(
 
     const transaction = state.changeByRange((selection) => {
       const selectedText = state.sliceDoc(selection.from, selection.to);
-      const content = selectedText || emptySelectionText;
-      const contentFrom = selection.from + opening.length;
+      const { content, leading, trailing } = splitBoundaryWhitespace(
+        selectedText,
+        emptySelectionText,
+      );
+      const contentFrom = selection.from + leading.length + opening.length;
 
       return {
         changes: {
           from: selection.from,
           to: selection.to,
-          insert: `${opening}${content}${closing}`,
+          insert: `${leading}${opening}${content}${closing}${trailing}`,
         },
         range: EditorSelection.range(contentFrom, contentFrom + content.length),
       };
@@ -42,6 +63,13 @@ function longestBacktickRun(value: string) {
   return longest;
 }
 
+function needsInlineCodePadding(value: string) {
+  const preservesEdgeWhitespace =
+    value.startsWith(" ") && value.endsWith(" ") && value.trim().length > 0;
+
+  return value.startsWith("`") || value.endsWith("`") || preservesEdgeWhitespace;
+}
+
 const insertStrong = surroundSelection("**", "**", "strong text");
 const insertEmphasis = surroundSelection("_", "_", "emphasized text");
 
@@ -54,13 +82,14 @@ const insertCode: StateCommand = ({ state, dispatch }) => {
     const selectedText = state.sliceDoc(selection.from, selection.to);
     const content = selectedText || "code";
     const marker = "`".repeat(longestBacktickRun(content) + 1);
-    const contentFrom = selection.from + marker.length;
+    const padding = needsInlineCodePadding(content) ? " " : "";
+    const contentFrom = selection.from + marker.length + padding.length;
 
     return {
       changes: {
         from: selection.from,
         to: selection.to,
-        insert: `${marker}${content}${marker}`,
+        insert: `${marker}${padding}${content}${padding}${marker}`,
       },
       range: EditorSelection.range(contentFrom, contentFrom + content.length),
     };
@@ -77,13 +106,17 @@ const insertLink: StateCommand = ({ state, dispatch }) => {
 
   const transaction = state.changeByRange((selection) => {
     const selectedText = state.sliceDoc(selection.from, selection.to);
-    const label = selectedText || "link text";
+    const {
+      content: label,
+      leading,
+      trailing,
+    } = splitBoundaryWhitespace(selectedText, "link text");
     const destination = "https://";
-    const insert = `[${label}](${destination})`;
+    const insert = `${leading}[${label}](${destination})${trailing}`;
     const selectingDestination = selectedText.length > 0;
     const selectedFrom = selectingDestination
-      ? selection.from + label.length + 3
-      : selection.from + 1;
+      ? selection.from + leading.length + label.length + 3
+      : selection.from + leading.length + 1;
     const selectedLength = selectingDestination ? destination.length : label.length;
 
     return {

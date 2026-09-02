@@ -35,6 +35,17 @@ describe("Markdown editor commands", () => {
     expect(result.selection.to).toBe(11);
   });
 
+  it("keeps boundary whitespace outside emphasis markers", () => {
+    const result = runCommand(markdownEditorCommands.strong, "Make this vivid now.", {
+      anchor: 4,
+      head: 16,
+    });
+
+    expect(result.document).toBe("Make **this vivid** now.");
+    expect(result.selection.from).toBe(7);
+    expect(result.selection.to).toBe(17);
+  });
+
   it("inserts editable placeholder text for an empty selection", () => {
     const result = runCommand(markdownEditorCommands.emphasis, "Write ", { anchor: 6 });
 
@@ -49,18 +60,29 @@ describe("Markdown editor commands", () => {
       head: 15,
     });
 
-    expect(result.document).toBe("Use ``a `literal``` value.");
-    expect(result.selection.from).toBe(6);
-    expect(result.selection.to).toBe(17);
+    expect(result.document).toBe("Use `` a `literal` `` value.");
+    expect(result.selection.from).toBe(7);
+    expect(result.selection.to).toBe(18);
+  });
+
+  it("preserves meaningful whitespace at inline-code boundaries", () => {
+    const result = runCommand(markdownEditorCommands.code, " spaced ", {
+      anchor: 0,
+      head: 8,
+    });
+
+    expect(result.document).toBe("`  spaced  `");
+    expect(result.selection.from).toBe(2);
+    expect(result.selection.to).toBe(10);
   });
 
   it("selects the destination when linking selected text", () => {
-    const result = runCommand(markdownEditorCommands.link, "Visit Jaquelene.", {
-      anchor: 6,
-      head: 15,
+    const result = runCommand(markdownEditorCommands.link, "Visit Jaquelene now.", {
+      anchor: 5,
+      head: 16,
     });
 
-    expect(result.document).toBe("Visit [Jaquelene](https://).");
+    expect(result.document).toBe("Visit [Jaquelene](https://) now.");
     expect(result.selection.from).toBe(18);
     expect(result.selection.to).toBe(26);
   });

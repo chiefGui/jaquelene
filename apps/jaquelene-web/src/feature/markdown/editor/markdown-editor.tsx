@@ -117,7 +117,7 @@ function MarkdownEditorToolbar({ "aria-label": ariaLabel, style, ...props }: Sty
   );
 }
 
-type MarkdownEditorActionProps = Omit<IconButtonProps, "aria-label" | "children"> & {
+type MarkdownEditorActionProps = Omit<IconButtonProps, "aria-label" | "children" | "type"> & {
   icon: IconSvgElement;
   label: string;
 };
@@ -127,7 +127,7 @@ function MarkdownEditorAction({ icon, label, ...props }: MarkdownEditorActionPro
     <Tooltip.Root placement="bottom">
       <Tooltip.Anchor
         render={
-          <IconButton {...props} aria-label={label}>
+          <IconButton {...props} type="button" aria-label={label}>
             <HugeiconsIcon icon={icon} size={15} strokeWidth={1.5} aria-hidden="true" />
           </IconButton>
         }

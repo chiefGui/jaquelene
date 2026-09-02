@@ -1,4 +1,5 @@
 import {
+  GenerationKind,
   GenerationStatus,
   ThreadMessageAuthor,
   type ThreadMessage,
@@ -360,8 +361,18 @@ function isReplyCompletion(
 }
 
 function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
-  if (update.type === "retry-accepted" || update.type === "regeneration-accepted") {
-    return update.generation.status === GenerationStatus.Pending;
+  if (update.type === "retry-accepted") {
+    return (
+      update.generation.kind === GenerationKind.Retry &&
+      update.generation.status === GenerationStatus.Pending
+    );
+  }
+
+  if (update.type === "regeneration-accepted") {
+    return (
+      update.generation.kind === GenerationKind.Regeneration &&
+      update.generation.status === GenerationStatus.Pending
+    );
   }
 
   const { userMessage, generation } = update;
@@ -376,7 +387,9 @@ function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
 
   switch (update.type) {
     case "submission-accepted":
-      return generation.status === GenerationStatus.Pending;
+      return (
+        generation.kind === GenerationKind.Reply && generation.status === GenerationStatus.Pending
+      );
     case "reply-failed":
       return generation.status === GenerationStatus.Failed;
     case "reply-completed":
@@ -502,6 +515,7 @@ export function reconcileThreadTurn(
   if (isReplyCompletion(update) && userIndex !== -1 && userIndex !== messages.length - 1) {
     const currentAssistant = messages[userIndex + 1];
     const replacesActiveReply =
+      update.generation.kind === GenerationKind.Regeneration &&
       userIndex === messages.length - 2 &&
       currentAssistant?.author === ThreadMessageAuthor.Assistant &&
       currentAssistant.turnId === userMessage.turnId;

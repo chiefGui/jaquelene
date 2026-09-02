@@ -144,6 +144,7 @@ describe("turns", () => {
       }),
       generation: expect.objectContaining({
         id: expect.stringMatching(/^generation_/),
+        kind: "reply",
         status: "pending",
         providerId: "provider-a",
         modelId: "maker/model",
@@ -243,7 +244,7 @@ describe("turns", () => {
 
     expect(retriedOperation.acceptance.userMessage).toEqual(failed.userMessage);
     expect(retriedOperation.acceptance.generation).toEqual(
-      expect.objectContaining({ status: "pending" }),
+      expect.objectContaining({ kind: "retry", status: "pending" }),
     );
     expect(retriedOperation.acceptance.generation.id).not.toBe(failed.generation.id);
     expect(turns.inspect(thread.id)).toEqual({
@@ -302,7 +303,7 @@ describe("turns", () => {
 
     expect(regeneration.acceptance.userMessage).toEqual(submission.acceptance.userMessage);
     expect(regeneration.acceptance.generation).toEqual(
-      expect.objectContaining({ status: "pending" }),
+      expect.objectContaining({ kind: "regeneration", status: "pending" }),
     );
     expect(turns.inspect(thread.id)).toEqual({
       state: "generating",

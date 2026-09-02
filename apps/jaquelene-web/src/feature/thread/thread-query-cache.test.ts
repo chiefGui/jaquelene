@@ -1,5 +1,6 @@
 import {
   GenerationFailureKind,
+  GenerationKind,
   GenerationStatus,
   ThreadMessageAuthor,
   type CompletedReply,
@@ -63,7 +64,10 @@ function newerPageParam(cursor: string) {
   return { kind: "cursor", direction: "newer", cursor } as const;
 }
 
-function pendingTurn(sequence: number): TurnSubmission {
+function pendingTurn(
+  sequence: number,
+  kind: GenerationKind = GenerationKind.Reply,
+): TurnSubmission {
   const turnId = `turn-${sequence}`;
   const userMessage: ThreadMessage = {
     id: `message-${sequence}`,
@@ -77,6 +81,7 @@ function pendingTurn(sequence: number): TurnSubmission {
   const generation: TurnGeneration = {
     id: `generation-${sequence}`,
     turnId,
+    kind,
     providerId: "provider",
     modelId: "model",
     status: GenerationStatus.Pending,
@@ -119,6 +124,7 @@ function completedTurn(acceptance: TurnSubmission, sequence: number): CompletedR
     generation: {
       id: acceptance.generation.id,
       turnId: acceptance.generation.turnId,
+      kind: acceptance.generation.kind,
       providerId: acceptance.generation.providerId,
       modelId: acceptance.generation.modelId,
       status: GenerationStatus.Completed,
@@ -366,7 +372,7 @@ describe("thread query cache", () => {
     const retryAcceptance: TurnSubmission = {
       userMessage: failed.userMessage,
       generation: {
-        ...pendingTurn(2).generation,
+        ...pendingTurn(2, GenerationKind.Retry).generation,
         turnId: failed.userMessage.turnId,
       },
     };
@@ -394,7 +400,7 @@ describe("thread query cache", () => {
     const regenerationAcceptance: TurnSubmission = {
       userMessage: original.userMessage,
       generation: {
-        ...pendingTurn(3).generation,
+        ...pendingTurn(3, GenerationKind.Regeneration).generation,
         turnId: original.userMessage.turnId,
       },
     };
@@ -422,7 +428,7 @@ describe("thread query cache", () => {
     const originalAcceptance = pendingTurn(1);
     const original = completedTurn(originalAcceptance, 2);
     const pendingGeneration = {
-      ...pendingTurn(3).generation,
+      ...pendingTurn(3, GenerationKind.Regeneration).generation,
       turnId: original.userMessage.turnId,
     };
     const failedGeneration: TurnGeneration = {
@@ -500,7 +506,10 @@ describe("thread query cache", () => {
       pages: [page([first.userMessage, second.userMessage], [first.generation, second.generation])],
       pageParams: [latestThreadHistoryPageParam],
     };
-    const generation = { ...pendingTurn(3).generation, turnId: first.userMessage.turnId };
+    const generation = {
+      ...pendingTurn(3, GenerationKind.Retry).generation,
+      turnId: first.userMessage.turnId,
+    };
 
     expect(reconcileThreadTurn(data, threadId, { type: "retry-accepted", generation })).toEqual({
       outcome: "reload",
@@ -588,6 +597,11 @@ describe("thread query cache", () => {
         ...acceptance,
         generation: { ...acceptance.generation, turnId: "turn-other" },
       },
+      {
+        type: "submission-accepted",
+        ...acceptance,
+        generation: { ...acceptance.generation, kind: GenerationKind.Retry },
+      },
       { type: "reply-failed", ...acceptance },
       {
         type: "reply-completed",
@@ -597,7 +611,13 @@ describe("thread query cache", () => {
           author: ThreadMessageAuthor.User,
         },
       },
+      { type: "retry-accepted", generation: acceptance.generation },
       { type: "retry-accepted", generation: failure.generation },
+      {
+        type: "regeneration-accepted",
+        assistantMessageId: "message-assistant",
+        generation: acceptance.generation,
+      },
     ];
 
     for (const update of inconsistentUpdates) {

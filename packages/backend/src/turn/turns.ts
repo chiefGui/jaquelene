@@ -210,6 +210,7 @@ export function createTurns(
           const acceptedGeneration = generations.acceptReplyInTransaction(
             transaction,
             turn.id,
+            "reply",
             resolvedConfiguration,
           );
           const acceptance = {
@@ -250,7 +251,7 @@ export function createTurns(
         }
 
         const acceptedGeneration = database.transaction((transaction) =>
-          generations.acceptReplyInTransaction(transaction, turnId, resolvedConfiguration),
+          generations.acceptReplyInTransaction(transaction, turnId, "retry", resolvedConfiguration),
         );
         const acceptance = {
           userMessage: input.message,

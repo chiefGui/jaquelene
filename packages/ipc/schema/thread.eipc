@@ -56,6 +56,12 @@ enum GenerationStatus {
   Failed = "failed"
 }
 
+enum GenerationKind {
+  Reply = "reply"
+  Retry = "retry"
+  Regeneration = "regeneration"
+}
+
 enum GenerationFailureKind {
   Preparation = "preparation"
   Provider = "provider"
@@ -80,6 +86,7 @@ structure TurnGeneration {
   providerId: string
   modelId: string
   reasoning?: ResolvedReasoning
+  kind: GenerationKind
   status: GenerationStatus
   failureKind?: GenerationFailureKind
   outputMessageId?: string

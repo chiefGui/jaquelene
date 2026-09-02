@@ -42,11 +42,13 @@ import {
   toGeneration,
   type Generation,
   type GenerationFailureKind,
+  type GenerationKind,
   type StoredGeneration,
 } from "./schema";
 
 export type GenerateReplyRequest = {
   turnId: TurnId;
+  kind: GenerationKind;
   configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
@@ -329,11 +331,12 @@ export function createGenerations(
   function acceptReplyInTransaction(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
+    kind: GenerationKind,
     requestedConfiguration: ResolvedGenerationConfiguration,
   ): AcceptedReplyGeneration {
     const replyContext = requireReplyContext(transaction, turnId);
 
-    return acceptReplyForContext(transaction, turnId, requestedConfiguration, replyContext);
+    return acceptReplyForContext(transaction, turnId, kind, requestedConfiguration, replyContext);
   }
 
   function acceptRegenerationInTransaction(
@@ -378,12 +381,19 @@ export function createGenerations(
       throw new RangeError(`Message "${assistantMessageId}" is not the active thread reply.`);
     }
 
-    return acceptReplyForContext(transaction, source.turnId, requestedConfiguration, replyContext);
+    return acceptReplyForContext(
+      transaction,
+      source.turnId,
+      "regeneration",
+      requestedConfiguration,
+      replyContext,
+    );
   }
 
   function acceptReplyForContext(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
+    kind: GenerationKind,
     requestedConfiguration: ResolvedGenerationConfiguration,
     replyContext: ReturnType<typeof requireReplyContext>,
   ): AcceptedReplyGeneration {
@@ -413,6 +423,7 @@ export function createGenerations(
       .values({
         id: ids.generation.create(),
         turnId,
+        kind,
         providerId: configuration.model.providerId,
         modelId: configuration.model.modelId,
         reasoningPreset: configuration.reasoning?.preset ?? null,
@@ -566,6 +577,7 @@ export function createGenerations(
 
   async function executeReply({
     turnId,
+    kind,
     configuration,
     signal,
   }: GenerateReplyRequest): Promise<ReplyGenerationExecution> {
@@ -575,7 +587,7 @@ export function createGenerations(
 
     const resolvedConfiguration = await resolveConfiguration(configuration, signal);
     const accepted = database.transaction((transaction) =>
-      acceptReplyInTransaction(transaction, turnId, resolvedConfiguration),
+      acceptReplyInTransaction(transaction, turnId, kind, resolvedConfiguration),
     );
     return executeAcceptedReply(accepted, signal);
   }

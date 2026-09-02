@@ -2,6 +2,7 @@ import type { Generation, TurnAcceptance, TurnSettlement } from "@jaquelene/back
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
 import {
+  GenerationKind,
   ReasoningPreset,
   ReasoningPresetSource,
   ThreadMessagePageDirection,
@@ -41,6 +42,11 @@ vi.mock("@jaquelene/ipc/main", () => ({
     Pending: "pending",
     Completed: "completed",
     Failed: "failed",
+  },
+  GenerationKind: {
+    Reply: "reply",
+    Retry: "retry",
+    Regeneration: "regeneration",
   },
   ReasoningPreset: {
     Automatic: "automatic",
@@ -98,7 +104,7 @@ function requireImplementations() {
   return { threads: implementations.threads, turns: implementations.turns };
 }
 
-function createTurnState() {
+function createTurnState(kind: Generation["kind"] = "reply") {
   const threadId = ids.thread.create();
   const turnId = ids.turn.create();
   const userMessageId = ids.message.create();
@@ -116,6 +122,7 @@ function createTurnState() {
   const pendingGeneration: Generation = {
     id: ids.generation.create(),
     turnId,
+    kind,
     providerId: "openrouter",
     modelId: "maker/model",
     reasoning: { preset: "high", source: "selection" },
@@ -155,8 +162,9 @@ function createTurnState() {
 function failedSettlement(
   failureKind: NonNullable<Generation["failureKind"]>,
   cause: unknown,
+  kind: Generation["kind"] = "reply",
 ): FailedTurnSettlement {
-  const { acceptance } = createTurnState();
+  const { acceptance } = createTurnState(kind);
 
   return {
     ...acceptance,
@@ -289,6 +297,7 @@ describe("thread IPC", () => {
           turnId: acceptance.userMessage.turnId,
           providerId: "openrouter",
           modelId: "maker/model",
+          kind: GenerationKind.Reply,
           reasoning: {
             preset: ReasoningPreset.High,
             source: ReasoningPresetSource.Selection,
@@ -312,7 +321,7 @@ describe("thread IPC", () => {
     });
     expect(submitted).toEqual({
       userMessage: page.messages[0],
-      generation: expect.objectContaining({ status: "pending" }),
+      generation: expect.objectContaining({ kind: GenerationKind.Reply, status: "pending" }),
     });
     expect(implementations.dispatchReplyCompleted).not.toHaveBeenCalled();
 
@@ -323,6 +332,7 @@ describe("thread IPC", () => {
       userMessage: page.messages[0],
       generation: expect.objectContaining({
         id: completed.generation.id,
+        kind: GenerationKind.Reply,
         status: "completed",
         outputMessageId: completed.assistantMessage.id,
       }),
@@ -391,7 +401,7 @@ describe("thread IPC", () => {
 
   it("labels unexpected retry failures as retry operations", async () => {
     const cause = new Error("Reply preparation failed");
-    const failed = failedSettlement("preparation", cause);
+    const failed = failedSettlement("preparation", cause, "retry");
     const acceptance: TurnAcceptance = {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
@@ -424,7 +434,7 @@ describe("thread IPC", () => {
   });
 
   it("maps regeneration and publishes its settlement", async () => {
-    const { acceptance, completed } = createTurnState();
+    const { acceptance, completed } = createTurnState("regeneration");
     const assistantMessageId = ids.message.create();
     const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(async () => ({
       acceptance,
@@ -451,6 +461,7 @@ describe("thread IPC", () => {
     expect(accepted).toEqual(
       expect.objectContaining({
         id: acceptance.generation.id,
+        kind: GenerationKind.Regeneration,
         status: "pending",
         reasoning: {
           preset: ReasoningPreset.High,
@@ -463,7 +474,7 @@ describe("thread IPC", () => {
 
   it("labels unexpected regeneration failures as regeneration operations", async () => {
     const cause = new Error("Reply preparation failed");
-    const failed = failedSettlement("preparation", cause);
+    const failed = failedSettlement("preparation", cause, "regeneration");
     const acceptance: TurnAcceptance = {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },

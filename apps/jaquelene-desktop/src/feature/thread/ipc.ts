@@ -11,6 +11,7 @@ import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
 import {
   GenerationFailureKind as IpcGenerationFailureKind,
+  GenerationKind as IpcGenerationKind,
   GenerationStatus as IpcGenerationStatus,
   ThreadMessageAuthor as IpcThreadMessageAuthor,
   ThreadMessagePageDirection as IpcThreadMessagePageDirection,
@@ -64,6 +65,17 @@ function toIpcGenerationStatus(status: Generation["status"]) {
   }
 }
 
+function toIpcGenerationKind(kind: Generation["kind"]) {
+  switch (kind) {
+    case "reply":
+      return IpcGenerationKind.Reply;
+    case "retry":
+      return IpcGenerationKind.Retry;
+    case "regeneration":
+      return IpcGenerationKind.Regeneration;
+  }
+}
+
 function toIpcGenerationFailureKind(failureKind: GenerationFailureKind) {
   switch (failureKind) {
     case "preparation":
@@ -105,6 +117,7 @@ function toIpcGeneration(generation: Generation) {
           },
         }
       : {}),
+    kind: toIpcGenerationKind(generation.kind),
     status: toIpcGenerationStatus(generation.status),
     ...(generation.failureKind
       ? { failureKind: toIpcGenerationFailureKind(generation.failureKind) }

@@ -67,7 +67,7 @@ export type {
   ProviderSummary,
 } from "#backend/provider/providers";
 export type { ModelCatalogSnapshot } from "#backend/provider/model-catalog";
-export type { Generation, GenerationFailureKind } from "#backend/generation/schema";
+export type { Generation, GenerationFailureKind, GenerationKind } from "#backend/generation/schema";
 export type { Usage } from "#backend/usage/history";
 export type { UsageOverview, UsageOverviewReader } from "#backend/usage/overview";
 export { usagePeriods, type UsagePeriod } from "#backend/usage/calendar";

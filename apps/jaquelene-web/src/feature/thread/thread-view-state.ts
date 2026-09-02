@@ -1,4 +1,5 @@
 import {
+  GenerationKind,
   GenerationStatus,
   ThreadMessageAuthor,
   type ThreadMessage,
@@ -86,9 +87,15 @@ export function deriveThreadViewState({
     let regeneration: ThreadReplyRegenerationView | null = null;
 
     if (!fromUser && latest && actionsAvailable) {
-      if (generation?.status === GenerationStatus.Pending) {
+      if (
+        generation?.kind === GenerationKind.Regeneration &&
+        generation.status === GenerationStatus.Pending
+      ) {
         regeneration = { status: "pending", canRegenerate: false };
-      } else if (generation?.status === GenerationStatus.Failed) {
+      } else if (
+        generation?.kind === GenerationKind.Regeneration &&
+        generation.status === GenerationStatus.Failed
+      ) {
         regeneration = { status: "failed", canRegenerate: hasModel };
       } else if (
         generation?.status === GenerationStatus.Completed &&
@@ -98,12 +105,9 @@ export function deriveThreadViewState({
       }
     }
 
-    // A failed first reply leaves its user message at the head. A retained assistant head means
-    // the latest failed generation was a regeneration attempt for that turn.
     const failedRegeneration =
-      latestMessage?.author === ThreadMessageAuthor.Assistant &&
-      latestMessage.turnId === message.turnId &&
-      generation?.status === GenerationStatus.Failed;
+      generation?.kind === GenerationKind.Regeneration &&
+      generation.status === GenerationStatus.Failed;
 
     if (!fromUser || !isFailedGeneration(generation) || failedRegeneration) {
       messages.push({ message, replyFailure: null, regeneration });

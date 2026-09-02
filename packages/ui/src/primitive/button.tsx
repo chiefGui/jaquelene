@@ -124,7 +124,7 @@ const styles = stylex.create({
     backgroundColor: {
       default: "transparent",
       ":not(:disabled):hover": colors.buttonDangerSubtleBackground,
-      ":not(:disabled):active": colors.buttonDangerSubtleBackgroundHover,
+      ":not(:disabled):active": colors.buttonDangerSubtleBackgroundStrong,
       ":is([data-focus-visible])": colors.buttonDangerSubtleBackground,
     },
     color: {
@@ -136,9 +136,9 @@ const styles = stylex.create({
   softDanger: {
     backgroundColor: {
       default: colors.buttonDangerSubtleBackground,
-      ":not(:disabled):hover": colors.buttonDangerSubtleBackgroundHover,
-      ":not(:disabled):active": colors.buttonDangerSubtleBackgroundHover,
-      ":is([data-focus-visible])": colors.buttonDangerSubtleBackgroundHover,
+      ":not(:disabled):hover": colors.buttonDangerSubtleBackgroundStrong,
+      ":not(:disabled):active": colors.buttonDangerSubtleBackgroundStrong,
+      ":is([data-focus-visible])": colors.buttonDangerSubtleBackgroundStrong,
     },
     color: {
       default: colors.foregroundDanger,

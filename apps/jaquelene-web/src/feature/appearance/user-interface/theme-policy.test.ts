@@ -14,6 +14,10 @@ const forbiddenSyntax = [
   { label: "hex", pattern: /#[\da-f]{3,8}\b/iu },
   { label: "RGB", pattern: /\brgba?\(/iu },
   { label: "HSL", pattern: /\bhsla?\(/iu },
+  {
+    label: "non-OKLCH color function",
+    pattern: /\b(?:color|contrast-color|device-cmyk|hwb|lab|lch|light-dark|oklab)\(/iu,
+  },
   { label: "non-OKLCH color interpolation", pattern: /color-mix\(in (?!oklch)/iu },
 ];
 

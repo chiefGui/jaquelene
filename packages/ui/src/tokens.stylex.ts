@@ -22,7 +22,7 @@ export const colors = stylex.defineVars({
   buttonSolidBackgroundHover: "oklch(0.925 0.014 282)",
   buttonSolidForeground: "oklch(0.135 0.01 272)",
   buttonDangerSubtleBackground: "oklch(0.7 0.16 22 / 8%)",
-  buttonDangerSubtleBackgroundHover: "oklch(0.7 0.16 22 / 12%)",
+  buttonDangerSubtleBackgroundStrong: "oklch(0.7 0.16 22 / 12%)",
   buttonDangerSolidBackground: "oklch(0.6 0.135 22)",
   buttonDangerSolidBackgroundHover: "oklch(0.7 0.16 22)",
   buttonDangerSolidForeground: "oklch(0.135 0.01 272)",

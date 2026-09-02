@@ -2,7 +2,6 @@ import ArrowUp02Icon from "@hugeicons/core-free-icons/ArrowUp02Icon";
 import Loading02Icon from "@hugeicons/core-free-icons/Loading02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, type ButtonProps } from "@jaquelene/ui";
-
 import { useReducedMotion } from "@jaquelene/ui/motion";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";

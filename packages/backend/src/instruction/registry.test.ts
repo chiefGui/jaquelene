@@ -1,41 +1,59 @@
 import { describe, expect, it } from "vite-plus/test";
 import { ids } from "#backend/id";
-import { factoryRoleplay } from "./factory/roleplay";
 import { createInstructionRegistry, type InstructionSource } from "./registry";
 
+const testInstruction = {
+  key: "test.roleplay.default",
+  title: "Default",
+  body: "Test roleplay instructions.",
+  origin: "factory" as const,
+};
+
+const catalogSource: InstructionSource = {
+  listGroups: () => [
+    {
+      key: "roleplay",
+      name: "Roleplay",
+      description: "Test roleplay instructions.",
+      instructions: [testInstruction],
+    },
+  ],
+  resolve: ({ campaign }) => (campaign ? [testInstruction] : []),
+};
+
 describe("instruction registry", () => {
-  it("lists the factory default instruction for inspection", () => {
-    const instructions = createInstructionRegistry([factoryRoleplay]);
+  it("lists source instructions for inspection", () => {
+    const instructions = createInstructionRegistry([catalogSource]);
 
     expect(instructions.listGroups()).toEqual([
       {
         key: "roleplay",
         name: "Roleplay",
-        description: "Instructions that guide how the AI behaves during roleplay.",
+        description: "Test roleplay instructions.",
         instructions: [
           {
-            key: "factory.roleplay.default",
-            name: "Default",
-            content: expect.any(String),
+            key: "test.roleplay.default",
+            title: "Default",
+            body: expect.any(String),
             origin: "factory",
           },
         ],
       },
     ]);
-    expect(instructions.listGroups()[0]!.instructions[0]!.content.trim()).not.toBe("");
+    expect(instructions.listGroups()[0]!.instructions[0]!.body.trim()).not.toBe("");
   });
 
   it("returns owned listings", () => {
-    const instructions = createInstructionRegistry([factoryRoleplay]);
+    const instructions = createInstructionRegistry([catalogSource]);
     const first = instructions.listGroups();
 
-    (first[0]!.instructions[0] as { name: string }).name = "Changed outside the catalog";
+    (first[0]!.instructions[0] as { title: string }).title = "Changed outside the catalog";
 
-    expect(instructions.listGroups()[0]!.instructions[0]!.name).toBe("Default");
+    expect(instructions.listGroups()[0]!.instructions[0]!.title).toBe("Default");
   });
 
-  it("applies the factory roleplay instruction only to campaigns", () => {
-    const instructions = createInstructionRegistry([factoryRoleplay]);
+  it("resolves source instructions from context", () => {
+    const instructions = createInstructionRegistry([catalogSource]);
     const threadId = ids.thread.create();
 
     expect(instructions.resolve({ threadId, campaign: null })).toEqual([]);
@@ -52,7 +70,7 @@ describe("instruction registry", () => {
     ).toEqual([
       {
         sourceKey: instruction.key,
-        content: instruction.content,
+        content: instruction.body,
       },
     ]);
   });
@@ -60,7 +78,7 @@ describe("instruction registry", () => {
   it("owns and preserves source order", () => {
     const source = (key: string): InstructionSource => ({
       listGroups: () => [],
-      resolve: () => [{ key, name: key, content: `${key} content` }],
+      resolve: () => [{ key, title: key, body: `${key} content` }],
     });
     const sources = [source("global"), source("scenario")];
     const instructions = createInstructionRegistry(sources);

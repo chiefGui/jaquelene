@@ -21,12 +21,15 @@ import {
   type StorageAreaId,
   type StorageCategory,
 } from "#backend/storage/storage";
-import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
 import {
   createInstructionRegistry,
   type InstructionCatalog,
   type InstructionRegistry,
 } from "#backend/instruction/registry";
+import {
+  createRoleplayInstructions,
+  type RoleplayInstructionManagement,
+} from "#backend/instruction/roleplay-instructions";
 import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
 import { createTurns, type Turns } from "#backend/turn/turns";
 import { createUsageHistory, type Usage } from "#backend/usage/history";
@@ -46,12 +49,15 @@ export type BackendInspection = Readonly<{
   terminalFailure?: unknown;
 }>;
 
+export type Instructions = InstructionCatalog & RoleplayInstructionManagement;
+type InstructionEngine = InstructionRegistry & RoleplayInstructionManagement;
+
 export type Backend = Readonly<{
   scenarios: Scenarios;
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
   usage: Usage;
-  instructions: InstructionCatalog;
+  instructions: Instructions;
   threads: Threads;
   turns: Turns;
   providers: Providers;
@@ -68,7 +74,7 @@ type BackendServices = Readonly<{
   campaigns: CampaignEngine;
   campaignUsage: CampaignUsageReader;
   usage: Usage;
-  instructions: InstructionRegistry;
+  instructions: InstructionEngine;
   threads: ThreadEngine;
   turns: Turns;
   providers: Providers;
@@ -94,7 +100,13 @@ function createBackendServiceLayer() {
           const campaigns = createCampaigns(database);
           const campaignUsage = createCampaignUsage(database);
           const usage = createUsageHistory(database);
-          const instructions = createInstructionRegistry([factoryRoleplay]);
+          const roleplayInstructions = createRoleplayInstructions(database);
+          const instructionRegistry = createInstructionRegistry([roleplayInstructions]);
+          const instructions = {
+            ...roleplayInstructions,
+            listGroups: instructionRegistry.listGroups,
+            resolve: instructionRegistry.resolve,
+          };
           const threads = createThreads(database);
           const generationSubsystem = createGenerationSubsystem({
             database,
@@ -311,6 +323,26 @@ export async function createBackend(
       listGroups() {
         assertOpen();
         return services.instructions.listGroups();
+      },
+      create(input) {
+        assertOpen();
+        return services.instructions.create(input);
+      },
+      update(id, input) {
+        assertOpen();
+        return services.instructions.update(id, input);
+      },
+      delete(id) {
+        assertOpen();
+        return services.instructions.delete(id);
+      },
+      getCampaignSelection(campaignId) {
+        assertOpen();
+        return services.instructions.getCampaignSelection(campaignId);
+      },
+      setCampaignSelection(campaignId, instructionKey) {
+        assertOpen();
+        return services.instructions.setCampaignSelection(campaignId, instructionKey);
       },
     },
     threads: {

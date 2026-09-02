@@ -3,13 +3,13 @@ import type { ResolvedInstruction } from "#backend/model/input";
 
 export type Instruction = Readonly<{
   key: string;
-  name: string;
-  content: string;
+  title: string;
+  body: string;
 }>;
 
 export type CatalogInstruction = Instruction &
   Readonly<{
-    origin: "factory";
+    origin: "custom" | "factory";
   }>;
 
 export type InstructionGroup = Readonly<{
@@ -46,7 +46,7 @@ function copyGroup(group: InstructionGroup): InstructionGroup {
 function resolveInstruction(instruction: Instruction): ResolvedInstruction {
   return {
     sourceKey: instruction.key,
-    content: instruction.content,
+    content: instruction.body,
   };
 }
 

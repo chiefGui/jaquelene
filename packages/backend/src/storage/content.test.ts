@@ -7,6 +7,8 @@ import { campaignTable } from "#backend/campaign/schema";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
+import { createRoleplayInstructions } from "#backend/instruction/roleplay-instructions";
+import { roleplayInstructionTable } from "#backend/instruction/schema";
 import { createScenarios } from "#backend/scenario/scenarios";
 import { scenarioTable } from "#backend/scenario/schema";
 import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
@@ -41,6 +43,7 @@ describe("content storage area", () => {
     const { database, path } = createTestDatabase();
     const scenario = createScenarios(database).create({ title: "The Long Night" });
     const campaign = createCampaigns(database).start(scenario.id);
+    createRoleplayInstructions(database).create({ title: "Noir", body: "Keep it dark." });
     const { turn } = createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
       .insert(providerAttemptTable)
@@ -63,6 +66,7 @@ describe("content storage area", () => {
     expect(database.select().from(generationTable).all()).toEqual([]);
     expect(database.select().from(providerAttemptTable).all()).toEqual([]);
     expect(database.select().from(campaignTable).all()).toEqual([]);
+    expect(database.select().from(roleplayInstructionTable).all()).toEqual([]);
     expect(database.select().from(threadMessageTable).all()).toEqual([]);
     expect(database.select().from(turnTable).all()).toEqual([]);
     expect(database.select().from(threadTable).all()).toEqual([]);
@@ -74,6 +78,7 @@ describe("content storage area", () => {
     const { database, path } = createTestDatabase();
     const scenario = createScenarios(database).create({ title: "The Long Night" });
     const campaign = createCampaigns(database).start(scenario.id);
+    createRoleplayInstructions(database).create({ title: "Noir", body: "Keep it dark." });
     const { turn } = createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
       .insert(generationTable)
@@ -93,6 +98,7 @@ describe("content storage area", () => {
     );
     expect(database.select().from(scenarioTable).all()).toHaveLength(1);
     expect(database.select().from(campaignTable).all()).toHaveLength(1);
+    expect(database.select().from(roleplayInstructionTable).all()).toHaveLength(1);
     expect(database.select().from(threadTable).all()).toHaveLength(1);
     expect(database.select().from(generationTable).all()).toHaveLength(1);
   });

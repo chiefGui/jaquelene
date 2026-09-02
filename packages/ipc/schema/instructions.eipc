@@ -2,13 +2,32 @@ module jaquelene
 
 enum InstructionOrigin {
   Factory = "factory"
+  Custom = "custom"
 }
 
 structure Instruction {
   key: string
-  name: string
-  content: string
+  title: string
+  body: string
   origin: InstructionOrigin
+}
+
+subtype RoleplayInstructionTitleInput = string(maxLength: 240)
+subtype RoleplayInstructionBodyInput = string(maxLength: 40000)
+
+structure RoleplayInstructionInput {
+  title: RoleplayInstructionTitleInput
+  body: RoleplayInstructionBodyInput
+}
+
+structure UpdateRoleplayInstructionRequest {
+  key: string
+  input: RoleplayInstructionInput
+}
+
+structure SetCampaignRoleplayInstructionKeyRequest {
+  campaignId: string
+  instructionKey: string
 }
 
 structure InstructionGroup {
@@ -23,4 +42,9 @@ structure InstructionGroup {
 [ContextBridge]
 interface Instructions {
   listGroups() -> InstructionGroup[]
+  createRoleplayInstruction(input: RoleplayInstructionInput) -> Instruction
+  updateRoleplayInstruction(request: UpdateRoleplayInstructionRequest) -> Instruction?
+  deleteRoleplayInstruction(key: string) -> boolean
+  getCampaignRoleplayInstructionKey(campaignId: string) -> string?
+  setCampaignRoleplayInstructionKey(request: SetCampaignRoleplayInstructionKeyRequest) -> string?
 }

@@ -4,6 +4,7 @@ import {
   type CampaignId,
   type GenerationId,
   type MessageId,
+  type InstructionId,
   type ScenarioId,
   type ThreadId,
   type TurnId,
@@ -16,6 +17,7 @@ const identities = [
   ["turn", ids.turn],
   ["message", ids.message],
   ["generation", ids.generation],
+  ["instruction", ids.instruction],
 ] as const;
 
 describe("IDs", () => {
@@ -35,6 +37,7 @@ describe("IDs", () => {
     expectTypeOf<TurnId>().not.toExtend<MessageId>();
     expectTypeOf<MessageId>().not.toExtend<GenerationId>();
     expectTypeOf<GenerationId>().not.toExtend<ScenarioId>();
+    expectTypeOf<InstructionId>().not.toExtend<ScenarioId>();
   });
 
   it("rejects malformed and differently prefixed identities", () => {

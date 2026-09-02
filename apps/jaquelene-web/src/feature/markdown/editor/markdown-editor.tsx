@@ -4,7 +4,7 @@ import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import TextBoldIcon from "@hugeicons/core-free-icons/TextBoldIcon";
 import TextItalicIcon from "@hugeicons/core-free-icons/TextItalicIcon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { formatCount, IconButton, type IconButtonProps } from "@jaquelene/ui";
+import { formatCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
@@ -239,9 +239,20 @@ type MarkdownEditorPreviewProps = StyleableDivProps & {
   fallback?: ReactNode;
 };
 
+function MarkdownPreviewSkeleton() {
+  return (
+    <div role="status" aria-label="Loading preview" {...stylex.props(styles.previewSkeleton)}>
+      <Skeleton style={[styles.skeletonLine, styles.skeletonHeading]} />
+      <Skeleton style={styles.skeletonLine} />
+      <Skeleton style={[styles.skeletonLine, styles.skeletonMedium]} />
+      <Skeleton style={[styles.skeletonLine, styles.skeletonShort]} />
+    </div>
+  );
+}
+
 function MarkdownEditorPreview({
   "aria-label": ariaLabel,
-  fallback,
+  fallback = <MarkdownPreviewSkeleton />,
   style,
   ...props
 }: MarkdownEditorPreviewProps) {
@@ -255,9 +266,7 @@ function MarkdownEditorPreview({
       aria-label={ariaLabel ?? "Markdown preview"}
       {...stylex.props(styles.preview, style, stylex.defaultMarker())}
     >
-      <Suspense
-        fallback={fallback ?? <span {...stylex.props(styles.muted)}>Loading preview…</span>}
-      >
+      <Suspense fallback={fallback}>
         <MarkdownPreview content={deferredValue} />
       </Suspense>
     </div>
@@ -432,7 +441,25 @@ const styles = stylex.create({
     display: "inline-flex",
     gap: "0.375rem",
   },
-  muted: {
-    color: colors.foregroundSecondary,
+  previewSkeleton: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.625rem",
+    maxWidth: "42rem",
+  },
+  skeletonLine: {
+    height: "0.625rem",
+    width: "100%",
+  },
+  skeletonHeading: {
+    height: "1rem",
+    marginBottom: "0.375rem",
+    width: "42%",
+  },
+  skeletonMedium: {
+    width: "84%",
+  },
+  skeletonShort: {
+    width: "62%",
   },
 });

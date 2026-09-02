@@ -2,6 +2,7 @@ node_modules/
 .astro/
 .vite/
 .vite-plus/
+.vite-hooks/_/
 .tanstack/
 dist/
 dist-electron/

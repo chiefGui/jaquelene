@@ -79,7 +79,7 @@ const styles = stylex.create({
     marginTop: "0.75rem",
   },
   error: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.75rem",

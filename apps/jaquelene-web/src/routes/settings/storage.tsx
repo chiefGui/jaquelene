@@ -416,16 +416,16 @@ const styles = stylex.create({
     width: "0.5rem",
   },
   content: {
-    color: colors.storageContent,
+    color: colors.chartStorageContent,
   },
   cache: {
-    color: colors.storageCache,
+    color: colors.chartStorageCache,
   },
   appData: {
-    color: colors.storageAppData,
+    color: colors.chartStorageAppData,
   },
   logs: {
-    color: colors.storageLogs,
+    color: colors.chartStorageLogs,
   },
 });
 

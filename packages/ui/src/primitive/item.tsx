@@ -103,7 +103,7 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   group: {
-    backgroundColor: colors.backgroundSubtle,
+    backgroundColor: colors.backgroundNeutralSubtlest,
     borderColor: colors.borderSubtle,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",

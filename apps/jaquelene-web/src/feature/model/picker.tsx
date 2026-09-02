@@ -840,7 +840,7 @@ export const ModelPicker = {
   Content: ModelPickerContent,
 } as const;
 
-const activeBackground = colors.backgroundSubtleHover;
+const activeBackground = colors.backgroundNeutralSubtler;
 const activeModelName = colors.foregroundPrimary;
 const focusOutline = colors.focusRing;
 
@@ -939,7 +939,7 @@ const styles = stylex.create({
   },
   selectedIndicator: {
     alignSelf: "flex-start",
-    color: colors.accent,
+    color: colors.foregroundAccent,
     gridColumnStart: "1",
     gridRowStart: "1",
     marginTop: "0.125rem",
@@ -1004,7 +1004,7 @@ const styles = stylex.create({
     gap: "0.25rem",
   },
   favoriteProviderIndicator: {
-    backgroundColor: colors.backgroundSubtleHover,
+    backgroundColor: colors.backgroundNeutralSubtler,
     color: colors.foregroundSecondary,
     height: "1.125rem",
   },
@@ -1023,8 +1023,8 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
   },
   reasoningIndicator: {
-    backgroundColor: colors.reasoningSurface,
-    color: colors.reasoning,
+    backgroundColor: colors.backgroundReasoningSubtle,
+    color: colors.foregroundReasoning,
     height: "1.125rem",
   },
   favoriteButton: {
@@ -1034,7 +1034,7 @@ const styles = stylex.create({
     },
     color: {
       default: null,
-      ":hover": colors.accent,
+      ":hover": colors.foregroundAccent,
     },
     gridColumnStart: "3",
     gridRowStart: "1",
@@ -1050,7 +1050,7 @@ const styles = stylex.create({
     width: "2rem",
   },
   favoriteButtonOn: {
-    color: colors.accent,
+    color: colors.foregroundAccent,
     opacity: 1,
   },
   favoriteButtonOff: {
@@ -1168,7 +1168,7 @@ const styles = stylex.create({
     borderTopColor: colors.borderDefault,
     borderTopStyle: "solid",
     borderTopWidth: 1,
-    color: colors.danger,
+    color: colors.foregroundDanger,
     flexShrink: 0,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
@@ -1176,7 +1176,7 @@ const styles = stylex.create({
     paddingInline: "0.75rem",
   },
   content: {
-    backgroundColor: colors.backgroundFloating,
+    backgroundColor: colors.backgroundSurfaceOverlay,
     borderColor: colors.borderDefault,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",

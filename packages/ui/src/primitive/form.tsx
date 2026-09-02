@@ -45,6 +45,6 @@ const styles = stylex.create({
     minHeight: tokens.lineHeightXSmall,
   },
   statusDanger: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
   },
 });

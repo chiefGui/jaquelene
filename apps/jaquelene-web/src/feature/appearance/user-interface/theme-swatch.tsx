@@ -17,7 +17,7 @@ const styles = stylex.create({
   root: {
     backdropFilter: "blur(0.5rem) saturate(1.2)",
     backgroundColor: `color-mix(in oklch, ${colors.backgroundSurface} 86%, transparent)`,
-    backgroundImage: `radial-gradient(circle at 72% 78%, color-mix(in oklch, ${colors.accent} 24%, transparent), transparent 56%), linear-gradient(145deg, color-mix(in oklch, ${colors.backgroundRaised} 88%, transparent), color-mix(in oklch, ${colors.backgroundCanvas} 94%, transparent) 78%)`,
+    backgroundImage: `radial-gradient(circle at 72% 78%, color-mix(in oklch, ${colors.effectThemePreviewGlow} 24%, transparent), transparent 56%), linear-gradient(145deg, color-mix(in oklch, ${colors.backgroundSurfaceRaised} 88%, transparent), color-mix(in oklch, ${colors.backgroundCanvas} 94%, transparent) 78%)`,
     borderColor: `color-mix(in oklch, ${colors.foregroundPrimary} 20%, ${colors.borderDefault})`,
     borderRadius: "50%",
     borderStyle: "solid",
@@ -34,10 +34,10 @@ const styles = stylex.create({
     position: "relative",
     width: "3.25rem",
     "::before": {
-      backgroundImage: `radial-gradient(circle at 28% 24%, color-mix(in oklch, ${colors.foregroundPrimary} 42%, transparent) 0 5%, transparent 21%), linear-gradient(122deg, ${colors.reasoning}, ${colors.accent} 48%, ${colors.storageAppData})`,
+      backgroundImage: `radial-gradient(circle at 28% 24%, color-mix(in oklch, ${colors.foregroundPrimary} 42%, transparent) 0 5%, transparent 21%), linear-gradient(122deg, ${colors.effectThemePreviewStart}, ${colors.effectThemePreviewMiddle} 48%, ${colors.effectThemePreviewEnd})`,
       borderRadius: "48% 52% 44% 56% / 34% 40% 60% 66%",
       bottom: "-18%",
-      boxShadow: `inset 0 0.375rem 0.75rem color-mix(in oklch, ${colors.foregroundPrimary} 18%, transparent), 0 -0.1875rem 0.75rem color-mix(in oklch, ${colors.accent} 34%, transparent)`,
+      boxShadow: `inset 0 0.375rem 0.75rem color-mix(in oklch, ${colors.foregroundPrimary} 18%, transparent), 0 -0.1875rem 0.75rem color-mix(in oklch, ${colors.effectThemePreviewGlow} 34%, transparent)`,
       content: '""',
       height: "76%",
       left: "-18%",
@@ -56,6 +56,6 @@ const styles = stylex.create({
     },
   },
   selected: {
-    outlineColor: colors.accent,
+    outlineColor: colors.borderAccent,
   },
 });

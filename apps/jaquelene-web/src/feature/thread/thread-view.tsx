@@ -492,7 +492,7 @@ const styles = stylex.create({
   },
   historyControls: {
     alignItems: "center",
-    backgroundColor: colors.backgroundFloating,
+    backgroundColor: colors.backgroundSurfaceOverlay,
     borderColor: colors.borderDefault,
     borderRadius: tokens.radiusLarge,
     borderStyle: "solid",
@@ -524,7 +524,7 @@ const styles = stylex.create({
     minWidth: "7.75rem",
   },
   historyError: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.375rem",

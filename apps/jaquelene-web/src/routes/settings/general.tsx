@@ -91,6 +91,6 @@ function GeneralRoute() {
 
 const styles = stylex.create({
   error: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
   },
 });

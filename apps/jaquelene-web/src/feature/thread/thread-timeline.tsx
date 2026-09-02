@@ -342,7 +342,7 @@ const styles = stylex.create({
     paddingBlock: "1.5rem 1rem",
   },
   pageError: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     textAlign: "center",

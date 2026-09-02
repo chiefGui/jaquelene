@@ -51,7 +51,7 @@ const styles = stylex.create({
     width: "2.5rem",
   },
   track: {
-    backgroundColor: colors.backgroundRaised,
+    backgroundColor: colors.backgroundSurfaceRaised,
     borderColor: colors.borderDefault,
     borderRadius: "9999px",
     borderStyle: "solid",
@@ -79,11 +79,11 @@ const styles = stylex.create({
     width: "2rem",
   },
   trackChecked: {
-    backgroundColor: colors.controlChecked,
-    borderColor: colors.controlCheckedBorder,
+    backgroundColor: colors.backgroundControlChecked,
+    borderColor: colors.borderControlChecked,
   },
   thumb: {
-    backgroundColor: colors.foregroundPrimary,
+    backgroundColor: colors.backgroundControlThumb,
     borderRadius: "9999px",
     display: "block",
     height: "0.875rem",
@@ -91,7 +91,7 @@ const styles = stylex.create({
     width: "0.875rem",
   },
   thumbChecked: {
-    backgroundColor: colors.foregroundOnInteractive,
+    backgroundColor: colors.backgroundControlThumbChecked,
     transform: "translateX(0.875rem)",
   },
 });

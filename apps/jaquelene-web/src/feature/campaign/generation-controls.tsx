@@ -156,7 +156,7 @@ const styles = stylex.create({
     width: "fit-content",
   },
   error: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
   },

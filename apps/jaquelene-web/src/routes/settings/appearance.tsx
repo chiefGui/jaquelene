@@ -248,7 +248,7 @@ function AppearanceRoute() {
 
 const styles = stylex.create({
   error: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
   },
   select: {
     minWidth: "8rem",

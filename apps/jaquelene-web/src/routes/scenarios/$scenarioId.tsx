@@ -268,7 +268,7 @@ const styles = stylex.create({
     minWidth: "4.5rem",
   },
   error: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.5rem",
@@ -309,7 +309,7 @@ const styles = stylex.create({
   listLink: {
     backgroundColor: {
       default: "transparent",
-      ":hover": colors.backgroundSubtleHover,
+      ":hover": colors.backgroundNeutralSubtler,
     },
     display: "block",
     fontSize: tokens.fontSizeSmall,

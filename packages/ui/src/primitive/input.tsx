@@ -15,19 +15,19 @@ const styles = stylex.create({
   root: {
     appearance: "none",
     backgroundColor: {
-      default: colors.backgroundSubtle,
-      ":focus": colors.backgroundSubtleHover,
+      default: colors.backgroundNeutralSubtlest,
+      ":focus": colors.backgroundNeutralSubtler,
     },
     borderColor: {
       default: colors.borderDefault,
       ":focus": colors.borderFocus,
       ':is([aria-invalid="true"])': colors.borderDanger,
-      ':is([aria-invalid="true"]):focus': colors.borderDangerStrong,
+      ':is([aria-invalid="true"]):focus': colors.borderDangerFocus,
     },
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",
     borderWidth: 1,
-    caretColor: colors.accent,
+    caretColor: colors.foregroundAccent,
     color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeSmall,
     height: tokens.controlHeight,

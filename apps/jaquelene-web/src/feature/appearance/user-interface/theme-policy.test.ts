@@ -6,8 +6,7 @@ const sourceModules = import.meta.glob<string>(
 );
 
 const rawColorAllowlist = [
-  "/packages/ui/src/theme/dracula.theme.stylex.ts",
-  "/packages/ui/src/theme/jaquelene.theme.stylex.ts",
+  "/packages/ui/src/theme/dracula.theme.ts",
   "/packages/ui/src/tokens.stylex.ts",
 ];
 
@@ -36,6 +35,34 @@ describe("theme color policy", () => {
       const allowsRawColor = rawColorAllowlist.some((allowedPath) => path.endsWith(allowedPath));
       if (!allowsRawColor && /oklch\(/iu.test(source)) {
         violations.push(`${path}: raw OKLCH color outside the theme boundary`);
+      }
+    }
+
+    expect(violations.sort()).toEqual([]);
+  });
+
+  it("authors every theme token value in OKLCH", () => {
+    const violations: string[] = [];
+
+    for (const [path, source] of Object.entries(sourceModules)) {
+      if (!rawColorAllowlist.some((allowedPath) => path.endsWith(allowedPath))) {
+        continue;
+      }
+
+      const colorSource = path.endsWith("/packages/ui/src/tokens.stylex.ts")
+        ? source.slice(source.indexOf("export const colors"), source.indexOf("export const tokens"))
+        : source;
+      const assignments = [...colorSource.matchAll(/^\s+([a-z]\w+):\s+(.+),$/gmu)];
+
+      if (assignments.length === 0) {
+        violations.push(`${path}: no theme color values found`);
+        continue;
+      }
+
+      for (const [, name, value] of assignments) {
+        if (name === undefined || value === undefined || !/^"oklch\([^"]+\)"$/u.test(value)) {
+          violations.push(`${path}: ${name ?? "unknown"}`);
+        }
       }
     }
 

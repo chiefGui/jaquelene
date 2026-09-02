@@ -9,7 +9,7 @@ import { scenariosQuery } from "@/feature/scenario/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
-const cardHoverBackground = colors.backgroundSubtleHover;
+const cardHoverBackground = colors.backgroundNeutralSubtler;
 
 export const Route = createFileRoute("/scenarios/")({
   component: ScenariosIndexRoute,

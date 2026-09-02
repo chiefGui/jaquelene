@@ -1,73 +1,100 @@
 import * as stylex from "@stylexjs/stylex";
-import { jaquelenePalette } from "./theme/jaquelene.theme.stylex";
 
-export type ThemePalette = Readonly<Record<keyof typeof jaquelenePalette, string>>;
-
-// StyleX only extracts variables from a statically visible object literal.
+// Jaquelene is the default color theme. Alternate themes override this shared
+// semantic contract with stylex.createTheme.
 export const colors = stylex.defineVars({
-  // Backgrounds
-  backgroundCanvas: jaquelenePalette.backgroundCanvas,
-  backgroundSurface: jaquelenePalette.backgroundSurface,
-  backgroundRaised: jaquelenePalette.backgroundRaised,
-  backgroundFloating: jaquelenePalette.backgroundFloating,
-  backgroundOverlay: jaquelenePalette.backgroundOverlay,
-  backgroundSubtle: jaquelenePalette.backgroundSubtle,
-  backgroundSubtleHover: jaquelenePalette.backgroundSubtleHover,
-  backgroundSubtlePressed: jaquelenePalette.backgroundSubtlePressed,
+  // Surfaces
+  backgroundCanvas: "oklch(0.135 0.01 272)",
+  backgroundSurface: "oklch(0.17 0.012 272)",
+  backgroundSurfaceRaised: "oklch(0.215 0.016 274)",
+  backgroundSurfaceOverlay: "oklch(0.255 0.019 275)",
+  backgroundScrim: "oklch(0 0 0 / 55%)",
 
-  // Foreground
-  foregroundPrimary: jaquelenePalette.foregroundPrimary,
-  foregroundSecondary: jaquelenePalette.foregroundSecondary,
-  foregroundDisabled: jaquelenePalette.foregroundDisabled,
-  foregroundOnInteractive: jaquelenePalette.foregroundOnInteractive,
+  // Neutral backgrounds, from lowest to highest emphasis
+  backgroundNeutralSubtlest: "oklch(0.925 0.014 282 / 3.5%)",
+  backgroundNeutralSubtler: "oklch(0.925 0.014 282 / 6%)",
+  backgroundNeutralSubtle: "oklch(0.925 0.014 282 / 9%)",
+  backgroundSelected: "oklch(0.71 0.08 276 / 19%)",
+  backgroundSelectedHover: "oklch(0.71 0.08 276 / 24%)",
+
+  // Accent backgrounds
+  backgroundAccentBold: "oklch(0.925 0.014 282 / 90%)",
+  backgroundAccentBoldHover: "oklch(0.925 0.014 282)",
+
+  // Danger backgrounds
+  backgroundDangerSubtlest: "oklch(0.7 0.16 22 / 8%)",
+  backgroundDangerSubtle: "oklch(0.7 0.16 22 / 12%)",
+  backgroundDangerBold: "oklch(0.6 0.135 22)",
+  backgroundDangerBoldHover: "oklch(0.7 0.16 22)",
+
+  // Control backgrounds
+  backgroundControlChecked: "oklch(0.55 0.06 276)",
+  backgroundControlThumb: "oklch(0.925 0.014 282)",
+  backgroundControlThumbChecked: "oklch(0.135 0.01 272)",
+
+  // Product backgrounds
+  backgroundReasoningSubtle: "oklch(0.75 0.1 305 / 14%)",
+
+  // Loading backgrounds
+  backgroundSkeleton: "oklch(0.925 0.014 282 / 6%)",
+  backgroundSkeletonShimmer: "oklch(0.925 0.014 282 / 6%)",
+
+  // Text selection background
+  backgroundTextSelection: "oklch(0.71 0.08 276 / 35%)",
+
+  // Default foregrounds
+  foregroundPrimary: "oklch(0.925 0.014 282)",
+  foregroundSecondary: "oklch(0.68 0.03 280)",
+  foregroundDisabled: "oklch(0.54 0.025 280)",
+
+  // Interactive foregrounds
+  foregroundAccent: "oklch(0.71 0.08 276)",
+  foregroundLink: "oklch(0.76 0.09 276)",
+  foregroundLinkHover: "oklch(0.84 0.07 276)",
+
+  // Semantic foregrounds
+  foregroundDanger: "oklch(0.7 0.16 22)",
+  foregroundSuccess: "oklch(0.75 0.13 158)",
+  foregroundReasoning: "oklch(0.75 0.1 305)",
+
+  // Paired foregrounds
+  foregroundOnAccent: "oklch(0.135 0.01 272)",
+  foregroundOnDanger: "oklch(0.135 0.01 272)",
+
+  // Text selection foreground
+  foregroundTextSelection: "oklch(0.925 0.014 282)",
 
   // Borders and focus
-  borderSubtle: jaquelenePalette.borderSubtle,
-  borderDefault: jaquelenePalette.borderDefault,
-  borderFocus: jaquelenePalette.borderFocus,
-  borderDanger: jaquelenePalette.borderDanger,
-  borderDangerStrong: jaquelenePalette.borderDangerStrong,
-  focusRing: jaquelenePalette.focusRing,
+  borderSubtle: "oklch(0.225 0.016 274)",
+  borderDefault: "oklch(0.29 0.02 276)",
+  borderAccent: "oklch(0.71 0.08 276)",
+  borderFocus: "oklch(0.71 0.08 276 / 45%)",
+  borderDanger: "oklch(0.7 0.16 22 / 58%)",
+  borderDangerFocus: "oklch(0.7 0.16 22 / 72%)",
+  borderControlChecked: "oklch(0.565 0.065 276)",
+  focusRing: "oklch(0.71 0.08 276 / 70%)",
 
-  // Interaction
-  accent: jaquelenePalette.accent,
-  backgroundSelected: jaquelenePalette.backgroundSelected,
-  backgroundSelectedHover: jaquelenePalette.backgroundSelectedHover,
-  link: jaquelenePalette.link,
-  linkHover: jaquelenePalette.linkHover,
-  selectionBackground: jaquelenePalette.selectionBackground,
-  selectionForeground: jaquelenePalette.selectionForeground,
-  actionPrimary: jaquelenePalette.actionPrimary,
-  actionPrimaryHover: jaquelenePalette.actionPrimaryHover,
-  actionPrimaryForeground: jaquelenePalette.actionPrimaryForeground,
-  controlChecked: jaquelenePalette.controlChecked,
-  controlCheckedBorder: jaquelenePalette.controlCheckedBorder,
-
-  // Status
-  danger: jaquelenePalette.danger,
-  dangerSurface: jaquelenePalette.dangerSurface,
-  dangerSurfaceHover: jaquelenePalette.dangerSurfaceHover,
-  dangerSolid: jaquelenePalette.dangerSolid,
-  dangerSolidHover: jaquelenePalette.dangerSolidHover,
-  foregroundOnDanger: jaquelenePalette.foregroundOnDanger,
-  success: jaquelenePalette.success,
-
-  // Product semantics
-  reasoning: jaquelenePalette.reasoning,
-  reasoningSurface: jaquelenePalette.reasoningSurface,
+  // Native controls
+  controlAccent: "oklch(0.71 0.08 276)",
 
   // Storage visualization
-  storageContent: jaquelenePalette.storageContent,
-  storageCache: jaquelenePalette.storageCache,
-  storageAppData: jaquelenePalette.storageAppData,
-  storageLogs: jaquelenePalette.storageLogs,
+  chartStorageContent: "oklch(0.73 0.11 276)",
+  chartStorageCache: "oklch(0.72 0.025 250)",
+  chartStorageAppData: "oklch(0.74 0.1 215)",
+  chartStorageLogs: "oklch(0.76 0.1 82)",
+
+  // Theme preview
+  effectThemePreviewStart: "oklch(0.75 0.1 305)",
+  effectThemePreviewMiddle: "oklch(0.71 0.08 276)",
+  effectThemePreviewEnd: "oklch(0.74 0.1 215)",
+  effectThemePreviewGlow: "oklch(0.71 0.08 276)",
 
   // Composer
-  composerGlowStart: jaquelenePalette.composerGlowStart,
-  composerGlowFirstBlend: jaquelenePalette.composerGlowFirstBlend,
-  composerGlowSecondBlend: jaquelenePalette.composerGlowSecondBlend,
-  composerGlowEnd: jaquelenePalette.composerGlowEnd,
-} satisfies ThemePalette);
+  effectComposerGlowStart: "oklch(0.7033 0.2499 323.8)",
+  effectComposerGlowMiddleStart: "oklch(0.5999 0.2354 290)",
+  effectComposerGlowMiddleEnd: "oklch(0.6396 0.1928 262.2)",
+  effectComposerGlowEnd: "oklch(0.8366 0.1376 213.4)",
+});
 
 export const tokens = stylex.defineConsts({
   // Control geometry

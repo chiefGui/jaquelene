@@ -559,16 +559,16 @@ const styles = stylex.create({
     transitionTimingFunction: "cubic-bezier(0.2, 0, 0, 1)",
   },
   paletteStart: {
-    color: colors.composerGlowStart,
+    color: colors.effectComposerGlowStart,
   },
   paletteFirstBlend: {
-    color: colors.composerGlowFirstBlend,
+    color: colors.effectComposerGlowMiddleStart,
   },
   paletteSecondBlend: {
-    color: colors.composerGlowSecondBlend,
+    color: colors.effectComposerGlowMiddleEnd,
   },
   paletteEnd: {
-    color: colors.composerGlowEnd,
+    color: colors.effectComposerGlowEnd,
   },
 });
 

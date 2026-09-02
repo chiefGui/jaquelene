@@ -127,7 +127,7 @@ const spin = stylex.keyframes({
 
 const styles = stylex.create({
   root: {
-    backgroundColor: colors.backgroundRaised,
+    backgroundColor: colors.backgroundSurfaceRaised,
     borderColor: {
       default: colors.borderDefault,
       ":focus-within": colors.borderFocus,
@@ -155,7 +155,7 @@ const styles = stylex.create({
     appearance: "none",
     backgroundColor: "transparent",
     borderWidth: 0,
-    caretColor: colors.accent,
+    caretColor: colors.foregroundAccent,
     color: colors.foregroundPrimary,
     fieldSizing: "content",
     fontFamily: "inherit",
@@ -197,7 +197,7 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightXSmall,
   },
   dangerStatus: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
   },
   submit: {
     borderRadius: "9999px",

@@ -144,7 +144,7 @@ const styles = stylex.create({
     backgroundColor: colors.backgroundSelected,
   },
   assistantBubble: {
-    backgroundColor: colors.backgroundRaised,
+    backgroundColor: colors.backgroundSurfaceRaised,
     borderColor: colors.borderDefault,
     borderStyle: "solid",
     borderWidth: 1,
@@ -168,14 +168,14 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightXSmall,
   },
   replyFailure: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
   },
   retryButton: {
     height: "2rem",
     paddingInline: "0.5rem",
   },
   retryError: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
   },

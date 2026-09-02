@@ -82,17 +82,17 @@ const styles = stylex.create({
   },
   solid: {
     backgroundColor: {
-      default: colors.actionPrimary,
-      ":not(:disabled):hover": colors.actionPrimaryHover,
+      default: colors.backgroundAccentBold,
+      ":not(:disabled):hover": colors.backgroundAccentBoldHover,
     },
-    color: colors.actionPrimaryForeground,
+    color: colors.foregroundOnAccent,
   },
   ghost: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": colors.backgroundSubtleHover,
-      ":not(:disabled):active": colors.backgroundSubtlePressed,
-      ":is([data-focus-visible])": colors.backgroundSubtleHover,
+      ":not(:disabled):hover": colors.backgroundNeutralSubtler,
+      ":not(:disabled):active": colors.backgroundNeutralSubtle,
+      ":is([data-focus-visible])": colors.backgroundNeutralSubtler,
     },
     color: {
       default: colors.foregroundSecondary,
@@ -102,10 +102,10 @@ const styles = stylex.create({
   },
   soft: {
     backgroundColor: {
-      default: colors.backgroundSubtle,
-      ":not(:disabled):hover": colors.backgroundSubtleHover,
-      ":not(:disabled):active": colors.backgroundSubtlePressed,
-      ":is([data-focus-visible])": colors.backgroundSubtleHover,
+      default: colors.backgroundNeutralSubtlest,
+      ":not(:disabled):hover": colors.backgroundNeutralSubtler,
+      ":not(:disabled):active": colors.backgroundNeutralSubtle,
+      ":is([data-focus-visible])": colors.backgroundNeutralSubtler,
     },
     color: {
       default: colors.foregroundSecondary,
@@ -115,35 +115,35 @@ const styles = stylex.create({
   },
   solidDanger: {
     backgroundColor: {
-      default: colors.dangerSolid,
-      ":not(:disabled):hover": colors.dangerSolidHover,
+      default: colors.backgroundDangerBold,
+      ":not(:disabled):hover": colors.backgroundDangerBoldHover,
     },
     color: colors.foregroundOnDanger,
   },
   ghostDanger: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": colors.dangerSurface,
-      ":not(:disabled):active": colors.dangerSurfaceHover,
-      ":is([data-focus-visible])": colors.dangerSurface,
+      ":not(:disabled):hover": colors.backgroundDangerSubtlest,
+      ":not(:disabled):active": colors.backgroundDangerSubtle,
+      ":is([data-focus-visible])": colors.backgroundDangerSubtlest,
     },
     color: {
-      default: colors.danger,
-      ":not(:disabled):hover": colors.danger,
-      ":is([data-focus-visible])": colors.danger,
+      default: colors.foregroundDanger,
+      ":not(:disabled):hover": colors.foregroundDanger,
+      ":is([data-focus-visible])": colors.foregroundDanger,
     },
   },
   softDanger: {
     backgroundColor: {
-      default: colors.dangerSurface,
-      ":not(:disabled):hover": colors.dangerSurfaceHover,
-      ":not(:disabled):active": colors.dangerSurfaceHover,
-      ":is([data-focus-visible])": colors.dangerSurfaceHover,
+      default: colors.backgroundDangerSubtlest,
+      ":not(:disabled):hover": colors.backgroundDangerSubtle,
+      ":not(:disabled):active": colors.backgroundDangerSubtle,
+      ":is([data-focus-visible])": colors.backgroundDangerSubtle,
     },
     color: {
-      default: colors.danger,
-      ":not(:disabled):hover": colors.danger,
-      ":is([data-focus-visible])": colors.danger,
+      default: colors.foregroundDanger,
+      ":not(:disabled):hover": colors.foregroundDanger,
+      ":is([data-focus-visible])": colors.foregroundDanger,
     },
   },
   label: {

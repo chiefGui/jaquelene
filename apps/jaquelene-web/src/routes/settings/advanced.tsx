@@ -124,7 +124,7 @@ const styles = stylex.create({
     justifyContent: "space-between",
   },
   error: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
   },
   openFolder: {
     gap: "0.5rem",

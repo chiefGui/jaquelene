@@ -238,7 +238,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   providerMarkContainer: {
-    backgroundColor: colors.backgroundSubtle,
+    backgroundColor: colors.backgroundNeutralSubtlest,
     height: "2rem",
   },
   providerMark: {
@@ -251,7 +251,7 @@ const styles = stylex.create({
     gap: "0.5rem",
   },
   connected: {
-    color: colors.success,
+    color: colors.foregroundSuccess,
   },
   mono: {
     fontFamily: tokens.fontMono,
@@ -285,7 +285,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   formError: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.5rem",

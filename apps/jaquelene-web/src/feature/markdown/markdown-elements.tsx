@@ -191,8 +191,8 @@ const styles = stylex.create({
   link: {
     borderRadius: tokens.radiusSmall,
     color: {
-      default: colors.link,
-      ":hover": colors.linkHover,
+      default: colors.foregroundLink,
+      ":hover": colors.foregroundLinkHover,
     },
     outlineColor: {
       default: null,

@@ -1,109 +1,11 @@
 import { UiTheme } from "@jaquelene/ipc/renderer";
-import { draculaPalette } from "@jaquelene/ui/theme/dracula.stylex";
-import { jaquelenePalette } from "@jaquelene/ui/theme/jaquelene.stylex";
-import { colors, type ThemePalette } from "@jaquelene/ui/tokens.stylex";
+import { draculaTheme } from "@jaquelene/ui/theme/dracula";
+import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useLayoutEffect } from "react";
 
-// StyleX only extracts themes from a statically visible object literal.
-const jaqueleneTheme = stylex.createTheme(colors, {
-  backgroundCanvas: jaquelenePalette.backgroundCanvas,
-  backgroundSurface: jaquelenePalette.backgroundSurface,
-  backgroundRaised: jaquelenePalette.backgroundRaised,
-  backgroundFloating: jaquelenePalette.backgroundFloating,
-  backgroundOverlay: jaquelenePalette.backgroundOverlay,
-  backgroundSubtle: jaquelenePalette.backgroundSubtle,
-  backgroundSubtleHover: jaquelenePalette.backgroundSubtleHover,
-  backgroundSubtlePressed: jaquelenePalette.backgroundSubtlePressed,
-  foregroundPrimary: jaquelenePalette.foregroundPrimary,
-  foregroundSecondary: jaquelenePalette.foregroundSecondary,
-  foregroundDisabled: jaquelenePalette.foregroundDisabled,
-  foregroundOnInteractive: jaquelenePalette.foregroundOnInteractive,
-  borderSubtle: jaquelenePalette.borderSubtle,
-  borderDefault: jaquelenePalette.borderDefault,
-  borderFocus: jaquelenePalette.borderFocus,
-  borderDanger: jaquelenePalette.borderDanger,
-  borderDangerStrong: jaquelenePalette.borderDangerStrong,
-  focusRing: jaquelenePalette.focusRing,
-  accent: jaquelenePalette.accent,
-  backgroundSelected: jaquelenePalette.backgroundSelected,
-  backgroundSelectedHover: jaquelenePalette.backgroundSelectedHover,
-  link: jaquelenePalette.link,
-  linkHover: jaquelenePalette.linkHover,
-  selectionBackground: jaquelenePalette.selectionBackground,
-  selectionForeground: jaquelenePalette.selectionForeground,
-  actionPrimary: jaquelenePalette.actionPrimary,
-  actionPrimaryHover: jaquelenePalette.actionPrimaryHover,
-  actionPrimaryForeground: jaquelenePalette.actionPrimaryForeground,
-  controlChecked: jaquelenePalette.controlChecked,
-  controlCheckedBorder: jaquelenePalette.controlCheckedBorder,
-  danger: jaquelenePalette.danger,
-  dangerSurface: jaquelenePalette.dangerSurface,
-  dangerSurfaceHover: jaquelenePalette.dangerSurfaceHover,
-  dangerSolid: jaquelenePalette.dangerSolid,
-  dangerSolidHover: jaquelenePalette.dangerSolidHover,
-  foregroundOnDanger: jaquelenePalette.foregroundOnDanger,
-  success: jaquelenePalette.success,
-  reasoning: jaquelenePalette.reasoning,
-  reasoningSurface: jaquelenePalette.reasoningSurface,
-  storageContent: jaquelenePalette.storageContent,
-  storageCache: jaquelenePalette.storageCache,
-  storageAppData: jaquelenePalette.storageAppData,
-  storageLogs: jaquelenePalette.storageLogs,
-  composerGlowStart: jaquelenePalette.composerGlowStart,
-  composerGlowFirstBlend: jaquelenePalette.composerGlowFirstBlend,
-  composerGlowSecondBlend: jaquelenePalette.composerGlowSecondBlend,
-  composerGlowEnd: jaquelenePalette.composerGlowEnd,
-} satisfies ThemePalette);
-const draculaTheme = stylex.createTheme(colors, {
-  backgroundCanvas: draculaPalette.backgroundCanvas,
-  backgroundSurface: draculaPalette.backgroundSurface,
-  backgroundRaised: draculaPalette.backgroundRaised,
-  backgroundFloating: draculaPalette.backgroundFloating,
-  backgroundOverlay: draculaPalette.backgroundOverlay,
-  backgroundSubtle: draculaPalette.backgroundSubtle,
-  backgroundSubtleHover: draculaPalette.backgroundSubtleHover,
-  backgroundSubtlePressed: draculaPalette.backgroundSubtlePressed,
-  foregroundPrimary: draculaPalette.foregroundPrimary,
-  foregroundSecondary: draculaPalette.foregroundSecondary,
-  foregroundDisabled: draculaPalette.foregroundDisabled,
-  foregroundOnInteractive: draculaPalette.foregroundOnInteractive,
-  borderSubtle: draculaPalette.borderSubtle,
-  borderDefault: draculaPalette.borderDefault,
-  borderFocus: draculaPalette.borderFocus,
-  borderDanger: draculaPalette.borderDanger,
-  borderDangerStrong: draculaPalette.borderDangerStrong,
-  focusRing: draculaPalette.focusRing,
-  accent: draculaPalette.accent,
-  backgroundSelected: draculaPalette.backgroundSelected,
-  backgroundSelectedHover: draculaPalette.backgroundSelectedHover,
-  link: draculaPalette.link,
-  linkHover: draculaPalette.linkHover,
-  selectionBackground: draculaPalette.selectionBackground,
-  selectionForeground: draculaPalette.selectionForeground,
-  actionPrimary: draculaPalette.actionPrimary,
-  actionPrimaryHover: draculaPalette.actionPrimaryHover,
-  actionPrimaryForeground: draculaPalette.actionPrimaryForeground,
-  controlChecked: draculaPalette.controlChecked,
-  controlCheckedBorder: draculaPalette.controlCheckedBorder,
-  danger: draculaPalette.danger,
-  dangerSurface: draculaPalette.dangerSurface,
-  dangerSurfaceHover: draculaPalette.dangerSurfaceHover,
-  dangerSolid: draculaPalette.dangerSolid,
-  dangerSolidHover: draculaPalette.dangerSolidHover,
-  foregroundOnDanger: draculaPalette.foregroundOnDanger,
-  success: draculaPalette.success,
-  reasoning: draculaPalette.reasoning,
-  reasoningSurface: draculaPalette.reasoningSurface,
-  storageContent: draculaPalette.storageContent,
-  storageCache: draculaPalette.storageCache,
-  storageAppData: draculaPalette.storageAppData,
-  storageLogs: draculaPalette.storageLogs,
-  composerGlowStart: draculaPalette.composerGlowStart,
-  composerGlowFirstBlend: draculaPalette.composerGlowFirstBlend,
-  composerGlowSecondBlend: draculaPalette.composerGlowSecondBlend,
-  composerGlowEnd: draculaPalette.composerGlowEnd,
-} satisfies ThemePalette);
+// An empty theme resets a subtree to the defaults declared by colors.
+const jaqueleneTheme = stylex.createTheme(colors, {});
 
 export type UiThemeStyle = typeof jaqueleneTheme;
 
@@ -128,13 +30,13 @@ export const uiThemes = {
 
 const styles = stylex.create({
   document: {
-    accentColor: colors.accent,
+    accentColor: colors.controlAccent,
     backgroundColor: colors.backgroundCanvas,
     colorScheme: "dark",
     scrollbarColor: `${colors.foregroundDisabled} transparent`,
     "::selection": {
-      backgroundColor: colors.selectionBackground,
-      color: colors.selectionForeground,
+      backgroundColor: colors.backgroundTextSelection,
+      color: colors.foregroundTextSelection,
     },
   },
 });

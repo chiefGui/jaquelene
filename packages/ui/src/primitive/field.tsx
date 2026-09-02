@@ -60,7 +60,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   error: {
-    color: colors.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     minHeight: tokens.lineHeightXSmall,

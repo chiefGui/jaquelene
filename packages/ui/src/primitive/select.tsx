@@ -124,7 +124,7 @@ export const Select = Object.assign(SelectTrigger, {
   Indicator: SelectIndicator,
 });
 
-const activeBackground = colors.backgroundSubtleHover;
+const activeBackground = colors.backgroundNeutralSubtler;
 const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
 
 const styles = stylex.create({
@@ -154,7 +154,7 @@ const styles = stylex.create({
   },
   filled: {
     backgroundColor: {
-      default: colors.backgroundSubtle,
+      default: colors.backgroundNeutralSubtlest,
       ":not(:disabled):hover": activeBackground,
     },
   },
@@ -168,8 +168,8 @@ const styles = stylex.create({
   chevron: {
     color: {
       default: colors.foregroundSecondary,
-      [stylex.when.ancestor("[data-focus-visible]")]: colors.accent,
-      [stylex.when.ancestor('[aria-expanded="true"]')]: colors.accent,
+      [stylex.when.ancestor("[data-focus-visible]")]: colors.foregroundAccent,
+      [stylex.when.ancestor('[aria-expanded="true"]')]: colors.foregroundAccent,
     },
     flexShrink: 0,
     height: "0.875rem",
@@ -185,7 +185,7 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   content: {
-    backgroundColor: colors.backgroundFloating,
+    backgroundColor: colors.backgroundSurfaceOverlay,
     borderColor: colors.borderDefault,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
@@ -236,7 +236,7 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   indicator: {
-    color: colors.accent,
+    color: colors.foregroundAccent,
     flexShrink: 0,
     height: "1rem",
     opacity: {

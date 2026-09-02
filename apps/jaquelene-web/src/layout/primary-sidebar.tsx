@@ -152,7 +152,7 @@ function PrimarySidebarItemContent({ icon, label }: { icon: IconSvgElement; labe
 }
 
 const focusColor = colors.focusRing;
-const hoverBackground = colors.backgroundSubtleHover;
+const hoverBackground = colors.backgroundNeutralSubtler;
 
 const styles = stylex.create({
   root: {

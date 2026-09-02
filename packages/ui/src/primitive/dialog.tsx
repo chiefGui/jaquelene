@@ -86,10 +86,10 @@ export const Dialog = {
 
 const styles = stylex.create({
   backdrop: {
-    backgroundColor: colors.backgroundOverlay,
+    backgroundColor: colors.backgroundScrim,
   },
   content: {
-    backgroundColor: colors.backgroundFloating,
+    backgroundColor: colors.backgroundSurfaceOverlay,
     borderColor: colors.borderDefault,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",

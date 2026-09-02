@@ -30,7 +30,7 @@ const shimmer = stylex.keyframes({
 
 const styles = stylex.create({
   root: {
-    backgroundColor: colors.backgroundSubtleHover,
+    backgroundColor: colors.backgroundSkeleton,
     borderRadius: tokens.radiusMedium,
     overflow: "hidden",
     position: "relative",
@@ -41,7 +41,7 @@ const styles = stylex.create({
       animationIterationCount: "infinite",
       animationName: shimmer,
       animationTimingFunction: "linear",
-      backgroundImage: `linear-gradient(105deg, transparent 35%, ${colors.backgroundSubtleHover} 50%, transparent 65%)`,
+      backgroundImage: `linear-gradient(105deg, transparent 35%, ${colors.backgroundSkeletonShimmer} 50%, transparent 65%)`,
       content: '""',
       inset: 0,
       position: "absolute",

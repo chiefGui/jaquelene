@@ -102,10 +102,10 @@ const styles = stylex.create({
   },
   soft: {
     backgroundColor: {
-      default: colors.backgroundNeutralSubtlest,
-      ":not(:disabled):hover": colors.backgroundNeutralSubtler,
-      ":not(:disabled):active": colors.backgroundNeutralSubtle,
-      ":is([data-focus-visible])": colors.backgroundNeutralSubtler,
+      default: colors.buttonSoftBackground,
+      ":not(:disabled):hover": colors.buttonSoftBackgroundHover,
+      ":not(:disabled):active": colors.buttonSoftBackgroundHover,
+      ":is([data-focus-visible])": colors.buttonSoftBackgroundHover,
     },
     color: {
       default: colors.foregroundSecondary,

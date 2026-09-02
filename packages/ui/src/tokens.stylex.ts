@@ -21,6 +21,8 @@ export const colors = stylex.defineVars({
   backgroundSelectedHover: "oklch(0.71 0.08 276 / 24%)",
 
   // Button
+  buttonSoftBackground: "oklch(0.71 0.08 276 / 8%)",
+  buttonSoftBackgroundHover: "oklch(0.71 0.08 276 / 12%)",
   buttonSolidBackground: "oklch(0.925 0.014 282 / 90%)",
   buttonSolidBackgroundHover: "oklch(0.925 0.014 282)",
   buttonSolidForeground: "oklch(0.135 0.01 272)",
@@ -104,6 +106,7 @@ export const tokens = stylex.defineConsts({
   radiusXLarge: "0.75rem",
 
   // Elevation
+  shadowControl: `inset 0 0.0625rem 0 color-mix(in oklch, ${colors.foregroundPrimary} 5%, transparent), 0 0.0625rem 0.125rem color-mix(in oklch, ${colors.backgroundCanvas} 45%, transparent)`,
   shadowLarge: "0 20px 25px -5px oklch(0 0 0 / 10%), 0 8px 10px -6px oklch(0 0 0 / 10%)",
   shadowXLarge: "0 25px 50px -12px oklch(0 0 0 / 25%)",
 

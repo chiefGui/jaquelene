@@ -1,15 +1,9 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
-import {
-  Chip,
-  type ChipActionProps,
-  type ChipEndEdge,
-  type ChipFrameProps,
-  type ChipStartEdge,
-} from "@jaquelene/ui";
+import { Chip, ControlIcon, type ChipActionProps } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { Children, cloneElement, createContext, isValidElement, useContext } from "react";
+import { Children, cloneElement, isValidElement, type ComponentProps } from "react";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -19,15 +13,13 @@ type BreadcrumbLinkProps = ChipActionProps & {
   render: NonNullable<ChipActionProps["render"]>;
 };
 
-type BreadcrumbPageProps = ChipFrameProps;
+type BreadcrumbLabelProps = StyleableProps<ComponentProps<"span">>;
 
-type BreadcrumbItemPosition = "first" | "last" | "middle" | "only";
+type BreadcrumbPageProps = BreadcrumbLabelProps;
 
 type BreadcrumbItemProps = StyleableProps<RoleProps<"li">> & {
-  position?: BreadcrumbItemPosition;
+  showSeparator?: boolean;
 };
-
-const BreadcrumbItemPositionContext = createContext<BreadcrumbItemPosition>("only");
 
 function BreadcrumbRoot({
   "aria-label": ariaLabel = "Breadcrumb",
@@ -45,14 +37,7 @@ function BreadcrumbList({ children, style, ...props }: StyleableProps<RoleProps<
       {items.map((item, index) =>
         isValidElement<BreadcrumbItemProps>(item)
           ? cloneElement(item, {
-              position:
-                items.length === 1
-                  ? "only"
-                  : index === 0
-                    ? "first"
-                    : index === items.length - 1
-                      ? "last"
-                      : "middle",
+              showSeparator: index > 0,
             })
           : item,
       )}
@@ -60,49 +45,33 @@ function BreadcrumbList({ children, style, ...props }: StyleableProps<RoleProps<
   );
 }
 
-function BreadcrumbItem({ children, position = "only", style, ...props }: BreadcrumbItemProps) {
-  const edges = getEdges(position);
-
+function BreadcrumbItem({ children, showSeparator = false, style, ...props }: BreadcrumbItemProps) {
   return (
-    <BreadcrumbItemPositionContext value={position}>
-      <Role.li {...props} {...stylex.props(styles.item, style)}>
-        {position === "middle" || position === "last" ? (
-          <Chip.Divider style={styles.divider} />
-        ) : null}
-        {typeof children === "string" || typeof children === "number" ? (
-          <Chip.Frame {...edges} compound>
-            {children}
-          </Chip.Frame>
-        ) : (
-          children
-        )}
-      </Role.li>
-    </BreadcrumbItemPositionContext>
+    <Role.li {...props} {...stylex.props(styles.item, style)}>
+      {showSeparator ? <BreadcrumbSeparator /> : null}
+      {typeof children === "string" || typeof children === "number" ? (
+        <BreadcrumbLabel>{children}</BreadcrumbLabel>
+      ) : (
+        children
+      )}
+    </Role.li>
   );
 }
 
 function BreadcrumbLink({ style, ...props }: BreadcrumbLinkProps) {
-  const edges = getEdges(useContext(BreadcrumbItemPositionContext));
-
-  return <Chip.Action {...props} {...edges} compound style={[styles.link, style]} />;
+  return <Chip.Action {...props} style={style} />;
 }
 
 function BreadcrumbPage({ style, ...props }: BreadcrumbPageProps) {
-  const edges = getEdges(useContext(BreadcrumbItemPositionContext));
-
-  return (
-    <Chip.Frame {...props} {...edges} aria-current="page" compound style={[styles.page, style]} />
-  );
+  return <BreadcrumbLabel {...props} aria-current="page" style={[styles.page, style]} />;
 }
 
-function getEdges(position: BreadcrumbItemPosition): {
-  endEdge: ChipEndEdge;
-  startEdge: ChipStartEdge;
-} {
-  return {
-    endEdge: position === "last" || position === "only" ? "rounded" : "pointed",
-    startEdge: position === "first" || position === "only" ? "rounded" : "notched",
-  };
+function BreadcrumbLabel({ style, ...props }: BreadcrumbLabelProps) {
+  return <span {...props} {...stylex.props(styles.label, style)} />;
+}
+
+function BreadcrumbSeparator() {
+  return <ControlIcon.Chevron style={styles.separator} />;
 }
 
 export const Breadcrumb = {
@@ -113,9 +82,6 @@ export const Breadcrumb = {
   Page: BreadcrumbPage,
 } as const;
 
-const controlShadow = `inset 0 0.0625rem 0 color-mix(in oklch, ${colors.foregroundPrimary} 5%, transparent), 0 0.0625rem 0.125rem color-mix(in oklch, ${colors.backgroundCanvas} 45%, transparent)`;
-const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
-
 const styles = stylex.create({
   root: {
     alignItems: "center",
@@ -124,56 +90,39 @@ const styles = stylex.create({
     maxWidth: "100%",
     minWidth: 0,
   },
-  divider: {
-    left: 0,
-    position: "absolute",
-    top: "-0.0625rem",
-    zIndex: 1,
-  },
   list: {
     alignItems: "center",
-    backgroundColor: colors.backgroundNeutralSubtlest,
-    borderColor: colors.borderDefault,
-    borderRadius: tokens.radiusMedium,
-    borderStyle: "solid",
-    borderWidth: 1,
-    boxShadow: controlShadow,
     display: "flex",
-    height: "1.375rem",
+    fontSize: tokens.fontSizeSmall,
+    fontWeight: 400,
+    gap: "0.1875rem",
+    height: "100%",
+    lineHeight: tokens.lineHeightSmall,
     maxWidth: "100%",
     minWidth: 0,
-    overflow: "hidden",
   },
   item: {
     alignItems: "center",
     color: colors.foregroundSecondary,
     display: "flex",
-    height: "1.25rem",
-    marginInlineStart: {
-      default: "-0.375rem",
-      ":first-child": 0,
-    },
+    gap: "0.1875rem",
+    height: "100%",
     minWidth: 0,
-    position: "relative",
   },
-  link: {
-    backgroundColor: {
-      default: colors.backgroundNeutralSubtler,
-      ":not(:disabled):hover": colors.backgroundInteractive,
-      ":not(:disabled):active": colors.backgroundSelected,
-      ":is([data-focus-visible])": colors.backgroundInteractive,
-    },
-    boxShadow: {
-      default: null,
-      ":is([data-focus-visible])": focusRing,
-    },
-    color: {
-      default: colors.foregroundSecondary,
-      ":not(:disabled):hover": colors.foregroundPrimary,
-      ":is([data-focus-visible])": colors.foregroundPrimary,
-    },
+  label: {
+    minWidth: 0,
+    overflow: "hidden",
+    textBox: "trim-both text",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   page: {
     color: colors.foregroundPrimary,
+  },
+  separator: {
+    color: `color-mix(in oklch, ${colors.foregroundSecondary} 50%, transparent)`,
+    flexShrink: 0,
+    height: "0.75rem",
+    width: "0.75rem",
   },
 });

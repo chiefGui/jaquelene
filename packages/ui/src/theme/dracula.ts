@@ -26,6 +26,8 @@ export const draculaTheme = stylex.createTheme(colors, {
   backgroundSelectedHover: "oklch(0.86523 0.01381 295.28 / 17%)",
 
   // Button
+  buttonSoftBackground: colors.backgroundNeutralSubtlest,
+  buttonSoftBackgroundHover: colors.backgroundNeutralSubtler,
   buttonSolidBackground: "oklch(0.48 0.2 284)",
   buttonSolidBackgroundHover: "oklch(0.5 0.2 284)",
   buttonSolidForeground: "oklch(0.91559 0.00947 292.78)",

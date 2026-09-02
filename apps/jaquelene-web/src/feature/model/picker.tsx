@@ -841,7 +841,6 @@ export const ModelPicker = {
 } as const;
 
 const activeBackground = colors.backgroundAccentSubtle;
-const activeModelName = colors.foregroundPrimary;
 const focusOutline = colors.focusRing;
 
 const styles = stylex.create({
@@ -967,12 +966,7 @@ const styles = stylex.create({
     color: colors.foregroundPrimary,
   },
   selectedModelName: {
-    color: {
-      default: colors.foregroundPrimary,
-      [stylex.when.ancestor(":focus-within")]: activeModelName,
-      [stylex.when.ancestor(":hover")]: activeModelName,
-      [stylex.when.ancestor("[data-active-item]")]: activeModelName,
-    },
+    color: colors.foregroundPrimary,
   },
   modelText: {
     flex: 1,
@@ -987,9 +981,9 @@ const styles = stylex.create({
   modelName: {
     color: {
       default: colors.foregroundSecondary,
-      [stylex.when.ancestor(":focus-within")]: activeModelName,
-      [stylex.when.ancestor(":hover")]: activeModelName,
-      [stylex.when.ancestor("[data-active-item]")]: activeModelName,
+      [stylex.when.ancestor(":focus-within")]: colors.foregroundPrimary,
+      [stylex.when.ancestor(":hover")]: colors.foregroundPrimary,
+      [stylex.when.ancestor("[data-active-item]")]: colors.foregroundPrimary,
     },
     flexShrink: 1,
     minWidth: 0,

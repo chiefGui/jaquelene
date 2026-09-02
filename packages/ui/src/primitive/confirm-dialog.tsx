@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useRef, type ReactElement, type ReactNode } from "react";
-import { tokens } from "../theme.stylex";
+import { colors, tokens } from "../tokens.stylex";
 import { Button } from "./button";
 import { Dialog, type DialogProps } from "./dialog";
 
@@ -73,13 +73,13 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   description: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.75rem",
   },
   error: {
-    color: tokens.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.75rem",

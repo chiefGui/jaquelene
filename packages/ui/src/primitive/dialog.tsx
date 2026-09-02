@@ -12,7 +12,8 @@ import { useStoreState } from "@ariakit/react/store";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import * as m from "motion/react-m";
-import { tokens } from "../theme.stylex";
+
+import { colors, tokens } from "../tokens.stylex";
 import { MotionPresence, overlayTransition } from "./motion";
 
 export type DialogProps = Omit<
@@ -85,16 +86,16 @@ export const Dialog = {
 
 const styles = stylex.create({
   backdrop: {
-    backgroundColor: tokens.backdrop,
+    backgroundColor: colors.backgroundScrim,
   },
   content: {
-    backgroundColor: tokens.surfaceRaised,
-    borderColor: tokens.surfaceRaisedBorder,
+    backgroundColor: colors.backgroundSurfaceOverlay,
+    borderColor: colors.borderDefault,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
     boxShadow: tokens.shadowXLarge,
-    color: tokens.foreground,
+    color: colors.foregroundPrimary,
     height: "fit-content",
     inset: 0,
     margin: "auto",

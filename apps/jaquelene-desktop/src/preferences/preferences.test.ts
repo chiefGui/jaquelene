@@ -6,6 +6,7 @@ import {
   InterfaceScale,
   MotionPreference,
   UiFont,
+  UiTheme,
 } from "@/feature/appearance/user-interface/preferences";
 import { createPreferences } from "./preferences";
 
@@ -34,6 +35,7 @@ describe("preferences storage", () => {
       brandId: "brand-a",
     };
 
+    preferences.appearance.userInterface.setTheme(UiTheme.Dracula);
     preferences.appearance.userInterface.setFont(UiFont.Geist);
     preferences.appearance.userInterface.setScale(InterfaceScale.Percent125);
     preferences.appearance.userInterface.setMotion(MotionPreference.Full);
@@ -42,6 +44,7 @@ describe("preferences storage", () => {
 
     const restored = createPreferences(directory);
     expect(restored.appearance.userInterface.get()).toEqual({
+      theme: UiTheme.Dracula,
       font: UiFont.Geist,
       scale: InterfaceScale.Percent125,
       motion: MotionPreference.Full,
@@ -59,6 +62,42 @@ describe("preferences storage", () => {
     );
 
     expect(createPreferences(directory).campaign.getDefaultModel()).toBeNull();
+  });
+
+  it("resets an incompatible preferences file", () => {
+    const directory = createUserDataDirectory();
+    writeFileSync(
+      join(directory, "preferences.json"),
+      JSON.stringify({
+        appearance: {
+          userInterface: {
+            font: UiFont.Geist,
+            scale: InterfaceScale.Percent125,
+            motion: MotionPreference.Full,
+          },
+        },
+        campaign: {
+          defaultModel: {
+            providerId: "provider-a",
+            modelId: "model-a",
+            name: "Model A",
+            brandId: "brand-a",
+          },
+        },
+        diagnostics: { writeToDisk: false },
+      }),
+    );
+
+    const preferences = createPreferences(directory);
+
+    expect(preferences.appearance.userInterface.get()).toEqual({
+      theme: UiTheme.Jaquelene,
+      font: UiFont.Inter,
+      scale: InterfaceScale.Percent100,
+      motion: MotionPreference.System,
+    });
+    expect(preferences.campaign.getDefaultModel()).toBeNull();
+    expect(preferences.diagnostics.get()).toEqual({ writeToDisk: true });
   });
 
   it("deletes every preference group and reports the restored interface defaults", () => {
@@ -79,6 +118,7 @@ describe("preferences storage", () => {
     preferences.deleteAll();
 
     expect(preferences.appearance.userInterface.get()).toEqual({
+      theme: UiTheme.Jaquelene,
       font: UiFont.Inter,
       scale: InterfaceScale.Percent100,
       motion: MotionPreference.System,
@@ -87,6 +127,7 @@ describe("preferences storage", () => {
     expect(preferences.diagnostics.get()).toEqual({ writeToDisk: true });
     expect(listener).toHaveBeenCalledOnce();
     expect(listener).toHaveBeenCalledWith({
+      theme: UiTheme.Jaquelene,
       font: UiFont.Inter,
       scale: InterfaceScale.Percent100,
       motion: MotionPreference.System,

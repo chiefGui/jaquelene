@@ -4,7 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { StorageCategory, type StorageAreaUsage, type StorageUsage } from "@jaquelene/ipc/renderer";
 import { Button, IconButton, Item, formatBytes } from "@jaquelene/ui";
 import { ConfirmDialog, type ConfirmDialogProps } from "@jaquelene/ui/confirm-dialog";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -365,7 +365,7 @@ const styles = stylex.create({
     justifyContent: "space-between",
   },
   totalValue: {
-    color: tokens.foreground,
+    color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeLarge,
     fontWeight: 600,
     lineHeight: tokens.lineHeightLarge,
@@ -416,16 +416,16 @@ const styles = stylex.create({
     width: "0.5rem",
   },
   content: {
-    color: tokens.storageContent,
+    color: colors.chartStorageContent,
   },
   cache: {
-    color: tokens.storageCache,
+    color: colors.chartStorageCache,
   },
   appData: {
-    color: tokens.storageAppData,
+    color: colors.chartStorageAppData,
   },
   logs: {
-    color: tokens.storageLogs,
+    color: colors.chartStorageLogs,
   },
 });
 

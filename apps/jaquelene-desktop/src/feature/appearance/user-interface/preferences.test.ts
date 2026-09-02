@@ -4,9 +4,11 @@ import {
   InterfaceScale,
   MotionPreference,
   UiFont,
+  UiTheme,
   type InterfaceScale as InterfaceScaleValue,
   type MotionPreference as MotionPreferenceValue,
   type UiFont as UiFontValue,
+  type UiTheme as UiThemeValue,
   type UserInterfacePreferenceValues,
 } from "./preferences";
 
@@ -32,21 +34,31 @@ describe("user interface preferences", () => {
     const preferences = createPreferences();
 
     expect(preferences.get()).toEqual({
+      theme: UiTheme.Jaquelene,
+      font: UiFont.Inter,
+      scale: InterfaceScale.Percent100,
+      motion: MotionPreference.System,
+    });
+    expect(preferences.setTheme(UiTheme.Dracula)).toEqual({
+      theme: UiTheme.Dracula,
       font: UiFont.Inter,
       scale: InterfaceScale.Percent100,
       motion: MotionPreference.System,
     });
     expect(preferences.setFont(UiFont.Geist)).toEqual({
+      theme: UiTheme.Dracula,
       font: UiFont.Geist,
       scale: InterfaceScale.Percent100,
       motion: MotionPreference.System,
     });
     expect(preferences.setScale(InterfaceScale.Percent125)).toEqual({
+      theme: UiTheme.Dracula,
       font: UiFont.Geist,
       scale: InterfaceScale.Percent125,
       motion: MotionPreference.System,
     });
     expect(preferences.setMotion(MotionPreference.Reduced)).toEqual({
+      theme: UiTheme.Dracula,
       font: UiFont.Geist,
       scale: InterfaceScale.Percent125,
       motion: MotionPreference.Reduced,
@@ -60,6 +72,7 @@ describe("user interface preferences", () => {
 
     preferences.setScale(InterfaceScale.Percent125);
     expect(listener).toHaveBeenLastCalledWith({
+      theme: UiTheme.Jaquelene,
       font: UiFont.Inter,
       scale: InterfaceScale.Percent125,
       motion: MotionPreference.System,
@@ -74,6 +87,12 @@ describe("user interface preferences", () => {
     const preferences = createPreferences();
 
     expect(() => preferences.setFont("unknown" as UiFontValue)).toThrow(TypeError);
+  });
+
+  it("rejects an unknown theme", () => {
+    const preferences = createPreferences();
+
+    expect(() => preferences.setTheme("unknown" as UiThemeValue)).toThrow(TypeError);
   });
 
   it("rejects an unsupported scale", () => {

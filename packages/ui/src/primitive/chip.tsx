@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps, ReactNode } from "react";
-import { tokens } from "../theme.stylex";
+import { colors, tokens } from "../tokens.stylex";
 import { Button, type ButtonProps } from "./button";
 
 export type ChipStartEdge = "notched" | "rounded";
@@ -175,7 +175,7 @@ const styles = stylex.create({
     position: "relative",
   },
   divider: {
-    color: tokens.surfaceRaisedBorder,
+    color: colors.borderDefault,
     display: "block",
     height: "1.375rem",
     pointerEvents: "none",
@@ -197,7 +197,7 @@ const styles = stylex.create({
     borderColor: "transparent",
   },
   action: {
-    borderColor: tokens.surfaceRaisedBorder,
+    borderColor: colors.borderDefault,
   },
   label: {
     minWidth: 0,

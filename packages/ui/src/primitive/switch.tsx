@@ -4,7 +4,7 @@ import {
 } from "@ariakit/react/button";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { tokens } from "../theme.stylex";
+import { colors, tokens } from "../tokens.stylex";
 
 export type SwitchProps = Omit<
   AriakitButtonProps,
@@ -51,8 +51,8 @@ const styles = stylex.create({
     width: "2.5rem",
   },
   track: {
-    backgroundColor: tokens.surfaceRaised,
-    borderColor: tokens.surfaceRaisedBorder,
+    backgroundColor: colors.backgroundSurfaceRaised,
+    borderColor: colors.borderDefault,
     borderRadius: "9999px",
     borderStyle: "solid",
     borderWidth: 1,
@@ -61,8 +61,7 @@ const styles = stylex.create({
     height: "1.125rem",
     outlineColor: {
       default: null,
-      [stylex.when.ancestor("[data-focus-visible]")]:
-        `color-mix(in oklch, ${tokens.accent} 70%, transparent)`,
+      [stylex.when.ancestor("[data-focus-visible]")]: colors.focusRing,
     },
     outlineOffset: {
       default: null,
@@ -80,11 +79,11 @@ const styles = stylex.create({
     width: "2rem",
   },
   trackChecked: {
-    backgroundColor: `color-mix(in oklch, ${tokens.accent} 72%, ${tokens.canvas})`,
-    borderColor: `color-mix(in oklch, ${tokens.accent} 65%, ${tokens.surfaceRaisedBorder})`,
+    backgroundColor: colors.backgroundControlChecked,
+    borderColor: colors.borderControlChecked,
   },
   thumb: {
-    backgroundColor: tokens.foreground,
+    backgroundColor: colors.backgroundControlThumb,
     borderRadius: "9999px",
     display: "block",
     height: "0.875rem",
@@ -92,6 +91,7 @@ const styles = stylex.create({
     width: "0.875rem",
   },
   thumbChecked: {
+    backgroundColor: colors.backgroundControlThumbChecked,
     transform: "translateX(0.875rem)",
   },
 });

@@ -1,5 +1,5 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 
@@ -36,13 +36,13 @@ const styles = stylex.create({
     width: "100%",
   },
   title: {
-    color: tokens.foreground,
+    color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     textBox: "trim-both text",
   },
   description: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     textBox: "trim-both text",

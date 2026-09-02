@@ -3,6 +3,7 @@ import {
   MotionPreference as IpcMotionPreference,
   UserInterfacePreferences as UserInterfacePreferencesIpc,
   UiFont as IpcUiFont,
+  UiTheme as IpcUiTheme,
   type UserInterfacePreferenceValues as IpcUserInterfacePreferenceValues,
 } from "@jaquelene/ipc/main";
 import type { WebContents } from "electron";
@@ -10,13 +11,33 @@ import {
   InterfaceScale,
   MotionPreference,
   UiFont,
+  UiTheme,
   type InterfaceScale as InterfaceScaleValue,
   type MotionPreference as MotionPreferenceValue,
   type UserInterfacePreferences,
   type UserInterfacePreferenceValues,
   type UiFont as UiFontValue,
+  type UiTheme as UiThemeValue,
 } from "./preferences";
 import { applyInterfaceScale } from "./zoom";
+
+function toIpcTheme(theme: UiThemeValue) {
+  switch (theme) {
+    case UiTheme.Jaquelene:
+      return IpcUiTheme.Jaquelene;
+    case UiTheme.Dracula:
+      return IpcUiTheme.Dracula;
+  }
+}
+
+function fromIpcTheme(theme: IpcUiTheme): UiThemeValue {
+  switch (theme) {
+    case IpcUiTheme.Jaquelene:
+      return UiTheme.Jaquelene;
+    case IpcUiTheme.Dracula:
+      return UiTheme.Dracula;
+  }
+}
 
 function toIpcScale(scale: InterfaceScaleValue) {
   switch (scale) {
@@ -90,6 +111,7 @@ function fromIpcMotion(motion: IpcMotionPreference): MotionPreferenceValue {
 
 function toIpcValues(values: UserInterfacePreferenceValues): IpcUserInterfacePreferenceValues {
   return {
+    theme: toIpcTheme(values.theme),
     font: toIpcFont(values.font),
     scale: toIpcScale(values.scale),
     motion: toIpcMotion(values.motion),
@@ -117,6 +139,7 @@ export function exposeUserInterfacePreferences(
 
   UserInterfacePreferencesIpc.for(contents.mainFrame).setImplementation({
     get: () => toIpcValues(preferences.get()),
+    setTheme: (theme) => toIpcValues(preferences.setTheme(fromIpcTheme(theme))),
     setFont: (font) => toIpcValues(preferences.setFont(fromIpcFont(font))),
     setScale: (scale) => toIpcValues(preferences.setScale(fromIpcScale(scale))),
     setMotion: (motion) => toIpcValues(preferences.setMotion(fromIpcMotion(motion))),

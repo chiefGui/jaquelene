@@ -8,7 +8,7 @@ import {
 } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { Select } from "@jaquelene/ui/select";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { keepPreviousData, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -321,15 +321,15 @@ const styles = stylex.create({
   metricTab: {
     backgroundColor: "transparent",
     color: {
-      default: tokens.muted,
-      ':is([aria-selected="true"])': tokens.foreground,
-      ":hover": tokens.foreground,
+      default: colors.foregroundSecondary,
+      ':is([aria-selected="true"])': colors.foregroundPrimary,
+      ":hover": colors.foregroundPrimary,
     },
     fontSize: tokens.fontSizeBase,
     lineHeight: tokens.lineHeightBase,
     outlineColor: {
       default: null,
-      ":focus-visible": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
+      ":focus-visible": colors.focusRing,
     },
     outlineOffset: 3,
     outlineStyle: {
@@ -347,12 +347,12 @@ const styles = stylex.create({
   },
   metricLabel: {
     color: {
-      default: `color-mix(in oklab, ${tokens.muted} 72%, transparent)`,
-      [stylex.when.ancestor('[aria-selected="true"]')]: tokens.muted,
+      default: `color-mix(in oklab, ${colors.foregroundSecondary} 72%, transparent)`,
+      [stylex.when.ancestor('[aria-selected="true"]')]: colors.foregroundSecondary,
     },
   },
   note: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.75rem",

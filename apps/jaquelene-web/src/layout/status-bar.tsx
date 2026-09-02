@@ -1,4 +1,4 @@
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 
 export function StatusBar() {
@@ -14,7 +14,7 @@ export function StatusBar() {
 const styles = stylex.create({
   root: {
     alignItems: "center",
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     display: "flex",
     fontSize: tokens.fontSizeXSmall,
     gridColumn: "span 2 / span 2",

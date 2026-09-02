@@ -1,6 +1,6 @@
 import type { UsageBucket, UsageOverview } from "@jaquelene/ipc/renderer";
 import { formatCount, formatCurrencyNanos } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { summarizeCosts } from "./presentation";
@@ -194,7 +194,7 @@ const styles = stylex.create({
     marginTop: "1.5rem",
   },
   readout: {
-    color: tokens.foreground,
+    color: colors.foregroundPrimary,
     display: "flex",
     fontSize: tokens.fontSizeSmall,
     justifyContent: "space-between",
@@ -202,7 +202,7 @@ const styles = stylex.create({
     minHeight: tokens.lineHeightSmall,
   },
   readoutDate: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
   },
   plot: {
     alignItems: "stretch",
@@ -215,14 +215,14 @@ const styles = stylex.create({
     alignItems: "flex-end",
     backgroundColor: {
       default: "transparent",
-      ":hover": `color-mix(in oklab, ${tokens.accent} 8%, transparent)`,
+      ":hover": `color-mix(in oklab, ${colors.foregroundAccent} 8%, transparent)`,
     },
     borderRadius: tokens.radiusSmall,
     display: "flex",
     minWidth: 0,
     outlineColor: {
       default: null,
-      ":focus-visible": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
+      ":focus-visible": colors.focusRing,
     },
     outlineOffset: -1,
     outlineStyle: {
@@ -237,9 +237,10 @@ const styles = stylex.create({
   },
   bar: {
     backgroundColor: {
-      default: `color-mix(in oklab, ${tokens.muted} 28%, transparent)`,
-      [stylex.when.ancestor('[aria-selected="true"]')]: tokens.accent,
-      [stylex.when.ancestor(":hover")]: `color-mix(in oklab, ${tokens.accent} 68%, transparent)`,
+      default: `color-mix(in oklab, ${colors.foregroundSecondary} 28%, transparent)`,
+      [stylex.when.ancestor('[aria-selected="true"]')]: colors.foregroundAccent,
+      [stylex.when.ancestor(":hover")]:
+        `color-mix(in oklab, ${colors.foregroundAccent} 68%, transparent)`,
     },
     borderRadius: "0.125rem 0.125rem 0 0",
     height: "var(--usage-bar-height)",
@@ -248,7 +249,7 @@ const styles = stylex.create({
   },
   empty: {
     alignItems: "center",
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     display: "flex",
     fontSize: tokens.fontSizeSmall,
     height: "10rem",
@@ -257,7 +258,7 @@ const styles = stylex.create({
     marginTop: "0.75rem",
   },
   axis: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     display: "flex",
     fontSize: tokens.fontSizeXSmall,
     justifyContent: "space-between",

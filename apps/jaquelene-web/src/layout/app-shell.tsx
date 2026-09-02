@@ -1,11 +1,12 @@
 import { MotionProvider } from "@jaquelene/ui/motion";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Outlet, useMatches } from "@tanstack/react-router";
 import { useApplyUiFont } from "@/feature/appearance/user-interface/font";
 import { motionPreferences } from "@/feature/appearance/user-interface/motion";
 import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
+import { useApplyUiTheme } from "@/feature/appearance/user-interface/theme";
 import { ContentPane } from "./content-pane";
 import { SecondarySidebarHost, SecondarySidebarHostProvider } from "./secondary-sidebar-host";
 import { StatusBar } from "./status-bar";
@@ -16,6 +17,7 @@ export function AppShell() {
     select: (matches) =>
       matches.findLast(({ staticData }) => staticData.primarySidebar)?.staticData.primarySidebar,
   });
+  useApplyUiTheme(preferences.theme);
   useApplyUiFont(preferences.font);
 
   if (!Sidebar) {
@@ -42,8 +44,8 @@ export function AppShell() {
 
 const styles = stylex.create({
   root: {
-    backgroundColor: tokens.canvas,
-    color: tokens.foreground,
+    backgroundColor: colors.backgroundCanvas,
+    color: colors.foregroundPrimary,
     display: "grid",
     fontSize: tokens.fontSizeSmall,
     gridTemplateColumns: "14rem minmax(0, 1fr)",

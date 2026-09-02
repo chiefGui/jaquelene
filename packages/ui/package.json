@@ -10,7 +10,8 @@
     "./motion": "./src/primitive/motion.tsx",
     "./popover": "./src/primitive/popover.tsx",
     "./select": "./src/primitive/select.tsx",
-    "./theme.stylex": "./src/theme.stylex.ts",
+    "./theme/dracula": "./src/theme/dracula.ts",
+    "./tokens.stylex": "./src/tokens.stylex.ts",
     "./tooltip": "./src/primitive/tooltip.tsx"
   },
   "dependencies": {

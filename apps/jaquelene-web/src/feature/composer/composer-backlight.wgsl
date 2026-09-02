@@ -4,6 +4,10 @@ struct ComposerBacklightParams {
   border_radius: f32,
   outset: f32,
   pixel_scale: f32,
+  palette_start: vec4f,
+  palette_first_blend: vec4f,
+  palette_second_blend: vec4f,
+  palette_end: vec4f,
 }
 
 @group(0) @binding(0) var<uniform> params: ComposerBacklightParams;
@@ -63,24 +67,27 @@ fn rounded_box_path(point: vec2f, half_extent: vec2f, radius: f32) -> vec2f {
 }
 
 fn backlight_color(position: f32) -> vec3f {
-  let magenta = vec3f(0.9, 0.34, 0.96);
-  let ultraviolet = vec3f(0.52, 0.34, 1.0);
-  let electric_blue = vec3f(0.28, 0.52, 1.0);
-  let ice_cyan = vec3f(0.2, 0.88, 1.0);
-
   if (position < 0.32) {
-    return mix(magenta, ultraviolet, smoothstep(0.0, 0.32, position));
+    return mix(
+      params.palette_start.rgb,
+      params.palette_first_blend.rgb,
+      smoothstep(0.0, 0.32, position),
+    );
   }
 
   if (position < 0.68) {
     return mix(
-      ultraviolet,
-      electric_blue,
+      params.palette_first_blend.rgb,
+      params.palette_second_blend.rgb,
       smoothstep(0.32, 0.68, position),
     );
   }
 
-  return mix(electric_blue, ice_cyan, smoothstep(0.68, 1.0, position));
+  return mix(
+    params.palette_second_blend.rgb,
+    params.palette_end.rgb,
+    smoothstep(0.68, 1.0, position),
+  );
 }
 
 @fragment

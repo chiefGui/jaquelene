@@ -5,7 +5,7 @@ import {
   type TurnGeneration,
 } from "@jaquelene/ipc/renderer";
 import { Button, formatTimestamp } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/theme.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { memo } from "react";
 import { Markdown } from "../markdown/markdown";
@@ -141,16 +141,16 @@ const styles = stylex.create({
     paddingInline: "0.75rem",
   },
   userBubble: {
-    backgroundColor: `color-mix(in oklab, ${tokens.accent} 22%, ${tokens.surfaceRaised})`,
+    backgroundColor: colors.backgroundSelected,
   },
   assistantBubble: {
-    backgroundColor: tokens.surfaceRaised,
-    borderColor: tokens.surfaceRaisedBorder,
+    backgroundColor: colors.backgroundSurfaceRaised,
+    borderColor: colors.borderDefault,
     borderStyle: "solid",
     borderWidth: 1,
   },
   timestamp: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.375rem",
@@ -163,19 +163,19 @@ const styles = stylex.create({
     marginTop: "0.375rem",
   },
   replyStatus: {
-    color: tokens.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
   },
   replyFailure: {
-    color: tokens.danger,
+    color: colors.foregroundDanger,
   },
   retryButton: {
     height: "2rem",
     paddingInline: "0.5rem",
   },
   retryError: {
-    color: tokens.danger,
+    color: colors.foregroundDanger,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
   },

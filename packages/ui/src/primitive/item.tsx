@@ -8,7 +8,13 @@ type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
 };
 
-const ItemGroupContext = createContext(false);
+type ItemGroupVariant = "connected" | "separated";
+
+type ItemGroupProps = StyleableProps<RoleProps<"div">> & {
+  variant?: ItemGroupVariant;
+};
+
+const ItemGroupContext = createContext<ItemGroupVariant | null>(null);
 
 function ItemSection({ style, ...props }: StyleableProps<RoleProps<"section">>) {
   return <Role.section {...props} {...stylex.props(styles.section, style)} />;
@@ -16,6 +22,10 @@ function ItemSection({ style, ...props }: StyleableProps<RoleProps<"section">>) 
 
 function ItemSectionHeader({ style, ...props }: StyleableProps<RoleProps<"div">>) {
   return <Role.div {...props} {...stylex.props(styles.sectionHeader, style)} />;
+}
+
+function ItemSectionContent({ style, ...props }: StyleableProps<RoleProps<"div">>) {
+  return <Role.div {...props} {...stylex.props(styles.sectionContent, style)} />;
 }
 
 function ItemHeading({ style, ...props }: StyleableProps<RoleProps<"h2">>) {
@@ -26,10 +36,10 @@ function ItemSectionDescription({ style, ...props }: StyleableProps<RoleProps<"p
   return <Role.p {...props} {...stylex.props(styles.sectionDescription, style)} />;
 }
 
-function ItemGroup({ children, style, ...props }: StyleableProps<RoleProps<"div">>) {
+function ItemGroup({ children, style, variant = "connected", ...props }: ItemGroupProps) {
   return (
-    <ItemGroupContext.Provider value={true}>
-      <Role.div {...props} {...stylex.props(styles.group, style)}>
+    <ItemGroupContext.Provider value={variant}>
+      <Role.div {...props} {...stylex.props(groupStyles[variant], style)}>
         {children}
       </Role.div>
     </ItemGroupContext.Provider>
@@ -37,8 +47,13 @@ function ItemGroup({ children, style, ...props }: StyleableProps<RoleProps<"div"
 }
 
 function ItemRoot({ style, ...props }: StyleableProps<RoleProps<"div">>) {
-  const grouped = useContext(ItemGroupContext);
-  return <Role.div {...props} {...stylex.props(styles.root, grouped && styles.groupItem, style)} />;
+  const groupVariant = useContext(ItemGroupContext);
+  return (
+    <Role.div
+      {...props}
+      {...stylex.props(styles.root, groupVariant && groupItemStyles[groupVariant], style)}
+    />
+  );
 }
 
 function ItemContent({ style, ...props }: StyleableProps<RoleProps<"div">>) {
@@ -64,6 +79,7 @@ function ItemValueText({ style, ...props }: StyleableProps<RoleProps<"span">>) {
 export const Item = {
   Section: ItemSection,
   SectionHeader: ItemSectionHeader,
+  SectionContent: ItemSectionContent,
   Heading: ItemHeading,
   SectionDescription: ItemSectionDescription,
   Group: ItemGroup,
@@ -85,13 +101,19 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     gap: "0.5rem",
+    paddingInline: "1rem",
+  },
+  sectionContent: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.25rem",
+    minWidth: 0,
   },
   heading: {
     color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeSmall,
     fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
-    paddingInline: "1rem",
     textBox: "trim-both text",
   },
   sectionDescription: {
@@ -99,16 +121,19 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     margin: 0,
-    paddingInline: "1rem",
     textBox: "trim-both text",
   },
-  group: {
+  groupSurface: {
     backgroundColor: colors.backgroundNeutralSubtlest,
     borderColor: colors.borderSubtle,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
     overflow: "hidden",
+  },
+  groupSeparated: {
+    display: "grid",
+    gap: "0.75rem",
   },
   root: {
     alignItems: "center",
@@ -118,7 +143,7 @@ const styles = stylex.create({
     minHeight: "3.5rem",
     padding: "1rem",
   },
-  groupItem: {
+  groupItemConnected: {
     borderColor: colors.borderSubtle,
     borderStyle: "solid",
     borderTopWidth: {
@@ -153,3 +178,13 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
 });
+
+const groupStyles = {
+  connected: styles.groupSurface,
+  separated: styles.groupSeparated,
+} satisfies Record<ItemGroupVariant, StyleXStyles>;
+
+const groupItemStyles = {
+  connected: styles.groupItemConnected,
+  separated: styles.groupSurface,
+} satisfies Record<ItemGroupVariant, StyleXStyles>;

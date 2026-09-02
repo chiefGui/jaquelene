@@ -57,6 +57,7 @@ const styles = stylex.create({
     display: "inline-flex",
     flexShrink: 0,
     fontWeight: 500,
+    gap: "0.375rem",
     justifyContent: "center",
     opacity: {
       default: 1,

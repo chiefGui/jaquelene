@@ -1,48 +1,39 @@
 import {
-  ROLEPLAY_INSTRUCTION_BODY_MAX_LENGTH,
+  Form as AriakitForm,
+  FormDescription,
+  FormError,
+  FormInput,
+  FormLabel,
+  useFormStore,
+  useFormSubmit,
+} from "@ariakit/react/form";
+import { useStoreState } from "@ariakit/react/store";
+import {
   ROLEPLAY_INSTRUCTION_BODY_MAX_UTF16_LENGTH,
-  ROLEPLAY_INSTRUCTION_TITLE_MAX_LENGTH,
   ROLEPLAY_INSTRUCTION_TITLE_MAX_UTF16_LENGTH,
   roleplayInstructionInputSchema,
+  type RoleplayInstructionInput,
 } from "@jaquelene/domain";
 import type { Instruction } from "@jaquelene/ipc/renderer";
-import { Button, Field, Form, Input, formatCount } from "@jaquelene/ui";
+import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
 import { Dialog } from "@jaquelene/ui/dialog";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useId, useState, type ReactElement, type SubmitEvent } from "react";
+import { useId, useState, type ReactElement } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import type { FormValidationIssue } from "@/feature/form/zod";
+import { useRoleplayInstructionFormValidation } from "./form";
 import { useCreateRoleplayInstruction, useUpdateRoleplayInstruction } from "./query";
-
-type EditorErrors = Partial<Record<"body" | "title", string>>;
 
 type RoleplayInstructionEditorProps = {
   instruction?: Instruction;
   trigger: ReactElement;
 };
 
-function formatEditorErrors(issues: readonly FormValidationIssue[]): EditorErrors {
-  const errors: EditorErrors = {};
-
-  for (const issue of issues) {
-    const field = issue.path.at(-1);
-
-    if ((field !== "title" && field !== "body") || errors[field]) {
-      continue;
-    }
-
-    errors[field] =
-      issue.code === "too_big"
-        ? field === "title"
-          ? `Use ${formatCount(ROLEPLAY_INSTRUCTION_TITLE_MAX_LENGTH)} characters or fewer.`
-          : `Use ${formatCount(ROLEPLAY_INSTRUCTION_BODY_MAX_LENGTH)} characters or fewer.`
-        : field === "title"
-          ? "Enter a title."
-          : "Enter instruction text.";
-  }
-
-  return errors;
+function getEditorValues(instruction?: Instruction): RoleplayInstructionInput {
+  return {
+    body: instruction?.body ?? "",
+    title: instruction?.title ?? "",
+  };
 }
 
 export function RoleplayInstructionEditor({
@@ -51,53 +42,36 @@ export function RoleplayInstructionEditor({
 }: RoleplayInstructionEditorProps) {
   const createInstruction = useCreateRoleplayInstruction();
   const updateInstruction = useUpdateRoleplayInstruction();
+  const form = useFormStore({
+    defaultValues: getEditorValues(instruction),
+  });
+  const submitting = useStoreState(form, "submitting");
+  const hasSubmitted = useStoreState(
+    form,
+    ["submitFailed", "submitSucceed"],
+    (state) => state.submitFailed > 0 || state.submitSucceed > 0,
+  );
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState(instruction?.title ?? "");
-  const [body, setBody] = useState(instruction?.body ?? "");
-  const [errors, setErrors] = useState<EditorErrors>({});
   const [operationError, setOperationError] = useState<string | null>(null);
-  const titleId = useId();
-  const titleErrorId = useId();
-  const bodyId = useId();
-  const bodyErrorId = useId();
   const operationErrorId = useId();
-  const pending = createInstruction.isPending || updateInstruction.isPending;
   const editing = Boolean(instruction);
+  let submitLabel = editing ? "Save" : "Create";
 
-  function setEditorOpen(nextOpen: boolean) {
-    if (pending) {
-      return;
-    }
-
-    if (nextOpen) {
-      createInstruction.reset();
-      updateInstruction.reset();
-      setTitle(instruction?.title ?? "");
-      setBody(instruction?.body ?? "");
-      setErrors({});
-      setOperationError(null);
-    }
-
-    setOpen(nextOpen);
+  if (submitting) {
+    submitLabel = "Saving…";
   }
 
-  async function save(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const result = roleplayInstructionInputSchema.safeParse({ title, body });
-
-    if (!result.success) {
-      setErrors(formatEditorErrors(result.error.issues));
-      return;
-    }
-
-    setErrors({});
+  useRoleplayInstructionFormValidation(form);
+  useFormSubmit(form, async (state) => {
     setOperationError(null);
 
     try {
+      const input = roleplayInstructionInputSchema.parse(state.values);
+
       if (instruction) {
-        await updateInstruction.mutateAsync({ key: instruction.key, input: result.data });
+        await updateInstruction.mutateAsync({ key: instruction.key, input });
       } else {
-        await createInstruction.mutateAsync(result.data);
+        await createInstruction.mutateAsync(input);
       }
       setOpen(false);
     } catch (cause) {
@@ -106,6 +80,20 @@ export function RoleplayInstructionEditor({
         editing ? "Couldn’t save this instruction." : "Couldn’t create this instruction.",
       );
     }
+  });
+
+  function setEditorOpen(nextOpen: boolean) {
+    if (submitting) {
+      return;
+    }
+
+    if (nextOpen) {
+      form.reset();
+      form.setValues(getEditorValues(instruction));
+      setOperationError(null);
+    }
+
+    setOpen(nextOpen);
   }
 
   return (
@@ -113,67 +101,80 @@ export function RoleplayInstructionEditor({
       <Dialog.Trigger render={trigger} />
 
       <Dialog.Content
-        aria-busy={pending || undefined}
         aria-describedby={operationError ? operationErrorId : undefined}
-        hideOnEscape={!pending}
-        hideOnInteractOutside={!pending}
+        hideOnEscape={!submitting}
+        hideOnInteractOutside={!submitting}
         style={styles.dialog}
       >
         <Dialog.Heading {...stylex.props(styles.dialogHeading)}>
           {editing ? "Edit roleplay instruction" : "Create roleplay instruction"}
         </Dialog.Heading>
 
-        <form onSubmit={save} {...stylex.props(styles.editor)}>
+        <AriakitForm
+          store={form}
+          aria-busy={submitting || undefined}
+          onSubmit={() => setOperationError(null)}
+          render={<FormLayout.Root style={styles.editor} />}
+          resetOnSubmit={false}
+          validateOnBlur={hasSubmitted}
+          validateOnChange={hasSubmitted}
+        >
           <Field.Root>
-            <Field.Label htmlFor={titleId}>Title</Field.Label>
-            <Input
-              id={titleId}
-              type="text"
-              autoFocus
-              value={title}
-              maxLength={ROLEPLAY_INSTRUCTION_TITLE_MAX_UTF16_LENGTH}
-              disabled={pending}
-              aria-invalid={Boolean(errors.title)}
-              aria-describedby={errors.title ? titleErrorId : undefined}
-              onChange={(event) => setTitle(event.currentTarget.value)}
-              style={styles.titleInput}
+            <FormLabel name={form.names.title} render={<Field.Label />}>
+              Title
+            </FormLabel>
+            <FormInput
+              name={form.names.title}
+              render={
+                <Input
+                  type="text"
+                  autoFocus
+                  maxLength={ROLEPLAY_INSTRUCTION_TITLE_MAX_UTF16_LENGTH}
+                  disabled={submitting}
+                  style={styles.titleInput}
+                />
+              }
             />
-            <Field.Error id={titleErrorId}>{errors.title}</Field.Error>
+            <FormError name={form.names.title} render={<Field.Error />} />
           </Field.Root>
 
           <Field.Root>
-            <Field.Label htmlFor={bodyId}>Instructions</Field.Label>
-            <Field.Description>Only this text is sent to the model.</Field.Description>
-            <textarea
-              id={bodyId}
-              value={body}
-              maxLength={ROLEPLAY_INSTRUCTION_BODY_MAX_UTF16_LENGTH}
-              disabled={pending}
-              aria-invalid={Boolean(errors.body)}
-              aria-describedby={errors.body ? bodyErrorId : undefined}
-              onChange={(event) => setBody(event.currentTarget.value)}
-              {...stylex.props(styles.bodyInput)}
+            <FormLabel name={form.names.body} render={<Field.Label />}>
+              Instructions
+            </FormLabel>
+            <FormDescription name={form.names.body} render={<Field.Description />}>
+              Only this text is sent to the model.
+            </FormDescription>
+            <FormInput
+              name={form.names.body}
+              render={
+                <textarea
+                  maxLength={ROLEPLAY_INSTRUCTION_BODY_MAX_UTF16_LENGTH}
+                  disabled={submitting}
+                  {...stylex.props(styles.bodyInput)}
+                />
+              }
             />
-            <Field.Error id={bodyErrorId}>{errors.body}</Field.Error>
+            <FormError name={form.names.body} render={<Field.Error />} />
           </Field.Root>
 
-          <Form.Status
+          <FormLayout.Status
             id={operationErrorId}
             role={operationError ? "alert" : undefined}
             tone={operationError ? "danger" : "neutral"}
           >
             {operationError}
-          </Form.Status>
+          </FormLayout.Status>
 
           <div {...stylex.props(styles.dialogActions)}>
-            <Dialog.Dismiss disabled={pending} render={<Button type="button" variant="ghost" />}>
+            <Dialog.Dismiss disabled={submitting} render={<Button type="button" variant="ghost" />}>
               Cancel
             </Dialog.Dismiss>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Saving…" : editing ? "Save" : "Create"}
+            <Button type="submit" disabled={submitting}>
+              {submitLabel}
             </Button>
           </div>
-        </form>
+        </AriakitForm>
       </Dialog.Content>
     </Dialog.Root>
   );
@@ -189,9 +190,6 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightLarge,
   },
   editor: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.75rem",
     marginTop: "1rem",
   },
   titleInput: {

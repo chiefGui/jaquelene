@@ -286,10 +286,12 @@ function StorageRoute() {
         <ContentPane.Body>
           <Item.Section aria-labelledby={usageHeadingId} aria-describedby={usageDescriptionId}>
             <Item.SectionHeader>
-              <Item.Heading id={usageHeadingId}>Usage</Item.Heading>
-              <Item.SectionDescription id={usageDescriptionId}>
-                Everything listed here is stored on this device.
-              </Item.SectionDescription>
+              <Item.SectionContent>
+                <Item.Heading id={usageHeadingId}>Usage</Item.Heading>
+                <Item.SectionDescription id={usageDescriptionId}>
+                  Everything listed here is stored on this device.
+                </Item.SectionDescription>
+              </Item.SectionContent>
             </Item.SectionHeader>
 
             <Item.Group>

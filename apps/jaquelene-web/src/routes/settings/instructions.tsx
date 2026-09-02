@@ -1,3 +1,6 @@
+import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
+import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { InstructionOrigin, type Instruction } from "@jaquelene/ipc/renderer";
 import { Badge, Button, Item } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
@@ -42,8 +45,15 @@ function DeleteInstruction({ instruction }: { instruction: Instruction }) {
       open={open}
       setOpen={setConfirmationOpen}
       trigger={
-        <Button type="button" variant="ghost" tone="danger" disabled={deleteInstruction.isPending}>
-          Delete
+        <Button
+          type="button"
+          aria-label={`Delete ${instruction.title}`}
+          size="small"
+          variant="ghost"
+          disabled={deleteInstruction.isPending}
+        >
+          <HugeiconsIcon icon={TrashIcon} size={14} strokeWidth={1.5} aria-hidden="true" />
+          <Button.Label>Delete</Button.Label>
         </Button>
       }
       heading={`Delete “${instruction.title}”?`}
@@ -56,6 +66,21 @@ function DeleteInstruction({ instruction }: { instruction: Instruction }) {
   );
 }
 
+function InstructionSummary({ instruction }: { instruction: Instruction }) {
+  return (
+    <>
+      <span {...stylex.props(styles.instructionHeading)}>
+        <Item.Label render={<span />} style={styles.instructionTitle}>
+          {instruction.title}
+        </Item.Label>
+        {instruction.origin === InstructionOrigin.Factory ? <Badge>Built-in</Badge> : null}
+      </span>
+
+      <span {...stylex.props(styles.instructionBody)}>{instruction.body}</span>
+    </>
+  );
+}
+
 function InstructionItem({ instruction }: { instruction: Instruction }) {
   if (
     instruction.origin !== InstructionOrigin.Custom &&
@@ -64,32 +89,34 @@ function InstructionItem({ instruction }: { instruction: Instruction }) {
     throw new Error(`Unknown instruction origin "${instruction.origin}".`);
   }
 
-  const custom = instruction.origin === InstructionOrigin.Custom;
+  if (instruction.origin === InstructionOrigin.Factory) {
+    return (
+      <Item.Root style={styles.instruction}>
+        <div {...stylex.props(styles.instructionContent)}>
+          <InstructionSummary instruction={instruction} />
+        </div>
+      </Item.Root>
+    );
+  }
 
   return (
     <Item.Root style={styles.instruction}>
-      <div {...stylex.props(styles.instructionHeader)}>
-        <div {...stylex.props(styles.instructionIdentity)}>
-          <Item.Label>{instruction.title}</Item.Label>
-          {custom ? null : <Badge>Built-in</Badge>}
-        </div>
+      <RoleplayInstructionEditor
+        instruction={instruction}
+        trigger={
+          <button
+            type="button"
+            aria-label={`Edit ${instruction.title}`}
+            {...stylex.props(styles.instructionEditSurface)}
+          >
+            <InstructionSummary instruction={instruction} />
+          </button>
+        }
+      />
 
-        {custom ? (
-          <div {...stylex.props(styles.instructionActions)}>
-            <RoleplayInstructionEditor
-              instruction={instruction}
-              trigger={
-                <Button type="button" variant="ghost">
-                  Edit
-                </Button>
-              }
-            />
-            <DeleteInstruction instruction={instruction} />
-          </div>
-        ) : null}
+      <div {...stylex.props(styles.instructionFooter)}>
+        <DeleteInstruction instruction={instruction} />
       </div>
-
-      <p {...stylex.props(styles.instructionBody)}>{instruction.body}</p>
     </Item.Root>
   );
 }
@@ -123,25 +150,31 @@ function InstructionsRoute() {
                 aria-describedby={descriptionId}
               >
                 <Item.SectionHeader style={styles.sectionHeader}>
-                  <div {...stylex.props(styles.sectionIdentity)}>
+                  <Item.SectionContent>
                     <Item.Heading id={headingId}>{group.name}</Item.Heading>
                     <Item.SectionDescription id={descriptionId}>
                       {group.description}
                     </Item.SectionDescription>
-                  </div>
+                  </Item.SectionContent>
 
                   {group.key === "roleplay" ? (
                     <RoleplayInstructionEditor
                       trigger={
-                        <Button type="button" variant="soft">
-                          Create
+                        <Button type="button" variant="ghost">
+                          <HugeiconsIcon
+                            icon={Add01Icon}
+                            size={16}
+                            strokeWidth={1.5}
+                            aria-hidden="true"
+                          />
+                          <Button.Label>Create</Button.Label>
                         </Button>
                       }
                     />
                   ) : null}
                 </Item.SectionHeader>
 
-                <Item.Group>
+                <Item.Group variant="separated">
                   {group.instructions.map((instruction) => (
                     <InstructionItem key={instruction.key} instruction={instruction} />
                   ))}
@@ -161,32 +194,62 @@ const styles = stylex.create({
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  sectionIdentity: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.5rem",
-    minWidth: 0,
-  },
   instruction: {
     display: "block",
+    minHeight: 0,
+    padding: 0,
   },
-  instructionHeader: {
-    alignItems: "center",
-    display: "flex",
-    gap: "0.75rem",
-    justifyContent: "space-between",
+  instructionContent: {
+    minWidth: 0,
+    padding: "1rem",
   },
-  instructionIdentity: {
+  instructionEditSurface: {
+    backgroundColor: {
+      default: "transparent",
+      ":hover": colors.backgroundNeutralSubtler,
+      ":is([data-focus-visible])": colors.backgroundNeutralSubtler,
+    },
+    color: colors.foregroundPrimary,
+    minWidth: 0,
+    outlineColor: {
+      default: null,
+      ":is([data-focus-visible])": colors.focusRing,
+    },
+    outlineOffset: {
+      default: null,
+      ":is([data-focus-visible])": -2,
+    },
+    outlineStyle: {
+      default: "none",
+      ":is([data-focus-visible])": "solid",
+    },
+    outlineWidth: {
+      default: null,
+      ":is([data-focus-visible])": 1,
+    },
+    padding: "1rem",
+    textAlign: "start",
+    width: "100%",
+  },
+  instructionHeading: {
     alignItems: "center",
     display: "flex",
     gap: "0.75rem",
     minWidth: 0,
   },
-  instructionActions: {
+  instructionTitle: {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  instructionFooter: {
     alignItems: "center",
+    borderBlockStartColor: colors.borderSubtle,
+    borderBlockStartStyle: "solid",
+    borderBlockStartWidth: 1,
     display: "flex",
-    flexShrink: 0,
-    gap: "0.25rem",
+    justifyContent: "flex-end",
+    padding: "0.5rem 0.75rem",
   },
   instructionBody: {
     color: colors.foregroundPrimary,

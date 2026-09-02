@@ -9,6 +9,11 @@ import type { Generation } from "#backend/generation/schema";
 import type { ThreadId, TurnId } from "#backend/id";
 import type { ThreadMessage } from "#backend/thread/schema";
 import { requireThreadMessageContent, type ThreadEngine } from "#backend/thread/threads";
+import {
+  createTurnOperationCoordinator,
+  type StartingTurnOperation,
+} from "./operation-coordinator";
+export type { TurnOperationInspection } from "./operation-coordinator";
 
 type TurnGenerationEngine = Pick<
   GenerationEngine,
@@ -108,32 +113,28 @@ export function createTurns(
   threads: TurnThreads,
   generations: TurnGenerationEngine,
 ) {
-  const activeThreadOperations = new Set<ThreadId>();
+  const operationCoordinator = createTurnOperationCoordinator();
 
   async function startExclusive(
     threadId: ThreadId,
+    starting: StartingTurnOperation,
     start: () => TurnOperation | Promise<TurnOperation>,
   ) {
-    if (activeThreadOperations.has(threadId)) {
-      throw new RangeError(`Thread "${threadId}" already has an active turn operation.`);
-    }
-
-    activeThreadOperations.add(threadId);
-
-    let operation: TurnOperation;
+    const lease = operationCoordinator.acquire(threadId, starting);
 
     try {
-      operation = await start();
+      const operation = await start();
+      lease.generating(operation.acceptance.userMessage.turnId, operation.acceptance.generation.id);
+
+      void operation.settlement.then(
+        () => lease.release(),
+        () => lease.release(),
+      );
+      return operation;
     } catch (cause) {
-      activeThreadOperations.delete(threadId);
+      lease.release();
       throw cause;
     }
-
-    void operation.settlement.then(
-      () => activeThreadOperations.delete(threadId),
-      () => activeThreadOperations.delete(threadId),
-    );
-    return operation;
   }
 
   function beginSettlement(
@@ -147,6 +148,10 @@ export function createTurns(
   }
 
   return {
+    inspect(threadId: ThreadId) {
+      return operationCoordinator.inspect(threadId);
+    },
+
     listForThread(request: ListThreadRequest): ThreadActivityPage {
       const page = threads.listMessages(request);
       const generationsForPage = generations.listLatestForTurns(
@@ -166,7 +171,7 @@ export function createTurns(
       requireThreadMessageContent(content);
       assertNotAborted(signal);
 
-      return startExclusive(threadId, async () => {
+      return startExclusive(threadId, { state: "submitting" }, async () => {
         const resolvedConfiguration = await generations.resolveConfiguration(configuration, signal);
         assertNotAborted(signal);
         const accepted = database.transaction((transaction) => {
@@ -204,7 +209,7 @@ export function createTurns(
         throw new RangeError(`Turn "${turnId}" does not exist.`);
       }
 
-      return startExclusive(input.turn.threadId, async () => {
+      return startExclusive(input.turn.threadId, { state: "retrying", turnId }, async () => {
         const resolvedConfiguration = await generations.resolveConfiguration(configuration, signal);
         assertNotAborted(signal);
         const latestGeneration = generations.listLatestForTurns([turnId])[0];

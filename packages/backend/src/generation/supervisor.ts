@@ -1,11 +1,6 @@
-import type {
-  AcceptedReplyGeneration,
-  GenerationEngine,
-  Generations,
-  GenerateReplyRequest,
-} from "./generations";
+import type { AcceptedReplyGeneration, GenerationEngine } from "./generations";
 
-type ReplyGenerationEngine = Pick<GenerationEngine, "executeAcceptedReply" | "executeReply">;
+type ReplyGenerationEngine = Pick<GenerationEngine, "executeAcceptedReply">;
 
 export function superviseGenerations(engine: ReplyGenerationEngine) {
   const shutdownController = new AbortController();
@@ -28,16 +23,6 @@ export function superviseGenerations(engine: ReplyGenerationEngine) {
     return operation;
   }
 
-  function executeReply(request: GenerateReplyRequest) {
-    if (!acceptingWork) {
-      return Promise.reject(new Error("Backend is closed."));
-    }
-
-    const signal = operationSignal(request.signal);
-    const operation = engine.executeReply({ ...request, signal });
-    return trackOperation(operation);
-  }
-
   function scheduleAcceptedReply(accepted: AcceptedReplyGeneration, signal?: AbortSignal) {
     if (!acceptingWork) {
       return Promise.reject(new Error("Backend is closed."));
@@ -51,19 +36,6 @@ export function superviseGenerations(engine: ReplyGenerationEngine) {
     return trackOperation(operation);
   }
 
-  const generations: Generations = {
-    async generateReply(request: GenerateReplyRequest) {
-      const execution = await executeReply(request);
-
-      if (execution.outcome === "failed") {
-        throw execution.cause;
-      }
-
-      const { outcome: _outcome, ...result } = execution;
-      return result;
-    },
-  };
-
   function close() {
     if (!closePromise) {
       acceptingWork = false;
@@ -75,9 +47,7 @@ export function superviseGenerations(engine: ReplyGenerationEngine) {
   }
 
   return {
-    executeReply,
     scheduleAcceptedReply,
-    generations,
     close,
   };
 }

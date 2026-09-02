@@ -523,4 +523,4 @@ export function createThreads(database: Database, now: () => number = Date.now) 
 }
 
 export type ThreadEngine = ReturnType<typeof createThreads>;
-export type Threads = Pick<ThreadEngine, "create" | "get" | "startTurn" | "listMessages">;
+export type Threads = Pick<ThreadEngine, "create" | "get" | "listMessages">;

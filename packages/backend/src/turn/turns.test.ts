@@ -88,10 +88,12 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
 
 function deferred<Result>() {
   let resolve!: (result: Result) => void;
-  const promise = new Promise<Result>((resolvePromise) => {
+  let reject!: (cause: unknown) => void;
+  const promise = new Promise<Result>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
 }
 
 afterEach(async () => {
@@ -115,13 +117,17 @@ describe("turns", () => {
     const { threads, turns } = openTurnEnvironment(generate);
     const thread = threads.create();
 
-    const operation = await turns.submit({
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
+    const pendingSubmission = turns.submit({
       threadId: thread.id,
       content: "Begin the voyage.",
       configuration: {
         model: { providerId: "provider-a", modelId: "maker/model" },
       },
     });
+    expect(turns.inspect(thread.id)).toEqual({ state: "submitting" });
+
+    const operation = await pendingSubmission;
 
     expect(generate).not.toHaveBeenCalled();
     expect(operation.acceptance).toEqual({
@@ -139,6 +145,12 @@ describe("turns", () => {
       }),
     });
     expect(operation.acceptance.generation).not.toHaveProperty("reasoning");
+    expect(turns.inspect(thread.id)).toEqual({
+      state: "generating",
+      source: "submit",
+      turnId: operation.acceptance.userMessage.turnId,
+      generationId: operation.acceptance.generation.id,
+    });
     expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [operation.acceptance.userMessage],
       generations: [operation.acceptance.generation],
@@ -164,6 +176,7 @@ describe("turns", () => {
       }),
       assistantActivated: true,
     });
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
     expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [operation.acceptance.userMessage, settlement.assistantMessage],
       generations: [settlement.generation],
@@ -210,17 +223,30 @@ describe("turns", () => {
       expect.objectContaining({ status: "failed", failureKind: "provider" }),
     );
     expect(failed.failure).toEqual({ cause: providerFailure });
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
 
-    const retriedOperation = await turns.retry({
+    const pendingRetry = turns.retry({
       turnId: failed.userMessage.turnId,
       configuration,
     });
+    expect(turns.inspect(thread.id)).toEqual({
+      state: "retrying",
+      turnId: failed.userMessage.turnId,
+    });
+
+    const retriedOperation = await pendingRetry;
 
     expect(retriedOperation.acceptance.userMessage).toEqual(failed.userMessage);
     expect(retriedOperation.acceptance.generation).toEqual(
       expect.objectContaining({ status: "pending" }),
     );
     expect(retriedOperation.acceptance.generation.id).not.toBe(failed.generation.id);
+    expect(turns.inspect(thread.id)).toEqual({
+      state: "generating",
+      source: "retry",
+      turnId: retriedOperation.acceptance.userMessage.turnId,
+      generationId: retriedOperation.acceptance.generation.id,
+    });
 
     const retried = await retriedOperation.settlement;
 
@@ -232,6 +258,7 @@ describe("turns", () => {
     expect(retried.assistantMessage).toEqual(
       expect.objectContaining({ author: "assistant", content: "Recovered reply" }),
     );
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
   });
 
   it("holds thread exclusivity through settlement without blocking other threads", async () => {
@@ -294,11 +321,42 @@ describe("turns", () => {
         configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
       }),
     ).rejects.toBe(acceptanceFailure);
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
     expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [],
       generations: [],
       ...threadPageMetadata([]),
     });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("releases thread ownership when an accepted turn cannot settle", async () => {
+    const generate = vi.fn(async () => ({ text: "Unused" }));
+    const { database, generationEngine, threads } = openTurnEnvironment(generate);
+    const thread = threads.create();
+    const settlementFailure = new Error("Could not schedule generation.");
+    const settlement = deferred<never>();
+    const turns = createTurns(database, threads, {
+      acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
+      listLatestForTurns: generationEngine.listLatestForTurns,
+      resolveConfiguration: generationEngine.resolveConfiguration,
+      scheduleAcceptedReply: () => settlement.promise,
+    });
+    const operation = await turns.submit({
+      threadId: thread.id,
+      content: "Hello",
+      configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+    });
+
+    expect(turns.inspect(thread.id)).toEqual({
+      state: "generating",
+      source: "submit",
+      turnId: operation.acceptance.userMessage.turnId,
+      generationId: operation.acceptance.generation.id,
+    });
+    settlement.reject(settlementFailure);
+    await expect(operation.settlement).rejects.toBe(settlementFailure);
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
     expect(generate).not.toHaveBeenCalled();
   });
 

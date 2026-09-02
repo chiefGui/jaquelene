@@ -1,9 +1,10 @@
-import type { GenerationId, ThreadId, TurnId } from "#backend/id";
+import type { GenerationId, MessageId, ThreadId, TurnId } from "#backend/id";
 
 export type TurnOperationInspection =
   | Readonly<{ state: "idle" }>
   | Readonly<{ state: "submitting" }>
   | Readonly<{ state: "retrying"; turnId: TurnId }>
+  | Readonly<{ state: "truncating"; userMessageId: MessageId }>
   | Readonly<{
       state: "generating";
       source: "submit" | "retry";
@@ -13,7 +14,7 @@ export type TurnOperationInspection =
 
 export type StartingTurnOperation = Extract<
   TurnOperationInspection,
-  { state: "submitting" | "retrying" }
+  { state: "submitting" | "retrying" | "truncating" }
 >;
 type ActiveTurnOperation = Exclude<TurnOperationInspection, { state: "idle" }>;
 
@@ -36,7 +37,6 @@ export function createTurnOperationCoordinator() {
       }
 
       const owner = Symbol(threadId);
-      const source = starting.state === "submitting" ? "submit" : "retry";
       let released = false;
       operations.set(threadId, { owner, operation: starting });
 
@@ -52,9 +52,18 @@ export function createTurnOperationCoordinator() {
             throw new Error(`Thread "${threadId}" operation is already generating.`);
           }
 
+          if (starting.state === "truncating") {
+            throw new Error(`Thread "${threadId}" truncation cannot begin a generation.`);
+          }
+
           operations.set(threadId, {
             owner,
-            operation: { state: "generating", source, turnId, generationId },
+            operation: {
+              state: "generating",
+              source: starting.state === "submitting" ? "submit" : "retry",
+              turnId,
+              generationId,
+            },
           });
         },
 

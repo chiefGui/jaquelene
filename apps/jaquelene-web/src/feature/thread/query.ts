@@ -32,6 +32,7 @@ import {
 const listThreadMessages = requireIpcMethod(Threads?.listMessages);
 const submitTurn = requireIpcMethod(Turns?.submit);
 const retryTurn = requireIpcMethod(Turns?.retry);
+const onHistoryDeleted = requireIpcMethod(Turns?.onHistoryDeleted);
 const onReplyFailed = requireIpcMethod(Turns?.onReplyFailed);
 const onReplyCompleted = requireIpcMethod(Turns?.onReplyCompleted);
 const onReplySuperseded = requireIpcMethod(Turns?.onReplySuperseded);
@@ -192,7 +193,7 @@ export function usePendingTurnSubmission(threadId: string) {
   return pending.at(-1) ?? null;
 }
 
-export function installThreadSettlementReconciliation(queryClient: QueryClient) {
+export function installThreadReconciliation(queryClient: QueryClient) {
   function applyEvent(threadId: string, update: ThreadTurnUpdate) {
     refreshCampaignUsage(queryClient);
     try {
@@ -220,11 +221,21 @@ export function installThreadSettlementReconciliation(queryClient: QueryClient) 
       reportError("thread.turn.settlement", cause);
     }
   });
+  const stopHistoryDeletedListener = onHistoryDeleted(({ threadId }) => {
+    try {
+      void queryClient
+        .resetQueries({ queryKey: threadMessagesQuery(threadId).queryKey, exact: true })
+        .catch((cause: unknown) => reportError("thread.history.delete.reconcile", cause));
+    } catch (cause) {
+      reportError("thread.history.delete.reconcile", cause);
+    }
+  });
 
   return () => {
     stopFailureListener();
     stopCompletionListener();
     stopSupersededListener();
+    stopHistoryDeletedListener();
   };
 }
 

@@ -1,6 +1,7 @@
 import type {
   Generation,
   GenerationFailureKind,
+  ThreadHistoryDeletion,
   ThreadMessage,
   Turns,
   TurnAcceptance,
@@ -24,7 +25,9 @@ import {
   toIpcReasoningPresetSource,
 } from "@/feature/model/reasoning-preset";
 
-type ThreadMessagingTurns = Pick<Turns, "listForThread" | "submit" | "retry">;
+type ThreadMessagingTurns = Pick<Turns, "deleteFrom" | "listForThread" | "submit" | "retry">;
+type TurnGenerationOperation = "thread.turn.submit" | "thread.turn.retry";
+type ThreadChangeOperation = TurnGenerationOperation | "thread.history.delete";
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
   switch (author) {
@@ -113,6 +116,15 @@ function toIpcSubmission(acceptance: TurnAcceptance) {
   };
 }
 
+function toIpcHistoryDeletion(deletion: ThreadHistoryDeletion) {
+  return {
+    threadId: deletion.threadId,
+    userMessageId: deletion.userMessageId,
+    ...(deletion.activeMessageId === null ? {} : { activeMessageId: deletion.activeMessageId }),
+    deletedTurnCount: deletion.deletedTurnCount,
+  };
+}
+
 function unexpectedFailureStage(failureKind: Generation["failureKind"]) {
   switch (failureKind) {
     case "preparation":
@@ -133,7 +145,7 @@ function unexpectedFailureStage(failureKind: Generation["failureKind"]) {
 
 function reportUnexpectedFailure(
   diagnostics: ErrorReporter,
-  operation: "thread.turn.submit" | "thread.turn.retry",
+  operation: TurnGenerationOperation,
   settlement: TurnSettlement,
 ) {
   if (settlement.outcome !== "failed") {
@@ -158,8 +170,8 @@ function reportUnexpectedFailure(
 export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: ErrorReporter) {
   const destinations = new Map<WebFrameMain, ITurnsDispatcher>();
 
-  function publishTurnChange(
-    operation: "thread.turn.submit" | "thread.turn.retry",
+  function publishThreadChange(
+    operation: ThreadChangeOperation,
     dispatch: (dispatcher: ITurnsDispatcher) => void,
   ) {
     for (const [target, dispatcher] of destinations) {
@@ -179,16 +191,13 @@ export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: 
         diagnostics.report({
           severity: ErrorSeverity.Error,
           operation: `${operation}.dispatch`,
-          error: new Error("Could not publish turn state.", { cause }),
+          error: new Error("Could not publish thread state.", { cause }),
         });
       }
     }
   }
 
-  function publishSettlement(
-    operation: "thread.turn.submit" | "thread.turn.retry",
-    settlement: TurnSettlement,
-  ) {
+  function publishSettlement(operation: TurnGenerationOperation, settlement: TurnSettlement) {
     reportUnexpectedFailure(diagnostics, operation, settlement);
 
     if (settlement.outcome === "failed") {
@@ -196,13 +205,15 @@ export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: 
         userMessage: toIpcMessage(settlement.userMessage),
         generation: toIpcGeneration(settlement.generation),
       };
-      publishTurnChange(operation, (dispatcher) => dispatcher.dispatchReplyFailed(failure));
+      publishThreadChange(operation, (dispatcher) => dispatcher.dispatchReplyFailed(failure));
       return;
     }
 
     if (!settlement.assistantActivated) {
       const superseded = { threadId: settlement.userMessage.threadId };
-      publishTurnChange(operation, (dispatcher) => dispatcher.dispatchReplySuperseded(superseded));
+      publishThreadChange(operation, (dispatcher) =>
+        dispatcher.dispatchReplySuperseded(superseded),
+      );
       return;
     }
 
@@ -211,11 +222,11 @@ export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: 
       assistantMessage: toIpcMessage(settlement.assistantMessage),
       generation: toIpcGeneration(settlement.generation),
     };
-    publishTurnChange(operation, (dispatcher) => dispatcher.dispatchReplyCompleted(completion));
+    publishThreadChange(operation, (dispatcher) => dispatcher.dispatchReplyCompleted(completion));
   }
 
   function observeSettlement(
-    operation: "thread.turn.submit" | "thread.turn.retry",
+    operation: TurnGenerationOperation,
     settlement: Promise<TurnSettlement>,
   ) {
     void settlement.then(
@@ -251,6 +262,18 @@ export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: 
       });
 
       const dispatcher = TurnsIpc.for(target).setImplementation({
+        deleteFrom(request) {
+          const deletion = toIpcHistoryDeletion(
+            turns.deleteFrom({
+              threadId: ids.thread.parse(request.threadId),
+              userMessageId: ids.message.parse(request.userMessageId),
+            }),
+          );
+          publishThreadChange("thread.history.delete", (destination) =>
+            destination.dispatchHistoryDeleted(deletion),
+          );
+          return deletion;
+        },
         async submit(request) {
           const operation = await turns.submit({
             threadId: ids.thread.parse(request.threadId),

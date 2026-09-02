@@ -97,9 +97,11 @@ export type {
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/threads";
 export type {
+  DeleteThreadHistoryRequest,
   RetryTurnRequest,
   SubmitTurnRequest,
   ThreadActivityPage,
+  ThreadHistoryDeletion,
   Turns,
   TurnAcceptance,
   TurnOperation,

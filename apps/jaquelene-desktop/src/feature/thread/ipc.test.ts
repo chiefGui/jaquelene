@@ -12,6 +12,7 @@ import type {
   IThreadsImpl,
   ITurnsImpl,
   SupersededReply as IpcSupersededReply,
+  ThreadHistoryDeletion as IpcThreadHistoryDeletion,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -25,6 +26,7 @@ const implementations = vi.hoisted(() => ({
   dispatchReplyFailed: vi.fn<(failure: IpcFailedReply) => void>(),
   dispatchReplyCompleted: vi.fn<(completion: IpcCompletedReply) => void>(),
   dispatchReplySuperseded: vi.fn<(reply: IpcSupersededReply) => void>(),
+  dispatchHistoryDeleted: vi.fn<(deletion: IpcThreadHistoryDeletion) => void>(),
 }));
 
 vi.mock("@jaquelene/ipc/main", () => ({
@@ -69,6 +71,7 @@ vi.mock("@jaquelene/ipc/main", () => ({
           dispatchReplyFailed: implementations.dispatchReplyFailed,
           dispatchReplyCompleted: implementations.dispatchReplyCompleted,
           dispatchReplySuperseded: implementations.dispatchReplySuperseded,
+          dispatchHistoryDeleted: implementations.dispatchHistoryDeleted,
         };
       },
     }),
@@ -192,6 +195,7 @@ beforeEach(() => {
   implementations.dispatchReplyFailed.mockClear();
   implementations.dispatchReplyCompleted.mockClear();
   implementations.dispatchReplySuperseded.mockClear();
+  implementations.dispatchHistoryDeleted.mockClear();
 });
 
 describe("thread IPC", () => {
@@ -200,6 +204,7 @@ describe("thread IPC", () => {
     const cursor = ids.message.create();
     const listForThread = vi.fn<ThreadMessagingTurns["listForThread"]>(emptyPage);
     const backendTurns: ThreadMessagingTurns = {
+      deleteFrom: vi.fn(),
       listForThread,
       submit: vi.fn(),
       retry: vi.fn(),
@@ -232,6 +237,7 @@ describe("thread IPC", () => {
       settlement,
     }));
     const backendTurns: ThreadMessagingTurns = {
+      deleteFrom: vi.fn(),
       listForThread,
       submit,
       retry: vi.fn(async () => ({ acceptance, settlement })),
@@ -325,6 +331,7 @@ describe("thread IPC", () => {
       assistantActivated: false,
     };
     const backendTurns: ThreadMessagingTurns = {
+      deleteFrom: vi.fn(),
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(inactiveCompletion) })),
       retry: vi.fn(),
@@ -358,6 +365,7 @@ describe("thread IPC", () => {
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
     };
     const backendTurns: ThreadMessagingTurns = {
+      deleteFrom: vi.fn(),
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(failed) })),
       retry: vi.fn(),
@@ -392,6 +400,7 @@ describe("thread IPC", () => {
       settlement: Promise.resolve(failed),
     }));
     const backendTurns: ThreadMessagingTurns = {
+      deleteFrom: vi.fn(),
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(),
       retry,
@@ -422,6 +431,7 @@ describe("thread IPC", () => {
     const { acceptance } = createTurnState();
     const cause = new Error("Settlement ownership failed");
     const backendTurns: ThreadMessagingTurns = {
+      deleteFrom: vi.fn(),
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.reject(cause) })),
       retry: vi.fn(),
@@ -458,6 +468,7 @@ describe("thread IPC", () => {
       },
     };
     const backendTurns: ThreadMessagingTurns = {
+      deleteFrom: vi.fn(),
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(interrupted) })),
       retry: vi.fn(),
@@ -478,6 +489,7 @@ describe("thread IPC", () => {
   it("does not dispatch settlement state to a destroyed renderer", async () => {
     const { acceptance, completed } = createTurnState();
     const backendTurns: ThreadMessagingTurns = {
+      deleteFrom: vi.fn(),
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(completed) })),
       retry: vi.fn(),
@@ -508,6 +520,7 @@ describe("thread IPC", () => {
       settle = resolve;
     });
     const backendTurns: ThreadMessagingTurns = {
+      deleteFrom: vi.fn(),
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement })),
       retry: vi.fn(),
@@ -532,6 +545,7 @@ describe("thread IPC", () => {
   it("reports settlement dispatch failures for an active renderer", async () => {
     const { acceptance, completed } = createTurnState();
     const backendTurns: ThreadMessagingTurns = {
+      deleteFrom: vi.fn(),
       listForThread: vi.fn(emptyPage),
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(completed) })),
       retry: vi.fn(),
@@ -553,15 +567,46 @@ describe("thread IPC", () => {
     expect(report).toHaveBeenCalledWith({
       severity: ErrorSeverity.Error,
       operation: "thread.turn.submit.dispatch",
-      error: expect.objectContaining({ message: "Could not publish turn state.", cause }),
+      error: expect.objectContaining({ message: "Could not publish thread state.", cause }),
     });
+  });
+
+  it("deletes history through typed identities and publishes the committed change", async () => {
+    const threadId = ids.thread.create();
+    const userMessageId = ids.message.create();
+    const activeMessageId = ids.message.create();
+    const deleteFrom = vi.fn<ThreadMessagingTurns["deleteFrom"]>(() => ({
+      threadId,
+      userMessageId,
+      activeMessageId,
+      deletedTurnCount: 3,
+    }));
+    const backendTurns: ThreadMessagingTurns = {
+      deleteFrom,
+      listForThread: vi.fn(emptyPage),
+      submit: vi.fn(),
+      retry: vi.fn(),
+    };
+
+    exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
+    const result = await requireImplementations().turns.deleteFrom({ threadId, userMessageId });
+
+    expect(deleteFrom).toHaveBeenCalledWith({ threadId, userMessageId });
+    expect(result).toEqual({
+      threadId,
+      userMessageId,
+      activeMessageId,
+      deletedTurnCount: 3,
+    });
+    expect(implementations.dispatchHistoryDeleted).toHaveBeenCalledWith(result);
   });
 
   it("rejects malformed TypeIDs at the adapter boundary", async () => {
     const listForThread = vi.fn(emptyPage);
     const submit = vi.fn();
     const retry = vi.fn();
-    const backendTurns: ThreadMessagingTurns = { listForThread, submit, retry };
+    const deleteFrom = vi.fn<ThreadMessagingTurns["deleteFrom"]>();
+    const backendTurns: ThreadMessagingTurns = { deleteFrom, listForThread, submit, retry };
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     const ipc = requireImplementations();
     const configuration = {
@@ -578,8 +623,15 @@ describe("thread IPC", () => {
       ipc.turns.submit({ threadId: "invalid", content: "Hello", configuration }),
     ).rejects.toThrow(TypeError);
     await expect(ipc.turns.retry({ turnId: "invalid", configuration })).rejects.toThrow(TypeError);
+    expect(() =>
+      ipc.turns.deleteFrom({ threadId: "invalid", userMessageId: ids.message.create() }),
+    ).toThrow(TypeError);
+    expect(() =>
+      ipc.turns.deleteFrom({ threadId: ids.thread.create(), userMessageId: "invalid" }),
+    ).toThrow(TypeError);
     expect(listForThread).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
     expect(retry).not.toHaveBeenCalled();
+    expect(deleteFrom).not.toHaveBeenCalled();
   });
 });

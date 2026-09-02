@@ -1,7 +1,8 @@
 import { Field } from "@jaquelene/ui";
-import { Select } from "@jaquelene/ui/select";
+import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useId } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import {
@@ -9,6 +10,7 @@ import {
   instructionGroupsQuery,
   useSetCampaignRoleplayInstruction,
 } from "./query";
+import { InstructionSelect, type InstructionSelectOption } from "./select";
 
 export function CampaignRoleplayInstructionControl({ campaignId }: { campaignId: string }) {
   const { data: groups } = useSuspenseQuery(instructionGroupsQuery);
@@ -17,9 +19,18 @@ export function CampaignRoleplayInstructionControl({ campaignId }: { campaignId:
   );
   const setSelection = useSetCampaignRoleplayInstruction(campaignId);
   const controlId = useId();
+  const labelId = useId();
   const errorId = useId();
   const instructions = groups.find(({ key }) => key === "roleplay")?.instructions ?? [];
   const selectedInstruction = instructions.find(({ key }) => key === instructionKey);
+  const options = instructions.map(
+    (instruction) =>
+      ({
+        description: instruction.body,
+        title: instruction.title,
+        value: instruction.key,
+      }) satisfies InstructionSelectOption,
+  );
 
   if (!instructionKey) {
     throw new Error(`Campaign "${campaignId}" is unavailable.`);
@@ -32,20 +43,23 @@ export function CampaignRoleplayInstructionControl({ campaignId }: { campaignId:
   }
 
   return (
-    <Field.Root>
-      <Field.Label htmlFor={controlId}>Roleplay instruction</Field.Label>
+    <Field.Root style={styles.root}>
+      <Field.Label id={labelId} htmlFor={controlId} style={styles.label}>
+        Roleplay instruction
+      </Field.Label>
 
-      <Select.Root
-        selectedValue={instructionKey}
-        setSelectedValue={(nextInstructionKey) => {
-          if (nextInstructionKey === instructionKey) {
-            return;
-          }
-
-          if (!instructions.some(({ key }) => key === nextInstructionKey)) {
-            throw new TypeError(`Unknown roleplay instruction "${nextInstructionKey}".`);
-          }
-
+      <InstructionSelect
+        id={controlId}
+        aria-labelledby={labelId}
+        aria-describedby={setSelection.isError ? errorId : undefined}
+        busy={setSelection.isPending}
+        footerAction={{
+          label: "Manage instructions",
+          render: <Link to="/settings/instructions" preload="render" />,
+        }}
+        value={instructionKey}
+        options={options}
+        onValueChange={(nextInstructionKey) => {
           setSelection.reset();
           setSelection.mutate(nextInstructionKey, {
             onError(cause) {
@@ -53,36 +67,30 @@ export function CampaignRoleplayInstructionControl({ campaignId }: { campaignId:
             },
           });
         }}
-      >
-        <Select
-          id={controlId}
-          aria-busy={setSelection.isPending || undefined}
-          aria-describedby={setSelection.isError ? errorId : undefined}
-          disabled={setSelection.isPending}
-          style={styles.trigger}
-        >
-          <Select.Value>{selectedInstruction.title}</Select.Value>
-        </Select>
+      />
 
-        <Select.Content>
-          {instructions.map((instruction) => (
-            <Select.Item key={instruction.key} value={instruction.key}>
-              <Select.ItemText>{instruction.title}</Select.ItemText>
-              <Select.Indicator />
-            </Select.Item>
-          ))}
-        </Select.Content>
-      </Select.Root>
-
-      <Field.Error id={errorId} role={setSelection.isError ? "alert" : undefined}>
-        {setSelection.isError ? "Couldn’t save roleplay instruction." : null}
-      </Field.Error>
+      {setSelection.isError ? (
+        <Field.Error id={errorId} role="alert" style={styles.error}>
+          Couldn’t save roleplay instruction.
+        </Field.Error>
+      ) : null}
     </Field.Root>
   );
 }
 
 const styles = stylex.create({
-  trigger: {
-    width: "100%",
+  root: {
+    alignItems: "center",
+    display: "grid",
+    gap: "0.5rem 0.75rem",
+    gridTemplateColumns: "auto minmax(0, 1fr)",
+  },
+  label: {
+    color: colors.foregroundSecondary,
+    fontWeight: 400,
+    whiteSpace: "nowrap",
+  },
+  error: {
+    gridColumn: "1 / -1",
   },
 });

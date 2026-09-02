@@ -32,6 +32,8 @@ import {
 const listThreadMessages = requireIpcMethod(Threads?.listMessages);
 const submitTurn = requireIpcMethod(Turns?.submit);
 const retryTurn = requireIpcMethod(Turns?.retry);
+const deleteThreadHistory = requireIpcMethod(Turns?.deleteFrom);
+const onHistoryDeleted = requireIpcMethod(Turns?.onHistoryDeleted);
 const onReplyFailed = requireIpcMethod(Turns?.onReplyFailed);
 const onReplyCompleted = requireIpcMethod(Turns?.onReplyCompleted);
 const onReplySuperseded = requireIpcMethod(Turns?.onReplySuperseded);
@@ -192,16 +194,21 @@ export function usePendingTurnSubmission(threadId: string) {
   return pending.at(-1) ?? null;
 }
 
-export function installThreadSettlementReconciliation(queryClient: QueryClient) {
+export function installThreadReconciliation(queryClient: QueryClient) {
+  function runReconciliation(
+    operation: "thread.turn.settlement" | "thread.history.delete.reconcile",
+    reconcile: () => unknown,
+  ) {
+    try {
+      void Promise.resolve(reconcile()).catch((cause: unknown) => reportError(operation, cause));
+    } catch (cause) {
+      reportError(operation, cause);
+    }
+  }
+
   function applyEvent(threadId: string, update: ThreadTurnUpdate) {
     refreshCampaignUsage(queryClient);
-    try {
-      void Promise.resolve(reconcileTurn(queryClient, threadId, update)).catch((cause: unknown) =>
-        reportError("thread.turn.settlement", cause),
-      );
-    } catch (cause) {
-      reportError("thread.turn.settlement", cause);
-    }
+    runReconciliation("thread.turn.settlement", () => reconcileTurn(queryClient, threadId, update));
   }
 
   const stopFailureListener = onReplyFailed((failure) => {
@@ -212,19 +219,19 @@ export function installThreadSettlementReconciliation(queryClient: QueryClient) 
   });
   const stopSupersededListener = onReplySuperseded(({ threadId }) => {
     refreshCampaignUsage(queryClient);
-    try {
-      void reloadThread(queryClient, threadId).catch((cause: unknown) =>
-        reportError("thread.turn.settlement", cause),
-      );
-    } catch (cause) {
-      reportError("thread.turn.settlement", cause);
-    }
+    runReconciliation("thread.turn.settlement", () => reloadThread(queryClient, threadId));
+  });
+  const stopHistoryDeletedListener = onHistoryDeleted(({ threadId }) => {
+    runReconciliation("thread.history.delete.reconcile", () =>
+      queryClient.resetQueries({ queryKey: threadMessagesQuery(threadId).queryKey, exact: true }),
+    );
   });
 
   return () => {
     stopFailureListener();
     stopCompletionListener();
     stopSupersededListener();
+    stopHistoryDeletedListener();
   };
 }
 
@@ -275,5 +282,13 @@ export function useRetryTurn(threadId: string) {
     onError() {
       return reloadThread(queryClient, threadId);
     },
+  });
+}
+
+export function useDeleteThreadHistoryFromMessage(threadId: string) {
+  return useMutation({
+    ...ipcMutationOptions,
+    mutationKey: [...turnMutationKey(threadId), "delete-history-from-message"],
+    mutationFn: (userMessageId: string) => deleteThreadHistory({ threadId, userMessageId }),
   });
 }

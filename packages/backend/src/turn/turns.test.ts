@@ -6,6 +6,7 @@ import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createGenerations } from "#backend/generation/generations";
 import { createReplyPreparer } from "#backend/generation/reply-preparation";
+import { generationTable } from "#backend/generation/schema";
 import { superviseGenerations } from "#backend/generation/supervisor";
 import { ids } from "#backend/id";
 import type {
@@ -20,6 +21,7 @@ import {
   THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
   THREAD_MESSAGE_PAGE_MAX_COUNT,
 } from "#backend/thread/threads";
+import { providerAttemptTable } from "#backend/usage/schema";
 import { createTurns } from "./turns";
 
 const directories: string[] = [];
@@ -275,6 +277,12 @@ describe("turns", () => {
     };
     const first = await turns.submit({ threadId: thread.id, content: "First", configuration });
 
+    expect(() =>
+      turns.deleteFrom({
+        threadId: thread.id,
+        userMessageId: first.acceptance.userMessage.id,
+      }),
+    ).toThrow(`Thread "${thread.id}" already has an active turn operation.`);
     await expect(
       turns.submit({ threadId: thread.id, content: "Too soon", configuration }),
     ).rejects.toThrow(`Thread "${thread.id}" already has an active turn operation.`);
@@ -296,6 +304,40 @@ describe("turns", () => {
     expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toHaveLength(
       4,
     );
+  });
+
+  it("deletes durable conversation state while retaining provider usage history", async () => {
+    const generate = vi.fn(async () => ({ text: "Completed reply" }));
+    const { database, threads, turns } = openTurnEnvironment(generate);
+    const thread = threads.create();
+    const operation = await turns.submit({
+      threadId: thread.id,
+      content: "Delete this turn",
+      configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+    });
+    await operation.settlement;
+    const attemptsBeforeDeletion = database.select().from(providerAttemptTable).all();
+
+    expect(attemptsBeforeDeletion).toHaveLength(1);
+    expect(
+      turns.deleteFrom({
+        threadId: thread.id,
+        userMessageId: operation.acceptance.userMessage.id,
+      }),
+    ).toEqual({
+      threadId: thread.id,
+      userMessageId: operation.acceptance.userMessage.id,
+      activeMessageId: null,
+      deletedTurnCount: 1,
+    });
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
+      messages: [],
+      generations: [],
+      ...threadPageMetadata([]),
+    });
+    expect(database.select().from(generationTable).all()).toEqual([]);
+    expect(database.select().from(providerAttemptTable).all()).toEqual(attemptsBeforeDeletion);
   });
 
   it("rolls back a user turn when pending generation acceptance fails", async () => {

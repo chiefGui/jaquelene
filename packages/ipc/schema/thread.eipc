@@ -35,6 +35,11 @@ subtype ThreadMessageContentByteBudget = number(
   maxValue: 9007199254740991
 )
 
+subtype ThreadDeletedTurnCount = number(
+  minValue: 1
+  maxValue: 9007199254740991
+)
+
 enum ThreadMessageAuthor {
   User = "user"
   Assistant = "assistant"
@@ -110,6 +115,18 @@ structure RetryTurnRequest {
   configuration: GenerationConfiguration
 }
 
+structure DeleteThreadHistoryRequest {
+  threadId: string
+  userMessageId: string
+}
+
+structure ThreadHistoryDeletion {
+  threadId: string
+  userMessageId: string
+  activeMessageId?: string
+  deletedTurnCount: ThreadDeletedTurnCount
+}
+
 structure TurnSubmission {
   userMessage: ThreadMessage
   generation: TurnGeneration
@@ -143,6 +160,10 @@ interface Threads {
 interface Turns {
   submit(request: SubmitTurnRequest) -> TurnSubmission
   retry(request: RetryTurnRequest) -> TurnGeneration
+  deleteFrom(request: DeleteThreadHistoryRequest) -> ThreadHistoryDeletion
+
+  [Event]
+  historyDeleted(deletion: ThreadHistoryDeletion)
 
   [Event]
   replyFailed(failure: FailedReply)

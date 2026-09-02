@@ -64,7 +64,7 @@ function page(status: GenerationStatus): ThreadMessagePage {
 }
 
 describe("thread view state", () => {
-  it("places pending reply activity after the user message", () => {
+  it("tracks pending replies without adding inline message state", () => {
     const state = deriveThreadViewState({
       pages: [page(GenerationStatus.Pending)],
       retryActivity: null,
@@ -74,9 +74,7 @@ describe("thread view state", () => {
     expect(state.messages).toEqual([
       expect.objectContaining({
         fromUser: true,
-        reply: expect.objectContaining({
-          generation: expect.objectContaining({ status: GenerationStatus.Pending }),
-        }),
+        replyFailure: null,
       }),
     ]);
     expect(state.latestMessageId).toBe("message-user");
@@ -91,7 +89,7 @@ describe("thread view state", () => {
     });
 
     expect(state.messages).toHaveLength(2);
-    expect(state.messages.every(({ reply }) => reply === null)).toBe(true);
+    expect(state.messages.every(({ replyFailure }) => replyFailure === null)).toBe(true);
     expect(state.replyPending).toBe(false);
   });
 
@@ -102,7 +100,7 @@ describe("thread view state", () => {
       hasModel: true,
     });
 
-    expect(state.messages[0]?.reply).toEqual(
+    expect(state.messages[0]?.replyFailure).toEqual(
       expect.objectContaining({
         canRetry: true,
         retryFailed: true,

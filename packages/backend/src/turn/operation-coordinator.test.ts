@@ -35,4 +35,20 @@ describe("turn operation coordinator", () => {
     retry.release();
     expect(coordinator.inspect(threadId)).toEqual({ state: "idle" });
   });
+
+  it("makes truncation an inspectable exclusive operation that cannot generate", () => {
+    const coordinator = createTurnOperationCoordinator();
+    const threadId = ids.thread.create();
+    const userMessageId = ids.message.create();
+    const truncation = coordinator.acquire(threadId, { state: "truncating", userMessageId });
+
+    expect(coordinator.inspect(threadId)).toEqual({ state: "truncating", userMessageId });
+    expect(() => coordinator.acquire(threadId, { state: "submitting" })).toThrow(
+      `Thread "${threadId}" already has an active turn operation.`,
+    );
+    expect(truncation).not.toHaveProperty("generating");
+
+    truncation.release();
+    expect(coordinator.inspect(threadId)).toEqual({ state: "idle" });
+  });
 });

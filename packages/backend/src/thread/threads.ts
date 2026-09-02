@@ -20,6 +20,18 @@ type ListThreadMessagesRequest = {
   cursor?: string;
 };
 
+export type DeleteThreadHistoryRequest = Readonly<{
+  threadId: ThreadId;
+  userMessageId: MessageId;
+}>;
+
+export type ThreadHistoryDeletion = Readonly<{
+  threadId: ThreadId;
+  userMessageId: MessageId;
+  activeMessageId: MessageId | null;
+  deletedTurnCount: number;
+}>;
+
 type AppendAssistantMessageRequest = {
   threadId: ThreadId;
   turnId: TurnId;
@@ -33,6 +45,8 @@ type MessagePathRow = ThreadMessageRecord & {
   cumulativeContentBytes: number;
   depth: number;
 };
+
+type ActivePathMessage = Readonly<{ id: MessageId }>;
 
 type ListMessagePathOptions = Readonly<{
   maximumCount?: number;
@@ -287,6 +301,116 @@ function activateMessage(
   return true;
 }
 
+function deleteThreadHistoryInTransaction(
+  database: Pick<Database, "get" | "run" | "select" | "update">,
+  { threadId, userMessageId }: DeleteThreadHistoryRequest,
+): ThreadHistoryDeletion {
+  const target = database
+    .select({
+      id: threadMessageTable.id,
+      parentMessageId: threadMessageTable.parentMessageId,
+      author: threadMessageTable.author,
+    })
+    .from(threadMessageTable)
+    .where(and(eq(threadMessageTable.threadId, threadId), eq(threadMessageTable.id, userMessageId)))
+    .get();
+
+  if (!target) {
+    throw new RangeError(`Message "${userMessageId}" does not exist in thread "${threadId}".`);
+  }
+
+  if (target.author !== "user") {
+    throw new TypeError(`Message "${userMessageId}" is not a user message.`);
+  }
+
+  const activePathMessage = database.get<ActivePathMessage>(sql`
+    WITH RECURSIVE active_path (id, parent_message_id) AS (
+      SELECT head.id, head.parent_message_id
+      FROM threads AS thread
+      INNER JOIN thread_messages AS head
+        ON head.thread_id = thread.id
+        AND head.id = thread.active_message_id
+      WHERE thread.id = ${threadId}
+
+      UNION ALL
+
+      SELECT parent.id, parent.parent_message_id
+      FROM thread_messages AS parent
+      INNER JOIN active_path AS child
+        ON parent.thread_id = ${threadId}
+        AND parent.id = child.parent_message_id
+    )
+    SELECT id
+    FROM active_path
+    WHERE id = ${userMessageId}
+    LIMIT 1
+  `);
+
+  if (!activePathMessage) {
+    throw new RangeError(`User message "${userMessageId}" is not on the active thread path.`);
+  }
+
+  const movedHead = database
+    .update(threadTable)
+    .set({ activeMessageId: target.parentMessageId })
+    .where(eq(threadTable.id, threadId))
+    .run();
+
+  if (movedHead.changes !== 1) {
+    throw threadNotFound(threadId);
+  }
+
+  if (target.parentMessageId) {
+    const clearedPathEdge = database
+      .update(threadMessageTable)
+      .set({ activeChildMessageId: null })
+      .where(
+        and(
+          eq(threadMessageTable.threadId, threadId),
+          eq(threadMessageTable.id, target.parentMessageId),
+          eq(threadMessageTable.activeChildMessageId, userMessageId),
+        ),
+      )
+      .run();
+
+    if (clearedPathEdge.changes !== 1) {
+      throw new Error(`Thread "${threadId}" has an invalid active message path.`);
+    }
+  }
+
+  const deletedTurns = database.run(sql`
+    WITH RECURSIVE deleted_messages (id, turn_id) AS (
+      SELECT id, turn_id
+      FROM thread_messages
+      WHERE thread_id = ${threadId}
+        AND id = ${userMessageId}
+
+      UNION ALL
+
+      SELECT child.id, child.turn_id
+      FROM thread_messages AS child
+      INNER JOIN deleted_messages AS parent
+        ON child.thread_id = ${threadId}
+        AND child.parent_message_id = parent.id
+    )
+    DELETE FROM turns
+    WHERE thread_id = ${threadId}
+      AND id IN (SELECT DISTINCT turn_id FROM deleted_messages)
+  `);
+  const deletedTurnCount = Number(deletedTurns.changes);
+
+  if (!Number.isSafeInteger(deletedTurnCount) || deletedTurnCount < 1) {
+    throw new Error(`User message "${userMessageId}" did not delete a turn.`);
+  }
+
+  return {
+    threadId,
+    userMessageId,
+    activeMessageId: target.parentMessageId,
+    deletedTurnCount,
+  };
+}
+
 export function insertThread(database: Pick<Database, "insert">, createdAt: number) {
   const thread = {
     id: ids.thread.create(),
@@ -421,6 +545,12 @@ export function createThreads(database: Database, now: () => number = Date.now) 
     startTurn(threadId: ThreadId, value: string) {
       return database.transaction((transaction) =>
         startTurnInTransaction(transaction, threadId, value),
+      );
+    },
+
+    deleteFrom(request: DeleteThreadHistoryRequest) {
+      return database.transaction((transaction) =>
+        deleteThreadHistoryInTransaction(transaction, request),
       );
     },
 

@@ -108,10 +108,12 @@ export const tokens = stylex.defineConsts({
   fontMono:
     'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
   fontSystem: "ui-sans-serif, system-ui, sans-serif",
+  fontSizeXXSmall: "0.6875rem",
   fontSizeXSmall: "0.75rem",
   fontSizeSmall: "0.8125rem",
   fontSizeBase: "0.875rem",
   fontSizeLarge: "1rem",
+  lineHeightXXSmall: "0.875rem",
   lineHeightXSmall: "1rem",
   lineHeightSmall: "1.125rem",
   lineHeightBase: "1.25rem",

@@ -372,6 +372,10 @@ export async function createBackend(
         assertOpen();
         return services.turns.listForThread(request);
       },
+      deleteFrom(request) {
+        assertOpen();
+        return services.turns.deleteFrom(request);
+      },
       submit(request) {
         assertOpen();
         return services.turns.submit(request);

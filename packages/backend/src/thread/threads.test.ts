@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
-import { threadMessageTable, turnTable } from "./schema";
+import { threadMessageTable, threadTable, turnTable } from "./schema";
 import {
   appendAssistantMessageInTransaction,
   createThreads,
@@ -386,6 +386,192 @@ describe("threads", () => {
       root.message,
     ]);
     expect(threads.startTurn(thread.id, "Accepted child").message.sequence).toBe(2);
+  });
+
+  it("deletes an active user turn and every descendant branch without using sequence order", () => {
+    const { database, threads } = openThreads(createDatabasePath(), () => 675);
+    const thread = threads.create();
+    const root = threads.startTurn(thread.id, "Root message");
+    const rootReply = database.transaction((transaction) =>
+      appendAssistantMessageInTransaction(transaction, {
+        threadId: thread.id,
+        turnId: root.turn.id,
+        parentMessageId: root.message.id,
+        activateIfMessageId: root.message.id,
+        content: "Root reply",
+        createdAt: 676,
+      }),
+    );
+    const target = threads.startTurn(thread.id, "Delete from here");
+    const targetReply = database.transaction((transaction) =>
+      appendAssistantMessageInTransaction(transaction, {
+        threadId: thread.id,
+        turnId: target.turn.id,
+        parentMessageId: target.message.id,
+        activateIfMessageId: target.message.id,
+        content: "Target reply",
+        createdAt: 677,
+      }),
+    );
+    const descendant = threads.startTurn(thread.id, "Descendant message");
+    const inactiveTargetReply = database.transaction((transaction) =>
+      appendAssistantMessageInTransaction(transaction, {
+        threadId: thread.id,
+        turnId: target.turn.id,
+        parentMessageId: target.message.id,
+        activateIfMessageId: ids.message.create(),
+        content: "Inactive target reply",
+        createdAt: 678,
+      }),
+    );
+    const retainedLaterMessage = database.transaction((transaction) =>
+      appendAssistantMessageInTransaction(transaction, {
+        threadId: thread.id,
+        turnId: root.turn.id,
+        parentMessageId: root.message.id,
+        activateIfMessageId: ids.message.create(),
+        content: "Retained later message",
+        createdAt: 679,
+      }),
+    );
+
+    expect(rootReply.activated).toBe(true);
+    expect(targetReply.activated).toBe(true);
+    expect(inactiveTargetReply.activated).toBe(false);
+    expect(retainedLaterMessage.activated).toBe(false);
+    expect(threads.deleteFrom({ threadId: thread.id, userMessageId: target.message.id })).toEqual({
+      threadId: thread.id,
+      userMessageId: target.message.id,
+      activeMessageId: rootReply.message.id,
+      deletedTurnCount: 2,
+    });
+
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" }).messages).toEqual([
+      root.message,
+      rootReply.message,
+    ]);
+    expect(
+      database
+        .select({ id: threadMessageTable.id })
+        .from(threadMessageTable)
+        .all()
+        .map(({ id }) => id),
+    ).toEqual(
+      expect.arrayContaining([
+        root.message.id,
+        rootReply.message.id,
+        retainedLaterMessage.message.id,
+      ]),
+    );
+    expect(database.select().from(threadMessageTable).all()).toHaveLength(3);
+    expect(database.select().from(turnTable).all()).toEqual([root.turn]);
+
+    const replacement = threads.startTurn(thread.id, "Replacement message");
+    expect(replacement.message).toEqual(
+      expect.objectContaining({ parentMessageId: rootReply.message.id, sequence: 8 }),
+    );
+    expect(descendant.message.sequence).toBe(5);
+  });
+
+  it("deletes a root user turn while retaining the thread and its sequence high-water mark", () => {
+    const { database, threads } = openThreads(createDatabasePath(), () => 680);
+    const thread = threads.create();
+    const root = threads.startTurn(thread.id, "Delete the whole history");
+
+    expect(threads.deleteFrom({ threadId: thread.id, userMessageId: root.message.id })).toEqual({
+      threadId: thread.id,
+      userMessageId: root.message.id,
+      activeMessageId: null,
+      deletedTurnCount: 1,
+    });
+    expect(threads.get(thread.id)).toEqual(thread);
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" }).messages).toEqual([]);
+    expect(database.select().from(turnTable).all()).toEqual([]);
+
+    const replacement = threads.startTurn(thread.id, "New root");
+    expect(replacement.message).toEqual(
+      expect.objectContaining({ parentMessageId: null, sequence: 2 }),
+    );
+  });
+
+  it("only deletes user messages on the active path of their owning thread", () => {
+    const { database, threads } = openThreads(createDatabasePath(), () => 685);
+    const thread = threads.create();
+    const otherThread = threads.create();
+    const root = threads.startTurn(thread.id, "Root message");
+    const inactiveUser = threads.startTurn(thread.id, "Inactive user branch");
+    const activeReply = database.transaction((transaction) =>
+      appendAssistantMessageInTransaction(transaction, {
+        threadId: thread.id,
+        turnId: root.turn.id,
+        parentMessageId: root.message.id,
+        activateIfMessageId: inactiveUser.message.id,
+        content: "Selected sibling reply",
+        createdAt: 686,
+      }),
+    );
+    const otherMessage = threads.startTurn(otherThread.id, "Other thread message").message;
+
+    expect(activeReply.activated).toBe(true);
+    expect(() =>
+      threads.deleteFrom({ threadId: thread.id, userMessageId: activeReply.message.id }),
+    ).toThrow(TypeError);
+    expect(() =>
+      threads.deleteFrom({ threadId: thread.id, userMessageId: inactiveUser.message.id }),
+    ).toThrow(`User message "${inactiveUser.message.id}" is not on the active thread path.`);
+    expect(() =>
+      threads.deleteFrom({ threadId: thread.id, userMessageId: otherMessage.id }),
+    ).toThrow(`Message "${otherMessage.id}" does not exist in thread "${thread.id}".`);
+    expect(() =>
+      threads.deleteFrom({ threadId: thread.id, userMessageId: ids.message.create() }),
+    ).toThrow(RangeError);
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" }).messages).toEqual([
+      root.message,
+      activeReply.message,
+    ]);
+  });
+
+  it("rolls back path changes when deleting the turn subtree fails", () => {
+    const { database, threads } = openThreads(createDatabasePath(), () => 690);
+    const thread = threads.create();
+    const root = threads.startTurn(thread.id, "Root message");
+    const target = threads.startTurn(thread.id, "Target message");
+
+    database.$client.exec(`
+      CREATE TRIGGER reject_turn_deletion
+      BEFORE DELETE ON turns
+      WHEN OLD.id = '${target.turn.id}'
+      BEGIN
+        SELECT RAISE(ABORT, 'rejected by test');
+      END;
+    `);
+
+    try {
+      expect(() =>
+        threads.deleteFrom({ threadId: thread.id, userMessageId: target.message.id }),
+      ).toThrow();
+    } finally {
+      database.$client.exec("DROP TRIGGER reject_turn_deletion;");
+    }
+
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" }).messages).toEqual([
+      root.message,
+      target.message,
+    ]);
+    expect(
+      database
+        .select({ activeMessageId: threadTable.activeMessageId })
+        .from(threadTable)
+        .where(eq(threadTable.id, thread.id))
+        .get(),
+    ).toEqual({ activeMessageId: target.message.id });
+    expect(
+      database
+        .select({ activeChildMessageId: threadMessageTable.activeChildMessageId })
+        .from(threadMessageTable)
+        .where(eq(threadMessageTable.id, root.message.id))
+        .get(),
+    ).toEqual({ activeChildMessageId: target.message.id });
   });
 
   it("enforces turn ownership and message graph invariants in storage", () => {

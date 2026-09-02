@@ -8,12 +8,18 @@ import type {
 import type { Generation } from "#backend/generation/schema";
 import type { ThreadId, TurnId } from "#backend/id";
 import type { ThreadMessage } from "#backend/thread/schema";
-import { requireThreadMessageContent, type ThreadEngine } from "#backend/thread/threads";
+import {
+  requireThreadMessageContent,
+  type DeleteThreadHistoryRequest,
+  type ThreadEngine,
+  type ThreadHistoryDeletion,
+} from "#backend/thread/threads";
 import {
   createTurnOperationCoordinator,
   type StartingTurnOperation,
 } from "./operation-coordinator";
 export type { TurnOperationInspection } from "./operation-coordinator";
+export type { DeleteThreadHistoryRequest, ThreadHistoryDeletion } from "#backend/thread/threads";
 
 type TurnGenerationEngine = Pick<
   GenerationEngine,
@@ -24,7 +30,10 @@ type TurnGenerationEngine = Pick<
     signal?: AbortSignal,
   ): Promise<ReplyGenerationExecution>;
 };
-type TurnThreads = Pick<ThreadEngine, "getTurnInput" | "listMessages" | "startTurnInTransaction">;
+type TurnThreads = Pick<
+  ThreadEngine,
+  "deleteFrom" | "getTurnInput" | "listMessages" | "startTurnInTransaction"
+>;
 
 type ListThreadRequest = Parameters<TurnThreads["listMessages"]>[0];
 
@@ -159,6 +168,19 @@ export function createTurns(
       );
 
       return { ...page, generations: generationsForPage };
+    },
+
+    deleteFrom(request: DeleteThreadHistoryRequest): ThreadHistoryDeletion {
+      const lease = operationCoordinator.acquire(request.threadId, {
+        state: "truncating",
+        userMessageId: request.userMessageId,
+      });
+
+      try {
+        return threads.deleteFrom(request);
+      } finally {
+        lease.release();
+      }
     },
 
     async submit({

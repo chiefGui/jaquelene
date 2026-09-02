@@ -1,8 +1,8 @@
 const estimatedCharactersPerLine = 32;
 const estimatedLineHeight = 20;
 const estimatedParagraphGap = 10;
-const estimatedMessageChrome = 42;
-const estimatedReplyStateHeight = 22;
+const estimatedMessageChrome = 54;
+const estimatedReplyFailureHeight = 22;
 
 function estimateContentHeight(content: string) {
   let height = 0;
@@ -51,10 +51,10 @@ function estimateContentHeight(content: string) {
   return height || estimatedLineHeight;
 }
 
-export function estimateThreadTimelineItemSize(content: string, hasReplyState: boolean) {
+export function estimateThreadTimelineItemSize(content: string, hasReplyFailure: boolean) {
   return (
     estimateContentHeight(content) +
     estimatedMessageChrome +
-    (hasReplyState ? estimatedReplyStateHeight : 0)
+    (hasReplyFailure ? estimatedReplyFailureHeight : 0)
   );
 }

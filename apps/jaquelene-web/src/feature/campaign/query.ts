@@ -6,6 +6,7 @@ import {
   type CampaignPage,
   type CampaignSummary,
   type StartCampaignRequest,
+  type ThreadActivity,
 } from "@jaquelene/ipc/renderer";
 import {
   infiniteQueryOptions,
@@ -18,6 +19,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import {
+  campaignDetailQueryKey,
   campaignListQueryKey,
   campaignPromptSelectionPrefix,
   campaignRecordQueryKey,
@@ -99,11 +101,18 @@ function updateCampaignSummaries(
       return data;
     }
 
-    const campaigns = update(data.pages.flatMap((page) => page.campaigns));
+    const loadedCampaigns = data.pages.flatMap((page) => page.campaigns);
+    const updatedCampaigns = update(loadedCampaigns);
+    const hasUnloadedCampaigns = data.pages.at(-1)?.nextCursor !== undefined;
+    const campaigns = hasUnloadedCampaigns
+      ? updatedCampaigns.slice(0, loadedCampaigns.length)
+      : updatedCampaigns;
+    const lastPageIndex = data.pages.length - 1;
     let offset = 0;
-    const pages = data.pages.map((page) => {
-      const pageCampaigns = campaigns.slice(offset, offset + page.campaigns.length);
-      offset += page.campaigns.length;
+    const pages = data.pages.map((page, index) => {
+      const pageSize = index === lastPageIndex ? campaigns.length - offset : page.campaigns.length;
+      const pageCampaigns = campaigns.slice(offset, offset + pageSize);
+      offset += pageSize;
       return { ...page, campaigns: pageCampaigns };
     });
 
@@ -113,7 +122,7 @@ function updateCampaignSummaries(
 
 function compareCampaignActivity(left: CampaignSummary, right: CampaignSummary) {
   if (left.lastActivityAt !== right.lastActivityAt) {
-    return right.lastActivityAt - left.lastActivityAt;
+    return left.lastActivityAt < right.lastActivityAt ? 1 : -1;
   }
 
   return left.threadId < right.threadId ? 1 : left.threadId === right.threadId ? 0 : -1;
@@ -121,60 +130,48 @@ function compareCampaignActivity(left: CampaignSummary, right: CampaignSummary) 
 
 export function updateCampaignActivity(
   queryClient: QueryClient,
-  update: Readonly<{
-    threadId: string;
-    lastActivityAt: number;
-    turnCount: number;
-    allowActivityRewind?: boolean;
-  }>,
+  activity: Readonly<ThreadActivity>,
+  { allowRewind = false }: Readonly<{ allowRewind?: boolean }> = {},
 ) {
   const data = queryClient.getQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey);
-  let campaignFound = false;
+  const campaignFound =
+    data?.pages.some((page) =>
+      page.campaigns.some((campaign) => campaign.threadId === activity.threadId),
+    ) ?? false;
 
-  queryClient.setQueriesData<Campaign | null>(
-    {
-      queryKey: campaignQueryKey,
-      predicate: (query) => query.queryKey.length === 2 && query.queryKey[1] !== "list",
-    },
-    (campaign) =>
-      campaign?.threadId === update.threadId
-        ? {
-            ...campaign,
-            lastActivityAt: update.allowActivityRewind
-              ? update.lastActivityAt
-              : Math.max(campaign.lastActivityAt, update.lastActivityAt),
-            turnCount: update.turnCount,
-          }
-        : campaign,
+  queryClient.setQueriesData<Campaign | null>({ queryKey: campaignDetailQueryKey }, (campaign) =>
+    campaign?.threadId === activity.threadId
+      ? {
+          ...campaign,
+          lastActivityAt: allowRewind
+            ? activity.lastActivityAt
+            : Math.max(campaign.lastActivityAt, activity.lastActivityAt),
+          turnCount: allowRewind
+            ? activity.turnCount
+            : Math.max(campaign.turnCount, activity.turnCount),
+        }
+      : campaign,
   );
 
-  updateCampaignSummaries(queryClient, (campaigns) => {
-    const campaign = campaigns.find((candidate) => candidate.threadId === update.threadId);
-
-    if (!campaign) {
-      return campaigns;
-    }
-
-    campaignFound = true;
-
-    const updatedCampaign = {
-      ...campaign,
-      lastActivityAt: update.allowActivityRewind
-        ? update.lastActivityAt
-        : Math.max(campaign.lastActivityAt, update.lastActivityAt),
-    };
-
-    return [
-      updatedCampaign,
-      ...campaigns.filter((candidate) => candidate.id !== updatedCampaign.id),
-    ].sort(compareCampaignActivity);
-  });
+  if (campaignFound) {
+    updateCampaignSummaries(queryClient, (campaigns) =>
+      campaigns
+        .map((campaign) =>
+          campaign.threadId === activity.threadId
+            ? {
+                ...campaign,
+                lastActivityAt: allowRewind
+                  ? activity.lastActivityAt
+                  : Math.max(campaign.lastActivityAt, activity.lastActivityAt),
+              }
+            : campaign,
+        )
+        .sort(compareCampaignActivity),
+    );
+  }
 
   return (
-    !campaignFound ||
-    !data ||
-    data.pages.length > 1 ||
-    data.pages.some((page) => page.nextCursor !== undefined)
+    !data || !campaignFound || data.pages.length > 1 || data.pages.at(-1)?.nextCursor !== undefined
   );
 }
 
@@ -405,26 +402,11 @@ export function startCampaignMutationOptions(queryClient: QueryClient) {
         threadId: campaign.threadId,
         lastActivityAt: campaign.lastActivityAt,
       };
-      const list = queryClient.getQueryData<InfiniteData<CampaignPage>>(
-        campaignPagesQuery.queryKey,
+      updateCampaignSummaries(queryClient, (campaigns) =>
+        [summary, ...campaigns.filter((candidate) => candidate.id !== campaign.id)].sort(
+          compareCampaignActivity,
+        ),
       );
-      const firstPage = list?.pages[0];
-
-      if (list && firstPage) {
-        queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, {
-          ...list,
-          pages: [
-            {
-              ...firstPage,
-              campaigns: [
-                summary,
-                ...firstPage.campaigns.filter((candidate) => candidate.id !== campaign.id),
-              ].sort(compareCampaignActivity),
-            },
-            ...list.pages.slice(1),
-          ],
-        });
-      }
 
       void invalidateCampaignPages(queryClient);
     },

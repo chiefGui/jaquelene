@@ -155,6 +155,41 @@ describe("campaign start mutation", () => {
     expect(queryClient.getQueryState(campaignPagesQuery.queryKey)?.isInvalidated).toBe(true);
     expect(campaignsIpc.list).not.toHaveBeenCalled();
   });
+
+  it("keeps the loaded campaign window bounded while reconciliation is pending", async () => {
+    const queryClient = createQueryClient();
+    const summaries: CampaignSummary[] = [400, 300, 200, 100].map((lastActivityAt) => ({
+      id: `campaign-${lastActivityAt}`,
+      title: `Campaign ${lastActivityAt}`,
+      threadId: `thread-${lastActivityAt}`,
+      lastActivityAt,
+    }));
+    const started: Campaign = {
+      id: "campaign-new",
+      title: "New campaign",
+      threadId: "thread-new",
+      startedAt: 500,
+      lastActivityAt: 500,
+      turnCount: 0,
+    };
+    campaignsIpc.start.mockResolvedValue(started);
+    queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, {
+      pages: [
+        { campaigns: summaries.slice(0, 2), nextCursor: "second-page" },
+        { campaigns: summaries.slice(2), nextCursor: "more-campaigns" },
+      ],
+      pageParams: [undefined, "second-page"],
+    });
+    const mutation = new MutationObserver(queryClient, startCampaignMutationOptions(queryClient));
+
+    await mutation.mutate({ title: started.title, composition: [] });
+
+    expect(cachedCampaignPage(queryClient)?.pages.map((page) => page.campaigns)).toEqual([
+      [campaignSummary(started), summaries[0]],
+      [summaries[1], summaries[2]],
+    ]);
+    expect(queryClient.getQueryState(campaignPagesQuery.queryKey)?.isInvalidated).toBe(true);
+  });
 });
 
 describe("campaign deletion mutation", () => {
@@ -517,12 +552,13 @@ describe("campaign activity cache", () => {
       pages: [{ campaigns: [cached] }],
       pageParams: [undefined],
     });
+    queryClient.setQueryData(campaignQuery(cached.id).queryKey, campaign());
 
     expect(
       updateCampaignActivity(queryClient, {
         threadId: cached.threadId,
         lastActivityAt: 300,
-        turnCount: 1,
+        turnCount: 2,
       }),
     ).toBe(false);
     expect(
@@ -536,6 +572,11 @@ describe("campaign activity cache", () => {
     expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([
       { ...cached, lastActivityAt: 300 },
     ]);
+    expect(queryClient.getQueryData(campaignQuery(cached.id).queryKey)).toEqual({
+      ...campaign(),
+      lastActivityAt: 300,
+      turnCount: 2,
+    });
   });
 
   it("applies authoritative activity when deletion moves a campaign down", () => {
@@ -561,12 +602,15 @@ describe("campaign activity cache", () => {
     });
     queryClient.setQueryData(campaignQuery(active.id).queryKey, activeCampaign);
 
-    updateCampaignActivity(queryClient, {
-      threadId: active.threadId,
-      lastActivityAt: 100,
-      turnCount: 1,
-      allowActivityRewind: true,
-    });
+    updateCampaignActivity(
+      queryClient,
+      {
+        threadId: active.threadId,
+        lastActivityAt: 100,
+        turnCount: 1,
+      },
+      { allowRewind: true },
+    );
 
     expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([
       other,

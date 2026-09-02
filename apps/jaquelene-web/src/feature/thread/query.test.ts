@@ -93,12 +93,11 @@ describe("thread reconciliation", () => {
       queryKey: threadMessagesQuery(threadId).queryKey,
       exact: true,
     });
-    expect(campaignCache.updateCampaignActivity).toHaveBeenCalledWith(queryClient, {
-      threadId,
-      lastActivityAt: 500,
-      turnCount: 2,
-      allowActivityRewind: true,
-    });
+    expect(campaignCache.updateCampaignActivity).toHaveBeenCalledWith(
+      queryClient,
+      { threadId, lastActivityAt: 500, turnCount: 2 },
+      { allowRewind: true },
+    );
     expect(campaignCache.invalidateCampaignPages).toHaveBeenCalledWith(queryClient);
 
     stop();

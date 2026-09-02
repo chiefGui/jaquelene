@@ -1,4 +1,5 @@
 export const campaignQueryKey = ["campaigns"] as const;
+export const campaignDetailQueryKey = [...campaignQueryKey, "detail"] as const;
 export const campaignListQueryKey = [...campaignQueryKey, "list"] as const;
 export const campaignUsageQueryKey = ["usage", "campaign"] as const;
 export const promptQueryKey = ["prompts"] as const;
@@ -7,7 +8,7 @@ export const threadQueryKey = ["threads"] as const;
 export const usageQueryKey = ["usage"] as const;
 
 export function campaignRecordQueryKey(id: string) {
-  return [...campaignQueryKey, id] as const;
+  return [...campaignDetailQueryKey, id] as const;
 }
 
 export function campaignUsageRecordQueryKey(id: string) {

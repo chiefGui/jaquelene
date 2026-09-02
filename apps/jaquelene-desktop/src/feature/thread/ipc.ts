@@ -111,7 +111,11 @@ function toIpcGeneration(generation: Generation) {
 }
 
 function toIpcThreadActivity(activity: ThreadActivity) {
-  return { ...activity };
+  return {
+    threadId: activity.threadId,
+    lastActivityAt: activity.lastActivityAt,
+    turnCount: activity.turnCount,
+  };
 }
 
 function toIpcSubmission(acceptance: TurnAcceptance) {

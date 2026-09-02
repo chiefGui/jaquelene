@@ -236,7 +236,7 @@ export function installThreadReconciliation(queryClient: QueryClient) {
     runReconciliation("thread.turn.settlement", () => reloadThread(queryClient, threadId));
   });
   const stopHistoryDeletedListener = onHistoryDeleted(({ threadId, threadActivity }) => {
-    if (updateCampaignActivity(queryClient, { ...threadActivity, allowActivityRewind: true })) {
+    if (updateCampaignActivity(queryClient, threadActivity, { allowRewind: true })) {
       refreshCampaignPages(queryClient);
     }
     runReconciliation("thread.history.delete.reconcile", () =>

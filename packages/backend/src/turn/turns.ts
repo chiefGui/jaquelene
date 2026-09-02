@@ -115,16 +115,8 @@ function settleTurn(
     outcome: "completed",
     generation: execution.generation,
     assistantMessage: execution.message,
-    assistantActivated: execution.activated,
-    threadActivity: execution.activated
-      ? {
-          ...acceptance.threadActivity,
-          lastActivityAt: Math.max(
-            acceptance.threadActivity.lastActivityAt,
-            execution.message.createdAt,
-          ),
-        }
-      : acceptance.threadActivity,
+    assistantActivated: execution.threadActivity !== null,
+    threadActivity: execution.threadActivity ?? acceptance.threadActivity,
   };
 }
 

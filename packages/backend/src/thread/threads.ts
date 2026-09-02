@@ -522,9 +522,9 @@ export function appendAssistantMessageInTransaction(
 
   database.insert(threadMessageTable).values(record).run();
   const message = toThreadMessage(record);
-  const activity = activateMessage(database, threadId, activateIfMessageId, message);
+  const threadActivity = activateMessage(database, threadId, activateIfMessageId, message);
 
-  return { message, activated: activity !== null };
+  return { message, threadActivity };
 }
 
 export function createThreads(database: Database, now: () => number = Date.now) {

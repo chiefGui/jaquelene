@@ -179,7 +179,7 @@ describe("generations", () => {
       reasoning: { preset: "high", source: "selection" },
     });
     expect(result).toEqual({
-      activated: true,
+      threadActivity: { threadId: thread.id, lastActivityAt: 104, turnCount: 1 },
       message: {
         id: expect.stringMatching(/^message_/),
         threadId: thread.id,
@@ -383,7 +383,7 @@ describe("generations", () => {
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
-    expect(regenerated.activated).toBe(true);
+    expect(regenerated.threadActivity).not.toBeNull();
     expect(regenerated.message.parentMessageId).toBe(started.message.id);
     expect(provider.generate).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -437,7 +437,7 @@ describe("generations", () => {
     });
     const result = await pending;
 
-    expect(result.activated).toBe(false);
+    expect(result.threadActivity).toBeNull();
     expect(result.generation).toEqual(
       expect.objectContaining({
         status: "completed",
@@ -523,7 +523,7 @@ describe("generations", () => {
     });
     const result = await pending;
 
-    expect(result.activated).toBe(false);
+    expect(result.threadActivity).toBeNull();
     expect(result.generation.modelId).toBe("maker/model");
     expect(provider.generate).toHaveBeenCalledWith(
       expect.objectContaining({ modelId: "maker/model" }),
@@ -592,8 +592,8 @@ describe("generations", () => {
     firstCompletion.resolve({ text: "First reply" });
     const firstResult = await firstGeneration;
 
-    expect(secondResult.activated).toBe(true);
-    expect(firstResult.activated).toBe(false);
+    expect(secondResult.threadActivity).not.toBeNull();
+    expect(firstResult.threadActivity).toBeNull();
     expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [first.message, second.message, secondResult.message],
       ...threadPageMetadata([first.message, second.message, secondResult.message]),

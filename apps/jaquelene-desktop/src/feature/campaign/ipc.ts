@@ -33,9 +33,14 @@ function toIpcCostSource(source: BackendCampaignUsage["costs"][number]["source"]
 }
 
 function toIpcCampaign(campaign: Campaign): IpcCampaign {
-  const { generationPreferences: preferences, ...campaignSnapshot } = campaign;
+  const { generationPreferences: preferences } = campaign;
   return {
-    ...campaignSnapshot,
+    id: campaign.id,
+    title: campaign.title,
+    threadId: campaign.threadId,
+    startedAt: campaign.startedAt,
+    lastActivityAt: campaign.lastActivityAt,
+    turnCount: campaign.turnCount,
     ...(preferences
       ? {
           generationPreferences: {
@@ -52,7 +57,12 @@ function toIpcCampaign(campaign: Campaign): IpcCampaign {
 }
 
 function toIpcCampaignSummary(summary: CampaignSummary): IpcCampaignSummary {
-  return { ...summary };
+  return {
+    id: summary.id,
+    title: summary.title,
+    threadId: summary.threadId,
+    lastActivityAt: summary.lastActivityAt,
+  };
 }
 
 function fromIpcPreferences(preferences: IpcCampaignGenerationPreferences) {

@@ -255,18 +255,8 @@ export function createCampaigns(database: Database, now: () => number = Date.now
           title,
           threadId: thread.id,
           startedAt,
-          lastActivityAt: startedAt,
-          turnCount: 0,
         };
-        transaction
-          .insert(campaignTable)
-          .values({
-            id: campaign.id,
-            title: campaign.title,
-            threadId: campaign.threadId,
-            startedAt: campaign.startedAt,
-          })
-          .run();
+        transaction.insert(campaignTable).values(campaign).run();
 
         for (const { kind, promptKey } of composition) {
           if (promptKey === undefined) {
@@ -278,7 +268,7 @@ export function createCampaigns(database: Database, now: () => number = Date.now
             .run();
         }
 
-        return campaign;
+        return { ...campaign, lastActivityAt: startedAt, turnCount: 0 };
       });
     },
 

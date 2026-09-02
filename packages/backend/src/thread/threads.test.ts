@@ -142,8 +142,8 @@ describe("threads", () => {
       }),
     );
 
-    expect(firstReply.activated).toBe(true);
-    expect(siblingReply.activated).toBe(false);
+    expect(firstReply.threadActivity).not.toBeNull();
+    expect(siblingReply.threadActivity).toBeNull();
     expect(
       database
         .select({
@@ -455,10 +455,10 @@ describe("threads", () => {
       }),
     );
 
-    expect(rootReply.activated).toBe(true);
-    expect(targetReply.activated).toBe(true);
-    expect(inactiveTargetReply.activated).toBe(false);
-    expect(retainedLaterMessage.activated).toBe(false);
+    expect(rootReply.threadActivity).not.toBeNull();
+    expect(targetReply.threadActivity).not.toBeNull();
+    expect(inactiveTargetReply.threadActivity).toBeNull();
+    expect(retainedLaterMessage.threadActivity).toBeNull();
     expect(threads.deleteFrom({ threadId: thread.id, userMessageId: target.message.id })).toEqual({
       threadId: thread.id,
       userMessageId: target.message.id,
@@ -542,7 +542,7 @@ describe("threads", () => {
     );
     const otherMessage = threads.startTurn(otherThread.id, "Other thread message").message;
 
-    expect(activeReply.activated).toBe(true);
+    expect(activeReply.threadActivity).not.toBeNull();
     expect(() =>
       threads.deleteFrom({ threadId: thread.id, userMessageId: activeReply.message.id }),
     ).toThrow(TypeError);

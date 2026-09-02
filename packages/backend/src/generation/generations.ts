@@ -8,6 +8,7 @@ import {
 import {
   appendAssistantMessageInTransaction,
   requireThreadMessageContent,
+  type ThreadActivity,
 } from "#backend/thread/threads";
 import {
   threadMessageTable,
@@ -61,7 +62,7 @@ export type ReplyGenerationExecution =
       outcome: "completed";
       generation: Generation;
       message: ThreadMessage;
-      activated: boolean;
+      threadActivity: ThreadActivity | null;
     }
   | {
       outcome: "failed";
@@ -465,7 +466,7 @@ export function createGenerations(
     try {
       const result = database.transaction((transaction) => {
         const completionTime = finishedAt(generation, attempt);
-        const { message, activated } = appendAssistantMessageInTransaction(transaction, {
+        const { message, threadActivity } = appendAssistantMessageInTransaction(transaction, {
           threadId: anchor.threadId,
           turnId: generation.turnId,
           parentMessageId: anchor.inputMessageId,
@@ -499,7 +500,7 @@ export function createGenerations(
           throw new Error(`Provider attempt "${attempt.id}" is no longer pending.`);
         }
 
-        return { generation: toGeneration(storedCompletedGeneration), message, activated };
+        return { generation: toGeneration(storedCompletedGeneration), message, threadActivity };
       });
 
       attempts.changed();

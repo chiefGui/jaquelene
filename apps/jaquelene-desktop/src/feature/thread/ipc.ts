@@ -25,8 +25,14 @@ import {
   toIpcReasoningPresetSource,
 } from "@/feature/model/reasoning-preset";
 
-type ThreadMessagingTurns = Pick<Turns, "deleteFrom" | "listForThread" | "submit" | "retry">;
-type TurnGenerationOperation = "thread.turn.submit" | "thread.turn.retry";
+type ThreadMessagingTurns = Pick<
+  Turns,
+  "deleteFrom" | "listForThread" | "regenerate" | "retry" | "submit"
+>;
+type TurnGenerationOperation =
+  | "thread.reply.regenerate"
+  | "thread.turn.retry"
+  | "thread.turn.submit";
 type ThreadChangeOperation = TurnGenerationOperation | "thread.history.delete";
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
@@ -303,6 +309,21 @@ export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: 
             },
           });
           observeSettlement("thread.turn.retry", operation.settlement);
+          return toIpcGeneration(operation.acceptance.generation);
+        },
+        async regenerate(request) {
+          const operation = await turns.regenerate({
+            assistantMessageId: ids.message.parse(request.assistantMessageId),
+            configuration: {
+              model: { ...request.configuration.model },
+              ...(request.configuration.reasoningPreset === undefined
+                ? {}
+                : {
+                    reasoningPreset: fromIpcReasoningPreset(request.configuration.reasoningPreset),
+                  }),
+            },
+          });
+          observeSettlement("thread.reply.regenerate", operation.settlement);
           return toIpcGeneration(operation.acceptance.generation);
         },
       });

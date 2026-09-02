@@ -388,6 +388,71 @@ describe("thread query cache", () => {
     });
   });
 
+  it("keeps the active response during regeneration and replaces it on completion", () => {
+    const originalAcceptance = pendingTurn(1);
+    const original = completedTurn(originalAcceptance, 2);
+    const regenerationAcceptance: TurnSubmission = {
+      userMessage: original.userMessage,
+      generation: {
+        ...pendingTurn(3).generation,
+        turnId: original.userMessage.turnId,
+      },
+    };
+    const regenerated = completedTurn(regenerationAcceptance, 4);
+    const data: ThreadQueryData = {
+      pages: [page([original.userMessage, original.assistantMessage], [original.generation])],
+      pageParams: [latestThreadHistoryPageParam],
+    };
+
+    const pending = requireUpdated(data, {
+      type: "regeneration-accepted",
+      assistantMessageId: original.assistantMessage.id,
+      generation: regenerationAcceptance.generation,
+    });
+
+    expect(pending.pages[0]?.messages).toEqual([original.userMessage, original.assistantMessage]);
+    expect(pending.pages[0]?.generations).toEqual([regenerationAcceptance.generation]);
+    expect(requireUpdated(pending, { type: "reply-completed", ...regenerated })).toEqual({
+      pages: [page([original.userMessage, regenerated.assistantMessage], [regenerated.generation])],
+      pageParams: [latestThreadHistoryPageParam],
+    });
+  });
+
+  it("keeps the active response when regeneration fails", () => {
+    const originalAcceptance = pendingTurn(1);
+    const original = completedTurn(originalAcceptance, 2);
+    const pendingGeneration = {
+      ...pendingTurn(3).generation,
+      turnId: original.userMessage.turnId,
+    };
+    const failedGeneration: TurnGeneration = {
+      ...pendingGeneration,
+      status: GenerationStatus.Failed,
+      failureKind: GenerationFailureKind.Provider,
+      finishedAt: 4,
+    };
+    const data: ThreadQueryData = {
+      pages: [page([original.userMessage, original.assistantMessage], [original.generation])],
+      pageParams: [latestThreadHistoryPageParam],
+    };
+    const pending = requireUpdated(data, {
+      type: "regeneration-accepted",
+      assistantMessageId: original.assistantMessage.id,
+      generation: pendingGeneration,
+    });
+
+    expect(
+      requireUpdated(pending, {
+        type: "reply-failed",
+        userMessage: original.userMessage,
+        generation: failedGeneration,
+      }),
+    ).toEqual({
+      pages: [page([original.userMessage, original.assistantMessage], [failedGeneration])],
+      pageParams: [latestThreadHistoryPageParam],
+    });
+  });
+
   it("does not downgrade a fast settlement when pending acceptance arrives later", () => {
     const acceptance = pendingTurn(1);
     const completed = completedTurn(acceptance, 2);

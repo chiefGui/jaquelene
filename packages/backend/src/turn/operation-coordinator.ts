@@ -4,17 +4,18 @@ export type TurnOperationInspection =
   | Readonly<{ state: "idle" }>
   | Readonly<{ state: "submitting" }>
   | Readonly<{ state: "retrying"; turnId: TurnId }>
+  | Readonly<{ state: "regenerating"; assistantMessageId: MessageId }>
   | Readonly<{ state: "truncating"; userMessageId: MessageId }>
   | Readonly<{
       state: "generating";
-      source: "submit" | "retry";
+      source: "submit" | "retry" | "regenerate";
       turnId: TurnId;
       generationId: GenerationId;
     }>;
 
 export type StartingTurnOperation = Extract<
   TurnOperationInspection,
-  { state: "submitting" | "retrying" }
+  { state: "submitting" | "retrying" | "regenerating" }
 >;
 type TruncatingTurnOperation = Extract<TurnOperationInspection, { state: "truncating" }>;
 type AcquiredTurnOperation = StartingTurnOperation | TruncatingTurnOperation;
@@ -81,7 +82,12 @@ export function createTurnOperationCoordinator() {
           owner,
           operation: {
             state: "generating",
-            source: starting.state === "submitting" ? "submit" : "retry",
+            source:
+              starting.state === "submitting"
+                ? "submit"
+                : starting.state === "retrying"
+                  ? "retry"
+                  : "regenerate",
             turnId,
             generationId,
           },

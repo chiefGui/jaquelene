@@ -188,6 +188,7 @@ function createBackendTurnsStub(
   return {
     deleteFrom: vi.fn(),
     listForThread: vi.fn(emptyPage),
+    regenerate: vi.fn(),
     submit: vi.fn(),
     retry: vi.fn(),
     ...overrides,
@@ -422,6 +423,70 @@ describe("thread IPC", () => {
     );
   });
 
+  it("maps regeneration and publishes its settlement", async () => {
+    const { acceptance, completed } = createTurnState();
+    const assistantMessageId = ids.message.create();
+    const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(async () => ({
+      acceptance,
+      settlement: Promise.resolve(completed),
+    }));
+    const backendTurns = createBackendTurnsStub({ regenerate });
+
+    exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
+    const accepted = await requireImplementations().turns.regenerate({
+      assistantMessageId,
+      configuration: {
+        model: { providerId: "openrouter", modelId: "maker/model" },
+        reasoningPreset: ReasoningPreset.High,
+      },
+    });
+
+    expect(regenerate).toHaveBeenCalledWith({
+      assistantMessageId,
+      configuration: {
+        model: { providerId: "openrouter", modelId: "maker/model" },
+        reasoningPreset: "high",
+      },
+    });
+    expect(accepted).toEqual(
+      expect.objectContaining({
+        id: acceptance.generation.id,
+        status: "pending",
+        reasoning: {
+          preset: ReasoningPreset.High,
+          source: ReasoningPresetSource.Selection,
+        },
+      }),
+    );
+    await vi.waitFor(() => expect(implementations.dispatchReplyCompleted).toHaveBeenCalledOnce());
+  });
+
+  it("labels unexpected regeneration failures as regeneration operations", async () => {
+    const cause = new Error("Reply preparation failed");
+    const failed = failedSettlement("preparation", cause);
+    const acceptance: TurnAcceptance = {
+      userMessage: failed.userMessage,
+      generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
+    };
+    const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(async () => ({
+      acceptance,
+      settlement: Promise.resolve(failed),
+    }));
+    const backendTurns = createBackendTurnsStub({ regenerate });
+    const report = vi.fn<ErrorReporter["report"]>();
+
+    exposeSingleRenderer(activeTarget(), backendTurns, { report });
+    await requireImplementations().turns.regenerate({
+      assistantMessageId: ids.message.create(),
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
+    });
+
+    await vi.waitFor(() => expect(report).toHaveBeenCalledOnce());
+    expect(report).toHaveBeenCalledWith(
+      expect.objectContaining({ operation: "thread.reply.regenerate" }),
+    );
+  });
+
   it("reports a rejected settlement observer without dispatching incomplete state", async () => {
     const { acceptance } = createTurnState();
     const cause = new Error("Settlement ownership failed");
@@ -578,10 +643,17 @@ describe("thread IPC", () => {
 
   it("rejects malformed TypeIDs at the adapter boundary", async () => {
     const listForThread = vi.fn(emptyPage);
+    const regenerate = vi.fn();
     const submit = vi.fn();
     const retry = vi.fn();
     const deleteFrom = vi.fn<ThreadMessagingTurns["deleteFrom"]>();
-    const backendTurns = createBackendTurnsStub({ deleteFrom, listForThread, submit, retry });
+    const backendTurns = createBackendTurnsStub({
+      deleteFrom,
+      listForThread,
+      regenerate,
+      submit,
+      retry,
+    });
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     const ipc = requireImplementations();
     const configuration = {
@@ -598,6 +670,9 @@ describe("thread IPC", () => {
       ipc.turns.submit({ threadId: "invalid", content: "Hello", configuration }),
     ).rejects.toThrow(TypeError);
     await expect(ipc.turns.retry({ turnId: "invalid", configuration })).rejects.toThrow(TypeError);
+    await expect(
+      ipc.turns.regenerate({ assistantMessageId: "invalid", configuration }),
+    ).rejects.toThrow(TypeError);
     expect(() =>
       ipc.turns.deleteFrom({ threadId: "invalid", userMessageId: ids.message.create() }),
     ).toThrow(TypeError);
@@ -607,6 +682,7 @@ describe("thread IPC", () => {
     expect(listForThread).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
     expect(retry).not.toHaveBeenCalled();
+    expect(regenerate).not.toHaveBeenCalled();
     expect(deleteFrom).not.toHaveBeenCalled();
   });
 });

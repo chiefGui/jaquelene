@@ -56,7 +56,10 @@ type ThreadTimelineProps = Readonly<{
   olderMessagesFailed: boolean;
   historyNavigationPending: boolean;
   retryPending: boolean;
+  regenerationRequestPending: boolean;
+  responseActionsDisabled: boolean;
   loadOlder: () => Promise<void>;
+  regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
   retryReply: (turnId: string) => Promise<void>;
 }>;
 
@@ -72,7 +75,10 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   olderMessagesFailed,
   historyNavigationPending,
   retryPending,
+  regenerationRequestPending,
+  responseActionsDisabled,
   loadOlder,
+  regenerateResponse,
   retryReply,
 }: ThreadTimelineProps) {
   const historyControls = useRef<HTMLDivElement>(null);
@@ -87,7 +93,9 @@ export const ThreadTimeline = memo(function ThreadTimeline({
     const messages: ThreadTimelineItem[] = view.messages.map((value) => ({
       estimatedSize: estimateThreadTimelineItemSize(
         value.message.content,
-        value.replyFailure !== null,
+        value.replyFailure !== null ||
+          value.regeneration?.status === "pending" ||
+          value.regeneration?.status === "failed",
       ),
       key: `message:${value.message.id}`,
       type: "message",
@@ -303,7 +311,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
               );
             }
 
-            const { message, fromUser, replyFailure } = item.value;
+            const { message, fromUser, regeneration, replyFailure } = item.value;
 
             return (
               <li
@@ -317,9 +325,13 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                 <ThreadMessageRow
                   message={message}
                   fromUser={fromUser}
+                  regeneration={regeneration}
                   replyFailure={replyFailure}
                   announceReplyFailure={message.id === view.latestMessageId}
                   actionsDisabled={historyNavigationPending}
+                  regenerationRequestPending={regenerationRequestPending}
+                  responseActionsDisabled={responseActionsDisabled}
+                  regenerateResponse={regenerateResponse}
                   retryPending={retryPending}
                   retryReply={retryReply}
                 />

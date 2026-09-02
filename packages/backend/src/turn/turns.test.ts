@@ -80,6 +80,7 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
   );
   const supervised = superviseGenerations(generationEngine);
   const turns = createTurns(database, threads, {
+    acceptRegenerationInTransaction: generationEngine.acceptRegenerationInTransaction,
     acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
     listLatestForTurns: generationEngine.listLatestForTurns,
     resolveConfiguration: generationEngine.resolveConfiguration,
@@ -265,6 +266,183 @@ describe("turns", () => {
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
   });
 
+  it("regenerates the active assistant reply while retaining it until settlement", async () => {
+    const regeneratedReply = deferred<ProviderGenerationResult>();
+    const generate = vi
+      .fn<TestGenerate>()
+      .mockResolvedValueOnce({ text: "Original reply" })
+      .mockImplementationOnce(() => regeneratedReply.promise);
+    let timestamp = 300;
+    const { database, threads, turns } = openTurnEnvironment(generate, () => timestamp++);
+    const thread = threads.create();
+    const configuration = {
+      model: { providerId: "provider-a", modelId: "maker/model" },
+    };
+    const submission = await turns.submit({
+      threadId: thread.id,
+      content: "Hello",
+      configuration,
+    });
+    const original = await submission.settlement;
+
+    if (original.outcome !== "completed") {
+      throw new Error("Expected the original reply to complete.");
+    }
+
+    const pendingRegeneration = turns.regenerate({
+      assistantMessageId: original.assistantMessage.id,
+      configuration,
+    });
+    expect(turns.inspect(thread.id)).toEqual({
+      state: "regenerating",
+      assistantMessageId: original.assistantMessage.id,
+    });
+
+    const regeneration = await pendingRegeneration;
+
+    expect(regeneration.acceptance.userMessage).toEqual(submission.acceptance.userMessage);
+    expect(regeneration.acceptance.generation).toEqual(
+      expect.objectContaining({ status: "pending" }),
+    );
+    expect(turns.inspect(thread.id)).toEqual({
+      state: "generating",
+      source: "regenerate",
+      turnId: submission.acceptance.userMessage.turnId,
+      generationId: regeneration.acceptance.generation.id,
+    });
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
+      messages: [submission.acceptance.userMessage, original.assistantMessage],
+      generations: [regeneration.acceptance.generation],
+      ...threadPageMetadata([submission.acceptance.userMessage, original.assistantMessage]),
+    });
+
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2));
+    regeneratedReply.resolve({ text: "Regenerated reply" });
+    const regenerated = await regeneration.settlement;
+
+    if (regenerated.outcome !== "completed") {
+      throw new Error("Expected regeneration to complete.");
+    }
+
+    expect(regenerated.assistantMessage).toEqual(
+      expect.objectContaining({ author: "assistant", content: "Regenerated reply" }),
+    );
+    expect(regenerated.assistantActivated).toBe(true);
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
+      messages: [submission.acceptance.userMessage, regenerated.assistantMessage],
+      generations: [regenerated.generation],
+      ...threadPageMetadata([submission.acceptance.userMessage, regenerated.assistantMessage]),
+    });
+    expect(database.select().from(generationTable).all()).toHaveLength(2);
+  });
+
+  it("keeps the active reply after failed regeneration and allows another attempt", async () => {
+    const regenerationFailure = new Error("Provider unavailable");
+    const results: Array<ProviderGenerationResult | Error> = [
+      { text: "Original reply" },
+      regenerationFailure,
+      { text: "Recovered reply" },
+    ];
+    const generate = vi.fn<TestGenerate>(async () => {
+      const result = results.shift();
+
+      if (result instanceof Error) {
+        throw result;
+      }
+
+      if (!result) {
+        throw new Error("Missing provider result.");
+      }
+
+      return result;
+    });
+    const { threads, turns } = openTurnEnvironment(generate);
+    const thread = threads.create();
+    const configuration = {
+      model: { providerId: "provider-a", modelId: "maker/model" },
+    };
+    const submission = await turns.submit({ threadId: thread.id, content: "Hello", configuration });
+    const original = await submission.settlement;
+
+    if (original.outcome !== "completed") {
+      throw new Error("Expected the original reply to complete.");
+    }
+
+    const failedAttempt = await turns.regenerate({
+      assistantMessageId: original.assistantMessage.id,
+      configuration,
+    });
+    const failed = await failedAttempt.settlement;
+
+    expect(failed).toEqual(
+      expect.objectContaining({
+        outcome: "failed",
+        failure: { cause: regenerationFailure },
+      }),
+    );
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toEqual([
+      submission.acceptance.userMessage,
+      original.assistantMessage,
+    ]);
+
+    const retryAttempt = await turns.regenerate({
+      assistantMessageId: original.assistantMessage.id,
+      configuration,
+    });
+    const recovered = await retryAttempt.settlement;
+
+    expect(recovered).toEqual(
+      expect.objectContaining({
+        outcome: "completed",
+        assistantMessage: expect.objectContaining({ content: "Recovered reply" }),
+      }),
+    );
+  });
+
+  it("rejects regeneration when the selected response is not the active thread head", async () => {
+    const generate = vi.fn<TestGenerate>(async ({ input }) => ({
+      text: `Reply ${input.dialogue.length}`,
+    }));
+    const { threads, turns } = openTurnEnvironment(generate);
+    const thread = threads.create();
+    const configuration = {
+      model: { providerId: "provider-a", modelId: "maker/model" },
+    };
+    const firstSubmission = await turns.submit({
+      threadId: thread.id,
+      content: "First",
+      configuration,
+    });
+    const first = await firstSubmission.settlement;
+
+    if (first.outcome !== "completed") {
+      throw new Error("Expected the first reply to complete.");
+    }
+
+    const secondSubmission = await turns.submit({
+      threadId: thread.id,
+      content: "Second",
+      configuration,
+    });
+    await secondSubmission.settlement;
+
+    await expect(
+      turns.regenerate({
+        assistantMessageId: first.assistantMessage.id,
+        configuration,
+      }),
+    ).rejects.toThrow(`Message "${first.assistantMessage.id}" is not the active thread reply.`);
+    await expect(
+      turns.regenerate({
+        assistantMessageId: firstSubmission.acceptance.userMessage.id,
+        configuration,
+      }),
+    ).rejects.toThrow(
+      `Message "${firstSubmission.acceptance.userMessage.id}" is not an assistant message.`,
+    );
+    expect(generate).toHaveBeenCalledTimes(2);
+  });
+
   it("holds thread exclusivity through settlement without blocking other threads", async () => {
     const firstReply = deferred<ProviderGenerationResult>();
     const generate = vi
@@ -348,6 +526,7 @@ describe("turns", () => {
     const thread = threads.create();
     const acceptanceFailure = new Error("Could not persist pending generation.");
     const turns = createTurns(database, threads, {
+      acceptRegenerationInTransaction: generationEngine.acceptRegenerationInTransaction,
       acceptReplyInTransaction() {
         throw acceptanceFailure;
       },
@@ -381,6 +560,7 @@ describe("turns", () => {
     const settlementFailure = new Error("Could not schedule generation.");
     const settlement = deferred<never>();
     const turns = createTurns(database, threads, {
+      acceptRegenerationInTransaction: generationEngine.acceptRegenerationInTransaction,
       acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
       listLatestForTurns: generationEngine.listLatestForTurns,
       resolveConfiguration: generationEngine.resolveConfiguration,

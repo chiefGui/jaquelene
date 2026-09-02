@@ -68,6 +68,7 @@ describe("thread view state", () => {
     const state = deriveThreadViewState({
       pages: [page(GenerationStatus.Pending)],
       retryActivity: null,
+      actionsAvailable: true,
       hasModel: true,
     });
 
@@ -85,11 +86,16 @@ describe("thread view state", () => {
     const state = deriveThreadViewState({
       pages: [page(GenerationStatus.Completed)],
       retryActivity: null,
+      actionsAvailable: true,
       hasModel: true,
     });
 
     expect(state.messages).toHaveLength(2);
     expect(state.messages.every(({ replyFailure }) => replyFailure === null)).toBe(true);
+    expect(state.messages[1]?.regeneration).toEqual({
+      status: "available",
+      canRegenerate: true,
+    });
     expect(state.replyPending).toBe(false);
   });
 
@@ -97,6 +103,7 @@ describe("thread view state", () => {
     const state = deriveThreadViewState({
       pages: [page(GenerationStatus.Failed)],
       retryActivity: { turnId: "turn", status: "failed" },
+      actionsAvailable: true,
       hasModel: true,
     });
 
@@ -106,5 +113,81 @@ describe("thread view state", () => {
         retryFailed: true,
       }),
     );
+  });
+
+  it("keeps the current assistant response visible while regeneration is pending", () => {
+    const current = page(GenerationStatus.Completed);
+    const generation = current.generations[0]!;
+    const pendingPage: ThreadMessagePage = {
+      ...current,
+      generations: [
+        {
+          id: "generation-regeneration",
+          turnId: generation.turnId,
+          providerId: generation.providerId,
+          modelId: generation.modelId,
+          status: GenerationStatus.Pending,
+          startedAt: 3,
+        },
+      ],
+    };
+    const state = deriveThreadViewState({
+      pages: [pendingPage],
+      retryActivity: null,
+      actionsAvailable: true,
+      hasModel: true,
+    });
+
+    expect(state.messages).toHaveLength(2);
+    expect(state.messages[0]?.replyFailure).toBeNull();
+    expect(state.messages[1]?.regeneration).toEqual({
+      status: "pending",
+      canRegenerate: false,
+    });
+    expect(state.replyPending).toBe(true);
+  });
+
+  it("attaches failed regeneration to the retained assistant response", () => {
+    const current = page(GenerationStatus.Completed);
+    const generation = current.generations[0]!;
+    const failedPage: ThreadMessagePage = {
+      ...current,
+      generations: [
+        {
+          id: "generation-regeneration",
+          turnId: generation.turnId,
+          providerId: generation.providerId,
+          modelId: generation.modelId,
+          status: GenerationStatus.Failed,
+          failureKind: GenerationFailureKind.Provider,
+          startedAt: 3,
+          finishedAt: 4,
+        },
+      ],
+    };
+    const state = deriveThreadViewState({
+      pages: [failedPage],
+      retryActivity: null,
+      actionsAvailable: true,
+      hasModel: true,
+    });
+
+    expect(state.messages[0]?.replyFailure).toBeNull();
+    expect(state.messages[1]?.regeneration).toEqual({
+      status: "failed",
+      canRegenerate: true,
+    });
+    expect(state.replyPending).toBe(false);
+  });
+
+  it("does not expose regeneration while viewing historical pages", () => {
+    const state = deriveThreadViewState({
+      pages: [page(GenerationStatus.Completed)],
+      retryActivity: null,
+      actionsAvailable: false,
+      hasModel: true,
+    });
+
+    expect(state.messages[1]?.regeneration).toBeNull();
   });
 });

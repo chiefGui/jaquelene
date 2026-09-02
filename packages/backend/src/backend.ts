@@ -364,6 +364,10 @@ export async function createBackend(
         assertOpen();
         return services.turns.retry(request);
       },
+      regenerate(request) {
+        assertOpen();
+        return services.turns.regenerate(request);
+      },
     },
     providers: {
       list() {

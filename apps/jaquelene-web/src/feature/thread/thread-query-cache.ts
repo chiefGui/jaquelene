@@ -22,6 +22,11 @@ export type ThreadTurnUpdate =
       generation: TurnGeneration;
     }>
   | Readonly<{
+      type: "regeneration-accepted";
+      assistantMessageId: string;
+      generation: TurnGeneration;
+    }>
+  | Readonly<{
       type: "reply-completed";
       userMessage: ThreadMessage;
       assistantMessage: ThreadMessage;
@@ -355,7 +360,7 @@ function isReplyCompletion(
 }
 
 function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
-  if (update.type === "retry-accepted") {
+  if (update.type === "retry-accepted" || update.type === "regeneration-accepted") {
     return update.generation.status === GenerationStatus.Pending;
   }
 
@@ -439,6 +444,34 @@ export function reconcileThreadTurn(
     return CURRENT;
   }
 
+  if (update.type === "regeneration-accepted") {
+    const assistantIndex = messageIndexById.get(update.assistantMessageId);
+    const assistantMessage = assistantIndex === undefined ? undefined : messages[assistantIndex];
+
+    if (
+      assistantIndex !== messages.length - 1 ||
+      assistantMessage?.author !== ThreadMessageAuthor.Assistant ||
+      assistantMessage.turnId !== update.generation.turnId
+    ) {
+      return RELOAD;
+    }
+
+    generationByTurn.set(update.generation.turnId, update.generation);
+
+    return {
+      outcome: "updated",
+      data: retainThreadHistory(
+        rebuildPages(
+          messages,
+          [...generationByTurn.values()],
+          contract,
+          data.pages.at(-1)?.olderCursor,
+        ),
+        "newest",
+      ),
+    };
+  }
+
   const userMessage =
     update.type === "retry-accepted"
       ? messages.find(
@@ -467,7 +500,18 @@ export function reconcileThreadTurn(
   }
 
   if (isReplyCompletion(update) && userIndex !== -1 && userIndex !== messages.length - 1) {
-    return RELOAD;
+    const currentAssistant = messages[userIndex + 1];
+    const replacesActiveReply =
+      userIndex === messages.length - 2 &&
+      currentAssistant?.author === ThreadMessageAuthor.Assistant &&
+      currentAssistant.turnId === userMessage.turnId;
+
+    if (!replacesActiveReply) {
+      return RELOAD;
+    }
+
+    messages.pop();
+    messageIndexById.delete(currentAssistant.id);
   }
 
   function upsertMessage(message: ThreadMessage) {

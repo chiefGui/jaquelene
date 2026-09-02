@@ -331,6 +331,62 @@ export function createGenerations(
     turnId: TurnId,
     requestedConfiguration: ResolvedGenerationConfiguration,
   ): AcceptedReplyGeneration {
+    const replyContext = requireReplyContext(transaction, turnId);
+
+    return acceptReplyForContext(transaction, turnId, requestedConfiguration, replyContext);
+  }
+
+  function acceptRegenerationInTransaction(
+    transaction: Pick<Database, "insert" | "select">,
+    assistantMessageId: MessageId,
+    requestedConfiguration: ResolvedGenerationConfiguration,
+  ): AcceptedReplyGeneration {
+    const source = transaction
+      .select({
+        author: threadMessageTable.author,
+        turnId: generationTable.turnId,
+      })
+      .from(generationTable)
+      .innerJoin(
+        threadMessageTable,
+        and(
+          eq(threadMessageTable.turnId, generationTable.turnId),
+          eq(threadMessageTable.id, generationTable.outputMessageId),
+        ),
+      )
+      .where(
+        and(
+          eq(generationTable.outputMessageId, assistantMessageId),
+          eq(generationTable.status, "completed"),
+        ),
+      )
+      .get();
+
+    if (!source) {
+      throw new RangeError(
+        `Message "${assistantMessageId}" is not the output of a completed generation.`,
+      );
+    }
+
+    if (source.author !== "assistant") {
+      throw new TypeError(`Message "${assistantMessageId}" is not an assistant message.`);
+    }
+
+    const replyContext = requireReplyContext(transaction, source.turnId);
+
+    if (replyContext.activeMessageId !== assistantMessageId) {
+      throw new RangeError(`Message "${assistantMessageId}" is not the active thread reply.`);
+    }
+
+    return acceptReplyForContext(transaction, source.turnId, requestedConfiguration, replyContext);
+  }
+
+  function acceptReplyForContext(
+    transaction: Pick<Database, "insert" | "select">,
+    turnId: TurnId,
+    requestedConfiguration: ResolvedGenerationConfiguration,
+    replyContext: ReturnType<typeof requireReplyContext>,
+  ): AcceptedReplyGeneration {
     const configuration = {
       model: {
         providerId: requestedConfiguration.model.providerId,
@@ -341,7 +397,6 @@ export function createGenerations(
         : { reasoning: requireResolvedReasoning(requestedConfiguration.reasoning) }),
     };
     requireProvider(configuration.model);
-    const replyContext = requireReplyContext(transaction, turnId);
 
     const pendingGeneration = transaction
       .select({ id: generationTable.id })
@@ -583,6 +638,7 @@ export function createGenerations(
       }
     },
 
+    acceptRegenerationInTransaction,
     acceptReplyInTransaction,
     executeAcceptedReply,
     executeReply,

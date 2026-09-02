@@ -41,8 +41,8 @@ export function CampaignSidebar() {
             params: { campaignId: campaign.id },
           })),
         ],
-        loadingItemCount: pages.isPending ? 3 : undefined,
-        trailingAction,
+        ...(pages.isPending ? { loadingItemCount: 3 } : {}),
+        ...(trailingAction ? { trailingAction } : {}),
       }}
     />
   );

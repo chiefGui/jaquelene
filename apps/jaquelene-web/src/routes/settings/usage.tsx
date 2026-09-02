@@ -150,14 +150,11 @@ function UsageRoute() {
     throw new TypeError(`Unknown usage period "${period}".`);
   }
 
-  const hasIncompleteReporting =
-    overview.tokenCoverage.unknown > 0 || overview.costCoverage.unknown > 0;
   const costSummary = summarizeCosts(overview.costs);
   const hasEstimates = overview.costs.some((cost) => cost.source === "estimated");
   const hasMultipleCurrencies = costSummary.kind === "multiple-currencies";
   const reportingNote = [
     ...(hasMultipleCurrencies ? ["Costs are kept separate by currency."] : []),
-    ...(hasIncompleteReporting ? ["Some attempts did not report complete usage."] : []),
     ...(hasEstimates && !hasMultipleCurrencies ? ["Estimated cost is marked with ~."] : []),
   ].join(" ");
 

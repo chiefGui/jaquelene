@@ -3,11 +3,14 @@ import * as stylex from "@stylexjs/stylex";
 import type { UiThemeStyle } from "./theme";
 
 type ThemeSwatchProps = {
+  selected: boolean;
   theme: UiThemeStyle;
 };
 
-export function ThemeSwatch({ theme }: ThemeSwatchProps) {
-  return <span aria-hidden="true" {...stylex.props(styles.root, theme)} />;
+export function ThemeSwatch({ selected, theme }: ThemeSwatchProps) {
+  return (
+    <span aria-hidden="true" {...stylex.props(styles.root, theme, selected && styles.selected)} />
+  );
 }
 
 const styles = stylex.create({
@@ -23,10 +26,7 @@ const styles = stylex.create({
     display: "block",
     height: "3.25rem",
     isolation: "isolate",
-    outlineColor: {
-      default: "transparent",
-      [stylex.when.ancestor('[aria-checked="true"]')]: colors.borderAccent,
-    },
+    outlineColor: "transparent",
     outlineOffset: "0.125rem",
     outlineStyle: "solid",
     outlineWidth: 2,
@@ -54,5 +54,8 @@ const styles = stylex.create({
       inset: 0,
       position: "absolute",
     },
+  },
+  selected: {
+    outlineColor: colors.borderAccent,
   },
 });

@@ -155,18 +155,24 @@ function ThemePreferenceItem({ disabled, error, onValueChange, value }: ThemePre
           disabled={disabled}
           {...stylex.props(styles.themeGroup)}
         >
-          {options.map((option) => (
-            <Radio
-              key={option.value}
-              store={store}
-              value={option.value}
-              render={<button type="button" />}
-              {...stylex.props(styles.themeOption)}
-            >
-              <ThemeSwatch theme={option.style} />
-              <span {...stylex.props(styles.themeLabel)}>{option.label}</span>
-            </Radio>
-          ))}
+          {options.map((option) => {
+            const selected = option.value === value;
+
+            return (
+              <Radio
+                key={option.value}
+                store={store}
+                value={option.value}
+                render={<button type="button" />}
+                {...stylex.props(styles.themeOption)}
+              >
+                <ThemeSwatch selected={selected} theme={option.style} />
+                <span {...stylex.props(styles.themeLabel, selected && styles.themeLabelSelected)}>
+                  {option.label}
+                </span>
+              </Radio>
+            );
+          })}
         </RadioGroup>
       </Item.Value>
     </Item.Root>
@@ -290,12 +296,12 @@ const styles = stylex.create({
     padding: "0.25rem",
   },
   themeLabel: {
-    color: {
-      default: colors.foregroundSecondary,
-      [stylex.when.ancestor('[aria-checked="true"]')]: colors.foregroundPrimary,
-    },
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     textBox: "trim-both text",
+  },
+  themeLabelSelected: {
+    color: colors.foregroundPrimary,
   },
 });

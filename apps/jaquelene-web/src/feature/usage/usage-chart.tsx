@@ -1,6 +1,6 @@
 import type { UsageBucket, UsageOverview } from "@jaquelene/ipc/renderer";
 import { formatCount, formatCurrencyNanos } from "@jaquelene/ui";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { summarizeCosts } from "./presentation";
@@ -217,7 +217,7 @@ const styles = stylex.create({
       default: "transparent",
       ":hover": `color-mix(in oklch, ${colors.foregroundAccent} 8%, transparent)`,
     },
-    borderRadius: tokens.radiusSmall,
+    borderRadius: radii.small,
     display: "flex",
     minWidth: 0,
     outlineColor: {
@@ -242,8 +242,8 @@ const styles = stylex.create({
       [stylex.when.ancestor(":hover")]:
         `color-mix(in oklch, ${colors.foregroundAccent} 68%, transparent)`,
     },
-    borderTopLeftRadius: tokens.radiusSmall,
-    borderTopRightRadius: tokens.radiusSmall,
+    borderTopLeftRadius: radii.small,
+    borderTopRightRadius: radii.small,
     height: "var(--usage-bar-height)",
     minHeight: "0.125rem",
     width: "100%",

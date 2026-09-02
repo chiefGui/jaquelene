@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
+import { radii } from "../tokens.stylex";
 import { useReducedMotion } from "./motion";
 
 export type PingProps = {
@@ -38,7 +39,7 @@ const styles = stylex.create({
     animationName: ping,
     animationTimingFunction: "cubic-bezier(0, 0, 0.2, 1)",
     backgroundColor: "currentColor",
-    borderRadius: "9999px",
+    borderRadius: radii.full,
     height: "100%",
     opacity: 0.25,
     position: "absolute",
@@ -46,7 +47,7 @@ const styles = stylex.create({
   },
   dot: {
     backgroundColor: "currentColor",
-    borderRadius: "9999px",
+    borderRadius: radii.full,
     height: "100%",
     position: "relative",
     width: "100%",

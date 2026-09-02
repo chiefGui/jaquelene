@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps, ReactNode } from "react";
-import { colors, tokens } from "../tokens.stylex";
+import { colors, radii, shadows, tokens } from "../tokens.stylex";
 import { Button, type ButtonProps } from "./button";
 
 export type ChipActionProps = Omit<ButtonProps, "style" | "tone" | "variant"> & {
@@ -53,7 +53,7 @@ export const Chip = {
 const styles = stylex.create({
   root: {
     alignItems: "center",
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.compact,
     borderStyle: "solid",
     borderWidth: 1,
     display: "inline-flex",
@@ -73,7 +73,7 @@ const styles = stylex.create({
   },
   action: {
     borderColor: colors.borderDefault,
-    boxShadow: tokens.shadowControl,
+    boxShadow: shadows.control,
   },
   label: {
     minWidth: 0,

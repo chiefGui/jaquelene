@@ -1,4 +1,4 @@
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { MarkdownToJSX } from "markdown-to-jsx/react";
 import type { ComponentProps, ReactNode } from "react";
@@ -189,7 +189,7 @@ const styles = stylex.create({
     overflowWrap: "anywhere",
   },
   link: {
-    borderRadius: tokens.radiusSmall,
+    borderRadius: radii.small,
     color: {
       default: colors.foregroundLink,
       ":hover": colors.foregroundLinkHover,
@@ -225,7 +225,7 @@ const styles = stylex.create({
   },
   codeBlock: {
     backgroundColor: colors.backgroundCanvas,
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.compact,
     marginBlockStart: {
       default: "0.75rem",
       ":first-child": 0,

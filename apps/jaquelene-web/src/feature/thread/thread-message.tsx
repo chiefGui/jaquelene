@@ -5,7 +5,7 @@ import {
   type TurnGeneration,
 } from "@jaquelene/ipc/renderer";
 import { Button, formatTimestamp } from "@jaquelene/ui";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { memo } from "react";
 import { Markdown } from "../markdown/markdown";
@@ -131,7 +131,7 @@ const styles = stylex.create({
     alignItems: "flex-start",
   },
   bubble: {
-    borderRadius: tokens.radiusLarge,
+    borderRadius: radii.content,
     fontSize: tokens.fontSizeBase,
     lineHeight: tokens.lineHeightBase,
     maxWidth: "82%",

@@ -3,7 +3,7 @@ import type {
   GenerationConfigurationSelection,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useQueryClient, useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import {
@@ -494,7 +494,7 @@ const styles = stylex.create({
     alignItems: "center",
     backgroundColor: colors.backgroundSurfaceOverlay,
     borderColor: colors.borderDefault,
-    borderRadius: tokens.radiusLarge,
+    borderRadius: radii.content,
     borderStyle: "solid",
     borderWidth: 1,
     display: "flex",

@@ -100,15 +100,6 @@ export const colors = stylex.defineVars({
 export const tokens = stylex.defineConsts({
   // Control geometry
   controlHeight: "2rem",
-  radiusSmall: "0.25rem",
-  radiusMedium: "0.5rem",
-  radiusLarge: "0.625rem",
-  radiusXLarge: "0.75rem",
-
-  // Elevation
-  shadowControl: `inset 0 0.0625rem 0 color-mix(in oklch, ${colors.foregroundPrimary} 5%, transparent), 0 0.0625rem 0.125rem color-mix(in oklch, ${colors.backgroundCanvas} 45%, transparent)`,
-  shadowLarge: "0 20px 25px -5px oklch(0 0 0 / 10%), 0 8px 10px -6px oklch(0 0 0 / 10%)",
-  shadowXLarge: "0 25px 50px -12px oklch(0 0 0 / 25%)",
 
   // Typography
   fontGeist: '"Geist Variable", ui-sans-serif, system-ui, sans-serif',
@@ -124,4 +115,22 @@ export const tokens = stylex.defineConsts({
   lineHeightSmall: "1.125rem",
   lineHeightBase: "1.25rem",
   lineHeightLarge: "1.5rem",
+});
+
+// Shape roles keep component geometry consistent without making it part of a
+// color theme. Control and surface intentionally share a value today, but are
+// separate roles so either can evolve without coupling unrelated components.
+export const radii = stylex.defineConsts({
+  small: "0.25rem",
+  compact: "0.5rem",
+  content: "0.625rem",
+  control: "0.75rem",
+  surface: "0.75rem",
+  full: "9999px",
+});
+
+// Elevation follows interaction roles rather than an open-ended size scale.
+export const shadows = stylex.defineConsts({
+  control: `inset 0 0.0625rem 0 color-mix(in oklch, ${colors.foregroundPrimary} 5%, transparent), 0 0.0625rem 0.125rem color-mix(in oklch, ${colors.backgroundCanvas} 45%, transparent)`,
+  floating: `inset 0 0.0625rem 0 color-mix(in oklch, ${colors.foregroundPrimary} 5%, transparent), 0 0.125rem 0.375rem -0.125rem color-mix(in oklch, ${colors.backgroundCanvas} 55%, transparent), 0 0.5rem 1rem -0.5rem color-mix(in oklch, ${colors.backgroundCanvas} 70%, transparent)`,
 });

@@ -3,7 +3,7 @@ import Loading02Icon from "@hugeicons/core-free-icons/Loading02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, type ButtonProps } from "@jaquelene/ui";
 import { useReducedMotion } from "@jaquelene/ui/motion";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, shadows, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
@@ -131,10 +131,10 @@ const styles = stylex.create({
       default: colors.borderDefault,
       ":focus-within": colors.borderFocus,
     },
-    borderRadius: tokens.radiusXLarge,
+    borderRadius: radii.control,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowLarge,
+    boxShadow: shadows.control,
     display: "flex",
     flexDirection: "column",
     isolation: "isolate",
@@ -199,7 +199,7 @@ const styles = stylex.create({
     color: colors.foregroundDanger,
   },
   submit: {
-    borderRadius: "9999px",
+    borderRadius: radii.full,
     paddingInline: 0,
     width: tokens.controlHeight,
   },

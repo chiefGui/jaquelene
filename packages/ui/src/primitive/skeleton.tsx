@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
-import { colors, tokens } from "../tokens.stylex";
+import { colors, radii } from "../tokens.stylex";
 import { useReducedMotion } from "./motion";
 
 export type SkeletonProps = Omit<
@@ -31,7 +31,7 @@ const shimmer = stylex.keyframes({
 const styles = stylex.create({
   root: {
     backgroundColor: colors.backgroundSkeleton,
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.compact,
     overflow: "hidden",
     position: "relative",
   },

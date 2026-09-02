@@ -5,7 +5,7 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
-import { colors, tokens } from "../tokens.stylex";
+import { colors, radii, tokens } from "../tokens.stylex";
 
 type ButtonVariant = "ghost" | "soft" | "solid";
 type ButtonTone = "danger" | "neutral";
@@ -49,7 +49,7 @@ export const Button = Object.assign(ButtonRoot, { Label: ButtonLabel });
 const styles = stylex.create({
   root: {
     alignItems: "center",
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.control,
     display: "inline-flex",
     flexShrink: 0,
     fontSize: tokens.fontSizeSmall,

@@ -13,7 +13,7 @@ import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import * as m from "motion/react-m";
 
-import { colors, tokens } from "../tokens.stylex";
+import { colors, radii, shadows } from "../tokens.stylex";
 import { MotionPresence, overlayTransition } from "./motion";
 
 export type DialogProps = Omit<
@@ -91,10 +91,10 @@ const styles = stylex.create({
   content: {
     backgroundColor: colors.backgroundSurfaceOverlay,
     borderColor: colors.borderOverlay,
-    borderRadius: tokens.radiusXLarge,
+    borderRadius: radii.surface,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowXLarge,
+    boxShadow: shadows.floating,
     color: colors.foregroundPrimary,
     height: "fit-content",
     inset: 0,

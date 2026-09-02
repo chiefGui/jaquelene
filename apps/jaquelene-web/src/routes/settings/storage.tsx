@@ -4,7 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { StorageCategory, type StorageAreaUsage, type StorageUsage } from "@jaquelene/ipc/renderer";
 import { Button, IconButton, Item, formatBytes } from "@jaquelene/ui";
 import { ConfirmDialog, type ConfirmDialogProps } from "@jaquelene/ui/confirm-dialog";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -372,7 +372,7 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightXSmall,
   },
   usageBreakdown: {
-    borderRadius: "9999px",
+    borderRadius: radii.full,
     display: "flex",
     gap: "0.125rem",
     height: "0.5rem",
@@ -410,7 +410,7 @@ const styles = stylex.create({
   },
   categoryMarker: {
     backgroundColor: "currentColor",
-    borderRadius: "9999px",
+    borderRadius: radii.full,
     flexShrink: 0,
     height: "0.5rem",
     marginTop: `calc((${tokens.lineHeightSmall} - 0.5rem) / 2)`,

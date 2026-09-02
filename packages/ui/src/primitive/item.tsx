@@ -2,7 +2,7 @@ import { Role, type RoleProps } from "@ariakit/react/role";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { createContext, useContext } from "react";
-import { colors, tokens } from "../tokens.stylex";
+import { colors, radii, tokens } from "../tokens.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -105,7 +105,7 @@ const styles = stylex.create({
   group: {
     backgroundColor: colors.backgroundNeutralSubtlest,
     borderColor: colors.borderSubtle,
-    borderRadius: tokens.radiusXLarge,
+    borderRadius: radii.surface,
     borderStyle: "solid",
     borderWidth: 1,
     overflow: "hidden",

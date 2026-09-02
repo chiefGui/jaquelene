@@ -15,7 +15,7 @@ import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
 
-import { colors, tokens } from "../tokens.stylex";
+import { colors, radii, shadows, tokens } from "../tokens.stylex";
 import { ControlIcon } from "./control-icon";
 import { Popover } from "./popover";
 
@@ -109,12 +109,12 @@ export const Select = Object.assign(SelectTrigger, {
 
 const interactiveBackground = colors.backgroundInteractive;
 const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
-const focusedControlShadow = `${focusRing}, ${tokens.shadowControl}`;
+const focusedControlShadow = `${focusRing}, ${shadows.control}`;
 
 const styles = stylex.create({
   trigger: {
     alignItems: "center",
-    borderRadius: tokens.radiusLarge,
+    borderRadius: radii.control,
     color: {
       default: colors.foregroundSecondary,
       ":not(:disabled):hover": colors.foregroundPrimary,
@@ -144,7 +144,7 @@ const styles = stylex.create({
     borderStyle: "solid",
     borderWidth: 1,
     boxShadow: {
-      default: tokens.shadowControl,
+      default: shadows.control,
       ':is([aria-expanded="true"])': focusedControlShadow,
       ":is([data-focus-visible])": focusedControlShadow,
     },
@@ -182,10 +182,10 @@ const styles = stylex.create({
   content: {
     backgroundColor: colors.backgroundSurfaceOverlay,
     borderColor: colors.borderOverlay,
-    borderRadius: tokens.radiusXLarge,
+    borderRadius: radii.surface,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowXLarge,
+    boxShadow: shadows.floating,
     color: colors.foregroundPrimary,
     display: "flex",
     flexDirection: "column",
@@ -209,7 +209,7 @@ const styles = stylex.create({
       ':is([aria-selected="true"])': colors.backgroundSelected,
       ':is([aria-selected="true"]):hover': colors.backgroundSelectedHover,
     },
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.compact,
     color: {
       default: colors.foregroundSecondary,
       ":focus": colors.foregroundPrimary,

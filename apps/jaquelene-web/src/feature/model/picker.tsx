@@ -26,7 +26,7 @@ import {
 import { Button, ControlIcon, IconFrame, Input, Skeleton } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
 import { Select, type SelectProps } from "@jaquelene/ui/select";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, shadows, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -810,7 +810,7 @@ function ModelPickerContent({ style, ...props }: ModelPickerContentProps) {
                   }
                   aria-label="Search models"
                   placeholder="Search models..."
-                  render={<Input style={styles.searchInput} />}
+                  render={<Input variant="ghost" style={styles.searchInput} />}
                 />
               </div>
 
@@ -865,8 +865,7 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
   },
   trigger: {
-    maxWidth: "calc(100vw - 3rem)",
-    width: "18rem",
+    width: "fit-content",
   },
   modelListViewport: {
     flex: 1,
@@ -902,7 +901,7 @@ const styles = stylex.create({
       ":hover": interactiveBackground,
       ":is([data-active-item])": interactiveBackground,
     },
-    borderRadius: tokens.radiusLarge,
+    borderRadius: radii.control,
     fontSize: tokens.fontSizeSmall,
     height: "100%",
     lineHeight: tokens.lineHeightSmall,
@@ -1070,7 +1069,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   skeletonMark: {
-    borderRadius: tokens.radiusSmall,
+    borderRadius: radii.small,
     flexShrink: 0,
     height: "1rem",
     marginTop: "0.125rem",
@@ -1110,7 +1109,7 @@ const styles = stylex.create({
     marginTop: "0.75rem",
   },
   settingsLink: {
-    borderRadius: tokens.radiusSmall,
+    borderRadius: radii.small,
     color: {
       default: colors.foregroundSecondary,
       ":hover": colors.foregroundPrimary,
@@ -1165,10 +1164,10 @@ const styles = stylex.create({
   content: {
     backgroundColor: colors.backgroundSurfaceOverlay,
     borderColor: colors.borderOverlay,
-    borderRadius: tokens.radiusXLarge,
+    borderRadius: radii.surface,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowXLarge,
+    boxShadow: shadows.floating,
     color: colors.foregroundPrimary,
     height: "26rem",
     maxWidth: "calc(100vw - 2rem)",
@@ -1236,11 +1235,6 @@ const styles = stylex.create({
     transform: "translateY(-50%)",
   },
   searchInput: {
-    backgroundColor: {
-      default: "transparent",
-      ":focus": "transparent",
-    },
-    borderWidth: 0,
     paddingLeft: "2.25rem",
     paddingRight: "0.75rem",
     width: "100%",

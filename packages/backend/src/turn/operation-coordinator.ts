@@ -14,9 +14,15 @@ export type TurnOperationInspection =
 
 export type StartingTurnOperation = Extract<
   TurnOperationInspection,
-  { state: "submitting" | "retrying" | "truncating" }
+  { state: "submitting" | "retrying" }
 >;
+type TruncatingTurnOperation = Extract<TurnOperationInspection, { state: "truncating" }>;
+type AcquiredTurnOperation = StartingTurnOperation | TruncatingTurnOperation;
 type ActiveTurnOperation = Exclude<TurnOperationInspection, { state: "idle" }>;
+
+type TurnOperationLease = Readonly<{ release: () => void }>;
+type GeneratingTurnOperationLease = TurnOperationLease &
+  Readonly<{ generating: (turnId: TurnId, generationId: GenerationId) => void }>;
 
 type OperationEntry = Readonly<{
   owner: symbol;
@@ -30,52 +36,63 @@ function copyInspection(operation: ActiveTurnOperation): TurnOperationInspection
 export function createTurnOperationCoordinator() {
   const operations = new Map<ThreadId, OperationEntry>();
 
-  return {
-    acquire(threadId: ThreadId, starting: StartingTurnOperation) {
-      if (operations.has(threadId)) {
-        throw new RangeError(`Thread "${threadId}" already has an active turn operation.`);
+  function acquire(
+    threadId: ThreadId,
+    starting: StartingTurnOperation,
+  ): GeneratingTurnOperationLease;
+  function acquire(threadId: ThreadId, starting: TruncatingTurnOperation): TurnOperationLease;
+  function acquire(
+    threadId: ThreadId,
+    starting: AcquiredTurnOperation,
+  ): GeneratingTurnOperationLease | TurnOperationLease {
+    if (operations.has(threadId)) {
+      throw new RangeError(`Thread "${threadId}" already has an active turn operation.`);
+    }
+
+    const owner = Symbol(threadId);
+    let released = false;
+    operations.set(threadId, { owner, operation: starting });
+
+    function release() {
+      if (!released && operations.get(threadId)?.owner === owner) {
+        operations.delete(threadId);
       }
 
-      const owner = Symbol(threadId);
-      let released = false;
-      operations.set(threadId, { owner, operation: starting });
+      released = true;
+    }
 
-      return {
-        generating(turnId: TurnId, generationId: GenerationId) {
-          const current = operations.get(threadId);
+    if (starting.state === "truncating") {
+      return { release };
+    }
 
-          if (released || current?.owner !== owner) {
-            throw new Error(`Thread "${threadId}" operation ownership was lost.`);
-          }
+    return {
+      generating(turnId: TurnId, generationId: GenerationId) {
+        const current = operations.get(threadId);
 
-          if (current.operation.state === "generating") {
-            throw new Error(`Thread "${threadId}" operation is already generating.`);
-          }
+        if (released || current?.owner !== owner) {
+          throw new Error(`Thread "${threadId}" operation ownership was lost.`);
+        }
 
-          if (starting.state === "truncating") {
-            throw new Error(`Thread "${threadId}" truncation cannot begin a generation.`);
-          }
+        if (current.operation.state === "generating") {
+          throw new Error(`Thread "${threadId}" operation is already generating.`);
+        }
 
-          operations.set(threadId, {
-            owner,
-            operation: {
-              state: "generating",
-              source: starting.state === "submitting" ? "submit" : "retry",
-              turnId,
-              generationId,
-            },
-          });
-        },
+        operations.set(threadId, {
+          owner,
+          operation: {
+            state: "generating",
+            source: starting.state === "submitting" ? "submit" : "retry",
+            turnId,
+            generationId,
+          },
+        });
+      },
+      release,
+    };
+  }
 
-        release() {
-          if (!released && operations.get(threadId)?.owner === owner) {
-            operations.delete(threadId);
-          }
-
-          released = true;
-        },
-      };
-    },
+  return {
+    acquire,
 
     inspect(threadId: ThreadId): TurnOperationInspection {
       const active = operations.get(threadId);

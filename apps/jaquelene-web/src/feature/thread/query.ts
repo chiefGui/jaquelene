@@ -194,15 +194,20 @@ export function usePendingTurnSubmission(threadId: string) {
 }
 
 export function installThreadReconciliation(queryClient: QueryClient) {
+  function runReconciliation(
+    operation: "thread.turn.settlement" | "thread.history.delete.reconcile",
+    reconcile: () => unknown,
+  ) {
+    try {
+      void Promise.resolve(reconcile()).catch((cause: unknown) => reportError(operation, cause));
+    } catch (cause) {
+      reportError(operation, cause);
+    }
+  }
+
   function applyEvent(threadId: string, update: ThreadTurnUpdate) {
     refreshCampaignUsage(queryClient);
-    try {
-      void Promise.resolve(reconcileTurn(queryClient, threadId, update)).catch((cause: unknown) =>
-        reportError("thread.turn.settlement", cause),
-      );
-    } catch (cause) {
-      reportError("thread.turn.settlement", cause);
-    }
+    runReconciliation("thread.turn.settlement", () => reconcileTurn(queryClient, threadId, update));
   }
 
   const stopFailureListener = onReplyFailed((failure) => {
@@ -213,22 +218,12 @@ export function installThreadReconciliation(queryClient: QueryClient) {
   });
   const stopSupersededListener = onReplySuperseded(({ threadId }) => {
     refreshCampaignUsage(queryClient);
-    try {
-      void reloadThread(queryClient, threadId).catch((cause: unknown) =>
-        reportError("thread.turn.settlement", cause),
-      );
-    } catch (cause) {
-      reportError("thread.turn.settlement", cause);
-    }
+    runReconciliation("thread.turn.settlement", () => reloadThread(queryClient, threadId));
   });
   const stopHistoryDeletedListener = onHistoryDeleted(({ threadId }) => {
-    try {
-      void queryClient
-        .resetQueries({ queryKey: threadMessagesQuery(threadId).queryKey, exact: true })
-        .catch((cause: unknown) => reportError("thread.history.delete.reconcile", cause));
-    } catch (cause) {
-      reportError("thread.history.delete.reconcile", cause);
-    }
+    runReconciliation("thread.history.delete.reconcile", () =>
+      queryClient.resetQueries({ queryKey: threadMessagesQuery(threadId).queryKey, exact: true }),
+    );
   });
 
   return () => {

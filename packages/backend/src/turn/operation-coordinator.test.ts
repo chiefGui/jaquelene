@@ -46,9 +46,7 @@ describe("turn operation coordinator", () => {
     expect(() => coordinator.acquire(threadId, { state: "submitting" })).toThrow(
       `Thread "${threadId}" already has an active turn operation.`,
     );
-    expect(() => truncation.generating(ids.turn.create(), ids.generation.create())).toThrow(
-      `Thread "${threadId}" truncation cannot begin a generation.`,
-    );
+    expect(truncation).not.toHaveProperty("generating");
 
     truncation.release();
     expect(coordinator.inspect(threadId)).toEqual({ state: "idle" });

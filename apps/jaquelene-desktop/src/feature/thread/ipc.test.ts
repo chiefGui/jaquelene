@@ -182,6 +182,18 @@ function emptyPage() {
   };
 }
 
+function createBackendTurnsStub(
+  overrides: Partial<ThreadMessagingTurns> = {},
+): ThreadMessagingTurns {
+  return {
+    deleteFrom: vi.fn(),
+    listForThread: vi.fn(emptyPage),
+    submit: vi.fn(),
+    retry: vi.fn(),
+    ...overrides,
+  };
+}
+
 function activeTarget() {
   return {
     detached: false,
@@ -203,12 +215,7 @@ describe("thread IPC", () => {
     const threadId = ids.thread.create();
     const cursor = ids.message.create();
     const listForThread = vi.fn<ThreadMessagingTurns["listForThread"]>(emptyPage);
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom: vi.fn(),
-      listForThread,
-      submit: vi.fn(),
-      retry: vi.fn(),
-    };
+    const backendTurns = createBackendTurnsStub({ listForThread });
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     await requireImplementations().threads.listMessages({
@@ -236,12 +243,11 @@ describe("thread IPC", () => {
       acceptance,
       settlement,
     }));
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom: vi.fn(),
+    const backendTurns = createBackendTurnsStub({
       listForThread,
       submit,
       retry: vi.fn(async () => ({ acceptance, settlement })),
-    };
+    });
     const report = vi.fn<ErrorReporter["report"]>();
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
@@ -330,12 +336,9 @@ describe("thread IPC", () => {
       ...completed,
       assistantActivated: false,
     };
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom: vi.fn(),
-      listForThread: vi.fn(emptyPage),
+    const backendTurns = createBackendTurnsStub({
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(inactiveCompletion) })),
-      retry: vi.fn(),
-    };
+    });
     const report = vi.fn<ErrorReporter["report"]>();
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
@@ -364,12 +367,9 @@ describe("thread IPC", () => {
       userMessage: failed.userMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
     };
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom: vi.fn(),
-      listForThread: vi.fn(emptyPage),
+    const backendTurns = createBackendTurnsStub({
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(failed) })),
-      retry: vi.fn(),
-    };
+    });
     const report = vi.fn<ErrorReporter["report"]>();
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
@@ -399,12 +399,7 @@ describe("thread IPC", () => {
       acceptance,
       settlement: Promise.resolve(failed),
     }));
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom: vi.fn(),
-      listForThread: vi.fn(emptyPage),
-      submit: vi.fn(),
-      retry,
-    };
+    const backendTurns = createBackendTurnsStub({ retry });
     const report = vi.fn<ErrorReporter["report"]>();
     const configuration = {
       model: { providerId: "openrouter", modelId: "maker/model" },
@@ -430,12 +425,9 @@ describe("thread IPC", () => {
   it("reports a rejected settlement observer without dispatching incomplete state", async () => {
     const { acceptance } = createTurnState();
     const cause = new Error("Settlement ownership failed");
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom: vi.fn(),
-      listForThread: vi.fn(emptyPage),
+    const backendTurns = createBackendTurnsStub({
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.reject(cause) })),
-      retry: vi.fn(),
-    };
+    });
     const report = vi.fn<ErrorReporter["report"]>();
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
@@ -467,12 +459,9 @@ describe("thread IPC", () => {
         finishedAt: null,
       },
     };
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom: vi.fn(),
-      listForThread: vi.fn(emptyPage),
+    const backendTurns = createBackendTurnsStub({
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(interrupted) })),
-      retry: vi.fn(),
-    };
+    });
     const report = vi.fn<ErrorReporter["report"]>();
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
@@ -488,12 +477,9 @@ describe("thread IPC", () => {
 
   it("does not dispatch settlement state to a destroyed renderer", async () => {
     const { acceptance, completed } = createTurnState();
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom: vi.fn(),
-      listForThread: vi.fn(emptyPage),
+    const backendTurns = createBackendTurnsStub({
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(completed) })),
-      retry: vi.fn(),
-    };
+    });
     const target = {
       detached: false,
       isDestroyed: () => true,
@@ -519,12 +505,9 @@ describe("thread IPC", () => {
     const settlement = new Promise<TurnSettlement>((resolve) => {
       settle = resolve;
     });
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom: vi.fn(),
-      listForThread: vi.fn(emptyPage),
+    const backendTurns = createBackendTurnsStub({
       submit: vi.fn(async () => ({ acceptance, settlement })),
-      retry: vi.fn(),
-    };
+    });
     const report = vi.fn<ErrorReporter["report"]>();
     const messaging = createThreadMessaging(backendTurns, { report });
     const stopSubmittingRenderer = messaging.expose(activeTarget());
@@ -544,12 +527,9 @@ describe("thread IPC", () => {
 
   it("reports settlement dispatch failures for an active renderer", async () => {
     const { acceptance, completed } = createTurnState();
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom: vi.fn(),
-      listForThread: vi.fn(emptyPage),
+    const backendTurns = createBackendTurnsStub({
       submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(completed) })),
-      retry: vi.fn(),
-    };
+    });
     const cause = new Error("IPC send failed");
     const report = vi.fn<ErrorReporter["report"]>();
     implementations.dispatchReplyCompleted.mockImplementationOnce(() => {
@@ -581,12 +561,7 @@ describe("thread IPC", () => {
       activeMessageId,
       deletedTurnCount: 3,
     }));
-    const backendTurns: ThreadMessagingTurns = {
-      deleteFrom,
-      listForThread: vi.fn(emptyPage),
-      submit: vi.fn(),
-      retry: vi.fn(),
-    };
+    const backendTurns = createBackendTurnsStub({ deleteFrom });
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     const result = await requireImplementations().turns.deleteFrom({ threadId, userMessageId });
@@ -606,7 +581,7 @@ describe("thread IPC", () => {
     const submit = vi.fn();
     const retry = vi.fn();
     const deleteFrom = vi.fn<ThreadMessagingTurns["deleteFrom"]>();
-    const backendTurns: ThreadMessagingTurns = { deleteFrom, listForThread, submit, retry };
+    const backendTurns = createBackendTurnsStub({ deleteFrom, listForThread, submit, retry });
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
     const ipc = requireImplementations();
     const configuration = {

@@ -6,6 +6,7 @@ import { parsePromptKey } from "@jaquelene/domain";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
+import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
 import type { ReasoningPreset } from "#backend/model/reasoning";
 import {
@@ -16,8 +17,9 @@ import {
 import { createPrompts } from "#backend/prompt/prompts";
 import { campaignPromptSelectionTable } from "#backend/prompt/schema";
 import type { ModelSelection } from "#backend/provider/provider";
-import { threadTable } from "#backend/thread/schema";
+import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
+import { providerAttemptTable } from "#backend/usage/schema";
 import { campaignPageSize, createCampaigns, type CampaignGenerationPreferences } from "./campaigns";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
 
@@ -223,5 +225,121 @@ describe("campaigns", () => {
     campaigns.setGenerationPreferences(campaign.id, generationPreferences("owned"));
     database.delete(campaignTable).where(eq(campaignTable.id, campaign.id)).run();
     expect(database.select().from(campaignGenerationPreferencesTable).all()).toEqual([]);
+  });
+
+  it("hard-deletes campaign content while preserving usage history", () => {
+    const { campaigns, database, prompts, threads } = openCampaigns(createDatabasePath());
+    const customPrompt = prompts.create({
+      kind: narratorPromptKind.key,
+      title: "Observer",
+      body: "Describe only observable facts.",
+    });
+    const campaign = campaigns.start({
+      title: "Owned content",
+      composition: [{ kind: narratorPromptKind.key, promptKey: customPrompt.key }],
+    });
+    campaigns.setGenerationPreferences(campaign.id, generationPreferences("owned", "high"));
+    const { turn } = threads.startTurn(campaign.threadId, "Begin the story.");
+    const generationId = ids.generation.create();
+    database
+      .insert(generationTable)
+      .values({
+        id: generationId,
+        turnId: turn.id,
+        providerId: "provider-a",
+        modelId: "model-a",
+        status: "failed",
+        failureKind: "provider",
+        startedAt: turn.createdAt,
+        finishedAt: turn.createdAt,
+      })
+      .run();
+    const attempt = {
+      id: ids.providerAttempt.create(),
+      generationId,
+      threadId: campaign.threadId,
+      campaignId: campaign.id,
+      providerId: "provider-a",
+      requestedModelId: "model-a",
+      status: "completed" as const,
+      startedAt: turn.createdAt,
+      finishedAt: turn.createdAt,
+    };
+    database.insert(providerAttemptTable).values(attempt).run();
+    const unrelated = start(campaigns, "Unrelated campaign");
+
+    expect(campaigns.delete(campaign.id)).toEqual({
+      id: campaign.id,
+      threadId: campaign.threadId,
+    });
+
+    expect(campaigns.get(campaign.id)).toBeNull();
+    expect(threads.get(campaign.threadId)).toBeNull();
+    expect(database.select().from(campaignTable).all()).toEqual([unrelated]);
+    expect(database.select().from(campaignGenerationPreferencesTable).all()).toEqual([]);
+    expect(database.select().from(campaignPromptSelectionTable).all()).toEqual([]);
+    expect(database.select().from(generationTable).all()).toEqual([]);
+    expect(database.select().from(threadMessageTable).all()).toEqual([]);
+    expect(database.select().from(turnTable).all()).toEqual([]);
+    expect(database.select().from(threadTable).all()).toEqual([
+      {
+        id: unrelated.threadId,
+        createdAt: unrelated.startedAt,
+        lastMessageSequence: 0,
+        activeMessageId: null,
+      },
+    ]);
+    expect(database.select().from(providerAttemptTable).all()).toEqual([
+      expect.objectContaining(attempt),
+    ]);
+    expect(campaigns.delete(campaign.id)).toBeNull();
+  });
+
+  it("preserves a campaign while its reply is pending", () => {
+    const { campaigns, database, threads } = openCampaigns(createDatabasePath());
+    const campaign = start(campaigns, "Active campaign");
+    const { turn } = threads.startTurn(campaign.threadId, "Begin the story.");
+    database
+      .insert(generationTable)
+      .values({
+        id: ids.generation.create(),
+        turnId: turn.id,
+        providerId: "provider-a",
+        modelId: "model-a",
+        status: "pending",
+        startedAt: turn.createdAt,
+      })
+      .run();
+
+    expect(() => campaigns.delete(campaign.id)).toThrow(
+      "Campaign cannot be deleted while a reply is being generated.",
+    );
+    expect(campaigns.get(campaign.id)).toEqual(campaign);
+    expect(threads.get(campaign.threadId)).toEqual({
+      id: campaign.threadId,
+      createdAt: campaign.startedAt,
+    });
+  });
+
+  it("rolls back the campaign deletion when its thread cannot be deleted", () => {
+    const { campaigns, database } = openCampaigns(createDatabasePath());
+    const campaign = start(campaigns, "Atomic deletion");
+    campaigns.setGenerationPreferences(campaign.id, generationPreferences("owned"));
+    database.$client.exec(`
+      CREATE TRIGGER reject_campaign_thread_delete
+      BEFORE DELETE ON threads
+      WHEN OLD.id = '${campaign.threadId}'
+      BEGIN
+        SELECT RAISE(ABORT, 'Rejected thread deletion');
+      END;
+    `);
+
+    expect(() => campaigns.delete(campaign.id)).toThrow('Failed query: delete from "threads"');
+    expect(campaigns.get(campaign.id)).toEqual({
+      ...campaign,
+      generationPreferences: generationPreferences("owned"),
+    });
+    expect(database.select().from(campaignGenerationPreferencesTable).all()).toHaveLength(1);
+    expect(database.select().from(threadTable).all()).toHaveLength(1);
   });
 });

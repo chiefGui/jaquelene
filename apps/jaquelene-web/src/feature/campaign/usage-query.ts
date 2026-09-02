@@ -1,15 +1,16 @@
 import { CampaignUsage } from "@jaquelene/ipc/renderer";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { campaignUsageQueryKey, campaignUsageRecordQueryKey } from "@/feature/cache-keys";
 import { ipcQueryOptions, requireIpcMethod } from "@/ipc";
 
 const getCampaignUsage = requireIpcMethod(CampaignUsage?.get);
 
-export const campaignUsageQueryKey = ["usage", "campaign"] as const;
+export { campaignUsageQueryKey } from "@/feature/cache-keys";
 
 export function campaignUsageQuery(id: string) {
   return queryOptions({
     ...ipcQueryOptions,
-    queryKey: [...campaignUsageQueryKey, id],
+    queryKey: campaignUsageRecordQueryKey(id),
     queryFn: () => getCampaignUsage(id),
     refetchInterval(query) {
       const usage = query.state.data;

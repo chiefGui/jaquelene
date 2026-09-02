@@ -1,11 +1,12 @@
 import { Usage, type UsagePeriod } from "@jaquelene/ipc/renderer";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { usageQueryKey } from "@/feature/cache-keys";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 
 const getUsageOverview = requireIpcMethod(Usage?.getOverview);
 const clearUsage = requireIpcMethod(Usage?.clear);
 
-export const usageQueryKey = ["usage"] as const;
+export { usageQueryKey } from "@/feature/cache-keys";
 
 export function usageOverviewQuery(period: UsagePeriod) {
   return queryOptions({

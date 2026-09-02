@@ -2,8 +2,8 @@ import {
   type CampaignGenerationPreferences,
   Campaigns,
   type Campaign,
+  type CampaignDeletion,
   type CampaignPage,
-  type RenameCampaignRequest,
   type StartCampaignRequest,
 } from "@jaquelene/ipc/renderer";
 import {
@@ -16,15 +16,23 @@ import {
   type InfiniteData,
   type QueryClient,
 } from "@tanstack/react-query";
+import {
+  campaignListQueryKey,
+  campaignPromptSelectionPrefix,
+  campaignRecordQueryKey,
+  campaignUsageRecordQueryKey,
+  threadQueryPrefix,
+} from "@/feature/cache-keys";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
+import { campaignMutationKey, campaignMutationScope } from "./mutation";
 
 const startCampaign = requireIpcMethod(Campaigns?.start);
 const listCampaigns = requireIpcMethod(Campaigns?.list);
 const getCampaign = requireIpcMethod(Campaigns?.get);
+const deleteCampaign = requireIpcMethod(Campaigns?.delete);
 const renameCampaign = requireIpcMethod(Campaigns?.rename);
 const setCampaignGenerationPreferences = requireIpcMethod(Campaigns?.setGenerationPreferences);
-export const campaignQueryKey = ["campaigns"] as const;
-const campaignListQueryKey = [...campaignQueryKey, "list"] as const;
+export { campaignQueryKey } from "@/feature/cache-keys";
 
 export const campaignPagesQuery = infiniteQueryOptions({
   ...ipcQueryOptions,
@@ -37,13 +45,13 @@ export const campaignPagesQuery = infiniteQueryOptions({
 export function campaignQuery(id: string) {
   return queryOptions({
     ...ipcQueryOptions,
-    queryKey: [...campaignQueryKey, id],
+    queryKey: campaignRecordQueryKey(id),
     queryFn: () => getCampaign(id),
   });
 }
 
 function setCampaignGenerationPreferencesMutationKey(id: string) {
-  return [...campaignQueryKey, id, "set-generation-preferences"] as const;
+  return [...campaignMutationKey(id), "generation-preferences"] as const;
 }
 
 type SetCampaignGenerationPreferencesContext = {
@@ -151,7 +159,7 @@ export function setCampaignGenerationPreferencesMutationOptions(
   >({
     ...ipcMutationOptions,
     mutationKey: setCampaignGenerationPreferencesMutationKey(id),
-    scope: { id: `campaign:${id}:generation-preferences` },
+    scope: campaignMutationScope(id),
     async mutationFn(preferences) {
       const campaign = await setCampaignGenerationPreferences(id, preferences);
 
@@ -224,6 +232,74 @@ export function useIsCampaignGenerationPreferencesPending(id: string) {
   return useIsMutating({ mutationKey: setCampaignGenerationPreferencesMutationKey(id) }) > 0;
 }
 
+export function useIsCampaignMutationPending(id: string) {
+  return useIsMutating({ mutationKey: campaignMutationKey(id) }) > 0;
+}
+
+function removeCampaignFromPages(data: InfiniteData<CampaignPage> | undefined, id: string) {
+  return data
+    ? {
+        ...data,
+        pages: data.pages.map((page) => ({
+          ...page,
+          campaigns: page.campaigns.filter((campaign) => campaign.id !== id),
+        })),
+      }
+    : data;
+}
+
+export function deleteCampaignMutationOptions(
+  queryClient: QueryClient,
+  campaign: Pick<Campaign, "id" | "threadId">,
+) {
+  const campaignKey = campaignRecordQueryKey(campaign.id);
+  const usageKey = campaignUsageRecordQueryKey(campaign.id);
+  const threadKey = threadQueryPrefix(campaign.threadId);
+  const promptSelectionKey = campaignPromptSelectionPrefix(campaign.id);
+
+  return mutationOptions<CampaignDeletion, Error, void>({
+    ...ipcMutationOptions,
+    mutationKey: [...campaignMutationKey(campaign.id), "delete"],
+    scope: campaignMutationScope(campaign.id),
+    async mutationFn() {
+      const deletion = await deleteCampaign(campaign.id);
+
+      if (!deletion) {
+        throw new Error(`Campaign "${campaign.id}" is unavailable.`);
+      }
+
+      return deletion;
+    },
+    async onMutate() {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: campaignKey, exact: true }),
+        queryClient.cancelQueries({ queryKey: campaignPagesQuery.queryKey, exact: true }),
+        queryClient.cancelQueries({ queryKey: usageKey, exact: true }),
+        queryClient.cancelQueries({ queryKey: threadKey }),
+        queryClient.cancelQueries({ queryKey: promptSelectionKey }),
+      ]);
+    },
+    onSuccess(deletion) {
+      queryClient.setQueryData<Campaign | null>(campaignKey, null);
+      queryClient.setQueryData(usageKey, null);
+      queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, (data) =>
+        removeCampaignFromPages(data, deletion.id),
+      );
+      queryClient.removeQueries({ queryKey: threadQueryPrefix(deletion.threadId) });
+      queryClient.removeQueries({ queryKey: promptSelectionKey });
+      void queryClient.invalidateQueries({
+        queryKey: campaignPagesQuery.queryKey,
+        exact: true,
+      });
+    },
+  });
+}
+
+export function useDeleteCampaign(campaign: Pick<Campaign, "id" | "threadId">) {
+  const queryClient = useQueryClient();
+  return useMutation(deleteCampaignMutationOptions(queryClient, campaign));
+}
+
 export function startCampaignMutationOptions(queryClient: QueryClient) {
   return mutationOptions<Campaign, Error, StartCampaignRequest>({
     ...ipcMutationOptions,
@@ -264,15 +340,17 @@ export function useStartCampaign() {
   return useMutation(startCampaignMutationOptions(queryClient));
 }
 
-export function useRenameCampaign() {
+export function useRenameCampaign(id: string) {
   const queryClient = useQueryClient();
-  return useMutation<Campaign, Error, RenameCampaignRequest>({
+  return useMutation<Campaign, Error, string>({
     ...ipcMutationOptions,
-    async mutationFn(request) {
-      const campaign = await renameCampaign(request);
+    mutationKey: [...campaignMutationKey(id), "rename"],
+    scope: campaignMutationScope(id),
+    async mutationFn(title) {
+      const campaign = await renameCampaign({ id, title });
 
       if (!campaign) {
-        throw new Error(`Campaign "${request.id}" is unavailable.`);
+        throw new Error(`Campaign "${id}" is unavailable.`);
       }
 
       return campaign;

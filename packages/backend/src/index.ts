@@ -6,6 +6,7 @@ export type {
 } from "#backend/resource-cache/resource-cache";
 export type {
   Campaign,
+  CampaignDeletion,
   CampaignPage,
   CampaignPageRequest,
   CampaignPromptSelectionInput,

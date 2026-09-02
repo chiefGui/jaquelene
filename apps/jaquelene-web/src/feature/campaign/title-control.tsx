@@ -21,7 +21,7 @@ import { useCampaignTitleFormValidation } from "./form";
 import { useRenameCampaign } from "./query";
 
 export function CampaignTitleControl({ campaign }: { campaign: Campaign }) {
-  const renameCampaign = useRenameCampaign();
+  const renameCampaign = useRenameCampaign(campaign.id);
   const form = useFormStore({
     defaultValues: { title: campaign.title } satisfies CampaignTitleInput,
   });
@@ -37,7 +37,7 @@ export function CampaignTitleControl({ campaign }: { campaign: Campaign }) {
   useFormSubmit(form, async (state) => {
     try {
       const { title } = campaignTitleInputSchema.parse(state.values);
-      const renamed = await renameCampaign.mutateAsync({ id: campaign.id, title });
+      const renamed = await renameCampaign.mutateAsync(title);
       form.setValue(form.names.title, renamed.title);
     } catch (cause) {
       reportError("campaign.rename", cause);

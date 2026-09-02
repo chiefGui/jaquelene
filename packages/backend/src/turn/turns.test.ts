@@ -13,8 +13,10 @@ import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
-import { createInstructionRegistry } from "#backend/instruction/registry";
-import { createRoleplayInstructions } from "#backend/instruction/roleplay-instructions";
+import { createPromptApplicationRegistry } from "#backend/prompt/application-registry";
+import { narratorPromptRegistration } from "#backend/prompt/factory/narrator";
+import { createNarratorPromptApplication } from "#backend/prompt/narrator-application";
+import { createPrompts } from "#backend/prompt/prompts";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
@@ -49,12 +51,15 @@ function createDatabasePath() {
 
 function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
+  const prompts = createPrompts(database, [narratorPromptRegistration]);
   const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
-  const instructions = createInstructionRegistry([createRoleplayInstructions(database)]);
+  const promptApplications = createPromptApplicationRegistry([
+    createNarratorPromptApplication(prompts),
+  ]);
   const generationEngine = createGenerations(
     database,
-    createReplyPreparer(threads, campaigns, instructions),
+    createReplyPreparer(threads, campaigns, promptApplications),
     {
       async getModel(reference) {
         if (reference.providerId !== "provider-a") {

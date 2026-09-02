@@ -44,11 +44,11 @@ function SettingsSidebar() {
             to: "/settings/providers",
           },
           {
-            id: "instructions",
+            id: "prompts",
             icon: AiFile01Icon,
-            label: "Instructions",
+            label: "Prompts",
             replace: true,
-            to: "/settings/instructions",
+            to: "/settings/prompts",
           },
           {
             id: "usage",

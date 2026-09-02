@@ -2,22 +2,45 @@ import {
   type CampaignGenerationPreferences,
   Campaigns,
   type Campaign,
+  type CampaignPage,
+  type RenameCampaignRequest,
+  type StartCampaignRequest,
 } from "@jaquelene/ipc/renderer";
 import {
+  infiniteQueryOptions,
   mutationOptions,
   queryOptions,
   useIsMutating,
   useMutation,
   useQueryClient,
+  type InfiniteData,
   type QueryClient,
 } from "@tanstack/react-query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 
 const startCampaign = requireIpcMethod(Campaigns?.start);
-const listCampaignsForScenario = requireIpcMethod(Campaigns?.listForScenario);
+const listCampaigns = requireIpcMethod(Campaigns?.list);
 const getCampaign = requireIpcMethod(Campaigns?.get);
+const renameCampaign = requireIpcMethod(Campaigns?.rename);
 const setCampaignGenerationPreferences = requireIpcMethod(Campaigns?.setGenerationPreferences);
 export const campaignQueryKey = ["campaigns"] as const;
+const campaignListQueryKey = [...campaignQueryKey, "list"] as const;
+
+export const campaignPagesQuery = infiniteQueryOptions({
+  ...ipcQueryOptions,
+  queryKey: campaignListQueryKey,
+  initialPageParam: undefined as string | undefined,
+  queryFn: ({ pageParam }) => listCampaigns(pageParam ? { cursor: pageParam } : {}),
+  getNextPageParam: (page) => page.nextCursor,
+});
+
+export function campaignQuery(id: string) {
+  return queryOptions({
+    ...ipcQueryOptions,
+    queryKey: [...campaignQueryKey, id],
+    queryFn: () => getCampaign(id),
+  });
+}
 
 function setCampaignGenerationPreferencesMutationKey(id: string) {
   return [...campaignQueryKey, id, "set-generation-preferences"] as const;
@@ -40,22 +63,6 @@ const preferencesMutationSequences = new WeakMap<
   Map<string, PreferencesMutationSequence>
 >();
 
-export function campaignsForScenarioQuery(scenarioId: string) {
-  return queryOptions({
-    ...ipcQueryOptions,
-    queryKey: [...campaignQueryKey, { scenarioId }],
-    queryFn: () => listCampaignsForScenario(scenarioId),
-  });
-}
-
-export function campaignQuery(id: string) {
-  return queryOptions({
-    ...ipcQueryOptions,
-    queryKey: [...campaignQueryKey, id],
-    queryFn: () => getCampaign(id),
-  });
-}
-
 function withoutGenerationPreferences(campaign: Campaign): Campaign {
   const inheritedCampaign = { ...campaign };
   delete inheritedCampaign.generationPreferences;
@@ -64,10 +71,18 @@ function withoutGenerationPreferences(campaign: Campaign): Campaign {
 
 function cacheCampaign(queryClient: QueryClient, campaign: Campaign) {
   queryClient.setQueryData(campaignQuery(campaign.id).queryKey, campaign);
-  queryClient.setQueryData<Campaign[]>(
-    campaignsForScenarioQuery(campaign.scenarioId).queryKey,
-    (campaigns) =>
-      campaigns?.map((candidate) => (candidate.id === campaign.id ? campaign : candidate)),
+  queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, (data) =>
+    data
+      ? {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            campaigns: page.campaigns.map((candidate) =>
+              candidate.id === campaign.id ? campaign : candidate,
+            ),
+          })),
+        }
+      : data,
   );
 }
 
@@ -148,7 +163,10 @@ export function setCampaignGenerationPreferencesMutationOptions(
     },
     async onMutate(preferences) {
       const context = beginPreferencesMutation(queryClient, id);
-      await queryClient.cancelQueries({ queryKey: query.queryKey, exact: true });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: query.queryKey, exact: true }),
+        queryClient.cancelQueries({ queryKey: campaignPagesQuery.queryKey, exact: true }),
+      ]);
       const previousCampaign = queryClient.getQueryData<Campaign | null>(query.queryKey);
 
       if (!context.sequence.initialized) {
@@ -156,27 +174,21 @@ export function setCampaignGenerationPreferencesMutationOptions(
         context.sequence.initialized = true;
       }
 
-      if (previousCampaign) {
-        await queryClient.cancelQueries({
-          queryKey: campaignsForScenarioQuery(previousCampaign.scenarioId).queryKey,
-          exact: true,
-        });
-        if (context.version === context.sequence.latestVersion) {
-          cacheCampaign(
-            queryClient,
-            preferences
-              ? {
-                  ...previousCampaign,
-                  generationPreferences: {
-                    ...(preferences.model ? { model: { ...preferences.model } } : {}),
-                    ...(preferences.reasoningPreset === undefined
-                      ? {}
-                      : { reasoningPreset: preferences.reasoningPreset }),
-                  },
-                }
-              : withoutGenerationPreferences(previousCampaign),
-          );
-        }
+      if (previousCampaign && context.version === context.sequence.latestVersion) {
+        cacheCampaign(
+          queryClient,
+          preferences
+            ? {
+                ...previousCampaign,
+                generationPreferences: {
+                  ...(preferences.model ? { model: { ...preferences.model } } : {}),
+                  ...(preferences.reasoningPreset === undefined
+                    ? {}
+                    : { reasoningPreset: preferences.reasoningPreset }),
+                },
+              }
+            : withoutGenerationPreferences(previousCampaign),
+        );
       }
 
       return context;
@@ -209,25 +221,36 @@ export function useSetCampaignGenerationPreferences(id: string) {
 }
 
 export function useIsCampaignGenerationPreferencesPending(id: string) {
-  return (
-    useIsMutating({
-      mutationKey: setCampaignGenerationPreferencesMutationKey(id),
-    }) > 0
-  );
+  return useIsMutating({ mutationKey: setCampaignGenerationPreferencesMutationKey(id) }) > 0;
 }
 
 export function useStartCampaign() {
   const queryClient = useQueryClient();
-
-  return useMutation({
+  return useMutation<Campaign, Error, StartCampaignRequest>({
     ...ipcMutationOptions,
     mutationFn: startCampaign,
     onSuccess(campaign) {
       queryClient.setQueryData(campaignQuery(campaign.id).queryKey, campaign);
-      return queryClient.invalidateQueries({
-        queryKey: campaignsForScenarioQuery(campaign.scenarioId).queryKey,
-        exact: true,
-      });
+      return queryClient.invalidateQueries({ queryKey: campaignPagesQuery.queryKey, exact: true });
+    },
+  });
+}
+
+export function useRenameCampaign() {
+  const queryClient = useQueryClient();
+  return useMutation<Campaign, Error, RenameCampaignRequest>({
+    ...ipcMutationOptions,
+    async mutationFn(request) {
+      const campaign = await renameCampaign(request);
+
+      if (!campaign) {
+        throw new Error(`Campaign "${request.id}" is unavailable.`);
+      }
+
+      return campaign;
+    },
+    onSuccess(campaign) {
+      cacheCampaign(queryClient, campaign);
     },
   });
 }

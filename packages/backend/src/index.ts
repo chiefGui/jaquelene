@@ -1,13 +1,17 @@
 export { createBackend } from "#backend/backend";
-export type { Backend, BackendInspection, BackendOptions, Instructions } from "#backend/backend";
+export type { Backend, BackendInspection, BackendOptions } from "#backend/backend";
 export type {
   ResourceCacheFailure,
   ResourceCacheInspection,
 } from "#backend/resource-cache/resource-cache";
 export type {
   Campaign,
+  CampaignPage,
+  CampaignPageRequest,
+  CampaignPromptSelectionInput,
   CampaignGenerationPreferences,
   Campaigns,
+  StartCampaignInput,
 } from "#backend/campaign/campaigns";
 export type { CampaignUsage, CampaignUsageReader } from "#backend/campaign/usage";
 export {
@@ -71,14 +75,11 @@ export {
   ids,
   type CampaignId,
   type GenerationId,
-  type InstructionId,
   type ProviderAttemptId,
   type MessageId,
-  type ScenarioId,
   type ThreadId,
   type TurnId,
 } from "#backend/id";
-export type { Scenarios } from "#backend/scenario/scenarios";
 export { assertStoragePathsAreDisjoint, StorageCategory } from "#backend/storage/storage";
 export type {
   Storage,
@@ -88,12 +89,20 @@ export type {
   StorageDeletion,
   StorageUsage,
 } from "#backend/storage/storage";
+export type { Instruction, PromptApplication } from "#backend/prompt/application-registry";
 export type {
-  CatalogInstruction,
-  Instruction,
-  InstructionCatalog,
-  InstructionGroup,
-} from "#backend/instruction/registry";
+  CampaignPromptSelection,
+  Prompt,
+  PromptCatalog,
+  PromptDefault,
+  PromptDeletion,
+  PromptKind,
+  PromptManagement,
+  PromptPage,
+  PromptPageRequest,
+  Prompts,
+  SetCampaignPromptSelectionInput,
+} from "#backend/prompt/types";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/threads";
 export type {

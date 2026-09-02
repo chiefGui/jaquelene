@@ -12,10 +12,14 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
-import { createScenarios } from "#backend/scenario/scenarios";
-import { jaqueleneRoleplayInstruction } from "#backend/instruction/factory/roleplay";
-import { createInstructionRegistry } from "#backend/instruction/registry";
-import { createRoleplayInstructions } from "#backend/instruction/roleplay-instructions";
+import { createPromptApplicationRegistry } from "#backend/prompt/application-registry";
+import {
+  jaqueleneNarratorPrompt,
+  narratorPromptKind,
+  narratorPromptRegistration,
+} from "#backend/prompt/factory/narrator";
+import { createNarratorPromptApplication } from "#backend/prompt/narrator-application";
+import { createPrompts } from "#backend/prompt/prompts";
 import { threadMessageTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
 import {
@@ -88,19 +92,21 @@ function generationRouter(provider?: TestGenerationProvider): ProviderGeneration
 
 function openGenerationEnvironment(provider: TestGenerationProvider, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
+  const prompts = createPrompts(database, [narratorPromptRegistration]);
   const campaigns = createCampaigns(database, now);
-  const scenarios = createScenarios(database);
   const threads = createThreads(database, now);
-  const instructions = createInstructionRegistry([createRoleplayInstructions(database)]);
+  const promptApplications = createPromptApplicationRegistry([
+    createNarratorPromptApplication(prompts),
+  ]);
   const generations = createGenerations(
     database,
-    createReplyPreparer(threads, campaigns, instructions),
+    createReplyPreparer(threads, campaigns, promptApplications),
     modelResolver(provider),
     generationRouter(provider),
     now,
   );
   databases.push(database);
-  return { campaigns, database, generations, scenarios, threads };
+  return { campaigns, database, generations, prompts, threads };
 }
 
 function deferred<Result>() {
@@ -294,19 +300,19 @@ describe("generations", () => {
     expect(database.select().from(generationTable).all()).toEqual([]);
   });
 
-  it("includes the factory default roleplay instruction for campaign replies", async () => {
+  it("includes the factory narrator prompt for campaign replies", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { campaigns, generations, scenarios, threads } = openGenerationEnvironment(provider);
-    const scenario = scenarios.create({ title: "The Long Night" });
-    const campaign = campaigns.start(scenario.id);
+    const { campaigns, generations, threads } = openGenerationEnvironment(provider);
+    const campaign = campaigns.start({
+      title: "The Long Night",
+      composition: [{ kind: narratorPromptKind.key }],
+    });
     const started = threads.startTurn(campaign.threadId, "Begin");
 
     await generations.generateReply({
       turnId: started.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
-
-    const defaultRoleplay = jaqueleneRoleplayInstruction;
 
     expect(provider.generate).toHaveBeenCalledWith({
       generationId: expect.stringMatching(/^generation_/),
@@ -315,8 +321,8 @@ describe("generations", () => {
       input: {
         instructions: [
           {
-            sourceKey: defaultRoleplay.key,
-            content: defaultRoleplay.body,
+            sourceKey: jaqueleneNarratorPrompt.key,
+            content: jaqueleneNarratorPrompt.body,
           },
         ],
         dialogue: [{ messageId: started.message.id, role: "user", content: "Begin" }],
@@ -921,13 +927,13 @@ describe("generations", () => {
 
   it("rejects an unknown provider identity before persisting an attempt", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { campaigns, database, threads } = openGenerationEnvironment(provider);
+    const { campaigns, database, prompts, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
     const preparer = createReplyPreparer(
       threads,
       campaigns,
-      createInstructionRegistry([createRoleplayInstructions(database)]),
+      createPromptApplicationRegistry([createNarratorPromptApplication(prompts)]),
     );
 
     const generations = createGenerations(database, preparer, modelResolver(), generationRouter());

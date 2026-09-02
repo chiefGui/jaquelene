@@ -1,0 +1,136 @@
+module jaquelene
+
+subtype PromptKindKey = string(
+  minLength: 1
+  maxLength: 64
+)
+
+subtype PromptKey = string(
+  minLength: 1
+  maxLength: 128
+)
+
+subtype PromptPageCursor = string(
+  minLength: 1
+  maxLength: 512
+)
+
+subtype PromptTitleInput = string(
+  minLength: 1
+  maxLength: 240
+)
+
+subtype PromptBodyInput = string(
+  minLength: 1
+  maxLength: 40000
+)
+
+enum PromptOrigin {
+  Factory = "factory"
+  Custom = "custom"
+}
+
+enum PromptDefaultSource {
+  Override = "override"
+  Fallback = "fallback"
+  None = "none"
+}
+
+enum CampaignPromptSource {
+  Campaign = "campaign"
+  Default = "default"
+  Fallback = "fallback"
+  None = "none"
+}
+
+structure PromptKind {
+  key: PromptKindKey
+  name: string
+  description: string
+}
+
+structure Prompt {
+  key: PromptKey
+  kind: PromptKindKey
+  origin: PromptOrigin
+  title: string
+  body: string
+  createdAt: UnixTimeMilliseconds
+}
+
+structure PromptPageRequest {
+  kind: PromptKindKey
+  cursor?: PromptPageCursor
+}
+
+structure PromptPage {
+  prompts: Prompt[]
+  nextCursor?: PromptPageCursor
+}
+
+structure CreatePromptRequest {
+  kind: PromptKindKey
+  title: PromptTitleInput
+  body: PromptBodyInput
+}
+
+structure UpdatePromptInput {
+  title: PromptTitleInput
+  body: PromptBodyInput
+}
+
+structure UpdatePromptRequest {
+  key: PromptKey
+  input: UpdatePromptInput
+}
+
+structure PromptDeletion {
+  kind: PromptKindKey
+  defaultPromptKey?: PromptKey
+}
+
+structure PromptDefault {
+  kind: PromptKindKey
+  promptKey?: PromptKey
+  source: PromptDefaultSource
+}
+
+structure SetPromptDefaultRequest {
+  kind: PromptKindKey
+  promptKey: PromptKey
+}
+
+structure CampaignPromptSelection {
+  campaignId: string
+  kind: PromptKindKey
+  selectedPromptKey?: PromptKey
+  effectivePromptKey?: PromptKey
+  source: CampaignPromptSource
+}
+
+structure GetCampaignPromptSelectionRequest {
+  campaignId: string
+  kind: PromptKindKey
+}
+
+structure SetCampaignPromptSelectionRequest {
+  campaignId: string
+  kind: PromptKindKey
+  promptKey?: PromptKey
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Prompts {
+  listKinds() -> PromptKind[]
+  list(request: PromptPageRequest) -> PromptPage
+  get(key: PromptKey) -> Prompt?
+  create(request: CreatePromptRequest) -> Prompt
+  update(request: UpdatePromptRequest) -> Prompt?
+  delete(key: PromptKey) -> PromptDeletion?
+  getDefault(kind: PromptKindKey) -> PromptDefault
+  setDefault(request: SetPromptDefaultRequest) -> PromptDefault
+  getCampaignSelection(request: GetCampaignPromptSelectionRequest) -> CampaignPromptSelection?
+  setCampaignSelection(request: SetCampaignPromptSelectionRequest) -> CampaignPromptSelection?
+}

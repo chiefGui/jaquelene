@@ -9,7 +9,6 @@ import { ProvidersService, type Models, type Providers } from "#backend/provider
 import type { ResourceCacheFailure } from "#backend/resource-cache/resource-cache";
 import { ResourceCacheService } from "#backend/resource-cache/service";
 import { getCacheStoragePaths } from "#backend/resource-cache/sqlite-cache-store";
-import { createScenarios, type Scenarios } from "#backend/scenario/scenarios";
 import { createCacheStorageArea } from "#backend/storage/cache";
 import { createContentStorageArea } from "#backend/storage/content";
 import {
@@ -21,14 +20,13 @@ import {
   type StorageCategory,
 } from "#backend/storage/storage";
 import {
-  createInstructionRegistry,
-  type InstructionCatalog,
-  type InstructionRegistry,
-} from "#backend/instruction/registry";
-import {
-  createRoleplayInstructions,
-  type RoleplayInstructionManagement,
-} from "#backend/instruction/roleplay-instructions";
+  createPromptApplicationRegistry,
+  type PromptApplicationRegistry,
+} from "#backend/prompt/application-registry";
+import { narratorPromptRegistration } from "#backend/prompt/factory/narrator";
+import { createNarratorPromptApplication } from "#backend/prompt/narrator-application";
+import { createPrompts, type PromptEngine } from "#backend/prompt/prompts";
+import type { Prompts } from "#backend/prompt/types";
 import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
 import { createTurns, type Turns } from "#backend/turn/turns";
 import { createUsageHistory, type Usage } from "#backend/usage/history";
@@ -48,15 +46,11 @@ export type BackendInspection = Readonly<{
   terminalFailure?: unknown;
 }>;
 
-export type Instructions = InstructionCatalog & RoleplayInstructionManagement;
-type InstructionEngine = InstructionRegistry & RoleplayInstructionManagement;
-
 export type Backend = Readonly<{
-  scenarios: Scenarios;
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
   usage: Usage;
-  instructions: Instructions;
+  prompts: Prompts;
   threads: Threads;
   turns: Turns;
   providers: Providers;
@@ -68,11 +62,11 @@ export type Backend = Readonly<{
 }>;
 
 type BackendServices = Readonly<{
-  scenarios: Scenarios;
   campaigns: CampaignEngine;
   campaignUsage: CampaignUsageReader;
   usage: Usage;
-  instructions: InstructionEngine;
+  prompts: PromptEngine;
+  promptApplications: PromptApplicationRegistry;
   threads: ThreadEngine;
   turns: Turns;
   providers: Providers;
@@ -93,21 +87,17 @@ function createBackendServiceLayer() {
 
       return yield* Effect.acquireRelease(
         Effect.sync(() => {
-          const scenarios = createScenarios(database);
+          const prompts = createPrompts(database, [narratorPromptRegistration]);
           const campaigns = createCampaigns(database);
           const campaignUsage = createCampaignUsage(database);
           const usage = createUsageHistory(database);
-          const roleplayInstructions = createRoleplayInstructions(database);
-          const instructionRegistry = createInstructionRegistry([roleplayInstructions]);
-          const instructions = {
-            ...roleplayInstructions,
-            listGroups: instructionRegistry.listGroups,
-            resolve: instructionRegistry.resolve,
-          };
+          const promptApplications = createPromptApplicationRegistry([
+            createNarratorPromptApplication(prompts),
+          ]);
           const threads = createThreads(database);
           const generationSubsystem = createGenerationSubsystem({
             database,
-            replyPreparer: createReplyPreparer(threads, campaigns, instructions),
+            replyPreparer: createReplyPreparer(threads, campaigns, promptApplications),
             models: providers.models,
             providers: providers.generations,
             attempts: usage.attempts,
@@ -115,11 +105,11 @@ function createBackendServiceLayer() {
           const turns = createTurns(database, threads, generationSubsystem.replies);
 
           return BackendService.of({
-            scenarios,
             campaigns,
             campaignUsage,
             usage,
-            instructions,
+            promptApplications,
+            prompts,
             threads,
             turns,
             providers: providers.providers,
@@ -259,36 +249,22 @@ export async function createBackend(
   }
 
   return {
-    scenarios: {
-      create(input) {
-        assertOpen();
-        return services.scenarios.create(input);
-      },
-      list() {
-        assertOpen();
-        return services.scenarios.list();
-      },
-      get(id) {
-        assertOpen();
-        return services.scenarios.get(id);
-      },
-      rename(id, title) {
-        assertOpen();
-        return services.scenarios.rename(id, title);
-      },
-    },
     campaigns: {
-      start(scenarioId) {
+      start(input) {
         assertOpen();
-        return services.campaigns.start(scenarioId);
+        return services.campaigns.start(input);
       },
-      listForScenario(scenarioId) {
+      list(request) {
         assertOpen();
-        return services.campaigns.listForScenario(scenarioId);
+        return services.campaigns.list(request);
       },
       get(id) {
         assertOpen();
         return services.campaigns.get(id);
+      },
+      rename(id, title) {
+        assertOpen();
+        return services.campaigns.rename(id, title);
       },
       setGenerationPreferences(id, preferences) {
         assertOpen();
@@ -315,38 +291,46 @@ export async function createBackend(
         return services.usage.subscribe(listener);
       },
     },
-    instructions: {
-      listGroups() {
+    prompts: {
+      listKinds() {
         assertOpen();
-        return services.instructions.listGroups();
+        return services.prompts.listKinds();
+      },
+      list(request) {
+        assertOpen();
+        return services.prompts.list(request);
+      },
+      get(key) {
+        assertOpen();
+        return services.prompts.get(key);
       },
       create(input) {
         assertOpen();
-        return services.instructions.create(input);
+        return services.prompts.create(input);
       },
       update(id, input) {
         assertOpen();
-        return services.instructions.update(id, input);
+        return services.prompts.update(id, input);
       },
       delete(id) {
         assertOpen();
-        return services.instructions.delete(id);
+        return services.prompts.delete(id);
       },
-      getDefaultSelection() {
+      getDefault(kind) {
         assertOpen();
-        return services.instructions.getDefaultSelection();
+        return services.prompts.getDefault(kind);
       },
-      setDefaultSelection(instructionKey) {
+      setDefault(kind, promptKey) {
         assertOpen();
-        return services.instructions.setDefaultSelection(instructionKey);
+        return services.prompts.setDefault(kind, promptKey);
       },
-      getCampaignSelection(campaignId) {
+      getCampaignSelection(campaignId, kind) {
         assertOpen();
-        return services.instructions.getCampaignSelection(campaignId);
+        return services.prompts.getCampaignSelection(campaignId, kind);
       },
-      setCampaignSelection(campaignId, instructionKey) {
+      setCampaignSelection(input) {
         assertOpen();
-        return services.instructions.setCampaignSelection(campaignId, instructionKey);
+        return services.prompts.setCampaignSelection(input);
       },
     },
     threads: {

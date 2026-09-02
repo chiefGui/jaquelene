@@ -1,11 +1,12 @@
-import type { CampaignUsageSnapshot } from "@jaquelene/ipc/renderer";
+import type { Campaign, CampaignUsageSnapshot } from "@jaquelene/ipc/renderer";
 import { formatCount, formatCurrencyNanos } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId } from "react";
-import { CampaignRoleplayInstructionControl } from "@/feature/instruction/campaign-control";
+import { CampaignNarratorControl } from "@/feature/prompt/campaign-control";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
 import { summarizeCosts } from "@/feature/usage/presentation";
+import { CampaignTitleControl } from "./title-control";
 
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
@@ -17,10 +18,10 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 }
 
 export function CampaignDetailsSidebar({
-  campaignId,
+  campaign,
   usage,
 }: {
-  campaignId: string;
+  campaign: Campaign;
   usage: CampaignUsageSnapshot;
 }) {
   const headingId = useId();
@@ -52,7 +53,8 @@ export function CampaignDetailsSidebar({
       <SecondarySidebar.Viewport>
         <SecondarySidebar.Body style={styles.body}>
           <div {...stylex.props(styles.controls)}>
-            <CampaignRoleplayInstructionControl campaignId={campaignId} />
+            <CampaignTitleControl campaign={campaign} />
+            <CampaignNarratorControl campaignId={campaign.id} />
           </div>
 
           <section aria-labelledby={metadataHeadingId} {...stylex.props(styles.metadata)}>
@@ -76,6 +78,8 @@ const styles = stylex.create({
     padding: 0,
   },
   controls: {
+    display: "grid",
+    gap: "1rem",
     padding: "1rem",
   },
   metadata: {

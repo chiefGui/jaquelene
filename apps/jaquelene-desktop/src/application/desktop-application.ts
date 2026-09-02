@@ -12,6 +12,7 @@ import { verifyOpenRouterApiKey } from "../feature/provider/openrouter/verificat
 import { createLocalState } from "../local-state";
 import type { Preferences } from "../preferences/preferences";
 import { createStorageAreas } from "../storage/areas";
+import { getApplicationDatabasePaths } from "./database-paths";
 import { createMainWindowManager, type MainWindowInspection } from "./main-window";
 
 export type DesktopApplicationInspection = Readonly<{
@@ -93,8 +94,7 @@ export function launchDesktopApplication({
         );
       }
 
-      const databasePath = join(userDataDirectory, "jaquelene.sqlite");
-      const cachePath = join(userDataDirectory, "jaquelene-cache.sqlite");
+      const { databasePath, cachePath } = getApplicationDatabasePaths(userDataDirectory);
       const localState = createLocalState(userDataDirectory, diagnostics);
       const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
       const openRouter = createOpenRouterProviderFactory(userDataDirectory, {

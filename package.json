@@ -13,6 +13,7 @@
     "build:ipc:development": "bun run --cwd packages/ipc build:development",
     "db:check": "bun run --cwd packages/backend db:check",
     "db:generate": "bun run --cwd packages/backend db:generate",
+    "db:reset": "bun run --cwd apps/jaquelene-desktop db:reset",
     "dev": "bun run build:ipc:development && vp dev",
     "dev:web": "bun run --cwd apps/jaquelene-web dev",
     "dev:www": "bun run --cwd apps/jaquelene-www dev",

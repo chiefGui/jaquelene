@@ -11,6 +11,7 @@
   "type": "module",
   "main": "dist-electron/main/main.js",
   "scripts": {
+    "db:reset": "bun run scripts/reset-development-databases.ts",
     "dev": "bun run --filter @jaquelene/ipc build:development && vp dev",
     "build": "bun run --filter @jaquelene/ipc build && vp build",
     "package": "bun run package:windows",

@@ -1,5 +1,6 @@
 export { createBackend } from "#backend/backend";
 export type { Backend, BackendInspection, BackendOptions } from "#backend/backend";
+export { getDatabaseStoragePaths } from "#backend/database/database";
 export type {
   ResourceCacheFailure,
   ResourceCacheInspection,

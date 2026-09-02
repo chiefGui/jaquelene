@@ -15,9 +15,8 @@ import { requireReasoningPreset, type ReasoningPreset } from "#backend/model/rea
 import { decodeCursor, encodeCursor } from "#backend/pagination/cursor";
 import { campaignPromptSelectionTable, promptKindTable, promptTable } from "#backend/prompt/schema";
 import { requireModelSelection, type ModelSelection } from "#backend/provider/provider";
-import { threadTable } from "#backend/thread/schema";
-import { insertThread } from "#backend/thread/threads";
 import { threadTable, turnTable } from "#backend/thread/schema";
+import { insertThread } from "#backend/thread/threads";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
 
 export const campaignPageSize = 50;

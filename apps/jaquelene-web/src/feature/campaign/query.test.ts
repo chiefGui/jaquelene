@@ -196,16 +196,19 @@ describe("campaign deletion mutation", () => {
   it("removes campaign-owned caches and reconciles the campaign list", async () => {
     const queryClient = createQueryClient();
     const deleted = campaign();
-    const retained: Campaign = {
+    const retained: CampaignSummary = {
       id: "campaign-b",
       title: "Campaign B",
       threadId: "thread-b",
-      startedAt: 90,
+      lastActivityAt: 90,
     };
     campaignsIpc.delete.mockResolvedValue({ id: deleted.id, threadId: deleted.threadId });
     queryClient.setQueryData(campaignQuery(deleted.id).queryKey, deleted);
     queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, {
-      pages: [{ campaigns: [deleted, retained] }, { campaigns: [deleted] }],
+      pages: [
+        { campaigns: [campaignSummary(deleted), retained] },
+        { campaigns: [campaignSummary(deleted)] },
+      ],
       pageParams: [undefined, "next-page"],
     });
     queryClient.setQueryData(campaignUsageRecordQueryKey(deleted.id), { attempts: 1 });
@@ -285,7 +288,9 @@ describe("campaign deletion mutation", () => {
     await expect(mutation.mutate()).rejects.toBe(failure);
 
     expect(queryClient.getQueryData(campaignQuery(retained.id).queryKey)).toEqual(retained);
-    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([retained]);
+    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([
+      campaignSummary(retained),
+    ]);
     expect(queryClient.getQueryData(campaignUsageRecordQueryKey(retained.id))).toEqual(usage);
     expect(queryClient.getQueryState(campaignPagesQuery.queryKey)?.isInvalidated).toBe(false);
   });

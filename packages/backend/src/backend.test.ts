@@ -260,7 +260,11 @@ describe("backend", () => {
 
     const reopened = await createBackend(backendOptions(databasePath));
 
-    expect(reopened.campaigns.get(campaign.id)).toEqual(campaign);
+    expect(reopened.campaigns.get(campaign.id)).toEqual({
+      ...campaign,
+      lastActivityAt: submitted.threadActivity.lastActivityAt,
+      turnCount: submitted.threadActivity.turnCount,
+    });
     expect(reopened.campaignUsage.get(campaign.id)).toEqual(campaignUsage);
     expect(
       reopened.turns.listForThread({ threadId: campaign.threadId, direction: "older" }),

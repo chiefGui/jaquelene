@@ -361,7 +361,14 @@ describe("campaigns", () => {
 
     expect(campaigns.get(campaign.id)).toBeNull();
     expect(threads.get(campaign.threadId)).toBeNull();
-    expect(database.select().from(campaignTable).all()).toEqual([unrelated]);
+    expect(database.select().from(campaignTable).all()).toEqual([
+      {
+        id: unrelated.id,
+        title: unrelated.title,
+        threadId: unrelated.threadId,
+        startedAt: unrelated.startedAt,
+      },
+    ]);
     expect(database.select().from(campaignGenerationPreferencesTable).all()).toEqual([]);
     expect(database.select().from(campaignPromptSelectionTable).all()).toEqual([]);
     expect(database.select().from(generationTable).all()).toEqual([]);
@@ -371,6 +378,8 @@ describe("campaigns", () => {
       {
         id: unrelated.threadId,
         createdAt: unrelated.startedAt,
+        lastActivityAt: unrelated.lastActivityAt,
+        turnCount: unrelated.turnCount,
         lastMessageSequence: 0,
         activeMessageId: null,
       },
@@ -384,7 +393,7 @@ describe("campaigns", () => {
   it("preserves a campaign while its reply is pending", () => {
     const { campaigns, database, threads } = openCampaigns(createDatabasePath());
     const campaign = start(campaigns, "Active campaign");
-    const { turn } = threads.startTurn(campaign.threadId, "Begin the story.");
+    const { turn, activity } = threads.startTurn(campaign.threadId, "Begin the story.");
     database
       .insert(generationTable)
       .values({
@@ -400,7 +409,11 @@ describe("campaigns", () => {
     expect(() => campaigns.delete(campaign.id)).toThrow(
       "Campaign cannot be deleted while a reply is being generated.",
     );
-    expect(campaigns.get(campaign.id)).toEqual(campaign);
+    expect(campaigns.get(campaign.id)).toEqual({
+      ...campaign,
+      lastActivityAt: activity.lastActivityAt,
+      turnCount: activity.turnCount,
+    });
     expect(threads.get(campaign.threadId)).toEqual({
       id: campaign.threadId,
       createdAt: campaign.startedAt,

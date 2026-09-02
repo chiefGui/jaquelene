@@ -11,14 +11,19 @@ type RetryActivity = Readonly<{
   status: "pending" | "failed";
 }> | null;
 
+type FailedTurnGeneration = TurnGeneration &
+  Readonly<{
+    status: GenerationStatus.Failed;
+  }>;
+
 type ThreadMessageView = Readonly<{
   message: ThreadMessage;
   fromUser: boolean;
-  reply: ThreadReplyView | null;
+  replyFailure: ThreadReplyFailureView | null;
 }>;
 
-type ThreadReplyView = Readonly<{
-  generation: TurnGeneration;
+type ThreadReplyFailureView = Readonly<{
+  generation: FailedTurnGeneration;
   retrying: boolean;
   retryFailed: boolean;
   canRetry: boolean;
@@ -36,6 +41,12 @@ type ThreadViewStateInput = Readonly<{
   retryActivity: RetryActivity;
   hasModel: boolean;
 }>;
+
+function isFailedGeneration(
+  generation: TurnGeneration | undefined,
+): generation is FailedTurnGeneration {
+  return generation?.status === GenerationStatus.Failed;
+}
 
 export function deriveThreadViewState({
   pages,
@@ -65,19 +76,19 @@ export function deriveThreadViewState({
     const fromUser = message.author === ThreadMessageAuthor.User;
     const generation = fromUser ? generationByTurn.get(message.turnId) : undefined;
 
-    if (!generation || generation.status === GenerationStatus.Completed) {
-      messages.push({ message, fromUser, reply: null });
+    if (!isFailedGeneration(generation)) {
+      messages.push({ message, fromUser, replyFailure: null });
       continue;
     }
 
     const latest = message.id === latestMessage?.id;
     const retrying = retryActivity?.status === "pending" && retryActivity.turnId === message.turnId;
-    const canRetry = generation.status === GenerationStatus.Failed && latest && hasModel;
+    const canRetry = latest && hasModel;
 
     messages.push({
       message,
       fromUser,
-      reply: {
+      replyFailure: {
         generation,
         retrying,
         retryFailed:

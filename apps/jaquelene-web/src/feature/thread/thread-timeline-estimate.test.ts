@@ -19,7 +19,7 @@ describe("thread timeline size estimation", () => {
     expect(estimateThreadTimelineItemSize("\n\n", false)).toBe(74);
   });
 
-  it("includes adjacent reply activity", () => {
+  it("includes adjacent reply failure state", () => {
     expect(estimateThreadTimelineItemSize("one", true)).toBe(96);
   });
 });

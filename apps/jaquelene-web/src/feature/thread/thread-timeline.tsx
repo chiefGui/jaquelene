@@ -85,7 +85,10 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   const paddingStart = hasHistoryControls ? 0 : timelinePadding;
   const items = useMemo<ThreadTimelineItem[]>(() => {
     const messages: ThreadTimelineItem[] = view.messages.map((value) => ({
-      estimatedSize: estimateThreadTimelineItemSize(value.message.content, value.reply !== null),
+      estimatedSize: estimateThreadTimelineItemSize(
+        value.message.content,
+        value.replyFailure !== null,
+      ),
       key: `message:${value.message.id}`,
       type: "message",
       value,
@@ -300,7 +303,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
               );
             }
 
-            const { message, fromUser, reply } = item.value;
+            const { message, fromUser, replyFailure } = item.value;
 
             return (
               <li
@@ -314,8 +317,8 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                 <ThreadMessageRow
                   message={message}
                   fromUser={fromUser}
-                  reply={reply}
-                  announceReply={message.id === view.latestMessageId}
+                  replyFailure={replyFailure}
+                  announceReplyFailure={message.id === view.latestMessageId}
                   actionsDisabled={historyNavigationPending}
                   retryPending={retryPending}
                   retryReply={retryReply}

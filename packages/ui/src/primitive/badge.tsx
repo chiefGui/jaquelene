@@ -13,7 +13,7 @@ export function Badge({ style, ...props }: BadgeProps) {
 
 const styles = stylex.create({
   root: {
-    borderColor: colors.borderSubtle,
+    borderColor: colors.borderDefault,
     borderRadius: radii.full,
     borderStyle: "solid",
     borderWidth: 1,

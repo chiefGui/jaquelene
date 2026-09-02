@@ -198,7 +198,7 @@ function InstructionItem({
   }
 
   return (
-    <Item.Root style={styles.instruction}>
+    <Item.Root inset="none" style={styles.instruction}>
       {content}
 
       <InstructionFooter
@@ -307,7 +307,6 @@ const styles = stylex.create({
   instruction: {
     display: "block",
     minHeight: 0,
-    padding: 0,
   },
   instructionContent: {
     minWidth: 0,

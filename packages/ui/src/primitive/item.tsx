@@ -9,9 +9,14 @@ type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
 };
 
 type ItemGroupVariant = "connected" | "separated";
+type ItemRootInset = "default" | "none";
 
 type ItemGroupProps = StyleableProps<RoleProps<"div">> & {
   variant?: ItemGroupVariant;
+};
+
+type ItemRootProps = StyleableProps<RoleProps<"div">> & {
+  inset?: ItemRootInset;
 };
 
 const ItemGroupContext = createContext<ItemGroupVariant | null>(null);
@@ -46,12 +51,17 @@ function ItemGroup({ children, style, variant = "connected", ...props }: ItemGro
   );
 }
 
-function ItemRoot({ style, ...props }: StyleableProps<RoleProps<"div">>) {
+function ItemRoot({ inset = "default", style, ...props }: ItemRootProps) {
   const groupVariant = useContext(ItemGroupContext);
   return (
     <Role.div
       {...props}
-      {...stylex.props(styles.root, groupVariant && groupItemStyles[groupVariant], style)}
+      {...stylex.props(
+        styles.root,
+        rootInsetStyles[inset],
+        groupVariant && groupItemStyles[groupVariant],
+        style,
+      )}
     />
   );
 }
@@ -141,8 +151,14 @@ const styles = stylex.create({
     gap: "2rem",
     justifyContent: "space-between",
     minHeight: "3.5rem",
+  },
+  rootInsetDefault: {
     paddingBlock: "0.75rem",
     paddingInline: "1rem",
+  },
+  rootInsetNone: {
+    paddingBlock: 0,
+    paddingInline: 0,
   },
   groupItemConnected: {
     borderColor: colors.borderSubtle,
@@ -188,3 +204,8 @@ const groupItemStyles = {
   connected: styles.groupItemConnected,
   separated: styles.groupSurface,
 } satisfies Record<ItemGroupVariant, StyleXStyles>;
+
+const rootInsetStyles = {
+  default: styles.rootInsetDefault,
+  none: styles.rootInsetNone,
+} satisfies Record<ItemRootInset, StyleXStyles>;

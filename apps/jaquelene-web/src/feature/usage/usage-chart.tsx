@@ -242,7 +242,8 @@ const styles = stylex.create({
       [stylex.when.ancestor(":hover")]:
         `color-mix(in oklch, ${colors.foregroundAccent} 68%, transparent)`,
     },
-    borderRadius: "0.125rem 0.125rem 0 0",
+    borderTopLeftRadius: tokens.radiusSmall,
+    borderTopRightRadius: tokens.radiusSmall,
     height: "var(--usage-bar-height)",
     minHeight: "0.125rem",
     width: "100%",

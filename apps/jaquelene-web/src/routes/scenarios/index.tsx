@@ -1,7 +1,7 @@
 import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
 import Book01Icon from "@hugeicons/core-free-icons/Book01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
@@ -99,7 +99,7 @@ const styles = stylex.create({
       ":hover": cardHoverBackground,
     },
     borderColor: colors.borderSubtle,
-    borderRadius: tokens.radiusLarge,
+    borderRadius: radii.content,
     borderStyle: "solid",
     borderWidth: 1,
     color: colors.foregroundPrimary,

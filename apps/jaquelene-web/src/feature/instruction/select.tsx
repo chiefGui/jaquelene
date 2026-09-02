@@ -6,13 +6,10 @@ import {
   useComboboxContext,
 } from "@ariakit/react/combobox";
 import { useStoreState } from "@ariakit/react/store";
-import ChevronRightIcon from "@hugeicons/core-free-icons/ChevronRightIcon";
-import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Button } from "@jaquelene/ui";
+import { Button, ControlIcon } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
 import { Select } from "@jaquelene/ui/select";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, shadows, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId, useState, type ReactElement } from "react";
 
@@ -72,7 +69,7 @@ function InstructionOption({ option }: { option: InstructionSelectOption }) {
       {...stylex.props(styles.option, stylex.defaultMarker())}
     >
       <ComboboxItemCheck {...stylex.props(styles.selectedIndicator)}>
-        <HugeiconsIcon icon={Tick01Icon} size={16} strokeWidth={1.5} aria-hidden="true" />
+        <ControlIcon.Check style={styles.selectedIcon} />
       </ComboboxItemCheck>
 
       <span {...stylex.props(styles.optionText)}>
@@ -123,12 +120,7 @@ function InstructionSelectContent({
               style={styles.footerAction}
             >
               <Button.Label>{footerAction.label}</Button.Label>
-              <HugeiconsIcon
-                icon={ChevronRightIcon}
-                size={16}
-                strokeWidth={1.5}
-                aria-hidden="true"
-              />
+              <ControlIcon.Chevron style={styles.footerActionIcon} />
             </Button>
           </div>
         ) : null}
@@ -195,7 +187,7 @@ export function InstructionSelect({
   );
 }
 
-const activeBackground = colors.backgroundNeutralSubtler;
+const activeBackground = colors.backgroundInteractive;
 
 const styles = stylex.create({
   trigger: {
@@ -211,11 +203,11 @@ const styles = stylex.create({
   },
   content: {
     backgroundColor: colors.backgroundSurfaceOverlay,
-    borderColor: colors.borderDefault,
-    borderRadius: tokens.radiusXLarge,
+    borderColor: colors.borderOverlay,
+    borderRadius: radii.surface,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowXLarge,
+    boxShadow: shadows.floating,
     color: colors.foregroundPrimary,
     display: "flex",
     flexDirection: "column",
@@ -246,7 +238,7 @@ const styles = stylex.create({
       ':is([aria-selected="true"]):focus': colors.backgroundSelectedHover,
       ':is([aria-selected="true"]):hover': colors.backgroundSelectedHover,
     },
-    borderRadius: tokens.radiusLarge,
+    borderRadius: radii.compact,
     color: colors.foregroundPrimary,
     display: "grid",
     gap: "0.5rem",
@@ -262,6 +254,10 @@ const styles = stylex.create({
     gridColumnStart: "1",
     gridRowStart: "1",
     marginTop: "0.125rem",
+  },
+  selectedIcon: {
+    height: "0.875rem",
+    width: "0.875rem",
   },
   optionText: {
     display: "block",
@@ -293,7 +289,7 @@ const styles = stylex.create({
     WebkitLineClamp: 2,
   },
   footer: {
-    borderBlockStartColor: colors.borderDefault,
+    borderBlockStartColor: colors.borderOverlay,
     borderBlockStartStyle: "solid",
     borderBlockStartWidth: 1,
     flexShrink: 0,
@@ -304,5 +300,9 @@ const styles = stylex.create({
   footerAction: {
     justifyContent: "space-between",
     width: "100%",
+  },
+  footerActionIcon: {
+    height: "0.75rem",
+    width: "0.75rem",
   },
 });

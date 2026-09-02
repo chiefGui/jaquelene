@@ -17,7 +17,7 @@ import {
 import type { Instruction } from "@jaquelene/ipc/renderer";
 import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
 import { Dialog } from "@jaquelene/ui/dialog";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId, useState, type ReactElement } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
@@ -206,7 +206,7 @@ const styles = stylex.create({
       ':is([aria-invalid="true"])': colors.borderDanger,
       ':is([aria-invalid="true"]):focus': colors.borderDangerFocus,
     },
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.control,
     borderStyle: "solid",
     borderWidth: 1,
     caretColor: colors.foregroundAccent,

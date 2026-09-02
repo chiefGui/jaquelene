@@ -15,7 +15,7 @@ import {
   type ScenarioTitleInput,
 } from "@jaquelene/domain";
 import { Button, Field, Form as FormLayout, Input, formatTimestamp } from "@jaquelene/ui";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -292,7 +292,7 @@ const styles = stylex.create({
   },
   list: {
     borderColor: colors.borderSubtle,
-    borderRadius: tokens.radiusLarge,
+    borderRadius: radii.content,
     borderStyle: "solid",
     borderWidth: 1,
     marginTop: "0.75rem",

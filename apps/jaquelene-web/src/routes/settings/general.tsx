@@ -25,6 +25,7 @@ export const Route = createFileRoute("/settings/general")({
 
 function GeneralRoute() {
   const controlId = useId();
+  const descriptionId = useId();
   const errorId = useId();
   const labelId = useId();
   const { data: defaultCampaignModel } = useSuspenseQuery(defaultCampaignModelQuery);
@@ -54,6 +55,9 @@ function GeneralRoute() {
                   <Item.Label id={labelId} render={<label htmlFor={controlId} />}>
                     Default model
                   </Item.Label>
+                  <Item.Description id={descriptionId}>
+                    Used when starting a new campaign.
+                  </Item.Description>
                   {setDefaultCampaignModel.error ? (
                     <Item.Description id={errorId} role="alert" style={styles.error}>
                       Couldn't save the default campaign model
@@ -69,7 +73,11 @@ function GeneralRoute() {
                     <ModelPicker.Trigger
                       id={controlId}
                       aria-labelledby={labelId}
-                      aria-describedby={setDefaultCampaignModel.error ? errorId : undefined}
+                      aria-describedby={
+                        setDefaultCampaignModel.error
+                          ? `${descriptionId} ${errorId}`
+                          : descriptionId
+                      }
                       disabled={setDefaultCampaignModel.isPending}
                     />
                     <ModelPicker.Empty>

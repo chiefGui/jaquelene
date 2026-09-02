@@ -150,16 +150,14 @@ function UsageRoute() {
     throw new TypeError(`Unknown usage period "${period}".`);
   }
 
-  const hasIncompleteReporting =
-    overview.tokenCoverage.unknown > 0 || overview.costCoverage.unknown > 0;
   const costSummary = summarizeCosts(overview.costs);
   const hasEstimates = overview.costs.some((cost) => cost.source === "estimated");
   const hasMultipleCurrencies = costSummary.kind === "multiple-currencies";
-  const reportingNote = [
-    ...(hasMultipleCurrencies ? ["Costs are kept separate by currency."] : []),
-    ...(hasIncompleteReporting ? ["Some attempts did not report complete usage."] : []),
-    ...(hasEstimates && !hasMultipleCurrencies ? ["Estimated cost is marked with ~."] : []),
-  ].join(" ");
+  const reportingNote = hasMultipleCurrencies
+    ? "Costs are kept separate by currency."
+    : hasEstimates
+      ? "Estimated cost is marked with ~."
+      : null;
 
   function navigateMetric(nextMetric: UsageMetric) {
     setMetric(nextMetric);
@@ -180,7 +178,7 @@ function UsageRoute() {
       </ContentPane.Header>
 
       <ContentPane.Viewport>
-        <ContentPane.Body style={!overview.hasHistory && styles.emptyBody}>
+        <ContentPane.Body style={[styles.body, !overview.hasHistory && styles.emptyBody]}>
           {overview.hasHistory ? (
             <>
               <section
@@ -252,7 +250,7 @@ function UsageRoute() {
                 {reportingNote ? <p {...stylex.props(styles.note)}>{reportingNote}</p> : null}
               </section>
 
-              <section aria-labelledby="usage-history-heading" {...stylex.props(styles.history)}>
+              <section aria-labelledby="usage-history-heading">
                 <Item.Group>
                   <Item.Root>
                     <Item.Content>
@@ -302,9 +300,13 @@ function UsageRoute() {
 }
 
 const styles = stylex.create({
+  body: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1.5rem",
+  },
   emptyBody: {
     alignItems: "center",
-    display: "flex",
     height: "100%",
     justifyContent: "center",
   },
@@ -356,8 +358,5 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.75rem",
-  },
-  history: {
-    marginTop: "4rem",
   },
 });

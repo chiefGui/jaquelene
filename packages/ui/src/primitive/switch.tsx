@@ -4,7 +4,7 @@ import {
 } from "@ariakit/react/button";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { colors, tokens } from "../tokens.stylex";
+import { colors, radii, tokens } from "../tokens.stylex";
 
 export type SwitchProps = Omit<
   AriakitButtonProps,
@@ -36,7 +36,7 @@ const styles = stylex.create({
     alignItems: "center",
     backgroundColor: "transparent",
     borderWidth: 0,
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.control,
     display: "inline-flex",
     flexShrink: 0,
     height: tokens.controlHeight,
@@ -53,7 +53,7 @@ const styles = stylex.create({
   track: {
     backgroundColor: colors.backgroundSurfaceRaised,
     borderColor: colors.borderDefault,
-    borderRadius: "9999px",
+    borderRadius: radii.full,
     borderStyle: "solid",
     borderWidth: 1,
     boxSizing: "border-box",
@@ -84,14 +84,13 @@ const styles = stylex.create({
   },
   thumb: {
     backgroundColor: colors.backgroundControlThumb,
-    borderRadius: "9999px",
+    borderRadius: radii.full,
     display: "block",
     height: "0.875rem",
     transform: "translateX(0)",
     width: "0.875rem",
   },
   thumbChecked: {
-    backgroundColor: colors.backgroundControlThumbChecked,
     transform: "translateX(0.875rem)",
   },
 });

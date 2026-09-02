@@ -316,8 +316,8 @@ const styles = stylex.create({
   instructionEditSurface: {
     backgroundColor: {
       default: "transparent",
-      ":hover": colors.backgroundNeutralSubtler,
-      ":is([data-focus-visible])": colors.backgroundNeutralSubtler,
+      ":hover": colors.backgroundInteractive,
+      ":is([data-focus-visible])": colors.backgroundInteractive,
     },
     color: colors.foregroundPrimary,
     minWidth: 0,

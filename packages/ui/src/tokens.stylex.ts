@@ -14,10 +14,15 @@ export const colors = stylex.defineVars({
   backgroundNeutralSubtlest: "oklch(0.925 0.014 282 / 3.5%)",
   backgroundNeutralSubtler: "oklch(0.925 0.014 282 / 6%)",
   backgroundNeutralSubtle: "oklch(0.925 0.014 282 / 9%)",
+
+  // Interactive backgrounds, from subtle feedback to selection
+  backgroundInteractive: "oklch(0.71 0.08 276 / 10%)",
   backgroundSelected: "oklch(0.71 0.08 276 / 19%)",
   backgroundSelectedHover: "oklch(0.71 0.08 276 / 24%)",
 
   // Button
+  buttonSoftBackground: "oklch(0.71 0.08 276 / 8%)",
+  buttonSoftBackgroundHover: "oklch(0.71 0.08 276 / 12%)",
   buttonSolidBackground: "oklch(0.925 0.014 282 / 90%)",
   buttonSolidBackgroundHover: "oklch(0.925 0.014 282)",
   buttonSolidForeground: "oklch(0.135 0.01 272)",
@@ -28,9 +33,8 @@ export const colors = stylex.defineVars({
   buttonDangerSolidForeground: "oklch(0.135 0.01 272)",
 
   // Control backgrounds
-  backgroundControlChecked: "oklch(0.55 0.06 276)",
+  backgroundControlChecked: "oklch(0.55 0.11 158)",
   backgroundControlThumb: "oklch(0.925 0.014 282)",
-  backgroundControlThumbChecked: "oklch(0.135 0.01 272)",
 
   // Product backgrounds
   backgroundReasoningSubtle: "oklch(0.75 0.1 305 / 14%)",
@@ -63,11 +67,12 @@ export const colors = stylex.defineVars({
   // Borders and focus
   borderSubtle: "oklch(0.225 0.016 274)",
   borderDefault: "oklch(0.29 0.02 276)",
+  borderOverlay: "oklch(0.31 0.022 276)",
   borderAccent: "oklch(0.71 0.08 276)",
   borderFocus: "oklch(0.71 0.08 276 / 45%)",
   borderDanger: "oklch(0.7 0.16 22 / 58%)",
   borderDangerFocus: "oklch(0.7 0.16 22 / 72%)",
-  borderControlChecked: "oklch(0.565 0.065 276)",
+  borderControlChecked: "oklch(0.58 0.12 158)",
   focusRing: "oklch(0.71 0.08 276 / 70%)",
 
   // Native controls
@@ -96,14 +101,6 @@ export const tokens = stylex.defineConsts({
   // Control geometry
   controlHeight: "2rem",
   controlHeightSmall: "1.75rem",
-  radiusSmall: "0.25rem",
-  radiusMedium: "0.5rem",
-  radiusLarge: "0.625rem",
-  radiusXLarge: "0.75rem",
-
-  // Elevation
-  shadowLarge: "0 20px 25px -5px oklch(0 0 0 / 10%), 0 8px 10px -6px oklch(0 0 0 / 10%)",
-  shadowXLarge: "0 25px 50px -12px oklch(0 0 0 / 25%)",
 
   // Typography
   fontGeist: '"Geist Variable", ui-sans-serif, system-ui, sans-serif',
@@ -119,4 +116,22 @@ export const tokens = stylex.defineConsts({
   lineHeightSmall: "1.125rem",
   lineHeightBase: "1.25rem",
   lineHeightLarge: "1.5rem",
+});
+
+// Shape roles keep component geometry consistent without making it part of a
+// color theme. Control and surface intentionally share a value today, but are
+// separate roles so either can evolve without coupling unrelated components.
+export const radii = stylex.defineConsts({
+  small: "0.25rem",
+  compact: "0.5rem",
+  content: "0.625rem",
+  control: "0.75rem",
+  surface: "0.75rem",
+  full: "9999px",
+});
+
+// Elevation follows interaction roles rather than an open-ended size scale.
+export const shadows = stylex.defineConsts({
+  control: `inset 0 0.0625rem 0 color-mix(in oklch, ${colors.foregroundPrimary} 5%, transparent), 0 0.0625rem 0.125rem color-mix(in oklch, ${colors.backgroundCanvas} 45%, transparent)`,
+  floating: `inset 0 0.0625rem 0 color-mix(in oklch, ${colors.foregroundPrimary} 5%, transparent), 0 0.125rem 0.375rem -0.125rem color-mix(in oklch, ${colors.backgroundCanvas} 55%, transparent), 0 0.5rem 1rem -0.5rem color-mix(in oklch, ${colors.backgroundCanvas} 70%, transparent)`,
 });

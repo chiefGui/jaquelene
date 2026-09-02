@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
-import { colors, tokens } from "../tokens.stylex";
+import { colors, radii, tokens } from "../tokens.stylex";
 
 export type BadgeProps = Omit<ComponentProps<"span">, "className" | "style"> & {
   style?: StyleXStyles;
@@ -14,7 +14,7 @@ export function Badge({ style, ...props }: BadgeProps) {
 const styles = stylex.create({
   root: {
     borderColor: colors.borderSubtle,
-    borderRadius: "9999px",
+    borderRadius: radii.full,
     borderStyle: "solid",
     borderWidth: 1,
     color: colors.foregroundSecondary,

@@ -5,7 +5,7 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
-import { colors, tokens } from "../tokens.stylex";
+import { colors, radii, tokens } from "../tokens.stylex";
 
 type ButtonVariant = "ghost" | "soft" | "solid";
 type ButtonTone = "danger" | "neutral";
@@ -53,7 +53,7 @@ export const Button = Object.assign(ButtonRoot, { Label: ButtonLabel });
 const styles = stylex.create({
   root: {
     alignItems: "center",
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.control,
     display: "inline-flex",
     flexShrink: 0,
     fontWeight: 500,
@@ -103,9 +103,9 @@ const styles = stylex.create({
   ghost: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": colors.backgroundNeutralSubtler,
-      ":not(:disabled):active": colors.backgroundNeutralSubtle,
-      ":is([data-focus-visible])": colors.backgroundNeutralSubtler,
+      ":not(:disabled):hover": colors.backgroundInteractive,
+      ":not(:disabled):active": colors.backgroundSelected,
+      ":is([data-focus-visible])": colors.backgroundInteractive,
     },
     color: {
       default: colors.foregroundSecondary,
@@ -115,10 +115,10 @@ const styles = stylex.create({
   },
   soft: {
     backgroundColor: {
-      default: colors.backgroundNeutralSubtlest,
-      ":not(:disabled):hover": colors.backgroundNeutralSubtler,
-      ":not(:disabled):active": colors.backgroundNeutralSubtle,
-      ":is([data-focus-visible])": colors.backgroundNeutralSubtler,
+      default: colors.buttonSoftBackground,
+      ":not(:disabled):hover": colors.buttonSoftBackgroundHover,
+      ":not(:disabled):active": colors.buttonSoftBackgroundHover,
+      ":is([data-focus-visible])": colors.buttonSoftBackgroundHover,
     },
     color: {
       default: colors.foregroundSecondary,

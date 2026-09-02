@@ -13,7 +13,6 @@ import Brain01Icon from "@hugeicons/core-free-icons/Brain01Icon";
 import RoboticIcon from "@hugeicons/core-free-icons/RoboticIcon";
 import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import StarIcon from "@hugeicons/core-free-icons/StarIcon";
-import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import {
@@ -24,10 +23,10 @@ import {
   type ModelReference,
   type ModelSelection,
 } from "@jaquelene/ipc/renderer";
-import { Button, IconFrame, Input, Skeleton } from "@jaquelene/ui";
+import { Button, ControlIcon, IconFrame, Input, Skeleton } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
 import { Select, type SelectProps } from "@jaquelene/ui/select";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, shadows, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -572,15 +571,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                   aria-selected={undefined}
                   {...stylex.props(styles.modelOption)}
                 >
-                  {selected ? (
-                    <HugeiconsIcon
-                      icon={Tick01Icon}
-                      size={16}
-                      strokeWidth={1.5}
-                      aria-hidden="true"
-                      {...stylex.props(styles.selectedIndicator)}
-                    />
-                  ) : null}
+                  {selected ? <ControlIcon.Check style={styles.selectedIndicator} /> : null}
 
                   <div {...stylex.props(styles.modelDetails)}>
                     <ModelMark
@@ -819,7 +810,7 @@ function ModelPickerContent({ style, ...props }: ModelPickerContentProps) {
                   }
                   aria-label="Search models"
                   placeholder="Search models..."
-                  render={<Input style={styles.searchInput} />}
+                  render={<Input variant="ghost" style={styles.searchInput} />}
                 />
               </div>
 
@@ -840,8 +831,7 @@ export const ModelPicker = {
   Content: ModelPickerContent,
 } as const;
 
-const activeBackground = colors.backgroundNeutralSubtler;
-const activeModelName = colors.foregroundPrimary;
+const interactiveBackground = colors.backgroundInteractive;
 const focusOutline = colors.focusRing;
 
 const styles = stylex.create({
@@ -875,8 +865,7 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
   },
   trigger: {
-    maxWidth: "calc(100vw - 3rem)",
-    width: "18rem",
+    width: "fit-content",
   },
   modelListViewport: {
     flex: 1,
@@ -908,11 +897,11 @@ const styles = stylex.create({
   interactiveModelRow: {
     backgroundColor: {
       default: "transparent",
-      ":focus-within": activeBackground,
-      ":hover": activeBackground,
-      ":is([data-active-item])": activeBackground,
+      ":focus-within": interactiveBackground,
+      ":hover": interactiveBackground,
+      ":is([data-active-item])": interactiveBackground,
     },
-    borderRadius: tokens.radiusLarge,
+    borderRadius: radii.control,
     fontSize: tokens.fontSizeSmall,
     height: "100%",
     lineHeight: tokens.lineHeightSmall,
@@ -942,7 +931,9 @@ const styles = stylex.create({
     color: colors.foregroundAccent,
     gridColumnStart: "1",
     gridRowStart: "1",
+    height: "0.875rem",
     marginTop: "0.125rem",
+    width: "0.875rem",
   },
   modelDetails: {
     alignItems: "flex-start",
@@ -967,12 +958,7 @@ const styles = stylex.create({
     color: colors.foregroundPrimary,
   },
   selectedModelName: {
-    color: {
-      default: colors.foregroundPrimary,
-      [stylex.when.ancestor(":focus-within")]: activeModelName,
-      [stylex.when.ancestor(":hover")]: activeModelName,
-      [stylex.when.ancestor("[data-active-item]")]: activeModelName,
-    },
+    color: colors.foregroundPrimary,
   },
   modelText: {
     flex: 1,
@@ -986,10 +972,10 @@ const styles = stylex.create({
   },
   modelName: {
     color: {
-      default: colors.foregroundPrimary,
-      [stylex.when.ancestor(":focus-within")]: activeModelName,
-      [stylex.when.ancestor(":hover")]: activeModelName,
-      [stylex.when.ancestor("[data-active-item]")]: activeModelName,
+      default: colors.foregroundSecondary,
+      [stylex.when.ancestor(":focus-within")]: colors.foregroundPrimary,
+      [stylex.when.ancestor(":hover")]: colors.foregroundPrimary,
+      [stylex.when.ancestor("[data-active-item]")]: colors.foregroundPrimary,
     },
     flexShrink: 1,
     minWidth: 0,
@@ -1030,7 +1016,7 @@ const styles = stylex.create({
   favoriteButton: {
     backgroundColor: {
       default: "transparent",
-      ":hover": activeBackground,
+      ":hover": interactiveBackground,
     },
     color: {
       default: null,
@@ -1083,7 +1069,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   skeletonMark: {
-    borderRadius: tokens.radiusSmall,
+    borderRadius: radii.small,
     flexShrink: 0,
     height: "1rem",
     marginTop: "0.125rem",
@@ -1123,7 +1109,7 @@ const styles = stylex.create({
     marginTop: "0.75rem",
   },
   settingsLink: {
-    borderRadius: tokens.radiusSmall,
+    borderRadius: radii.small,
     color: {
       default: colors.foregroundSecondary,
       ":hover": colors.foregroundPrimary,
@@ -1165,7 +1151,7 @@ const styles = stylex.create({
     placeItems: "center",
   },
   actionError: {
-    borderTopColor: colors.borderDefault,
+    borderTopColor: colors.borderOverlay,
     borderTopStyle: "solid",
     borderTopWidth: 1,
     color: colors.foregroundDanger,
@@ -1177,11 +1163,11 @@ const styles = stylex.create({
   },
   content: {
     backgroundColor: colors.backgroundSurfaceOverlay,
-    borderColor: colors.borderDefault,
-    borderRadius: tokens.radiusXLarge,
+    borderColor: colors.borderOverlay,
+    borderRadius: radii.surface,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowXLarge,
+    boxShadow: shadows.floating,
     color: colors.foregroundPrimary,
     height: "26rem",
     maxWidth: "calc(100vw - 2rem)",
@@ -1198,7 +1184,7 @@ const styles = stylex.create({
   },
   tabList: {
     alignItems: "center",
-    borderRightColor: colors.borderDefault,
+    borderRightColor: colors.borderOverlay,
     borderRightStyle: "solid",
     borderRightWidth: 1,
     display: "flex",
@@ -1211,7 +1197,7 @@ const styles = stylex.create({
   tabButton: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": activeBackground,
+      ":not(:disabled):hover": interactiveBackground,
       ':is([aria-selected="true"])': colors.backgroundSelected,
       ':is([aria-selected="true"]):not(:disabled):hover': colors.backgroundSelectedHover,
     },
@@ -1233,7 +1219,7 @@ const styles = stylex.create({
     outline: "none",
   },
   search: {
-    borderBottomColor: colors.borderDefault,
+    borderBottomColor: colors.borderOverlay,
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
     flexShrink: 0,
@@ -1249,11 +1235,6 @@ const styles = stylex.create({
     transform: "translateY(-50%)",
   },
   searchInput: {
-    backgroundColor: {
-      default: "transparent",
-      ":focus": "transparent",
-    },
-    borderWidth: 0,
     paddingLeft: "2.25rem",
     paddingRight: "0.75rem",
     width: "100%",

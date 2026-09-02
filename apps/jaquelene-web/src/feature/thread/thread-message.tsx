@@ -36,6 +36,21 @@ function replyStatusText(generation: TurnGeneration, retrying: boolean) {
   }
 }
 
+function MessageRoot({ children, fromUser }: Readonly<{ children: ReactNode; fromUser: boolean }>) {
+  return (
+    <article
+      aria-label={fromUser ? "You" : "Assistant"}
+      {...stylex.props(
+        styles.message,
+        fromUser ? styles.userMessage : styles.assistantMessage,
+        stylex.defaultMarker(),
+      )}
+    >
+      {children}
+    </article>
+  );
+}
+
 function MessageToolbar({
   children,
   createdAt,
@@ -127,10 +142,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   retryReply: (turnId: string) => Promise<void>;
 }>) {
   return (
-    <article
-      aria-label={fromUser ? "You" : "Assistant"}
-      {...stylex.props(styles.message, fromUser ? styles.userMessage : styles.assistantMessage)}
-    >
+    <MessageRoot fromUser={fromUser}>
       <div {...stylex.props(styles.bubble, fromUser ? styles.userBubble : styles.assistantBubble)}>
         <Markdown content={message.content} />
       </div>
@@ -172,7 +184,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
           ) : null}
         </div>
       ) : null}
-    </article>
+    </MessageRoot>
   );
 });
 
@@ -182,7 +194,7 @@ export const PendingThreadMessageRow = memo(function PendingThreadMessageRow({
   submission: SubmitTurnVariables;
 }>) {
   return (
-    <article aria-label="You" {...stylex.props(styles.message, styles.userMessage)}>
+    <MessageRoot fromUser>
       <div {...stylex.props(styles.bubble, styles.userBubble)}>
         <Markdown content={submission.content} />
       </div>
@@ -192,7 +204,7 @@ export const PendingThreadMessageRow = memo(function PendingThreadMessageRow({
           Sending…
         </p>
       </div>
-    </article>
+    </MessageRoot>
   );
 });
 

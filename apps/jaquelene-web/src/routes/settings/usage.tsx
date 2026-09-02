@@ -347,7 +347,7 @@ const styles = stylex.create({
   },
   metricLabel: {
     color: {
-      default: `color-mix(in oklab, ${colors.foregroundSecondary} 72%, transparent)`,
+      default: `color-mix(in oklch, ${colors.foregroundSecondary} 72%, transparent)`,
       [stylex.when.ancestor('[aria-selected="true"]')]: colors.foregroundSecondary,
     },
   },

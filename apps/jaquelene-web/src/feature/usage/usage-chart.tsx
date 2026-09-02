@@ -215,7 +215,7 @@ const styles = stylex.create({
     alignItems: "flex-end",
     backgroundColor: {
       default: "transparent",
-      ":hover": `color-mix(in oklab, ${colors.foregroundAccent} 8%, transparent)`,
+      ":hover": `color-mix(in oklch, ${colors.foregroundAccent} 8%, transparent)`,
     },
     borderRadius: tokens.radiusSmall,
     display: "flex",
@@ -237,10 +237,10 @@ const styles = stylex.create({
   },
   bar: {
     backgroundColor: {
-      default: `color-mix(in oklab, ${colors.foregroundSecondary} 28%, transparent)`,
+      default: `color-mix(in oklch, ${colors.foregroundSecondary} 28%, transparent)`,
       [stylex.when.ancestor('[aria-selected="true"]')]: colors.foregroundAccent,
       [stylex.when.ancestor(":hover")]:
-        `color-mix(in oklab, ${colors.foregroundAccent} 68%, transparent)`,
+        `color-mix(in oklch, ${colors.foregroundAccent} 68%, transparent)`,
     },
     borderRadius: "0.125rem 0.125rem 0 0",
     height: "var(--usage-bar-height)",

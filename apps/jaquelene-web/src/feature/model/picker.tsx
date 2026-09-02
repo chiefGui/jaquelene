@@ -13,7 +13,6 @@ import Brain01Icon from "@hugeicons/core-free-icons/Brain01Icon";
 import RoboticIcon from "@hugeicons/core-free-icons/RoboticIcon";
 import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import StarIcon from "@hugeicons/core-free-icons/StarIcon";
-import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import {
@@ -24,7 +23,7 @@ import {
   type ModelReference,
   type ModelSelection,
 } from "@jaquelene/ipc/renderer";
-import { Button, IconFrame, Input, Skeleton } from "@jaquelene/ui";
+import { Button, ControlIcon, IconFrame, Input, Skeleton } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
 import { Select, type SelectProps } from "@jaquelene/ui/select";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -572,15 +571,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                   aria-selected={undefined}
                   {...stylex.props(styles.modelOption)}
                 >
-                  {selected ? (
-                    <HugeiconsIcon
-                      icon={Tick01Icon}
-                      size={16}
-                      strokeWidth={1.5}
-                      aria-hidden="true"
-                      {...stylex.props(styles.selectedIndicator)}
-                    />
-                  ) : null}
+                  {selected ? <ControlIcon.Check style={styles.selectedIndicator} /> : null}
 
                   <div {...stylex.props(styles.modelDetails)}>
                     <ModelMark
@@ -941,7 +932,9 @@ const styles = stylex.create({
     color: colors.foregroundAccent,
     gridColumnStart: "1",
     gridRowStart: "1",
+    height: "0.875rem",
     marginTop: "0.125rem",
+    width: "0.875rem",
   },
   modelDetails: {
     alignItems: "flex-start",

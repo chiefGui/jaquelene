@@ -986,7 +986,7 @@ const styles = stylex.create({
   },
   modelName: {
     color: {
-      default: colors.foregroundPrimary,
+      default: colors.foregroundSecondary,
       [stylex.when.ancestor(":focus-within")]: activeModelName,
       [stylex.when.ancestor(":hover")]: activeModelName,
       [stylex.when.ancestor("[data-active-item]")]: activeModelName,
@@ -1165,7 +1165,7 @@ const styles = stylex.create({
     placeItems: "center",
   },
   actionError: {
-    borderTopColor: colors.borderDefault,
+    borderTopColor: colors.borderOverlay,
     borderTopStyle: "solid",
     borderTopWidth: 1,
     color: colors.foregroundDanger,
@@ -1177,7 +1177,7 @@ const styles = stylex.create({
   },
   content: {
     backgroundColor: colors.backgroundSurfaceOverlay,
-    borderColor: colors.borderDefault,
+    borderColor: colors.borderOverlay,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
@@ -1198,7 +1198,7 @@ const styles = stylex.create({
   },
   tabList: {
     alignItems: "center",
-    borderRightColor: colors.borderDefault,
+    borderRightColor: colors.borderOverlay,
     borderRightStyle: "solid",
     borderRightWidth: 1,
     display: "flex",
@@ -1233,7 +1233,7 @@ const styles = stylex.create({
     outline: "none",
   },
   search: {
-    borderBottomColor: colors.borderDefault,
+    borderBottomColor: colors.borderOverlay,
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
     flexShrink: 0,

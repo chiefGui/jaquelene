@@ -63,6 +63,7 @@ export const colors = stylex.defineVars({
   // Borders and focus
   borderSubtle: "oklch(0.225 0.016 274)",
   borderDefault: "oklch(0.29 0.02 276)",
+  borderOverlay: "oklch(0.31 0.022 276)",
   borderAccent: "oklch(0.71 0.08 276)",
   borderFocus: "oklch(0.71 0.08 276 / 45%)",
   borderDanger: "oklch(0.7 0.16 22 / 58%)",

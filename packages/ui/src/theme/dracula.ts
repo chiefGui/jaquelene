@@ -68,6 +68,7 @@ export const draculaTheme = stylex.createTheme(colors, {
   // Borders and focus
   borderSubtle: "oklch(0.34109 0.02613 291.06 / 55%)",
   borderDefault: "oklch(0.34109 0.02613 291.06)",
+  borderOverlay: "oklch(0.36 0.028 291.06)",
   borderAccent: "oklch(0.6493 0.18797 287.7)",
   borderFocus: "oklch(0.6493 0.18797 287.7)",
   borderDanger: "oklch(0.70927 0.1686 32.68 / 65%)",

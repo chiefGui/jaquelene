@@ -61,7 +61,7 @@ export type { TooltipAnchorProps, TooltipProviderProps as TooltipRootProps };
 const styles = stylex.create({
   content: {
     backgroundColor: colors.backgroundSurfaceOverlay,
-    borderColor: colors.borderDefault,
+    borderColor: colors.borderOverlay,
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",
     borderWidth: 1,

@@ -1,6 +1,11 @@
+import Refresh01Icon from "@hugeicons/core-free-icons/Refresh01Icon";
 import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { GenerationFailureKind, type ThreadMessage } from "@jaquelene/ipc/renderer";
+import {
+  GenerationFailureKind,
+  ThreadMessageAuthor,
+  type ThreadMessage,
+} from "@jaquelene/ipc/renderer";
 import { Button, IconButton, Timestamp } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -13,6 +18,7 @@ import { useDeleteThreadHistoryFromMessage, type SubmitTurnVariables } from "./q
 import type { ThreadViewState } from "./thread-view-state";
 
 type ThreadReplyFailureView = ThreadViewState["messages"][number]["replyFailure"];
+type ThreadReplyRegenerationView = ThreadViewState["messages"][number]["regeneration"];
 type FailedTurnGeneration = NonNullable<ThreadReplyFailureView>["generation"];
 
 function replyFailureText(generation: FailedTurnGeneration, retrying: boolean) {
@@ -120,23 +126,118 @@ function UserMessageToolbar({
   );
 }
 
+function AssistantMessageToolbar({
+  actionsDisabled,
+  createdAt,
+  messageId,
+  regeneration,
+  requestPending,
+  regenerateResponse,
+}: Readonly<{
+  actionsDisabled: boolean;
+  createdAt: number;
+  messageId: string;
+  regeneration: ThreadReplyRegenerationView;
+  requestPending: boolean;
+  regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
+}>) {
+  const [open, setOpen] = useState(false);
+  const [requestFailed, setRequestFailed] = useState(false);
+
+  if (!regeneration) {
+    return <MessageToolbar createdAt={createdAt} />;
+  }
+
+  function setConfirmationOpen(nextOpen: boolean) {
+    if (nextOpen) {
+      setRequestFailed(false);
+    }
+
+    if (!requestPending) {
+      setOpen(nextOpen);
+    }
+  }
+
+  async function regenerate() {
+    setRequestFailed(false);
+
+    if (await regenerateResponse(messageId)) {
+      setOpen(false);
+    } else {
+      setRequestFailed(true);
+    }
+  }
+
+  const disabled =
+    actionsDisabled ||
+    requestPending ||
+    regeneration.status === "pending" ||
+    !regeneration.canRegenerate;
+
+  return (
+    <MessageToolbar active={open || regeneration.status !== "available"} createdAt={createdAt}>
+      <Tooltip.Root>
+        <ConfirmDialog
+          open={open}
+          setOpen={setConfirmationOpen}
+          trigger={
+            <Tooltip.Anchor
+              render={
+                <IconButton
+                  type="button"
+                  size="small"
+                  aria-label="Regenerate response"
+                  disabled={disabled}
+                >
+                  <HugeiconsIcon
+                    icon={Refresh01Icon}
+                    size={14}
+                    strokeWidth={1.5}
+                    aria-hidden="true"
+                  />
+                </IconButton>
+              }
+            />
+          }
+          heading="Regenerate response?"
+          description="This creates another response using the current settings and may incur provider usage."
+          confirmLabel="Regenerate"
+          pending={requestPending}
+          error={requestFailed ? "Couldn’t start regeneration." : undefined}
+          onConfirm={() => void regenerate()}
+        />
+
+        <Tooltip>Regenerate response</Tooltip>
+      </Tooltip.Root>
+    </MessageToolbar>
+  );
+}
+
 export const ThreadMessageRow = memo(function ThreadMessageRow({
   message,
-  fromUser,
+  regeneration,
   replyFailure,
   announceReplyFailure,
   actionsDisabled,
+  regenerationRequestPending,
+  responseActionsDisabled,
+  regenerateResponse,
   retryPending,
   retryReply,
 }: Readonly<{
   message: ThreadMessage;
-  fromUser: boolean;
+  regeneration: ThreadReplyRegenerationView;
   replyFailure: ThreadReplyFailureView;
   announceReplyFailure: boolean;
   actionsDisabled: boolean;
+  regenerationRequestPending: boolean;
+  responseActionsDisabled: boolean;
+  regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
   retryPending: boolean;
   retryReply: (turnId: string) => Promise<void>;
 }>) {
+  const fromUser = message.author === ThreadMessageAuthor.User;
+
   return (
     <MessageRoot fromUser={fromUser}>
       <div {...stylex.props(styles.bubble, fromUser ? styles.userBubble : styles.assistantBubble)}>
@@ -150,8 +251,28 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
           userMessageId={message.id}
         />
       ) : (
-        <MessageToolbar createdAt={message.createdAt} />
+        <AssistantMessageToolbar
+          actionsDisabled={responseActionsDisabled}
+          createdAt={message.createdAt}
+          messageId={message.id}
+          regeneration={regeneration}
+          requestPending={regenerationRequestPending}
+          regenerateResponse={regenerateResponse}
+        />
       )}
+      {regeneration?.status === "pending" ? (
+        <div {...stylex.props(styles.replyState, styles.assistantReplyState)}>
+          <p role="status" {...stylex.props(styles.replyStatus)}>
+            Regenerating…
+          </p>
+        </div>
+      ) : regeneration?.status === "failed" ? (
+        <div {...stylex.props(styles.replyState, styles.assistantReplyState)}>
+          <p role="alert" {...stylex.props(styles.replyStatus, styles.replyFailure)}>
+            Couldn’t regenerate the response.
+          </p>
+        </div>
+      ) : null}
       {replyFailure ? (
         <div {...stylex.props(styles.replyState)}>
           <p
@@ -259,6 +380,9 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: "0.25rem",
     marginTop: "0.375rem",
+  },
+  assistantReplyState: {
+    alignItems: "flex-start",
   },
   replyStatus: {
     color: colors.foregroundSecondary,

@@ -34,6 +34,7 @@ import {
 const listThreadMessages = requireIpcMethod(Threads?.listMessages);
 const submitTurn = requireIpcMethod(Turns?.submit);
 const retryTurn = requireIpcMethod(Turns?.retry);
+const regenerateReply = requireIpcMethod(Turns?.regenerate);
 const deleteThreadHistory = requireIpcMethod(Turns?.deleteFrom);
 const onHistoryDeleted = requireIpcMethod(Turns?.onHistoryDeleted);
 const onReplyFailed = requireIpcMethod(Turns?.onReplyFailed);
@@ -298,6 +299,38 @@ export function useRetryTurn(threadId: string) {
     onSuccess(generation) {
       refreshCampaignUsage(queryClient);
       return reconcileTurn(queryClient, threadId, { type: "retry-accepted", generation });
+    },
+    onError() {
+      return reloadThread(queryClient, threadId);
+    },
+  });
+}
+
+export function useRegenerateReply(threadId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    ...ipcMutationOptions,
+    mutationKey: [...turnMutationKey(threadId), "regenerate"],
+    scope: turnMutationScope(threadId),
+    mutationFn: ({
+      assistantMessageId,
+      configuration,
+    }: {
+      assistantMessageId: string;
+      configuration: GenerationConfiguration;
+    }) =>
+      regenerateReply({
+        assistantMessageId,
+        configuration: copyGenerationConfiguration(configuration),
+      }),
+    onSuccess(generation, { assistantMessageId }) {
+      refreshCampaignUsage(queryClient);
+      return reconcileTurn(queryClient, threadId, {
+        type: "regeneration-accepted",
+        assistantMessageId,
+        generation,
+      });
     },
     onError() {
       return reloadThread(queryClient, threadId);

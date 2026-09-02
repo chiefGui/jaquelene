@@ -61,6 +61,12 @@ enum GenerationStatus {
   Failed = "failed"
 }
 
+enum GenerationIntent {
+  Reply = "reply"
+  Retry = "retry"
+  Regeneration = "regeneration"
+}
+
 enum GenerationFailureKind {
   Preparation = "preparation"
   Provider = "provider"
@@ -91,6 +97,7 @@ structure TurnGeneration {
   providerId: string
   modelId: string
   reasoning?: ResolvedReasoning
+  intent: GenerationIntent
   status: GenerationStatus
   failureKind?: GenerationFailureKind
   outputMessageId?: string
@@ -123,6 +130,11 @@ structure SubmitTurnRequest {
 
 structure RetryTurnRequest {
   turnId: string
+  configuration: GenerationConfiguration
+}
+
+structure RegenerateReplyRequest {
+  assistantMessageId: string
   configuration: GenerationConfiguration
 }
 
@@ -175,6 +187,7 @@ interface Threads {
 interface Turns {
   submit(request: SubmitTurnRequest) -> TurnSubmission
   retry(request: RetryTurnRequest) -> TurnGeneration
+  regenerate(request: RegenerateReplyRequest) -> TurnGeneration
   deleteFrom(request: DeleteThreadHistoryRequest) -> ThreadHistoryDeletion
 
   [Event]

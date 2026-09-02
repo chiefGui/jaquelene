@@ -12,6 +12,7 @@ import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
 import {
   GenerationFailureKind as IpcGenerationFailureKind,
+  GenerationIntent as IpcGenerationIntent,
   GenerationStatus as IpcGenerationStatus,
   ThreadMessageAuthor as IpcThreadMessageAuthor,
   ThreadMessagePageDirection as IpcThreadMessagePageDirection,
@@ -26,8 +27,14 @@ import {
   toIpcReasoningPresetSource,
 } from "@/feature/model/reasoning-preset";
 
-type ThreadMessagingTurns = Pick<Turns, "deleteFrom" | "listForThread" | "submit" | "retry">;
-type TurnGenerationOperation = "thread.turn.submit" | "thread.turn.retry";
+type ThreadMessagingTurns = Pick<
+  Turns,
+  "deleteFrom" | "listForThread" | "regenerate" | "retry" | "submit"
+>;
+type TurnGenerationOperation =
+  | "thread.reply.regenerate"
+  | "thread.turn.retry"
+  | "thread.turn.submit";
 type ThreadChangeOperation = TurnGenerationOperation | "thread.history.delete";
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
@@ -56,6 +63,17 @@ function toIpcGenerationStatus(status: Generation["status"]) {
       return IpcGenerationStatus.Completed;
     case "failed":
       return IpcGenerationStatus.Failed;
+  }
+}
+
+function toIpcGenerationIntent(intent: Generation["intent"]) {
+  switch (intent) {
+    case "reply":
+      return IpcGenerationIntent.Reply;
+    case "retry":
+      return IpcGenerationIntent.Retry;
+    case "regeneration":
+      return IpcGenerationIntent.Regeneration;
   }
 }
 
@@ -100,6 +118,7 @@ function toIpcGeneration(generation: Generation) {
           },
         }
       : {}),
+    intent: toIpcGenerationIntent(generation.intent),
     status: toIpcGenerationStatus(generation.status),
     ...(generation.failureKind
       ? { failureKind: toIpcGenerationFailureKind(generation.failureKind) }
@@ -316,6 +335,21 @@ export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: 
             },
           });
           observeSettlement("thread.turn.retry", operation.settlement);
+          return toIpcGeneration(operation.acceptance.generation);
+        },
+        async regenerate(request) {
+          const operation = await turns.regenerate({
+            assistantMessageId: ids.message.parse(request.assistantMessageId),
+            configuration: {
+              model: { ...request.configuration.model },
+              ...(request.configuration.reasoningPreset === undefined
+                ? {}
+                : {
+                    reasoningPreset: fromIpcReasoningPreset(request.configuration.reasoningPreset),
+                  }),
+            },
+          });
+          observeSettlement("thread.reply.regenerate", operation.settlement);
           return toIpcGeneration(operation.acceptance.generation);
         },
       });

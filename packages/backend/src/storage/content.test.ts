@@ -83,6 +83,7 @@ describe("content storage area", () => {
       .values({
         id: ids.generation.create(),
         turnId: turn.id,
+        intent: "reply",
         providerId: "provider-a",
         modelId: "model-a",
         status: "pending",

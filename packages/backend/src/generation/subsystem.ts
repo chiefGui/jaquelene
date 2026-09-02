@@ -8,7 +8,10 @@ import { superviseGenerations } from "./supervisor";
 
 type ReplyGenerations = Pick<
   GenerationEngine,
-  "acceptReplyInTransaction" | "listLatestForTurns" | "resolveConfiguration"
+  | "acceptRegenerationInTransaction"
+  | "acceptReplyInTransaction"
+  | "listLatestForTurns"
+  | "resolveConfiguration"
 > &
   Pick<ReturnType<typeof superviseGenerations>, "scheduleAcceptedReply">;
 
@@ -38,6 +41,7 @@ export function createGenerationSubsystem({
 
   return {
     replies: {
+      acceptRegenerationInTransaction: engine.acceptRegenerationInTransaction,
       acceptReplyInTransaction: engine.acceptReplyInTransaction,
       listLatestForTurns: engine.listLatestForTurns,
       resolveConfiguration: engine.resolveConfiguration,

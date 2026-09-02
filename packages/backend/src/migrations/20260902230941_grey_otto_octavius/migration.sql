@@ -42,6 +42,7 @@ CREATE TABLE `generations` (
 	`model_id` text NOT NULL,
 	`reasoning_preset` text,
 	`reasoning_preset_source` text,
+	`intent` text NOT NULL,
 	`status` text NOT NULL,
 	`failure_kind` text,
 	`output_message_id` text,
@@ -55,6 +56,7 @@ CREATE TABLE `generations` (
           AND "reasoning_preset_source" IS NOT NULL
           AND "reasoning_preset" IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')
           AND "reasoning_preset_source" IN ('model-default', 'selection'))),
+	CONSTRAINT "generations_intent_valid" CHECK("intent" IN ('reply', 'retry', 'regeneration')),
 	CONSTRAINT "generations_status_valid" CHECK("status" IN ('pending', 'completed', 'failed')),
 	CONSTRAINT "generations_failure_kind_valid" CHECK("failure_kind" IS NULL OR "failure_kind" IN ('preparation', 'provider', 'invalid-output', 'interrupted', 'storage')),
 	CONSTRAINT "generations_started_at_nonnegative" CHECK("started_at" >= 0),

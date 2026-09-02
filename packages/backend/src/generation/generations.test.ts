@@ -161,6 +161,7 @@ describe("generations", () => {
     const started = threads.startTurn(thread.id, "Hello");
 
     const result = await generations.generateReply({
+      intent: "reply",
       turnId: started.turn.id,
       configuration: {
         model: { providerId: provider.id, modelId: "maker/requested-model" },
@@ -193,6 +194,7 @@ describe("generations", () => {
       generation: {
         id: expect.stringMatching(/^generation_/),
         turnId: started.turn.id,
+        intent: "reply",
         providerId: provider.id,
         modelId: "maker/requested-model",
         reasoning: { preset: "high", source: "selection" },
@@ -207,6 +209,7 @@ describe("generations", () => {
     expect(database.select().from(generationTable).get()).toEqual(
       expect.objectContaining({
         id: result.generation.id,
+        intent: "reply",
         reasoningPreset: "high",
         reasoningPresetSource: "selection",
         status: "completed",
@@ -255,6 +258,7 @@ describe("generations", () => {
     const started = threads.startTurn(thread.id, "Hello");
 
     const result = await generations.generateReply({
+      intent: "reply",
       turnId: started.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
@@ -286,6 +290,7 @@ describe("generations", () => {
 
     await expect(
       generations.generateReply({
+        intent: "reply",
         turnId: started.turn.id,
         configuration: {
           model: { providerId: provider.id, modelId: "maker/model" },
@@ -307,6 +312,7 @@ describe("generations", () => {
     const started = threads.startTurn(campaign.threadId, "Begin");
 
     await generations.generateReply({
+      intent: "reply",
       turnId: started.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
@@ -337,12 +343,14 @@ describe("generations", () => {
     const thread = threads.create();
     const first = threads.startTurn(thread.id, "First user message");
     const firstReply = await generations.generateReply({
+      intent: "reply",
       turnId: first.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     const second = threads.startTurn(thread.id, "Second user message");
 
     await generations.generateReply({
+      intent: "reply",
       turnId: second.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
@@ -375,15 +383,19 @@ describe("generations", () => {
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
     const first = await generations.generateReply({
+      intent: "reply",
       turnId: started.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     const regenerated = await generations.generateReply({
+      intent: "regeneration",
       turnId: started.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
     expect(regenerated.threadActivity).not.toBeNull();
+    expect(first.generation.intent).toBe("reply");
+    expect(regenerated.generation.intent).toBe("regeneration");
     expect(regenerated.message.parentMessageId).toBe(started.message.id);
     expect(provider.generate).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -422,6 +434,7 @@ describe("generations", () => {
     const thread = threads.create();
     const first = threads.startTurn(thread.id, "First user message");
     const pending = generations.generateReply({
+      intent: "reply",
       turnId: first.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
@@ -496,6 +509,7 @@ describe("generations", () => {
     const first = threads.startTurn(thread.id, "First user message");
     const model = { providerId: provider.id, modelId: "maker/model" };
     const pending = generations.generateReply({
+      intent: "reply",
       turnId: first.turn.id,
       configuration: { model },
     });
@@ -541,6 +555,7 @@ describe("generations", () => {
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
     const request = {
+      intent: "reply" as const,
       turnId: started.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     };
@@ -578,10 +593,12 @@ describe("generations", () => {
     const first = threads.startTurn(thread.id, "First");
     const second = threads.startTurn(thread.id, "Second");
     const firstGeneration = generations.generateReply({
+      intent: "reply",
       turnId: first.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
     const secondGeneration = generations.generateReply({
+      intent: "reply",
       turnId: second.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
@@ -628,18 +645,21 @@ describe("generations", () => {
 
     await expect(
       generations.generateReply({
+        intent: "reply",
         turnId: started.turn.id,
         configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toBe(failure);
     await expect(
       generations.generateReply({
+        intent: "retry",
         turnId: started.turn.id,
         configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     ).rejects.toThrow(TypeError);
     await expect(
       generations.generateReply({
+        intent: "retry",
         turnId: started.turn.id,
         configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
@@ -693,6 +713,7 @@ describe("generations", () => {
     const controller = new AbortController();
     const interruption = new Error("Generation interrupted by test.");
     const pending = generations.generateReply({
+      intent: "reply",
       turnId: started.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       signal: controller.signal,
@@ -731,6 +752,7 @@ describe("generations", () => {
 
     await expect(
       generations.generateReply({
+        intent: "reply",
         turnId: started.turn.id,
         configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
@@ -767,6 +789,7 @@ describe("generations", () => {
     const firstThread = threads.create();
     const first = threads.startTurn(firstThread.id, "First thread");
     await generations.generateReply({
+      intent: "reply",
       turnId: first.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
@@ -775,6 +798,7 @@ describe("generations", () => {
     const second = threads.startTurn(secondThread.id, "Second thread");
 
     const secondResult = await generations.generateReply({
+      intent: "reply",
       turnId: second.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
@@ -805,6 +829,7 @@ describe("generations", () => {
       .values({
         id: generationId,
         turnId: started.turn.id,
+        intent: "reply",
         providerId: provider.id,
         modelId: "maker/model",
         status: "pending",
@@ -852,6 +877,7 @@ describe("generations", () => {
     const second = threads.startTurn(thread.id, "Second");
     const pending = {
       turnId: first.turn.id,
+      intent: "reply" as const,
       providerId: provider.id,
       modelId: "maker/model",
       status: "pending",
@@ -867,6 +893,17 @@ describe("generations", () => {
       database
         .insert(generationTable)
         .values({ id: ids.generation.create(), ...pending })
+        .run(),
+    ).toThrow();
+    expect(() =>
+      database
+        .insert(generationTable)
+        .values({
+          id: ids.generation.create(),
+          ...pending,
+          turnId: second.turn.id,
+          intent: "unknown" as "reply",
+        })
         .run(),
     ).toThrow();
     expect(() =>
@@ -891,6 +928,7 @@ describe("generations", () => {
         .values({
           id: ids.generation.create(),
           turnId: second.turn.id,
+          intent: "reply",
           providerId: provider.id,
           modelId: "maker/model",
           status: "completed",
@@ -908,6 +946,7 @@ describe("generations", () => {
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
     await generations.generateReply({
+      intent: "reply",
       turnId: started.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
@@ -933,6 +972,7 @@ describe("generations", () => {
     const generations = createGenerations(database, preparer, modelResolver(), generationRouter());
     await expect(
       generations.generateReply({
+        intent: "reply",
         turnId: started.turn.id,
         configuration: {
           model: { providerId: "missing-provider", modelId: "maker/model" },
@@ -958,6 +998,7 @@ describe("generations", () => {
     const controller = new AbortController();
     const interruption = new Error("Reply preparation interrupted by test.");
     const pending = generations.generateReply({
+      intent: "reply",
       turnId: started.turn.id,
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       signal: controller.signal,
@@ -993,6 +1034,7 @@ describe("generations", () => {
 
     await expect(
       generations.generateReply({
+        intent: "reply",
         turnId: missingTurnId,
         configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
@@ -1014,6 +1056,7 @@ describe("generations", () => {
 
     await expect(
       malformed.generateReply({
+        intent: "reply",
         turnId: started.turn.id,
         configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),

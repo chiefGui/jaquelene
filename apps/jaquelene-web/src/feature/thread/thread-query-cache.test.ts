@@ -1,5 +1,6 @@
 import {
   GenerationFailureKind,
+  GenerationIntent,
   GenerationStatus,
   ThreadMessageAuthor,
   type CompletedReply,
@@ -63,7 +64,10 @@ function newerPageParam(cursor: string) {
   return { kind: "cursor", direction: "newer", cursor } as const;
 }
 
-function pendingTurn(sequence: number): TurnSubmission {
+function pendingTurn(
+  sequence: number,
+  intent: GenerationIntent = GenerationIntent.Reply,
+): TurnSubmission {
   const turnId = `turn-${sequence}`;
   const userMessage: ThreadMessage = {
     id: `message-${sequence}`,
@@ -77,6 +81,7 @@ function pendingTurn(sequence: number): TurnSubmission {
   const generation: TurnGeneration = {
     id: `generation-${sequence}`,
     turnId,
+    intent,
     providerId: "provider",
     modelId: "model",
     status: GenerationStatus.Pending,
@@ -120,6 +125,7 @@ function completedTurn(acceptance: TurnSubmission, sequence: number): CompletedR
     generation: {
       id: acceptance.generation.id,
       turnId: acceptance.generation.turnId,
+      intent: acceptance.generation.intent,
       providerId: acceptance.generation.providerId,
       modelId: acceptance.generation.modelId,
       status: GenerationStatus.Completed,
@@ -367,7 +373,7 @@ describe("thread query cache", () => {
     const retryAcceptance: TurnSubmission = {
       userMessage: failed.userMessage,
       generation: {
-        ...pendingTurn(2).generation,
+        ...pendingTurn(2, GenerationIntent.Retry).generation,
         turnId: failed.userMessage.turnId,
       },
       threadActivity: failed.threadActivity,
@@ -386,6 +392,72 @@ describe("thread query cache", () => {
     expect(pending.pages[0]?.generations).toEqual([retryAcceptance.generation]);
     expect(requireUpdated(pending, { type: "reply-completed", ...completed })).toEqual({
       pages: [page([failed.userMessage, completed.assistantMessage], [completed.generation])],
+      pageParams: [latestThreadHistoryPageParam],
+    });
+  });
+
+  it("keeps the active response during regeneration and replaces it on completion", () => {
+    const originalAcceptance = pendingTurn(1);
+    const original = completedTurn(originalAcceptance, 2);
+    const regenerationAcceptance: TurnSubmission = {
+      userMessage: original.userMessage,
+      generation: {
+        ...pendingTurn(3, GenerationIntent.Regeneration).generation,
+        turnId: original.userMessage.turnId,
+      },
+      threadActivity: original.threadActivity,
+    };
+    const regenerated = completedTurn(regenerationAcceptance, 4);
+    const data: ThreadQueryData = {
+      pages: [page([original.userMessage, original.assistantMessage], [original.generation])],
+      pageParams: [latestThreadHistoryPageParam],
+    };
+
+    const pending = requireUpdated(data, {
+      type: "regeneration-accepted",
+      assistantMessageId: original.assistantMessage.id,
+      generation: regenerationAcceptance.generation,
+    });
+
+    expect(pending.pages[0]?.messages).toEqual([original.userMessage, original.assistantMessage]);
+    expect(pending.pages[0]?.generations).toEqual([regenerationAcceptance.generation]);
+    expect(requireUpdated(pending, { type: "reply-completed", ...regenerated })).toEqual({
+      pages: [page([original.userMessage, regenerated.assistantMessage], [regenerated.generation])],
+      pageParams: [latestThreadHistoryPageParam],
+    });
+  });
+
+  it("keeps the active response when regeneration fails", () => {
+    const originalAcceptance = pendingTurn(1);
+    const original = completedTurn(originalAcceptance, 2);
+    const pendingGeneration = {
+      ...pendingTurn(3, GenerationIntent.Regeneration).generation,
+      turnId: original.userMessage.turnId,
+    };
+    const failedGeneration: TurnGeneration = {
+      ...pendingGeneration,
+      status: GenerationStatus.Failed,
+      failureKind: GenerationFailureKind.Provider,
+      finishedAt: 4,
+    };
+    const data: ThreadQueryData = {
+      pages: [page([original.userMessage, original.assistantMessage], [original.generation])],
+      pageParams: [latestThreadHistoryPageParam],
+    };
+    const pending = requireUpdated(data, {
+      type: "regeneration-accepted",
+      assistantMessageId: original.assistantMessage.id,
+      generation: pendingGeneration,
+    });
+
+    expect(
+      requireUpdated(pending, {
+        type: "reply-failed",
+        userMessage: original.userMessage,
+        generation: failedGeneration,
+      }),
+    ).toEqual({
+      pages: [page([original.userMessage, original.assistantMessage], [failedGeneration])],
       pageParams: [latestThreadHistoryPageParam],
     });
   });
@@ -437,7 +509,10 @@ describe("thread query cache", () => {
       pages: [page([first.userMessage, second.userMessage], [first.generation, second.generation])],
       pageParams: [latestThreadHistoryPageParam],
     };
-    const generation = { ...pendingTurn(3).generation, turnId: first.userMessage.turnId };
+    const generation = {
+      ...pendingTurn(3, GenerationIntent.Retry).generation,
+      turnId: first.userMessage.turnId,
+    };
 
     expect(reconcileThreadTurn(data, threadId, { type: "retry-accepted", generation })).toEqual({
       outcome: "reload",
@@ -525,6 +600,11 @@ describe("thread query cache", () => {
         ...acceptance,
         generation: { ...acceptance.generation, turnId: "turn-other" },
       },
+      {
+        type: "submission-accepted",
+        ...acceptance,
+        generation: { ...acceptance.generation, intent: GenerationIntent.Retry },
+      },
       { type: "reply-failed", ...acceptance },
       {
         type: "reply-completed",
@@ -534,7 +614,13 @@ describe("thread query cache", () => {
           author: ThreadMessageAuthor.User,
         },
       },
+      { type: "retry-accepted", generation: acceptance.generation },
       { type: "retry-accepted", generation: failure.generation },
+      {
+        type: "regeneration-accepted",
+        assistantMessageId: "message-assistant",
+        generation: acceptance.generation,
+      },
     ];
 
     for (const update of inconsistentUpdates) {

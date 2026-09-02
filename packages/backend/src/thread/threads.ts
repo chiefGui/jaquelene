@@ -614,6 +614,16 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       };
     },
 
+    getMessage(id: MessageId) {
+      return (
+        database
+          .select(threadMessageSelection)
+          .from(threadMessageTable)
+          .where(eq(threadMessageTable.id, id))
+          .get() ?? null
+      );
+    },
+
     startTurn(threadId: ThreadId, value: string) {
       return database.transaction((transaction) =>
         startTurnInTransaction(transaction, threadId, value),

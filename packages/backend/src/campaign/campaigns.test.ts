@@ -332,6 +332,7 @@ describe("campaigns", () => {
       .values({
         id: generationId,
         turnId: turn.id,
+        intent: "reply",
         providerId: "provider-a",
         modelId: "model-a",
         status: "failed",
@@ -399,6 +400,7 @@ describe("campaigns", () => {
       .values({
         id: ids.generation.create(),
         turnId: turn.id,
+        intent: "reply",
         providerId: "provider-a",
         modelId: "model-a",
         status: "pending",

@@ -25,6 +25,7 @@ import {
   threadMessagesQuery,
   useIsTurnOperationPending,
   usePendingTurnSubmission,
+  useRegenerateReply,
   useReturnToLatestThreadMessages,
   useRetryTurn,
   useSubmitTurn,
@@ -276,7 +277,11 @@ export function ThreadView({
   const retryTurnMutation = useRetryTurn(threadId);
   const retryTurn = retryTurnMutation.mutateAsync;
   const resetRetry = retryTurnMutation.reset;
+  const regenerateReplyMutation = useRegenerateReply(threadId);
+  const regenerateReply = regenerateReplyMutation.mutateAsync;
+  const resetRegeneration = regenerateReplyMutation.reset;
   const acceptingRetry = useRef(false);
+  const acceptingRegeneration = useRef(false);
   const historyNavigation = useRef<"older" | "newer" | "latest" | null>(null);
   const turnOperationPending = useIsTurnOperationPending(threadId);
   const pendingSubmission = usePendingTurnSubmission(threadId);
@@ -296,7 +301,8 @@ export function ThreadView({
         pages: messagesQuery.data.pages,
         retryActivity:
           retryTurnId && retryStatus ? { turnId: retryTurnId, status: retryStatus } : null,
-        hasModel: configuration !== null && !historical,
+        actionsAvailable: !historical,
+        hasModel: configuration !== null,
       }),
     [configuration, historical, messagesQuery.data.pages, retryStatus, retryTurnId],
   );
@@ -329,6 +335,44 @@ export function ThreadView({
       }
     },
     [configuration, configurationPending, historical, operationPending, resetRetry, retryTurn],
+  );
+
+  const regenerateResponse = useCallback(
+    async (assistantMessageId: string) => {
+      if (
+        historical ||
+        operationPending ||
+        !configuration ||
+        configurationPending ||
+        acceptingRegeneration.current
+      ) {
+        return false;
+      }
+
+      acceptingRegeneration.current = true;
+      resetRegeneration();
+
+      try {
+        await regenerateReply({
+          assistantMessageId,
+          configuration: toGenerationConfiguration(configuration),
+        });
+        return true;
+      } catch (cause) {
+        reportError("thread.reply.regenerate", cause);
+        return false;
+      } finally {
+        acceptingRegeneration.current = false;
+      }
+    },
+    [
+      configuration,
+      configurationPending,
+      historical,
+      operationPending,
+      regenerateReply,
+      resetRegeneration,
+    ],
   );
 
   const loadOlder = useCallback(async () => {
@@ -430,7 +474,12 @@ export function ThreadView({
           olderMessagesFailed={messagesQuery.isFetchNextPageError}
           historyNavigationPending={historyNavigationPending}
           retryPending={retryPending}
+          regenerationRequestPending={regenerateReplyMutation.isPending}
+          responseActionsDisabled={
+            operationPending || configurationPending || historyNavigationPending
+          }
           loadOlder={loadOlder}
+          regenerateResponse={regenerateResponse}
           retryReply={retryReply}
         />
         <ThreadControlsLayer onHeightChange={setTimelineBottomInset}>

@@ -22,6 +22,7 @@ const ipc = vi.hoisted(() => {
     Threads: { listMessages: vi.fn() },
     Turns: {
       deleteFrom: vi.fn(),
+      regenerate: vi.fn(),
       submit: vi.fn(),
       retry: vi.fn(),
       onHistoryDeleted: vi.fn((listener: HistoryDeletedListener) => {

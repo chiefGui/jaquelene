@@ -21,12 +21,10 @@ type PrimarySidebarDestination = {
 }[keyof FileRoutesByTo];
 
 type PrimarySidebarLink = PrimarySidebarDestination & {
-  accessibleLabel?: string;
   icon: IconSvgElement;
   label: string;
   preload?: Exclude<LinkProps["preload"], undefined>;
   replace?: Exclude<LinkProps["replace"], undefined>;
-  trailingLabel?: string;
 };
 
 type PrimarySidebarItem =
@@ -42,7 +40,6 @@ interface PrimarySidebarNavigation {
   navigationLabel: string;
   items: readonly PrimarySidebarItem[];
   loadingItemCount?: number;
-  loadingTrailingLabel?: boolean;
   trailingAction?: {
     label: string;
     onSelect: () => void;
@@ -107,21 +104,16 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
               );
             }
 
-            const { accessibleLabel, id, icon, label, trailingLabel, ...destination } = item;
+            const { id, icon, label, ...destination } = item;
 
             return (
               <li key={id}>
                 <Link
                   {...destination}
                   activeOptions={{ exact: true }}
-                  aria-label={accessibleLabel}
                   {...stylex.props(styles.navigationItem)}
                 >
-                  <PrimarySidebarItemContent
-                    icon={icon}
-                    label={label}
-                    {...(trailingLabel === undefined ? {} : { trailingLabel })}
-                  />
+                  <PrimarySidebarItemContent icon={icon} label={label} />
                 </Link>
               </li>
             );
@@ -131,9 +123,6 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
               <div {...stylex.props(styles.loadingItem)}>
                 <Skeleton style={styles.loadingIcon} />
                 <Skeleton style={styles.loadingLabel} />
-                {navigation.loadingTrailingLabel ? (
-                  <Skeleton style={styles.loadingTrailingLabel} />
-                ) : null}
               </div>
             </li>
           ))}
@@ -177,15 +166,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
   );
 }
 
-function PrimarySidebarItemContent({
-  icon,
-  label,
-  trailingLabel,
-}: {
-  icon: IconSvgElement;
-  label: string;
-  trailingLabel?: string;
-}) {
+function PrimarySidebarItemContent({ icon, label }: { icon: IconSvgElement; label: string }) {
   return (
     <>
       <HugeiconsIcon
@@ -197,11 +178,6 @@ function PrimarySidebarItemContent({
         {...stylex.props(styles.icon)}
       />
       <span {...stylex.props(styles.label)}>{label}</span>
-      {trailingLabel === undefined ? null : (
-        <span aria-hidden="true" {...stylex.props(styles.trailingLabel)}>
-          {trailingLabel}
-        </span>
-      )}
     </>
   );
 }
@@ -281,8 +257,6 @@ const styles = stylex.create({
     flexShrink: 0,
   },
   label: {
-    flex: 1,
-    minWidth: 0,
     overflow: "hidden",
     textBox: "trim-both text",
     textOverflow: "ellipsis",
@@ -290,12 +264,6 @@ const styles = stylex.create({
   },
   trailingAction: {
     paddingInlineStart: "2rem",
-  },
-  trailingLabel: {
-    flexShrink: 0,
-    fontVariantNumeric: "tabular-nums",
-    marginInlineStart: "auto",
-    opacity: 0.64,
   },
   loadingItem: {
     alignItems: "center",
@@ -312,12 +280,6 @@ const styles = stylex.create({
   loadingLabel: {
     height: "0.75rem",
     width: "7rem",
-  },
-  loadingTrailingLabel: {
-    flexShrink: 0,
-    height: "0.75rem",
-    marginInlineStart: "auto",
-    width: "1.5rem",
   },
   footer: {
     flexShrink: 0,

@@ -316,6 +316,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                   fromUser={fromUser}
                   reply={reply}
                   announceReply={message.id === view.latestMessageId}
+                  actionsDisabled={historyNavigationPending}
                   retryPending={retryPending}
                   retryReply={retryReply}
                 />

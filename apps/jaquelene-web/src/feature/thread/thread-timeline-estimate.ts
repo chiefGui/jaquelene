@@ -1,7 +1,7 @@
 const estimatedCharactersPerLine = 32;
 const estimatedLineHeight = 20;
 const estimatedParagraphGap = 10;
-const estimatedMessageChrome = 42;
+const estimatedMessageChrome = 54;
 const estimatedReplyStateHeight = 22;
 
 function estimateContentHeight(content: string) {

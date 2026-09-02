@@ -32,6 +32,7 @@ import {
 const listThreadMessages = requireIpcMethod(Threads?.listMessages);
 const submitTurn = requireIpcMethod(Turns?.submit);
 const retryTurn = requireIpcMethod(Turns?.retry);
+const deleteThreadHistory = requireIpcMethod(Turns?.deleteFrom);
 const onHistoryDeleted = requireIpcMethod(Turns?.onHistoryDeleted);
 const onReplyFailed = requireIpcMethod(Turns?.onReplyFailed);
 const onReplyCompleted = requireIpcMethod(Turns?.onReplyCompleted);
@@ -281,5 +282,13 @@ export function useRetryTurn(threadId: string) {
     onError() {
       return reloadThread(queryClient, threadId);
     },
+  });
+}
+
+export function useDeleteThreadHistoryFromMessage(threadId: string) {
+  return useMutation({
+    ...ipcMutationOptions,
+    mutationKey: [...turnMutationKey(threadId), "delete-history-from-message"],
+    mutationFn: (userMessageId: string) => deleteThreadHistory({ threadId, userMessageId }),
   });
 }

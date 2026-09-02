@@ -1,15 +1,20 @@
+import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   GenerationFailureKind,
   GenerationStatus,
   type ThreadMessage,
   type TurnGeneration,
 } from "@jaquelene/ipc/renderer";
-import { Button, formatTimestamp } from "@jaquelene/ui";
+import { Button, IconButton, formatTimestamp } from "@jaquelene/ui";
+import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
-import { memo } from "react";
+import { memo, useState, type ReactNode } from "react";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import { Markdown } from "../markdown/markdown";
-import type { SubmitTurnVariables } from "./query";
+import { useDeleteThreadHistoryFromMessage, type SubmitTurnVariables } from "./query";
 import type { ThreadViewState } from "./thread-view-state";
 
 type ThreadReplyView = ThreadViewState["messages"][number]["reply"];
@@ -31,11 +36,85 @@ function replyStatusText(generation: TurnGeneration, retrying: boolean) {
   }
 }
 
+function MessageToolbar({
+  children,
+  createdAt,
+}: Readonly<{ children?: ReactNode; createdAt: number }>) {
+  return (
+    <div {...stylex.props(styles.toolbar)}>
+      <time dateTime={new Date(createdAt).toISOString()} {...stylex.props(styles.timestamp)}>
+        {formatTimestamp(createdAt)}
+      </time>
+      {children}
+    </div>
+  );
+}
+
+function DeleteUserMessageAction({
+  disabled,
+  threadId,
+  userMessageId,
+}: Readonly<{ disabled: boolean; threadId: string; userMessageId: string }>) {
+  const deleteHistory = useDeleteThreadHistoryFromMessage(threadId);
+  const [open, setOpen] = useState(false);
+
+  function setConfirmationOpen(nextOpen: boolean) {
+    if (nextOpen) {
+      deleteHistory.reset();
+    }
+
+    if (!deleteHistory.isPending) {
+      setOpen(nextOpen);
+    }
+  }
+
+  async function deleteFromMessage() {
+    try {
+      await deleteHistory.mutateAsync(userMessageId);
+      setOpen(false);
+    } catch (cause) {
+      reportError("thread.history.delete", cause);
+    }
+  }
+
+  return (
+    <Tooltip.Root>
+      <ConfirmDialog
+        open={open}
+        setOpen={setConfirmationOpen}
+        trigger={
+          <Tooltip.Anchor
+            render={
+              <IconButton
+                type="button"
+                size="small"
+                aria-label="Delete from this message"
+                disabled={disabled || deleteHistory.isPending}
+              >
+                <HugeiconsIcon icon={TrashIcon} size={14} strokeWidth={1.5} aria-hidden="true" />
+              </IconButton>
+            }
+          />
+        }
+        heading="Delete from here?"
+        description="This message and everything after it will be deleted."
+        confirmLabel="Delete"
+        pending={deleteHistory.isPending}
+        error={deleteHistory.isError ? "Couldn’t delete these messages." : undefined}
+        onConfirm={() => void deleteFromMessage()}
+      />
+
+      <Tooltip>Delete from here</Tooltip>
+    </Tooltip.Root>
+  );
+}
+
 export const ThreadMessageRow = memo(function ThreadMessageRow({
   message,
   fromUser,
   reply,
   announceReply,
+  actionsDisabled,
   retryPending,
   retryReply,
 }: Readonly<{
@@ -43,6 +122,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   fromUser: boolean;
   reply: ThreadReplyView;
   announceReply: boolean;
+  actionsDisabled: boolean;
   retryPending: boolean;
   retryReply: (turnId: string) => Promise<void>;
 }>) {
@@ -54,12 +134,15 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
       <div {...stylex.props(styles.bubble, fromUser ? styles.userBubble : styles.assistantBubble)}>
         <Markdown content={message.content} />
       </div>
-      <time
-        dateTime={new Date(message.createdAt).toISOString()}
-        {...stylex.props(styles.timestamp)}
-      >
-        {formatTimestamp(message.createdAt)}
-      </time>
+      <MessageToolbar createdAt={message.createdAt}>
+        {fromUser ? (
+          <DeleteUserMessageAction
+            disabled={actionsDisabled}
+            threadId={message.threadId}
+            userMessageId={message.id}
+          />
+        ) : null}
+      </MessageToolbar>
       {reply ? (
         <div {...stylex.props(styles.replyState)}>
           <p
@@ -103,12 +186,7 @@ export const PendingThreadMessageRow = memo(function PendingThreadMessageRow({
       <div {...stylex.props(styles.bubble, styles.userBubble)}>
         <Markdown content={submission.content} />
       </div>
-      <time
-        dateTime={new Date(submission.submittedAt).toISOString()}
-        {...stylex.props(styles.timestamp)}
-      >
-        {formatTimestamp(submission.submittedAt)}
-      </time>
+      <MessageToolbar createdAt={submission.submittedAt} />
       <div {...stylex.props(styles.replyState)}>
         <p role="status" {...stylex.props(styles.replyStatus)}>
           Sending…
@@ -149,11 +227,24 @@ const styles = stylex.create({
     borderStyle: "solid",
     borderWidth: 1,
   },
-  timestamp: {
+  toolbar: {
+    alignItems: "center",
     color: colors.foregroundSecondary,
+    display: "flex",
     fontSize: tokens.fontSizeXSmall,
+    gap: "0.125rem",
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.375rem",
+    minHeight: tokens.controlHeightSmall,
+    opacity: {
+      default: 0,
+      "@media (hover: none)": 1,
+      [stylex.when.ancestor(":focus-within")]: 1,
+      [stylex.when.ancestor(":hover")]: 1,
+    },
+  },
+  timestamp: {
+    color: "inherit",
   },
   replyState: {
     alignItems: "flex-end",

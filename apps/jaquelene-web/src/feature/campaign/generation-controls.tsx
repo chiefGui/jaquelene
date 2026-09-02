@@ -17,7 +17,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useId, useMemo } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { CampaignRoleplayInstructionControl } from "@/feature/instruction/campaign-control";
 import { modelsForProviderQuery } from "@/feature/model/catalog-query";
 import { ModelPicker } from "@/feature/model/picker";
 import { ModelReasoningPicker } from "@/feature/model/reasoning-picker";
@@ -102,8 +101,6 @@ export function CampaignGenerationControls({
 
   return (
     <div {...stylex.props(styles.root)}>
-      <CampaignRoleplayInstructionControl campaignId={campaignId} />
-
       <ModelPicker.Root value={configuration?.model ?? null} onValueChange={updateModel}>
         <ModelPicker.Trigger
           type="button"

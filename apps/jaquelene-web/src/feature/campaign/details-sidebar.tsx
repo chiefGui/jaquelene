@@ -3,6 +3,7 @@ import { formatCount, formatCurrencyNanos } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId } from "react";
+import { CampaignRoleplayInstructionControl } from "@/feature/instruction/campaign-control";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
 import { summarizeCosts } from "@/feature/usage/presentation";
 
@@ -15,7 +16,13 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function CampaignDetailsSidebar({ usage }: { usage: CampaignUsageSnapshot }) {
+export function CampaignDetailsSidebar({
+  campaignId,
+  usage,
+}: {
+  campaignId: string;
+  usage: CampaignUsageSnapshot;
+}) {
   const headingId = useId();
   const activeAttempts = usage.attempts.preparing + usage.attempts.pending;
   const hasActivity = usage.attempts.provider > 0 || activeAttempts > 0;
@@ -43,8 +50,12 @@ export function CampaignDetailsSidebar({ usage }: { usage: CampaignUsageSnapshot
 
       <SecondarySidebar.Viewport>
         <SecondarySidebar.Body style={styles.body}>
-          <MetricRow value={tokensValue} label="tokens" />
-          <MetricRow value={costValue} label="cost" />
+          <CampaignRoleplayInstructionControl campaignId={campaignId} />
+
+          <div {...stylex.props(styles.metrics)}>
+            <MetricRow value={tokensValue} label="tokens" />
+            <MetricRow value={costValue} label="cost" />
+          </div>
         </SecondarySidebar.Body>
       </SecondarySidebar.Viewport>
     </SecondarySidebar.Content>
@@ -53,6 +64,10 @@ export function CampaignDetailsSidebar({ usage }: { usage: CampaignUsageSnapshot
 
 const styles = stylex.create({
   body: {
+    display: "grid",
+    gap: "1.25rem",
+  },
+  metrics: {
     display: "grid",
     gap: "0.75rem",
   },

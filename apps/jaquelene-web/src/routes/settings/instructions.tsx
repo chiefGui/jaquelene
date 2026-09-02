@@ -245,7 +245,7 @@ function InstructionItem({ instruction }: { instruction: Instruction }) {
       <div {...stylex.props(styles.instructionHeader)}>
         <div {...stylex.props(styles.instructionIdentity)}>
           <Item.Label>{instruction.title}</Item.Label>
-          <Badge>{custom ? "Custom" : "Built-in"}</Badge>
+          {custom ? null : <Badge>Built-in</Badge>}
         </div>
 
         {custom ? (
@@ -364,11 +364,15 @@ const styles = stylex.create({
   },
   instructionBody: {
     color: colors.foregroundPrimary,
+    display: "-webkit-box",
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginBlock: "1rem 0",
+    overflow: "hidden",
     overflowWrap: "anywhere",
     whiteSpace: "pre-wrap",
+    WebkitBoxOrient: "vertical",
+    WebkitLineClamp: 3,
   },
   dialog: {
     width: "40rem",

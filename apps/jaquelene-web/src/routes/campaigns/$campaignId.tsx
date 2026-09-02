@@ -153,7 +153,7 @@ function CampaignRoute() {
         )}
       </ContentPane.Viewport>
 
-      {usage ? <CampaignDetailsSidebar usage={usage} /> : null}
+      {campaign && usage ? <CampaignDetailsSidebar campaignId={campaign.id} usage={usage} /> : null}
     </SecondarySidebar.Root>
   );
 }

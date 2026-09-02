@@ -1,5 +1,5 @@
+import { Field } from "@jaquelene/ui";
 import { Select } from "@jaquelene/ui/select";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useId } from "react";
@@ -16,6 +16,7 @@ export function CampaignRoleplayInstructionControl({ campaignId }: { campaignId:
     campaignRoleplayInstructionKeyQuery(campaignId),
   );
   const setSelection = useSetCampaignRoleplayInstruction(campaignId);
+  const controlId = useId();
   const errorId = useId();
   const instructions = groups.find(({ key }) => key === "roleplay")?.instructions ?? [];
   const selectedInstruction = instructions.find(({ key }) => key === instructionKey);
@@ -31,7 +32,9 @@ export function CampaignRoleplayInstructionControl({ campaignId }: { campaignId:
   }
 
   return (
-    <div {...stylex.props(styles.root)}>
+    <Field.Root>
+      <Field.Label htmlFor={controlId}>Roleplay instruction</Field.Label>
+
       <Select.Root
         selectedValue={instructionKey}
         setSelectedValue={(nextInstructionKey) => {
@@ -52,14 +55,13 @@ export function CampaignRoleplayInstructionControl({ campaignId }: { campaignId:
         }}
       >
         <Select
-          variant="ghost"
-          aria-label={`Roleplay instruction: ${selectedInstruction.title}`}
+          id={controlId}
           aria-busy={setSelection.isPending || undefined}
           aria-describedby={setSelection.isError ? errorId : undefined}
           disabled={setSelection.isPending}
           style={styles.trigger}
         >
-          <Select.Value>{`Roleplay: ${selectedInstruction.title}`}</Select.Value>
+          <Select.Value>{selectedInstruction.title}</Select.Value>
         </Select>
 
         <Select.Content>
@@ -72,29 +74,15 @@ export function CampaignRoleplayInstructionControl({ campaignId }: { campaignId:
         </Select.Content>
       </Select.Root>
 
-      {setSelection.isError ? (
-        <p id={errorId} role="alert" {...stylex.props(styles.error)}>
-          Couldn’t save roleplay instruction.
-        </p>
-      ) : null}
-    </div>
+      <Field.Error id={errorId} role={setSelection.isError ? "alert" : undefined}>
+        {setSelection.isError ? "Couldn’t save roleplay instruction." : null}
+      </Field.Error>
+    </Field.Root>
   );
 }
 
 const styles = stylex.create({
-  root: {
-    alignItems: "center",
-    display: "flex",
-    minWidth: 0,
-  },
   trigger: {
-    flexShrink: 1,
-    maxWidth: "12rem",
-    width: "fit-content",
-  },
-  error: {
-    color: colors.foregroundDanger,
-    fontSize: tokens.fontSizeXSmall,
-    lineHeight: tokens.lineHeightXSmall,
+    width: "100%",
   },
 });

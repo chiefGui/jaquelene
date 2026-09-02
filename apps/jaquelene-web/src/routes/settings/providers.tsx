@@ -238,7 +238,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   providerMarkContainer: {
-    backgroundColor: `color-mix(in oklab, ${colors.foreground} 4%, transparent)`,
+    backgroundColor: colors.backgroundSubtle,
     height: "2rem",
   },
   providerMark: {

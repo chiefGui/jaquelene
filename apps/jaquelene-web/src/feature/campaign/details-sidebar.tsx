@@ -80,9 +80,9 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightSmall,
   },
   value: {
-    color: colors.foreground,
+    color: colors.foregroundPrimary,
   },
   label: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
   },
 });

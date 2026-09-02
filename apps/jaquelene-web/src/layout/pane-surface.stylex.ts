@@ -3,8 +3,8 @@ import * as stylex from "@stylexjs/stylex";
 
 export const paneSurface = stylex.create({
   root: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: colors.backgroundSurface,
+    borderColor: colors.borderSubtle,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,

@@ -251,7 +251,7 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightLarge,
   },
   description: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.25rem",
@@ -285,13 +285,13 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightSmall,
   },
   empty: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.75rem",
   },
   list: {
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderRadius: tokens.radiusLarge,
     borderStyle: "solid",
     borderWidth: 1,
@@ -299,7 +299,7 @@ const styles = stylex.create({
     overflow: "hidden",
   },
   listItem: {
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderStyle: "solid",
     borderTopWidth: {
       default: 0,
@@ -309,14 +309,14 @@ const styles = stylex.create({
   listLink: {
     backgroundColor: {
       default: "transparent",
-      ":hover": `color-mix(in oklab, ${colors.accent} 10%, transparent)`,
+      ":hover": colors.interactiveHover,
     },
     display: "block",
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     outlineColor: {
       default: null,
-      ":focus-visible": `color-mix(in oklab, ${colors.accent} 60%, transparent)`,
+      ":focus-visible": colors.focusRing,
     },
     outlineOffset: {
       default: null,

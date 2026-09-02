@@ -151,12 +151,12 @@ function PrimarySidebarItemContent({ icon, label }: { icon: IconSvgElement; labe
   );
 }
 
-const focusColor = `color-mix(in oklab, ${colors.accent} 60%, transparent)`;
-const hoverBackground = `color-mix(in oklab, ${colors.accent} 10%, transparent)`;
+const focusColor = colors.focusRing;
+const hoverBackground = colors.interactiveHover;
 
 const styles = stylex.create({
   root: {
-    backgroundColor: colors.canvas,
+    backgroundColor: colors.backgroundCanvas,
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
@@ -187,14 +187,14 @@ const styles = stylex.create({
     backgroundColor: {
       default: "transparent",
       ":hover": hoverBackground,
-      ':is([data-status="active"])': hoverBackground,
-      ':is([data-status="active"]):hover': `color-mix(in oklab, ${colors.accent} 15%, transparent)`,
+      ':is([data-status="active"])': colors.interactiveSelected,
+      ':is([data-status="active"]):hover': colors.interactiveSelectedHover,
     },
     borderRadius: tokens.radiusMedium,
     color: {
-      default: colors.muted,
-      ":hover": colors.foreground,
-      ':is([data-status="active"])': colors.foreground,
+      default: colors.foregroundSecondary,
+      ":hover": colors.foregroundPrimary,
+      ':is([data-status="active"])': colors.foregroundPrimary,
     },
     display: "flex",
     fontSize: tokens.fontSizeSmall,

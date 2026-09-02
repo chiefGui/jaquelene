@@ -43,13 +43,13 @@ const styles = stylex.create({
     minWidth: 0,
   },
   label: {
-    color: colors.foreground,
+    color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeSmall,
     fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
   },
   description: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
   },

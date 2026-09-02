@@ -360,7 +360,7 @@ const styles = stylex.create({
     textAlign: "center",
   },
   emptyDescription: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.25rem",

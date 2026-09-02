@@ -51,8 +51,8 @@ const styles = stylex.create({
     width: "2.5rem",
   },
   track: {
-    backgroundColor: colors.surfaceRaised,
-    borderColor: colors.surfaceRaisedBorder,
+    backgroundColor: colors.backgroundRaised,
+    borderColor: colors.borderDefault,
     borderRadius: "9999px",
     borderStyle: "solid",
     borderWidth: 1,
@@ -61,8 +61,7 @@ const styles = stylex.create({
     height: "1.125rem",
     outlineColor: {
       default: null,
-      [stylex.when.ancestor("[data-focus-visible]")]:
-        `color-mix(in oklch, ${colors.accent} 70%, transparent)`,
+      [stylex.when.ancestor("[data-focus-visible]")]: colors.focusRing,
     },
     outlineOffset: {
       default: null,
@@ -80,11 +79,11 @@ const styles = stylex.create({
     width: "2rem",
   },
   trackChecked: {
-    backgroundColor: `color-mix(in oklch, ${colors.accent} 72%, ${colors.canvas})`,
-    borderColor: `color-mix(in oklch, ${colors.accent} 65%, ${colors.surfaceRaisedBorder})`,
+    backgroundColor: colors.controlChecked,
+    borderColor: colors.controlCheckedBorder,
   },
   thumb: {
-    backgroundColor: colors.foreground,
+    backgroundColor: colors.foregroundPrimary,
     borderRadius: "9999px",
     display: "block",
     height: "0.875rem",
@@ -92,6 +91,7 @@ const styles = stylex.create({
     width: "0.875rem",
   },
   thumbChecked: {
+    backgroundColor: colors.foregroundOnInteractive,
     transform: "translateX(0.875rem)",
   },
 });

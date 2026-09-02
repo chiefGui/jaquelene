@@ -129,8 +129,8 @@ const styles = stylex.create({
   },
   list: {
     alignItems: "center",
-    backgroundColor: `color-mix(in oklch, ${colors.accent} 8%, transparent)`,
-    borderColor: colors.surfaceRaisedBorder,
+    backgroundColor: colors.interactiveSubtle,
+    borderColor: colors.borderDefault,
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",
     borderWidth: 1,
@@ -142,7 +142,7 @@ const styles = stylex.create({
   },
   item: {
     alignItems: "center",
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     display: "flex",
     height: "1.25rem",
     marginInlineStart: {
@@ -153,6 +153,6 @@ const styles = stylex.create({
     position: "relative",
   },
   page: {
-    color: colors.foreground,
+    color: colors.foregroundPrimary,
   },
 });

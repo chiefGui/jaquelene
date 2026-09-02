@@ -90,7 +90,7 @@ const styles = stylex.create({
     justifyContent: "space-between",
   },
   content: {
-    color: `color-mix(in oklab, ${colors.foreground} 82%, transparent)`,
+    color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginBlock: "1rem 0",

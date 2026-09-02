@@ -268,7 +268,7 @@ const styles = stylex.create({
   themeOption: {
     alignItems: "center",
     borderRadius: tokens.radiusMedium,
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     display: "flex",
     flexDirection: "column",
     gap: "0.5rem",
@@ -279,7 +279,7 @@ const styles = stylex.create({
     },
     outlineColor: {
       default: null,
-      ":is([data-focus-visible])": `color-mix(in oklch, ${colors.accent} 60%, transparent)`,
+      ":is([data-focus-visible])": colors.focusRing,
     },
     outlineOffset: {
       default: null,
@@ -296,12 +296,12 @@ const styles = stylex.create({
     padding: "0.25rem",
   },
   themeLabel: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     textBox: "trim-both text",
   },
   themeLabelSelected: {
-    color: colors.foreground,
+    color: colors.foregroundPrimary,
   },
 });

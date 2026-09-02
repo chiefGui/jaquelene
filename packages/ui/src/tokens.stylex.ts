@@ -5,21 +5,57 @@ export type ThemePalette = Readonly<Record<keyof typeof jaquelenePalette, string
 
 // StyleX only extracts variables from a statically visible object literal.
 export const colors = stylex.defineVars({
-  // Surfaces
-  canvas: jaquelenePalette.canvas,
-  surface: jaquelenePalette.surface,
-  surfaceRaised: jaquelenePalette.surfaceRaised,
-  border: jaquelenePalette.border,
-  surfaceRaisedBorder: jaquelenePalette.surfaceRaisedBorder,
-  backdrop: jaquelenePalette.backdrop,
+  // Backgrounds
+  backgroundCanvas: jaquelenePalette.backgroundCanvas,
+  backgroundSurface: jaquelenePalette.backgroundSurface,
+  backgroundRaised: jaquelenePalette.backgroundRaised,
+  backgroundOverlay: jaquelenePalette.backgroundOverlay,
+  backgroundSubtle: jaquelenePalette.backgroundSubtle,
+  backgroundSubtleHover: jaquelenePalette.backgroundSubtleHover,
 
-  // Content and state
-  foreground: jaquelenePalette.foreground,
-  muted: jaquelenePalette.muted,
-  accent: jaquelenePalette.accent,
+  // Foreground
+  foregroundPrimary: jaquelenePalette.foregroundPrimary,
+  foregroundSecondary: jaquelenePalette.foregroundSecondary,
+  foregroundDisabled: jaquelenePalette.foregroundDisabled,
+  foregroundOnInteractive: jaquelenePalette.foregroundOnInteractive,
+
+  // Borders and focus
+  borderSubtle: jaquelenePalette.borderSubtle,
+  borderDefault: jaquelenePalette.borderDefault,
+  borderFocus: jaquelenePalette.borderFocus,
+  borderDanger: jaquelenePalette.borderDanger,
+  borderDangerStrong: jaquelenePalette.borderDangerStrong,
+  focusRing: jaquelenePalette.focusRing,
+
+  // Interaction
+  interactive: jaquelenePalette.interactive,
+  interactiveSubtle: jaquelenePalette.interactiveSubtle,
+  interactiveHover: jaquelenePalette.interactiveHover,
+  interactivePressed: jaquelenePalette.interactivePressed,
+  interactiveSelected: jaquelenePalette.interactiveSelected,
+  interactiveSelectedHover: jaquelenePalette.interactiveSelectedHover,
+  link: jaquelenePalette.link,
+  linkHover: jaquelenePalette.linkHover,
+  selectionBackground: jaquelenePalette.selectionBackground,
+  selectionForeground: jaquelenePalette.selectionForeground,
+  actionPrimary: jaquelenePalette.actionPrimary,
+  actionPrimaryHover: jaquelenePalette.actionPrimaryHover,
+  actionPrimaryForeground: jaquelenePalette.actionPrimaryForeground,
+  controlChecked: jaquelenePalette.controlChecked,
+  controlCheckedBorder: jaquelenePalette.controlCheckedBorder,
+
+  // Status
   danger: jaquelenePalette.danger,
+  dangerSurface: jaquelenePalette.dangerSurface,
+  dangerSurfaceHover: jaquelenePalette.dangerSurfaceHover,
+  dangerSolid: jaquelenePalette.dangerSolid,
+  dangerSolidHover: jaquelenePalette.dangerSolidHover,
+  foregroundOnDanger: jaquelenePalette.foregroundOnDanger,
   success: jaquelenePalette.success,
+
+  // Product semantics
   reasoning: jaquelenePalette.reasoning,
+  reasoningSurface: jaquelenePalette.reasoningSurface,
 
   // Storage visualization
   storageContent: jaquelenePalette.storageContent,

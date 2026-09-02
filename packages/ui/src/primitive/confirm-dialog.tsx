@@ -73,7 +73,7 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   description: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.75rem",

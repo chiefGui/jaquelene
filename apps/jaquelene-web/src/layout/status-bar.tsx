@@ -14,7 +14,7 @@ export function StatusBar() {
 const styles = stylex.create({
   root: {
     alignItems: "center",
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     display: "flex",
     fontSize: tokens.fontSizeXSmall,
     gridColumn: "span 2 / span 2",

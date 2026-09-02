@@ -44,8 +44,8 @@ export function AppShell() {
 
 const styles = stylex.create({
   root: {
-    backgroundColor: colors.canvas,
-    color: colors.foreground,
+    backgroundColor: colors.backgroundCanvas,
+    color: colors.foregroundPrimary,
     display: "grid",
     fontSize: tokens.fontSizeSmall,
     gridTemplateColumns: "14rem minmax(0, 1fr)",

@@ -141,16 +141,16 @@ const styles = stylex.create({
     paddingInline: "0.75rem",
   },
   userBubble: {
-    backgroundColor: `color-mix(in oklab, ${colors.accent} 22%, ${colors.surfaceRaised})`,
+    backgroundColor: colors.interactiveSelected,
   },
   assistantBubble: {
-    backgroundColor: colors.surfaceRaised,
-    borderColor: colors.surfaceRaisedBorder,
+    backgroundColor: colors.backgroundRaised,
+    borderColor: colors.borderDefault,
     borderStyle: "solid",
     borderWidth: 1,
   },
   timestamp: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.375rem",
@@ -163,7 +163,7 @@ const styles = stylex.create({
     marginTop: "0.375rem",
   },
   replyStatus: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
   },

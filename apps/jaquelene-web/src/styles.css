@@ -79,7 +79,7 @@
   }
 
   ::placeholder {
-    color: color-mix(in oklab, currentcolor 50%, transparent);
+    color: color-mix(in oklch, currentcolor 50%, transparent);
     opacity: 1;
   }
 

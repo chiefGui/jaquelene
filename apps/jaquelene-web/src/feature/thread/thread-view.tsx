@@ -492,8 +492,8 @@ const styles = stylex.create({
   },
   historyControls: {
     alignItems: "center",
-    backgroundColor: colors.surfaceRaised,
-    borderColor: colors.surfaceRaisedBorder,
+    backgroundColor: colors.backgroundRaised,
+    borderColor: colors.borderDefault,
     borderRadius: tokens.radiusLarge,
     borderStyle: "solid",
     borderWidth: 1,
@@ -504,7 +504,7 @@ const styles = stylex.create({
     padding: "0.75rem",
   },
   historyDescription: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
   },

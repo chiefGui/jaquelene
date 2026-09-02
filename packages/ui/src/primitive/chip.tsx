@@ -175,7 +175,7 @@ const styles = stylex.create({
     position: "relative",
   },
   divider: {
-    color: colors.surfaceRaisedBorder,
+    color: colors.borderDefault,
     display: "block",
     height: "1.375rem",
     pointerEvents: "none",
@@ -197,7 +197,7 @@ const styles = stylex.create({
     borderColor: "transparent",
   },
   action: {
-    borderColor: colors.surfaceRaisedBorder,
+    borderColor: colors.borderDefault,
   },
   label: {
     minWidth: 0,

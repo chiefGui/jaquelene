@@ -87,7 +87,7 @@ const styles = stylex.create({
     gap: "0.5rem",
   },
   heading: {
-    color: colors.foreground,
+    color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeSmall,
     fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
@@ -95,7 +95,7 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   sectionDescription: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     margin: 0,
@@ -103,8 +103,8 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   group: {
-    backgroundColor: `color-mix(in oklab, ${colors.foreground} 2%, transparent)`,
-    borderColor: colors.border,
+    backgroundColor: colors.backgroundSubtle,
+    borderColor: colors.borderSubtle,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
@@ -119,7 +119,7 @@ const styles = stylex.create({
     padding: "1rem",
   },
   groupItem: {
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
     borderStyle: "solid",
     borderTopWidth: {
       default: 0,
@@ -130,20 +130,20 @@ const styles = stylex.create({
     minWidth: 0,
   },
   label: {
-    color: colors.foreground,
+    color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeSmall,
     fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
     textBox: "trim-both text",
   },
   description: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     marginTop: "0.25rem",
   },
   value: {
-    color: `color-mix(in oklab, ${colors.foreground} 75%, transparent)`,
+    color: colors.foregroundSecondary,
     flexShrink: 0,
     fontSize: tokens.fontSizeSmall,
     fontVariantNumeric: "tabular-nums",

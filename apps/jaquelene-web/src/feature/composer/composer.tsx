@@ -127,10 +127,10 @@ const spin = stylex.keyframes({
 
 const styles = stylex.create({
   root: {
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: colors.backgroundRaised,
     borderColor: {
-      default: `color-mix(in oklab, ${colors.foreground} 9%, transparent)`,
-      ":focus-within": `color-mix(in oklab, ${colors.accent} 38%, transparent)`,
+      default: colors.borderDefault,
+      ":focus-within": colors.borderFocus,
     },
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
@@ -155,8 +155,8 @@ const styles = stylex.create({
     appearance: "none",
     backgroundColor: "transparent",
     borderWidth: 0,
-    caretColor: colors.accent,
-    color: colors.foreground,
+    caretColor: colors.interactive,
+    color: colors.foregroundPrimary,
     fieldSizing: "content",
     fontFamily: "inherit",
     fontSize: tokens.fontSizeBase,
@@ -172,7 +172,7 @@ const styles = stylex.create({
     width: "100%",
     zIndex: 1,
     "::placeholder": {
-      color: colors.muted,
+      color: colors.foregroundSecondary,
     },
   },
   footer: {
@@ -192,7 +192,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   status: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
   },

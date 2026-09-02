@@ -365,7 +365,7 @@ const styles = stylex.create({
     justifyContent: "space-between",
   },
   totalValue: {
-    color: colors.foreground,
+    color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeLarge,
     fontWeight: 600,
     lineHeight: tokens.lineHeightLarge,

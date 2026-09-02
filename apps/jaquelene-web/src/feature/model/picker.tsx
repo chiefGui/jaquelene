@@ -840,13 +840,13 @@ export const ModelPicker = {
   Content: ModelPickerContent,
 } as const;
 
-const activeBackground = `color-mix(in oklab, ${colors.accent} 10%, transparent)`;
-const activeModelName = colors.foreground;
-const focusOutline = `color-mix(in oklab, ${colors.accent} 60%, transparent)`;
+const activeBackground = colors.interactiveHover;
+const activeModelName = colors.foregroundPrimary;
+const focusOutline = colors.focusRing;
 
 const styles = stylex.create({
   selectedModelMark: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     gridColumnStart: "1",
     gridRowStart: "1",
     height: "0.875rem",
@@ -920,8 +920,8 @@ const styles = stylex.create({
   },
   selectedModelRow: {
     backgroundColor: {
-      default: activeBackground,
-      ":hover": `color-mix(in oklab, ${colors.accent} 15%, transparent)`,
+      default: colors.interactiveSelected,
+      ":hover": colors.interactiveSelectedHover,
     },
   },
   modelOption: {
@@ -939,7 +939,7 @@ const styles = stylex.create({
   },
   selectedIndicator: {
     alignSelf: "flex-start",
-    color: colors.accent,
+    color: colors.interactive,
     gridColumnStart: "1",
     gridRowStart: "1",
     marginTop: "0.125rem",
@@ -954,21 +954,21 @@ const styles = stylex.create({
   },
   modelMark: {
     color: {
-      default: colors.muted,
-      [stylex.when.ancestor(":focus-within")]: colors.foreground,
-      [stylex.when.ancestor(":hover")]: colors.foreground,
-      [stylex.when.ancestor("[data-active-item]")]: colors.foreground,
+      default: colors.foregroundSecondary,
+      [stylex.when.ancestor(":focus-within")]: colors.foregroundPrimary,
+      [stylex.when.ancestor(":hover")]: colors.foregroundPrimary,
+      [stylex.when.ancestor("[data-active-item]")]: colors.foregroundPrimary,
     },
     height: "1rem",
     marginTop: "0.125rem",
     width: "1rem",
   },
   selectedModel: {
-    color: colors.foreground,
+    color: colors.foregroundPrimary,
   },
   selectedModelName: {
     color: {
-      default: colors.foreground,
+      default: colors.foregroundPrimary,
       [stylex.when.ancestor(":focus-within")]: activeModelName,
       [stylex.when.ancestor(":hover")]: activeModelName,
       [stylex.when.ancestor("[data-active-item]")]: activeModelName,
@@ -986,7 +986,7 @@ const styles = stylex.create({
   },
   modelName: {
     color: {
-      default: `color-mix(in oklab, ${colors.foreground} 85%, transparent)`,
+      default: colors.foregroundPrimary,
       [stylex.when.ancestor(":focus-within")]: activeModelName,
       [stylex.when.ancestor(":hover")]: activeModelName,
       [stylex.when.ancestor("[data-active-item]")]: activeModelName,
@@ -1004,8 +1004,8 @@ const styles = stylex.create({
     gap: "0.25rem",
   },
   favoriteProviderIndicator: {
-    backgroundColor: `color-mix(in oklab, ${colors.foreground} 6%, transparent)`,
-    color: colors.muted,
+    backgroundColor: colors.backgroundSubtleHover,
+    color: colors.foregroundSecondary,
     height: "1.125rem",
   },
   favoriteProviderMark: {
@@ -1013,7 +1013,7 @@ const styles = stylex.create({
     width: "0.625rem",
   },
   modelMetadata: {
-    color: `color-mix(in oklab, ${colors.muted} 75%, transparent)`,
+    color: colors.foregroundSecondary,
     display: "block",
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
@@ -1023,7 +1023,7 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
   },
   reasoningIndicator: {
-    backgroundColor: `color-mix(in oklab, ${colors.reasoning} 14%, transparent)`,
+    backgroundColor: colors.reasoningSurface,
     color: colors.reasoning,
     height: "1.125rem",
   },
@@ -1034,7 +1034,7 @@ const styles = stylex.create({
     },
     color: {
       default: null,
-      ":hover": colors.accent,
+      ":hover": colors.interactive,
     },
     gridColumnStart: "3",
     gridRowStart: "1",
@@ -1050,11 +1050,11 @@ const styles = stylex.create({
     width: "2rem",
   },
   favoriteButtonOn: {
-    color: colors.accent,
+    color: colors.interactive,
     opacity: 1,
   },
   favoriteButtonOff: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     opacity: {
       default: 0,
       [stylex.when.ancestor(":hover")]: 1,
@@ -1111,7 +1111,7 @@ const styles = stylex.create({
     textAlign: "center",
   },
   stateMessage: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
   },
@@ -1125,8 +1125,8 @@ const styles = stylex.create({
   settingsLink: {
     borderRadius: tokens.radiusSmall,
     color: {
-      default: colors.muted,
-      ":hover": colors.foreground,
+      default: colors.foregroundSecondary,
+      ":hover": colors.foregroundPrimary,
     },
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
@@ -1156,7 +1156,7 @@ const styles = stylex.create({
     },
   },
   emptyState: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     display: "grid",
     flex: 1,
     fontSize: tokens.fontSizeSmall,
@@ -1165,7 +1165,7 @@ const styles = stylex.create({
     placeItems: "center",
   },
   actionError: {
-    borderTopColor: colors.surfaceRaisedBorder,
+    borderTopColor: colors.borderDefault,
     borderTopStyle: "solid",
     borderTopWidth: 1,
     color: colors.danger,
@@ -1176,13 +1176,13 @@ const styles = stylex.create({
     paddingInline: "0.75rem",
   },
   content: {
-    backgroundColor: colors.surfaceRaised,
-    borderColor: colors.surfaceRaisedBorder,
+    backgroundColor: colors.backgroundRaised,
+    borderColor: colors.borderDefault,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
     borderWidth: 1,
     boxShadow: tokens.shadowXLarge,
-    color: colors.foreground,
+    color: colors.foregroundPrimary,
     height: "26rem",
     maxWidth: "calc(100vw - 2rem)",
     outline: "none",
@@ -1198,7 +1198,7 @@ const styles = stylex.create({
   },
   tabList: {
     alignItems: "center",
-    borderRightColor: colors.surfaceRaisedBorder,
+    borderRightColor: colors.borderDefault,
     borderRightStyle: "solid",
     borderRightWidth: 1,
     display: "flex",
@@ -1212,12 +1212,12 @@ const styles = stylex.create({
     backgroundColor: {
       default: "transparent",
       ":not(:disabled):hover": activeBackground,
-      ':is([aria-selected="true"])': activeBackground,
-      ':is([aria-selected="true"]):not(:disabled):hover': `color-mix(in oklab, ${colors.accent} 15%, transparent)`,
+      ':is([aria-selected="true"])': colors.interactiveSelected,
+      ':is([aria-selected="true"]):not(:disabled):hover': colors.interactiveSelectedHover,
     },
     color: {
-      default: colors.muted,
-      ':is([aria-selected="true"])': colors.foreground,
+      default: colors.foregroundSecondary,
+      ':is([aria-selected="true"])': colors.foregroundPrimary,
     },
     paddingInline: 0,
     width: tokens.controlHeight,
@@ -1233,7 +1233,7 @@ const styles = stylex.create({
     outline: "none",
   },
   search: {
-    borderBottomColor: colors.surfaceRaisedBorder,
+    borderBottomColor: colors.borderDefault,
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
     flexShrink: 0,
@@ -1241,7 +1241,7 @@ const styles = stylex.create({
     position: "relative",
   },
   searchIcon: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     left: "1.25rem",
     pointerEvents: "none",
     position: "absolute",

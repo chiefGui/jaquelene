@@ -15,20 +15,20 @@ const styles = stylex.create({
   root: {
     appearance: "none",
     backgroundColor: {
-      default: `color-mix(in oklab, ${colors.foreground} 3.5%, transparent)`,
-      ":focus": `color-mix(in oklab, ${colors.foreground} 5%, transparent)`,
+      default: colors.backgroundSubtle,
+      ":focus": colors.backgroundSubtleHover,
     },
     borderColor: {
-      default: `color-mix(in oklab, ${colors.foreground} 10%, transparent)`,
-      ":focus": `color-mix(in oklab, ${colors.accent} 45%, transparent)`,
-      ':is([aria-invalid="true"])': `color-mix(in oklab, ${colors.danger} 58%, transparent)`,
-      ':is([aria-invalid="true"]):focus': `color-mix(in oklab, ${colors.danger} 72%, transparent)`,
+      default: colors.borderDefault,
+      ":focus": colors.borderFocus,
+      ':is([aria-invalid="true"])': colors.borderDanger,
+      ':is([aria-invalid="true"]):focus': colors.borderDangerStrong,
     },
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",
     borderWidth: 1,
-    caretColor: colors.accent,
-    color: colors.foreground,
+    caretColor: colors.interactive,
+    color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeSmall,
     height: tokens.controlHeight,
     lineHeight: tokens.lineHeightSmall,
@@ -39,7 +39,7 @@ const styles = stylex.create({
     outline: "none",
     paddingInline: "0.625rem",
     "::placeholder": {
-      color: colors.muted,
+      color: colors.foregroundSecondary,
     },
   },
 });

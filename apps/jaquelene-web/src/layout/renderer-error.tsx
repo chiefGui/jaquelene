@@ -53,8 +53,8 @@ function RendererError() {
 const styles = stylex.create({
   root: {
     alignItems: "center",
-    backgroundColor: colors.canvas,
-    color: colors.foreground,
+    backgroundColor: colors.backgroundCanvas,
+    color: colors.foregroundPrimary,
     display: "flex",
     fontFamily: tokens.fontSystem,
     fontSize: tokens.fontSizeSmall,
@@ -76,7 +76,7 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightLarge,
   },
   description: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     marginTop: "0.5rem",
   },
   action: {

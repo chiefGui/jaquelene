@@ -39,7 +39,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   status: {
-    color: colors.muted,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     minHeight: tokens.lineHeightXSmall,

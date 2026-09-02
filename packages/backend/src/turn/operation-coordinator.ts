@@ -18,8 +18,15 @@ export type StartingTurnOperation = Extract<
   { state: "submitting" | "retrying" | "regenerating" }
 >;
 type TruncatingTurnOperation = Extract<TurnOperationInspection, { state: "truncating" }>;
+type GeneratingTurnOperation = Extract<TurnOperationInspection, { state: "generating" }>;
 type AcquiredTurnOperation = StartingTurnOperation | TruncatingTurnOperation;
 type ActiveTurnOperation = Exclude<TurnOperationInspection, { state: "idle" }>;
+
+const generationSourceByStartingState = {
+  submitting: "submit",
+  retrying: "retry",
+  regenerating: "regenerate",
+} as const satisfies Record<StartingTurnOperation["state"], GeneratingTurnOperation["source"]>;
 
 type TurnOperationLease = Readonly<{ release: () => void }>;
 type GeneratingTurnOperationLease = TurnOperationLease &
@@ -82,12 +89,7 @@ export function createTurnOperationCoordinator() {
           owner,
           operation: {
             state: "generating",
-            source:
-              starting.state === "submitting"
-                ? "submit"
-                : starting.state === "retrying"
-                  ? "retry"
-                  : "regenerate",
+            source: generationSourceByStartingState[starting.state],
             turnId,
             generationId,
           },

@@ -74,7 +74,6 @@ describe("thread view state", () => {
 
     expect(state.messages).toEqual([
       expect.objectContaining({
-        fromUser: true,
         replyFailure: null,
       }),
     ]);

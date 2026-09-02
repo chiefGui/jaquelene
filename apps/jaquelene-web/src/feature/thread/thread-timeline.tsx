@@ -311,7 +311,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
               );
             }
 
-            const { message, fromUser, regeneration, replyFailure } = item.value;
+            const { message, regeneration, replyFailure } = item.value;
 
             return (
               <li
@@ -324,7 +324,6 @@ export const ThreadTimeline = memo(function ThreadTimeline({
               >
                 <ThreadMessageRow
                   message={message}
-                  fromUser={fromUser}
                   regeneration={regeneration}
                   replyFailure={replyFailure}
                   announceReplyFailure={message.id === view.latestMessageId}

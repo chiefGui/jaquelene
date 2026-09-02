@@ -1,7 +1,11 @@
 import Refresh01Icon from "@hugeicons/core-free-icons/Refresh01Icon";
 import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { GenerationFailureKind, type ThreadMessage } from "@jaquelene/ipc/renderer";
+import {
+  GenerationFailureKind,
+  ThreadMessageAuthor,
+  type ThreadMessage,
+} from "@jaquelene/ipc/renderer";
 import { Button, IconButton, formatTimestamp } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -213,7 +217,6 @@ function AssistantMessageToolbar({
 
 export const ThreadMessageRow = memo(function ThreadMessageRow({
   message,
-  fromUser,
   regeneration,
   replyFailure,
   announceReplyFailure,
@@ -225,7 +228,6 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   retryReply,
 }: Readonly<{
   message: ThreadMessage;
-  fromUser: boolean;
   regeneration: ThreadReplyRegenerationView;
   replyFailure: ThreadReplyFailureView;
   announceReplyFailure: boolean;
@@ -236,6 +238,8 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   retryPending: boolean;
   retryReply: (turnId: string) => Promise<void>;
 }>) {
+  const fromUser = message.author === ThreadMessageAuthor.User;
+
   return (
     <MessageRoot fromUser={fromUser}>
       <div {...stylex.props(styles.bubble, fromUser ? styles.userBubble : styles.assistantBubble)}>

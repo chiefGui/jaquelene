@@ -334,6 +334,13 @@ describe("turns", () => {
       ...threadPageMetadata([submission.acceptance.userMessage, regenerated.assistantMessage]),
     });
     expect(database.select().from(generationTable).all()).toHaveLength(2);
+    await expect(
+      turns.regenerate({
+        assistantMessageId: original.assistantMessage.id,
+        configuration,
+      }),
+    ).rejects.toThrow(`Message "${original.assistantMessage.id}" is not the active thread reply.`);
+    expect(generate).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the active reply after failed regeneration and allows another attempt", async () => {

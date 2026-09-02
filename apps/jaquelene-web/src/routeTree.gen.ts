@@ -20,6 +20,7 @@ import { Route as SettingsAdvancedRouteImport } from "./routes/settings/advanced
 import { Route as SettingsAppearanceRouteImport } from "./routes/settings/appearance";
 import { Route as SettingsGeneralRouteImport } from "./routes/settings/general";
 import { Route as SettingsInstructionsRouteImport } from "./routes/settings/instructions";
+import { Route as SettingsMarkdownEditorRouteImport } from "./routes/settings/markdown-editor";
 import { Route as SettingsProvidersRouteImport } from "./routes/settings/providers";
 import { Route as SettingsStorageRouteImport } from "./routes/settings/storage";
 import { Route as SettingsUsageRouteImport } from "./routes/settings/usage";
@@ -79,6 +80,11 @@ const SettingsInstructionsRoute = SettingsInstructionsRouteImport.update({
   path: "/instructions",
   getParentRoute: () => SettingsRouteRoute,
 } as any);
+const SettingsMarkdownEditorRoute = SettingsMarkdownEditorRouteImport.update({
+  id: "/markdown-editor",
+  path: "/markdown-editor",
+  getParentRoute: () => SettingsRouteRoute,
+} as any);
 const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
   id: "/providers",
   path: "/providers",
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/instructions": typeof SettingsInstructionsRoute;
+  "/settings/markdown-editor": typeof SettingsMarkdownEditorRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/settings/usage": typeof SettingsUsageRoute;
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/instructions": typeof SettingsInstructionsRoute;
+  "/settings/markdown-editor": typeof SettingsMarkdownEditorRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/settings/usage": typeof SettingsUsageRoute;
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/instructions": typeof SettingsInstructionsRoute;
+  "/settings/markdown-editor": typeof SettingsMarkdownEditorRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/settings/usage": typeof SettingsUsageRoute;
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | "/settings/appearance"
     | "/settings/general"
     | "/settings/instructions"
+    | "/settings/markdown-editor"
     | "/settings/providers"
     | "/settings/storage"
     | "/settings/usage"
@@ -171,6 +181,7 @@ export interface FileRouteTypes {
     | "/settings/appearance"
     | "/settings/general"
     | "/settings/instructions"
+    | "/settings/markdown-editor"
     | "/settings/providers"
     | "/settings/storage"
     | "/settings/usage"
@@ -187,6 +198,7 @@ export interface FileRouteTypes {
     | "/settings/appearance"
     | "/settings/general"
     | "/settings/instructions"
+    | "/settings/markdown-editor"
     | "/settings/providers"
     | "/settings/storage"
     | "/settings/usage"
@@ -279,6 +291,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SettingsInstructionsRouteImport;
       parentRoute: typeof SettingsRouteRoute;
     };
+    "/settings/markdown-editor": {
+      id: "/settings/markdown-editor";
+      path: "/markdown-editor";
+      fullPath: "/settings/markdown-editor";
+      preLoaderRoute: typeof SettingsMarkdownEditorRouteImport;
+      parentRoute: typeof SettingsRouteRoute;
+    };
     "/settings/providers": {
       id: "/settings/providers";
       path: "/providers";
@@ -324,6 +343,7 @@ interface SettingsRouteRouteChildren {
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
   SettingsGeneralRoute: typeof SettingsGeneralRoute;
   SettingsInstructionsRoute: typeof SettingsInstructionsRoute;
+  SettingsMarkdownEditorRoute: typeof SettingsMarkdownEditorRoute;
   SettingsProvidersRoute: typeof SettingsProvidersRoute;
   SettingsStorageRoute: typeof SettingsStorageRoute;
   SettingsUsageRoute: typeof SettingsUsageRoute;
@@ -334,6 +354,7 @@ const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsInstructionsRoute: SettingsInstructionsRoute,
+  SettingsMarkdownEditorRoute: SettingsMarkdownEditorRoute,
   SettingsProvidersRoute: SettingsProvidersRoute,
   SettingsStorageRoute: SettingsStorageRoute,
   SettingsUsageRoute: SettingsUsageRoute,

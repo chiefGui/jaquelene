@@ -9,9 +9,11 @@ export const colors = stylex.defineVars({
   backgroundCanvas: jaquelenePalette.backgroundCanvas,
   backgroundSurface: jaquelenePalette.backgroundSurface,
   backgroundRaised: jaquelenePalette.backgroundRaised,
+  backgroundFloating: jaquelenePalette.backgroundFloating,
   backgroundOverlay: jaquelenePalette.backgroundOverlay,
   backgroundSubtle: jaquelenePalette.backgroundSubtle,
   backgroundSubtleHover: jaquelenePalette.backgroundSubtleHover,
+  backgroundSubtlePressed: jaquelenePalette.backgroundSubtlePressed,
 
   // Foreground
   foregroundPrimary: jaquelenePalette.foregroundPrimary,
@@ -28,12 +30,9 @@ export const colors = stylex.defineVars({
   focusRing: jaquelenePalette.focusRing,
 
   // Interaction
-  interactive: jaquelenePalette.interactive,
-  interactiveSubtle: jaquelenePalette.interactiveSubtle,
-  interactiveHover: jaquelenePalette.interactiveHover,
-  interactivePressed: jaquelenePalette.interactivePressed,
-  interactiveSelected: jaquelenePalette.interactiveSelected,
-  interactiveSelectedHover: jaquelenePalette.interactiveSelectedHover,
+  accent: jaquelenePalette.accent,
+  backgroundSelected: jaquelenePalette.backgroundSelected,
+  backgroundSelectedHover: jaquelenePalette.backgroundSelectedHover,
   link: jaquelenePalette.link,
   linkHover: jaquelenePalette.linkHover,
   selectionBackground: jaquelenePalette.selectionBackground,

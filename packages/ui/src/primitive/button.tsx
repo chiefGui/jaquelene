@@ -90,9 +90,9 @@ const styles = stylex.create({
   ghost: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": colors.interactiveHover,
-      ":not(:disabled):active": colors.interactivePressed,
-      ":is([data-focus-visible])": colors.interactiveHover,
+      ":not(:disabled):hover": colors.backgroundSubtleHover,
+      ":not(:disabled):active": colors.backgroundSubtlePressed,
+      ":is([data-focus-visible])": colors.backgroundSubtleHover,
     },
     color: {
       default: colors.foregroundSecondary,
@@ -102,10 +102,10 @@ const styles = stylex.create({
   },
   soft: {
     backgroundColor: {
-      default: colors.interactiveSubtle,
-      ":not(:disabled):hover": colors.interactiveHover,
-      ":not(:disabled):active": colors.interactivePressed,
-      ":is([data-focus-visible])": colors.interactiveHover,
+      default: colors.backgroundSubtle,
+      ":not(:disabled):hover": colors.backgroundSubtleHover,
+      ":not(:disabled):active": colors.backgroundSubtlePressed,
+      ":is([data-focus-visible])": colors.backgroundSubtleHover,
     },
     color: {
       default: colors.foregroundSecondary,

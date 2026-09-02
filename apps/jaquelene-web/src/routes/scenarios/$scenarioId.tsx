@@ -309,7 +309,7 @@ const styles = stylex.create({
   listLink: {
     backgroundColor: {
       default: "transparent",
-      ":hover": colors.interactiveHover,
+      ":hover": colors.backgroundSubtleHover,
     },
     display: "block",
     fontSize: tokens.fontSizeSmall,

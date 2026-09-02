@@ -89,7 +89,7 @@ const styles = stylex.create({
     backgroundColor: colors.backgroundOverlay,
   },
   content: {
-    backgroundColor: colors.backgroundRaised,
+    backgroundColor: colors.backgroundFloating,
     borderColor: colors.borderDefault,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",

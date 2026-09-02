@@ -152,7 +152,7 @@ function PrimarySidebarItemContent({ icon, label }: { icon: IconSvgElement; labe
 }
 
 const focusColor = colors.focusRing;
-const hoverBackground = colors.interactiveHover;
+const hoverBackground = colors.backgroundSubtleHover;
 
 const styles = stylex.create({
   root: {
@@ -187,8 +187,8 @@ const styles = stylex.create({
     backgroundColor: {
       default: "transparent",
       ":hover": hoverBackground,
-      ':is([data-status="active"])': colors.interactiveSelected,
-      ':is([data-status="active"]):hover': colors.interactiveSelectedHover,
+      ':is([data-status="active"])': colors.backgroundSelected,
+      ':is([data-status="active"]):hover': colors.backgroundSelectedHover,
     },
     borderRadius: tokens.radiusMedium,
     color: {

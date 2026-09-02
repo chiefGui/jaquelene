@@ -60,7 +60,7 @@ export type { TooltipAnchorProps, TooltipProviderProps as TooltipRootProps };
 
 const styles = stylex.create({
   content: {
-    backgroundColor: colors.backgroundRaised,
+    backgroundColor: colors.backgroundFloating,
     borderColor: colors.borderDefault,
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",

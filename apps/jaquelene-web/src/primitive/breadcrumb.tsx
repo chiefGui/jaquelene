@@ -129,7 +129,7 @@ const styles = stylex.create({
   },
   list: {
     alignItems: "center",
-    backgroundColor: colors.interactiveSubtle,
+    backgroundColor: colors.backgroundSubtle,
     borderColor: colors.borderDefault,
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",

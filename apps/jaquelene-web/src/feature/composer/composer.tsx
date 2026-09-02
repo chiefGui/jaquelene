@@ -155,7 +155,7 @@ const styles = stylex.create({
     appearance: "none",
     backgroundColor: "transparent",
     borderWidth: 0,
-    caretColor: colors.interactive,
+    caretColor: colors.accent,
     color: colors.foregroundPrimary,
     fieldSizing: "content",
     fontFamily: "inherit",

@@ -124,7 +124,7 @@ export const Select = Object.assign(SelectTrigger, {
   Indicator: SelectIndicator,
 });
 
-const activeBackground = colors.interactiveHover;
+const activeBackground = colors.backgroundSubtleHover;
 const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
 
 const styles = stylex.create({
@@ -168,8 +168,8 @@ const styles = stylex.create({
   chevron: {
     color: {
       default: colors.foregroundSecondary,
-      [stylex.when.ancestor("[data-focus-visible]")]: colors.interactive,
-      [stylex.when.ancestor('[aria-expanded="true"]')]: colors.interactive,
+      [stylex.when.ancestor("[data-focus-visible]")]: colors.accent,
+      [stylex.when.ancestor('[aria-expanded="true"]')]: colors.accent,
     },
     flexShrink: 0,
     height: "0.875rem",
@@ -185,7 +185,7 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   content: {
-    backgroundColor: colors.backgroundRaised,
+    backgroundColor: colors.backgroundFloating,
     borderColor: colors.borderDefault,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
@@ -211,8 +211,8 @@ const styles = stylex.create({
       ":focus": activeBackground,
       ":hover": activeBackground,
       ":is([data-active-item])": activeBackground,
-      ':is([aria-selected="true"])': colors.interactiveSelected,
-      ':is([aria-selected="true"]):hover': colors.interactiveSelectedHover,
+      ':is([aria-selected="true"])': colors.backgroundSelected,
+      ':is([aria-selected="true"]):hover': colors.backgroundSelectedHover,
     },
     borderRadius: tokens.radiusMedium,
     color: {
@@ -236,7 +236,7 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   indicator: {
-    color: colors.interactive,
+    color: colors.accent,
     flexShrink: 0,
     height: "1rem",
     opacity: {

@@ -27,7 +27,7 @@ const styles = stylex.create({
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",
     borderWidth: 1,
-    caretColor: colors.interactive,
+    caretColor: colors.accent,
     color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeSmall,
     height: tokens.controlHeight,

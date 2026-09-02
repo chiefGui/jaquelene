@@ -840,7 +840,7 @@ export const ModelPicker = {
   Content: ModelPickerContent,
 } as const;
 
-const activeBackground = colors.interactiveHover;
+const activeBackground = colors.backgroundSubtleHover;
 const activeModelName = colors.foregroundPrimary;
 const focusOutline = colors.focusRing;
 
@@ -920,8 +920,8 @@ const styles = stylex.create({
   },
   selectedModelRow: {
     backgroundColor: {
-      default: colors.interactiveSelected,
-      ":hover": colors.interactiveSelectedHover,
+      default: colors.backgroundSelected,
+      ":hover": colors.backgroundSelectedHover,
     },
   },
   modelOption: {
@@ -939,7 +939,7 @@ const styles = stylex.create({
   },
   selectedIndicator: {
     alignSelf: "flex-start",
-    color: colors.interactive,
+    color: colors.accent,
     gridColumnStart: "1",
     gridRowStart: "1",
     marginTop: "0.125rem",
@@ -1034,7 +1034,7 @@ const styles = stylex.create({
     },
     color: {
       default: null,
-      ":hover": colors.interactive,
+      ":hover": colors.accent,
     },
     gridColumnStart: "3",
     gridRowStart: "1",
@@ -1050,7 +1050,7 @@ const styles = stylex.create({
     width: "2rem",
   },
   favoriteButtonOn: {
-    color: colors.interactive,
+    color: colors.accent,
     opacity: 1,
   },
   favoriteButtonOff: {
@@ -1176,7 +1176,7 @@ const styles = stylex.create({
     paddingInline: "0.75rem",
   },
   content: {
-    backgroundColor: colors.backgroundRaised,
+    backgroundColor: colors.backgroundFloating,
     borderColor: colors.borderDefault,
     borderRadius: tokens.radiusXLarge,
     borderStyle: "solid",
@@ -1212,8 +1212,8 @@ const styles = stylex.create({
     backgroundColor: {
       default: "transparent",
       ":not(:disabled):hover": activeBackground,
-      ':is([aria-selected="true"])': colors.interactiveSelected,
-      ':is([aria-selected="true"]):not(:disabled):hover': colors.interactiveSelectedHover,
+      ':is([aria-selected="true"])': colors.backgroundSelected,
+      ':is([aria-selected="true"]):not(:disabled):hover': colors.backgroundSelectedHover,
     },
     color: {
       default: colors.foregroundSecondary,

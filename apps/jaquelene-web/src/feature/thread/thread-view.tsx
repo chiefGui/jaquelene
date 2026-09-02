@@ -492,7 +492,7 @@ const styles = stylex.create({
   },
   historyControls: {
     alignItems: "center",
-    backgroundColor: colors.backgroundRaised,
+    backgroundColor: colors.backgroundFloating,
     borderColor: colors.borderDefault,
     borderRadius: tokens.radiusLarge,
     borderStyle: "solid",

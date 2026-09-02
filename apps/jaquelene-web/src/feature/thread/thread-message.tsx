@@ -141,7 +141,7 @@ const styles = stylex.create({
     paddingInline: "0.75rem",
   },
   userBubble: {
-    backgroundColor: colors.interactiveSelected,
+    backgroundColor: colors.backgroundSelected,
   },
   assistantBubble: {
     backgroundColor: colors.backgroundRaised,

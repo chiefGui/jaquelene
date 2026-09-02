@@ -5,9 +5,11 @@ export const jaquelenePalette = stylex.defineConsts({
   backgroundCanvas: "oklch(0.135 0.01 272)",
   backgroundSurface: "oklch(0.17 0.012 272)",
   backgroundRaised: "oklch(0.215 0.016 274)",
+  backgroundFloating: "oklch(0.255 0.019 275)",
   backgroundOverlay: "oklch(0 0 0 / 55%)",
   backgroundSubtle: "oklch(0.925 0.014 282 / 3.5%)",
   backgroundSubtleHover: "oklch(0.925 0.014 282 / 6%)",
+  backgroundSubtlePressed: "oklch(0.925 0.014 282 / 9%)",
 
   // Foreground
   foregroundPrimary: "oklch(0.925 0.014 282)",
@@ -24,12 +26,9 @@ export const jaquelenePalette = stylex.defineConsts({
   focusRing: "oklch(0.71 0.08 276 / 70%)",
 
   // Interaction
-  interactive: "oklch(0.71 0.08 276)",
-  interactiveSubtle: "oklch(0.71 0.08 276 / 8%)",
-  interactiveHover: "oklch(0.71 0.08 276 / 11%)",
-  interactivePressed: "oklch(0.71 0.08 276 / 15%)",
-  interactiveSelected: "oklch(0.71 0.08 276 / 19%)",
-  interactiveSelectedHover: "oklch(0.71 0.08 276 / 24%)",
+  accent: "oklch(0.71 0.08 276)",
+  backgroundSelected: "oklch(0.71 0.08 276 / 19%)",
+  backgroundSelectedHover: "oklch(0.71 0.08 276 / 24%)",
   link: "oklch(0.76 0.09 276)",
   linkHover: "oklch(0.84 0.07 276)",
   selectionBackground: "oklch(0.71 0.08 276 / 35%)",

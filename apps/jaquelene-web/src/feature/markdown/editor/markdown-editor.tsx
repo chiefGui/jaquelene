@@ -1,4 +1,5 @@
 import CodeIcon from "@hugeicons/core-free-icons/CodeIcon";
+import Edit02Icon from "@hugeicons/core-free-icons/Edit02Icon";
 import EyeIcon from "@hugeicons/core-free-icons/EyeIcon";
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import TextBoldIcon from "@hugeicons/core-free-icons/TextBoldIcon";
@@ -67,12 +68,7 @@ const formattingActions = {
   strong: { icon: TextBoldIcon, label: "Bold" },
 } satisfies Record<MarkdownEditorCommand, Readonly<{ icon: IconSvgElement; label: string }>>;
 
-const defaultFormattingCommands: readonly MarkdownEditorCommand[] = [
-  "strong",
-  "emphasis",
-  "code",
-  "link",
-];
+const defaultFormattingCommands: readonly MarkdownEditorCommand[] = ["strong", "emphasis"];
 
 function getAccessibleName(
   configuration: MarkdownEditorConfiguration,
@@ -124,7 +120,7 @@ type MarkdownEditorActionProps = Omit<IconButtonProps, "aria-label" | "children"
 
 function MarkdownEditorAction({ icon, label, ...props }: MarkdownEditorActionProps) {
   return (
-    <Tooltip.Root placement="bottom">
+    <Tooltip.Root>
       <Tooltip.Anchor
         render={
           <IconButton {...props} type="button" aria-label={label}>
@@ -187,10 +183,9 @@ function MarkdownEditorPreviewToggle({ style, ...props }: MarkdownEditorPreviewT
   return (
     <MarkdownEditorAction
       {...props}
-      style={[styles.previewToggle, style]}
-      label="Preview"
-      icon={EyeIcon}
-      aria-pressed={previewing}
+      style={style}
+      label={previewing ? "Edit" : "Preview"}
+      icon={previewing ? Edit02Icon : EyeIcon}
       disabled={disabled}
       onClick={() => setMode(previewing ? "edit" : "preview")}
     />
@@ -399,16 +394,6 @@ const styles = stylex.create({
     gap: "0.125rem",
     paddingBlock: "0.25rem",
     paddingInline: "0.375rem",
-  },
-  previewToggle: {
-    backgroundColor: {
-      default: "transparent",
-      ':is([aria-pressed="true"])': colors.backgroundSelected,
-    },
-    color: {
-      default: colors.foregroundSecondary,
-      ':is([aria-pressed="true"])': colors.foregroundPrimary,
-    },
   },
   previewTogglePlacement: {
     marginLeft: "auto",

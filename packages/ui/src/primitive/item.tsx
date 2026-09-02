@@ -133,7 +133,6 @@ const styles = stylex.create({
   label: {
     color: colors.foregroundPrimary,
     fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
     textBox: "trim-both text",
   },

@@ -1,6 +1,6 @@
 import {
   GenerationFailureKind,
-  GenerationKind,
+  GenerationIntent,
   GenerationStatus,
   ThreadMessageAuthor,
   type CompletedReply,
@@ -66,7 +66,7 @@ function newerPageParam(cursor: string) {
 
 function pendingTurn(
   sequence: number,
-  kind: GenerationKind = GenerationKind.Reply,
+  intent: GenerationIntent = GenerationIntent.Reply,
 ): TurnSubmission {
   const turnId = `turn-${sequence}`;
   const userMessage: ThreadMessage = {
@@ -81,7 +81,7 @@ function pendingTurn(
   const generation: TurnGeneration = {
     id: `generation-${sequence}`,
     turnId,
-    kind,
+    intent,
     providerId: "provider",
     modelId: "model",
     status: GenerationStatus.Pending,
@@ -124,7 +124,7 @@ function completedTurn(acceptance: TurnSubmission, sequence: number): CompletedR
     generation: {
       id: acceptance.generation.id,
       turnId: acceptance.generation.turnId,
-      kind: acceptance.generation.kind,
+      intent: acceptance.generation.intent,
       providerId: acceptance.generation.providerId,
       modelId: acceptance.generation.modelId,
       status: GenerationStatus.Completed,
@@ -372,7 +372,7 @@ describe("thread query cache", () => {
     const retryAcceptance: TurnSubmission = {
       userMessage: failed.userMessage,
       generation: {
-        ...pendingTurn(2, GenerationKind.Retry).generation,
+        ...pendingTurn(2, GenerationIntent.Retry).generation,
         turnId: failed.userMessage.turnId,
       },
     };
@@ -400,7 +400,7 @@ describe("thread query cache", () => {
     const regenerationAcceptance: TurnSubmission = {
       userMessage: original.userMessage,
       generation: {
-        ...pendingTurn(3, GenerationKind.Regeneration).generation,
+        ...pendingTurn(3, GenerationIntent.Regeneration).generation,
         turnId: original.userMessage.turnId,
       },
     };
@@ -428,7 +428,7 @@ describe("thread query cache", () => {
     const originalAcceptance = pendingTurn(1);
     const original = completedTurn(originalAcceptance, 2);
     const pendingGeneration = {
-      ...pendingTurn(3, GenerationKind.Regeneration).generation,
+      ...pendingTurn(3, GenerationIntent.Regeneration).generation,
       turnId: original.userMessage.turnId,
     };
     const failedGeneration: TurnGeneration = {
@@ -507,7 +507,7 @@ describe("thread query cache", () => {
       pageParams: [latestThreadHistoryPageParam],
     };
     const generation = {
-      ...pendingTurn(3, GenerationKind.Retry).generation,
+      ...pendingTurn(3, GenerationIntent.Retry).generation,
       turnId: first.userMessage.turnId,
     };
 
@@ -600,7 +600,7 @@ describe("thread query cache", () => {
       {
         type: "submission-accepted",
         ...acceptance,
-        generation: { ...acceptance.generation, kind: GenerationKind.Retry },
+        generation: { ...acceptance.generation, intent: GenerationIntent.Retry },
       },
       { type: "reply-failed", ...acceptance },
       {

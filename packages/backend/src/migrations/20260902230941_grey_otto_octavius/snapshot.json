@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "262aa3b3-4d7d-4af6-9c0f-1010d8da37c6",
+  "id": "aa326f1c-1e58-4fd4-b8ad-a98864ddcff4",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -220,7 +220,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "kind",
+      "name": "intent",
       "entityType": "columns",
       "table": "generations"
     },
@@ -1601,8 +1601,8 @@
       "table": "generations"
     },
     {
-      "value": "\"kind\" IN ('reply', 'retry', 'regeneration')",
-      "name": "generations_kind_valid",
+      "value": "\"intent\" IN ('reply', 'retry', 'regeneration')",
+      "name": "generations_intent_valid",
       "entityType": "checks",
       "table": "generations"
     },

@@ -144,7 +144,7 @@ describe("turns", () => {
       }),
       generation: expect.objectContaining({
         id: expect.stringMatching(/^generation_/),
-        kind: "reply",
+        intent: "reply",
         status: "pending",
         providerId: "provider-a",
         modelId: "maker/model",
@@ -153,7 +153,7 @@ describe("turns", () => {
     expect(operation.acceptance.generation).not.toHaveProperty("reasoning");
     expect(turns.inspect(thread.id)).toEqual({
       state: "generating",
-      source: "submit",
+      intent: "reply",
       turnId: operation.acceptance.userMessage.turnId,
       generationId: operation.acceptance.generation.id,
     });
@@ -244,12 +244,12 @@ describe("turns", () => {
 
     expect(retriedOperation.acceptance.userMessage).toEqual(failed.userMessage);
     expect(retriedOperation.acceptance.generation).toEqual(
-      expect.objectContaining({ kind: "retry", status: "pending" }),
+      expect.objectContaining({ intent: "retry", status: "pending" }),
     );
     expect(retriedOperation.acceptance.generation.id).not.toBe(failed.generation.id);
     expect(turns.inspect(thread.id)).toEqual({
       state: "generating",
-      source: "retry",
+      intent: "retry",
       turnId: retriedOperation.acceptance.userMessage.turnId,
       generationId: retriedOperation.acceptance.generation.id,
     });
@@ -303,11 +303,11 @@ describe("turns", () => {
 
     expect(regeneration.acceptance.userMessage).toEqual(submission.acceptance.userMessage);
     expect(regeneration.acceptance.generation).toEqual(
-      expect.objectContaining({ kind: "regeneration", status: "pending" }),
+      expect.objectContaining({ intent: "regeneration", status: "pending" }),
     );
     expect(turns.inspect(thread.id)).toEqual({
       state: "generating",
-      source: "regenerate",
+      intent: "regeneration",
       turnId: submission.acceptance.userMessage.turnId,
       generationId: regeneration.acceptance.generation.id,
     });
@@ -582,7 +582,7 @@ describe("turns", () => {
 
     expect(turns.inspect(thread.id)).toEqual({
       state: "generating",
-      source: "submit",
+      intent: "reply",
       turnId: operation.acceptance.userMessage.turnId,
       generationId: operation.acceptance.generation.id,
     });

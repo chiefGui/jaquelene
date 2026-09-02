@@ -142,7 +142,11 @@ export function createTurns(
 
     try {
       const operation = await start();
-      lease.generating(operation.acceptance.userMessage.turnId, operation.acceptance.generation.id);
+      lease.generating(
+        operation.acceptance.userMessage.turnId,
+        operation.acceptance.generation.id,
+        operation.acceptance.generation.intent,
+      );
 
       void operation.settlement.then(
         () => lease.release(),

@@ -50,7 +50,7 @@ describe("campaign usage", () => {
         {
           id: ids.generation.create(),
           turnId: preparingTurn.id,
-          kind: "reply",
+          intent: "reply",
           providerId: "openrouter",
           modelId: "maker/model-c",
           status: "pending",
@@ -59,7 +59,7 @@ describe("campaign usage", () => {
         {
           id: ids.generation.create(),
           turnId: turn.id,
-          kind: "reply",
+          intent: "reply",
           providerId: "openrouter",
           modelId: "maker/ignored-preparation",
           status: "failed",

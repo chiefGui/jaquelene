@@ -2,7 +2,7 @@ import type { Generation, TurnAcceptance, TurnSettlement } from "@jaquelene/back
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
 import {
-  GenerationKind,
+  GenerationIntent,
   ReasoningPreset,
   ReasoningPresetSource,
   ThreadMessagePageDirection,
@@ -43,7 +43,7 @@ vi.mock("@jaquelene/ipc/main", () => ({
     Completed: "completed",
     Failed: "failed",
   },
-  GenerationKind: {
+  GenerationIntent: {
     Reply: "reply",
     Retry: "retry",
     Regeneration: "regeneration",
@@ -104,7 +104,7 @@ function requireImplementations() {
   return { threads: implementations.threads, turns: implementations.turns };
 }
 
-function createTurnState(kind: Generation["kind"] = "reply") {
+function createTurnState(intent: Generation["intent"] = "reply") {
   const threadId = ids.thread.create();
   const turnId = ids.turn.create();
   const userMessageId = ids.message.create();
@@ -122,7 +122,7 @@ function createTurnState(kind: Generation["kind"] = "reply") {
   const pendingGeneration: Generation = {
     id: ids.generation.create(),
     turnId,
-    kind,
+    intent,
     providerId: "openrouter",
     modelId: "maker/model",
     reasoning: { preset: "high", source: "selection" },
@@ -162,9 +162,9 @@ function createTurnState(kind: Generation["kind"] = "reply") {
 function failedSettlement(
   failureKind: NonNullable<Generation["failureKind"]>,
   cause: unknown,
-  kind: Generation["kind"] = "reply",
+  intent: Generation["intent"] = "reply",
 ): FailedTurnSettlement {
-  const { acceptance } = createTurnState(kind);
+  const { acceptance } = createTurnState(intent);
 
   return {
     ...acceptance,
@@ -297,7 +297,7 @@ describe("thread IPC", () => {
           turnId: acceptance.userMessage.turnId,
           providerId: "openrouter",
           modelId: "maker/model",
-          kind: GenerationKind.Reply,
+          intent: GenerationIntent.Reply,
           reasoning: {
             preset: ReasoningPreset.High,
             source: ReasoningPresetSource.Selection,
@@ -321,7 +321,10 @@ describe("thread IPC", () => {
     });
     expect(submitted).toEqual({
       userMessage: page.messages[0],
-      generation: expect.objectContaining({ kind: GenerationKind.Reply, status: "pending" }),
+      generation: expect.objectContaining({
+        intent: GenerationIntent.Reply,
+        status: "pending",
+      }),
     });
     expect(implementations.dispatchReplyCompleted).not.toHaveBeenCalled();
 
@@ -332,7 +335,7 @@ describe("thread IPC", () => {
       userMessage: page.messages[0],
       generation: expect.objectContaining({
         id: completed.generation.id,
-        kind: GenerationKind.Reply,
+        intent: GenerationIntent.Reply,
         status: "completed",
         outputMessageId: completed.assistantMessage.id,
       }),
@@ -461,7 +464,7 @@ describe("thread IPC", () => {
     expect(accepted).toEqual(
       expect.objectContaining({
         id: acceptance.generation.id,
-        kind: GenerationKind.Regeneration,
+        intent: GenerationIntent.Regeneration,
         status: "pending",
         reasoning: {
           preset: ReasoningPreset.High,

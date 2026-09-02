@@ -537,7 +537,7 @@ describe("backend", () => {
     const pending = {
       id: ids.generation.create(),
       turnId: started.turn.id,
-      kind: "reply" as const,
+      intent: "reply" as const,
       providerId: "provider-a",
       modelId: "maker/model",
       status: "pending" as const,

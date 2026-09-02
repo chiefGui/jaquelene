@@ -1,5 +1,5 @@
 import {
-  GenerationKind,
+  GenerationIntent,
   GenerationStatus,
   ThreadMessageAuthor,
   type ThreadMessage,
@@ -88,12 +88,12 @@ export function deriveThreadViewState({
 
     if (!fromUser && latest && actionsAvailable) {
       if (
-        generation?.kind === GenerationKind.Regeneration &&
+        generation?.intent === GenerationIntent.Regeneration &&
         generation.status === GenerationStatus.Pending
       ) {
         regeneration = { status: "pending", canRegenerate: false };
       } else if (
-        generation?.kind === GenerationKind.Regeneration &&
+        generation?.intent === GenerationIntent.Regeneration &&
         generation.status === GenerationStatus.Failed
       ) {
         regeneration = { status: "failed", canRegenerate: hasModel };
@@ -106,7 +106,7 @@ export function deriveThreadViewState({
     }
 
     const failedRegeneration =
-      generation?.kind === GenerationKind.Regeneration &&
+      generation?.intent === GenerationIntent.Regeneration &&
       generation.status === GenerationStatus.Failed;
 
     if (!fromUser || !isFailedGeneration(generation) || failedRegeneration) {

@@ -1,6 +1,6 @@
 import {
   GenerationFailureKind,
-  GenerationKind,
+  GenerationIntent,
   GenerationStatus,
   ThreadMessageAuthor,
   type ThreadMessagePage,
@@ -39,7 +39,7 @@ function page(status: GenerationStatus): ThreadMessagePage {
       {
         id: "generation",
         turnId: "turn",
-        kind: GenerationKind.Reply,
+        intent: GenerationIntent.Reply,
         providerId: "provider",
         modelId: "model",
         status,
@@ -125,7 +125,7 @@ describe("thread view state", () => {
         {
           id: "generation-regeneration",
           turnId: generation.turnId,
-          kind: GenerationKind.Regeneration,
+          intent: GenerationIntent.Regeneration,
           providerId: generation.providerId,
           modelId: generation.modelId,
           status: GenerationStatus.Pending,
@@ -158,7 +158,7 @@ describe("thread view state", () => {
         {
           id: "generation-regeneration",
           turnId: generation.turnId,
-          kind: GenerationKind.Regeneration,
+          intent: GenerationIntent.Regeneration,
           providerId: generation.providerId,
           modelId: generation.modelId,
           status: GenerationStatus.Failed,

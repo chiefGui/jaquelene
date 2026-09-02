@@ -84,7 +84,7 @@ function BreadcrumbItem({ children, position = "only", style, ...props }: Breadc
 function BreadcrumbLink({ style, ...props }: BreadcrumbLinkProps) {
   const edges = getEdges(useContext(BreadcrumbItemPositionContext));
 
-  return <Chip.Action {...props} {...edges} compound style={style} />;
+  return <Chip.Action {...props} {...edges} compound style={[styles.link, style]} />;
 }
 
 function BreadcrumbPage({ style, ...props }: BreadcrumbPageProps) {
@@ -113,6 +113,9 @@ export const Breadcrumb = {
   Page: BreadcrumbPage,
 } as const;
 
+const controlShadow = `inset 0 0.0625rem 0 color-mix(in oklch, ${colors.foregroundPrimary} 5%, transparent), 0 0.0625rem 0.125rem color-mix(in oklch, ${colors.backgroundCanvas} 45%, transparent)`;
+const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
+
 const styles = stylex.create({
   root: {
     alignItems: "center",
@@ -134,6 +137,7 @@ const styles = stylex.create({
     borderRadius: tokens.radiusMedium,
     borderStyle: "solid",
     borderWidth: 1,
+    boxShadow: controlShadow,
     display: "flex",
     height: "1.375rem",
     maxWidth: "100%",
@@ -151,6 +155,23 @@ const styles = stylex.create({
     },
     minWidth: 0,
     position: "relative",
+  },
+  link: {
+    backgroundColor: {
+      default: colors.backgroundNeutralSubtler,
+      ":not(:disabled):hover": colors.backgroundInteractive,
+      ":not(:disabled):active": colors.backgroundSelected,
+      ":is([data-focus-visible])": colors.backgroundInteractive,
+    },
+    boxShadow: {
+      default: null,
+      ":is([data-focus-visible])": focusRing,
+    },
+    color: {
+      default: colors.foregroundSecondary,
+      ":not(:disabled):hover": colors.foregroundPrimary,
+      ":is([data-focus-visible])": colors.foregroundPrimary,
+    },
   },
   page: {
     color: colors.foregroundPrimary,

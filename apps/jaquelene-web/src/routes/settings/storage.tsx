@@ -195,7 +195,7 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
       />
 
       <div {...stylex.props(styles.trailing)}>
-        <Item.Value>
+        <Item.Value style={styles.storageValue}>
           <Item.ValueText>{formatBytes(area.bytes)}</Item.ValueText>
         </Item.Value>
 
@@ -297,7 +297,7 @@ function StorageRoute() {
                 <div {...stylex.props(styles.summaryHeader)}>
                   <Item.Label>Total</Item.Label>
 
-                  <Item.Value style={styles.totalValue}>
+                  <Item.Value style={[styles.storageValue, styles.totalValue]}>
                     <Item.ValueText>{formatBytes(totalBytes)}</Item.ValueText>
                   </Item.Value>
                 </div>
@@ -318,7 +318,7 @@ function StorageRoute() {
                     />
 
                     <div {...stylex.props(styles.trailing)}>
-                      <Item.Value>
+                      <Item.Value style={styles.storageValue}>
                         <Item.ValueText>{formatBytes(category.bytes)}</Item.ValueText>
                       </Item.Value>
 
@@ -366,9 +366,10 @@ const styles = stylex.create({
   },
   totalValue: {
     color: colors.foregroundPrimary,
-    fontSize: tokens.fontSizeLarge,
-    fontWeight: 600,
-    lineHeight: tokens.lineHeightLarge,
+  },
+  storageValue: {
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
   },
   usageBreakdown: {
     borderRadius: "9999px",

@@ -1,7 +1,7 @@
 import type { UiTheme } from "@jaquelene/ipc/renderer";
 import { Item } from "@jaquelene/ui";
 import { Select } from "@jaquelene/ui/select";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Radio, RadioGroup, useRadioStore } from "@ariakit/react/radio";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -267,7 +267,7 @@ const styles = stylex.create({
   },
   themeOption: {
     alignItems: "center",
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.control,
     color: colors.foregroundSecondary,
     display: "flex",
     flexDirection: "column",

@@ -2,7 +2,7 @@ import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { IconButton } from "@jaquelene/ui";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import {
   Link,
@@ -190,7 +190,7 @@ const styles = stylex.create({
       ':is([data-status="active"])': colors.backgroundSelected,
       ':is([data-status="active"]):hover': colors.backgroundSelectedHover,
     },
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.control,
     color: {
       default: colors.foregroundSecondary,
       ":hover": colors.foregroundPrimary,

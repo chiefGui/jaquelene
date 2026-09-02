@@ -11,14 +11,12 @@ import {
   type ComboboxSelectProps,
 } from "@ariakit/react/combobox";
 import { useStoreState } from "@ariakit/react/store";
-import ChevronDownIcon from "@hugeicons/core-free-icons/ChevronDownIcon";
-import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
-import { HugeiconsIcon } from "@hugeicons/react";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
 
-import { colors, tokens } from "../tokens.stylex";
+import { colors, radii, shadows, tokens } from "../tokens.stylex";
+import { ControlIcon } from "./control-icon";
 import { Popover } from "./popover";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
@@ -46,13 +44,7 @@ function SelectTrigger({ children, style, variant = "filled", ...props }: Select
       {...stylex.props(styles.trigger, styles[variant], style, stylex.defaultMarker())}
     >
       {children ?? <SelectValue />}
-      <HugeiconsIcon
-        icon={ChevronDownIcon}
-        size={14}
-        strokeWidth={1.5}
-        aria-hidden="true"
-        {...stylex.props(styles.chevron)}
-      />
+      <ControlIcon.Chevron style={styles.chevron} />
     </ComboboxSelect>
   );
 }
@@ -100,19 +92,10 @@ function SelectItemText({ style, ...props }: StyleableProps<ComponentProps<"span
   return <span {...props} {...stylex.props(styles.itemText, style)} />;
 }
 
-type SelectIndicatorProps = StyleableProps<Omit<ComponentProps<typeof HugeiconsIcon>, "icon">>;
+type SelectIndicatorProps = ComponentProps<typeof ControlIcon.Check>;
 
 function SelectIndicator({ style, ...props }: SelectIndicatorProps) {
-  return (
-    <HugeiconsIcon
-      icon={Tick01Icon}
-      size={16}
-      strokeWidth={1.5}
-      {...props}
-      aria-hidden="true"
-      {...stylex.props(styles.indicator, style)}
-    />
-  );
+  return <ControlIcon.Check {...props} style={[styles.indicator, style]} />;
 }
 
 export const Select = Object.assign(SelectTrigger, {
@@ -124,23 +107,23 @@ export const Select = Object.assign(SelectTrigger, {
   Indicator: SelectIndicator,
 });
 
-const activeBackground = colors.backgroundNeutralSubtler;
+const interactiveBackground = colors.backgroundInteractive;
 const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
+const focusedControlShadow = `${focusRing}, ${shadows.control}`;
 
 const styles = stylex.create({
   trigger: {
     alignItems: "center",
-    borderRadius: tokens.radiusMedium,
-    boxShadow: {
-      default: null,
-      ':is([aria-expanded="true"])': focusRing,
-      ":is([data-focus-visible])": focusRing,
+    borderRadius: radii.control,
+    color: {
+      default: colors.foregroundSecondary,
+      ":not(:disabled):hover": colors.foregroundPrimary,
+      ':is([aria-expanded="true"])': colors.foregroundPrimary,
+      ":is([data-focus-visible])": colors.foregroundPrimary,
     },
-    color: colors.foregroundPrimary,
     display: "inline-flex",
     flexShrink: 0,
     fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
     gap: "0.75rem",
     height: tokens.controlHeight,
     justifyContent: "space-between",
@@ -155,14 +138,27 @@ const styles = stylex.create({
   filled: {
     backgroundColor: {
       default: colors.backgroundNeutralSubtlest,
-      ":not(:disabled):hover": activeBackground,
+      ":not(:disabled):hover": interactiveBackground,
+    },
+    borderColor: colors.borderDefault,
+    borderStyle: "solid",
+    borderWidth: 1,
+    boxShadow: {
+      default: shadows.control,
+      ':is([aria-expanded="true"])': focusedControlShadow,
+      ":is([data-focus-visible])": focusedControlShadow,
     },
   },
   ghost: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": activeBackground,
-      ':is([aria-expanded="true"])': activeBackground,
+      ":not(:disabled):hover": interactiveBackground,
+      ':is([aria-expanded="true"])': interactiveBackground,
+    },
+    boxShadow: {
+      default: null,
+      ':is([aria-expanded="true"])': focusRing,
+      ":is([data-focus-visible])": focusRing,
     },
   },
   chevron: {
@@ -172,13 +168,12 @@ const styles = stylex.create({
       [stylex.when.ancestor('[aria-expanded="true"]')]: colors.foregroundAccent,
     },
     flexShrink: 0,
-    height: "0.875rem",
+    height: "0.75rem",
     transform: {
-      default: null,
-      [stylex.when.ancestor("[data-focus-visible]")]: "rotate(-90deg)",
-      [stylex.when.ancestor('[aria-expanded="true"]')]: "rotate(-90deg)",
+      default: "rotate(90deg)",
+      [stylex.when.ancestor('[aria-expanded="true"]')]: "rotate(0deg)",
     },
-    width: "0.875rem",
+    width: "0.75rem",
   },
   value: {
     minWidth: 0,
@@ -186,11 +181,11 @@ const styles = stylex.create({
   },
   content: {
     backgroundColor: colors.backgroundSurfaceOverlay,
-    borderColor: colors.borderDefault,
-    borderRadius: tokens.radiusXLarge,
+    borderColor: colors.borderOverlay,
+    borderRadius: radii.surface,
     borderStyle: "solid",
     borderWidth: 1,
-    boxShadow: tokens.shadowXLarge,
+    boxShadow: shadows.floating,
     color: colors.foregroundPrimary,
     display: "flex",
     flexDirection: "column",
@@ -208,13 +203,13 @@ const styles = stylex.create({
     alignItems: "center",
     backgroundColor: {
       default: "transparent",
-      ":focus": activeBackground,
-      ":hover": activeBackground,
-      ":is([data-active-item])": activeBackground,
+      ":focus": interactiveBackground,
+      ":hover": interactiveBackground,
+      ":is([data-active-item])": interactiveBackground,
       ':is([aria-selected="true"])': colors.backgroundSelected,
       ':is([aria-selected="true"]):hover': colors.backgroundSelectedHover,
     },
-    borderRadius: tokens.radiusMedium,
+    borderRadius: radii.compact,
     color: {
       default: colors.foregroundSecondary,
       ":focus": colors.foregroundPrimary,
@@ -238,11 +233,11 @@ const styles = stylex.create({
   indicator: {
     color: colors.foregroundAccent,
     flexShrink: 0,
-    height: "1rem",
+    height: "0.875rem",
     opacity: {
       default: 0,
       [stylex.when.ancestor('[aria-selected="true"]')]: 1,
     },
-    width: "1rem",
+    width: "0.875rem",
   },
 });

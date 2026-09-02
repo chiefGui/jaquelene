@@ -4,7 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { StorageCategory, type StorageAreaUsage, type StorageUsage } from "@jaquelene/ipc/renderer";
 import { Button, IconButton, Item, formatBytes } from "@jaquelene/ui";
 import { ConfirmDialog, type ConfirmDialogProps } from "@jaquelene/ui/confirm-dialog";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -195,7 +195,7 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
       />
 
       <div {...stylex.props(styles.trailing)}>
-        <Item.Value>
+        <Item.Value style={styles.storageValue}>
           <Item.ValueText>{formatBytes(area.bytes)}</Item.ValueText>
         </Item.Value>
 
@@ -297,7 +297,7 @@ function StorageRoute() {
                 <div {...stylex.props(styles.summaryHeader)}>
                   <Item.Label>Total</Item.Label>
 
-                  <Item.Value style={styles.totalValue}>
+                  <Item.Value style={[styles.storageValue, styles.totalValue]}>
                     <Item.ValueText>{formatBytes(totalBytes)}</Item.ValueText>
                   </Item.Value>
                 </div>
@@ -318,7 +318,7 @@ function StorageRoute() {
                     />
 
                     <div {...stylex.props(styles.trailing)}>
-                      <Item.Value>
+                      <Item.Value style={styles.storageValue}>
                         <Item.ValueText>{formatBytes(category.bytes)}</Item.ValueText>
                       </Item.Value>
 
@@ -366,12 +366,13 @@ const styles = stylex.create({
   },
   totalValue: {
     color: colors.foregroundPrimary,
-    fontSize: tokens.fontSizeLarge,
-    fontWeight: 600,
-    lineHeight: tokens.lineHeightLarge,
+  },
+  storageValue: {
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
   },
   usageBreakdown: {
-    borderRadius: "9999px",
+    borderRadius: radii.full,
     display: "flex",
     gap: "0.125rem",
     height: "0.5rem",
@@ -409,7 +410,7 @@ const styles = stylex.create({
   },
   categoryMarker: {
     backgroundColor: "currentColor",
-    borderRadius: "9999px",
+    borderRadius: radii.full,
     flexShrink: 0,
     height: "0.5rem",
     marginTop: `calc((${tokens.lineHeightSmall} - 0.5rem) / 2)`,

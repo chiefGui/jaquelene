@@ -19,10 +19,15 @@ export const draculaTheme = stylex.createTheme(colors, {
   backgroundNeutralSubtlest: "oklch(0.86523 0.01381 295.28 / 4%)",
   backgroundNeutralSubtler: "oklch(0.86523 0.01381 295.28 / 7%)",
   backgroundNeutralSubtle: "oklch(0.86523 0.01381 295.28 / 10%)",
-  backgroundSelected: "oklch(0.58172 0.22593 284.37 / 22%)",
-  backgroundSelectedHover: "oklch(0.58172 0.22593 284.37 / 30%)",
+
+  // Interactive backgrounds, from subtle feedback to selection
+  backgroundInteractive: "oklch(0.86523 0.01381 295.28 / 8%)",
+  backgroundSelected: "oklch(0.86523 0.01381 295.28 / 13%)",
+  backgroundSelectedHover: "oklch(0.86523 0.01381 295.28 / 17%)",
 
   // Button
+  buttonSoftBackground: "oklch(0.86523 0.01381 295.28 / 4%)",
+  buttonSoftBackgroundHover: "oklch(0.86523 0.01381 295.28 / 7%)",
   buttonSolidBackground: "oklch(0.48 0.2 284)",
   buttonSolidBackgroundHover: "oklch(0.5 0.2 284)",
   buttonSolidForeground: "oklch(0.91559 0.00947 292.78)",
@@ -33,9 +38,8 @@ export const draculaTheme = stylex.createTheme(colors, {
   buttonDangerSolidForeground: "oklch(0.16218 0.00847 296.89)",
 
   // Control backgrounds
-  backgroundControlChecked: "oklch(0.58172 0.22593 284.37)",
+  backgroundControlChecked: "oklch(0.58 0.16 142)",
   backgroundControlThumb: "oklch(0.86523 0.01381 295.28)",
-  backgroundControlThumbChecked: "oklch(0.86523 0.01381 295.28)",
 
   // Product backgrounds
   backgroundReasoningSubtle: "oklch(0.69616 0.20719 353.11 / 10%)",
@@ -68,11 +72,12 @@ export const draculaTheme = stylex.createTheme(colors, {
   // Borders and focus
   borderSubtle: "oklch(0.34109 0.02613 291.06 / 55%)",
   borderDefault: "oklch(0.34109 0.02613 291.06)",
+  borderOverlay: "oklch(0.36 0.028 291.06)",
   borderAccent: "oklch(0.6493 0.18797 287.7)",
   borderFocus: "oklch(0.6493 0.18797 287.7)",
   borderDanger: "oklch(0.70927 0.1686 32.68 / 65%)",
   borderDangerFocus: "oklch(0.70927 0.1686 32.68)",
-  borderControlChecked: "oklch(0.58172 0.22593 284.37)",
+  borderControlChecked: "oklch(0.6 0.17 142)",
   focusRing: "oklch(0.6493 0.18797 287.7)",
 
   // Native controls

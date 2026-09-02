@@ -116,7 +116,8 @@ const styles = stylex.create({
     gap: "2rem",
     justifyContent: "space-between",
     minHeight: "3.5rem",
-    padding: "1rem",
+    paddingBlock: "0.75rem",
+    paddingInline: "1rem",
   },
   groupItem: {
     borderColor: colors.borderSubtle,

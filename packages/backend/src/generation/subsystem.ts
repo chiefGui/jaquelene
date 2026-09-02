@@ -2,7 +2,7 @@ import type { Database } from "#backend/database/database";
 import type { Models } from "#backend/provider/model-catalog";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import type { ProviderAttempts } from "#backend/usage/provider-attempts";
-import { createGenerations, type GenerationEngine, type Generations } from "./generations";
+import { createGenerations, type GenerationEngine } from "./generations";
 import type { ReplyPreparer } from "./reply-preparation";
 import { superviseGenerations } from "./supervisor";
 
@@ -13,7 +13,6 @@ type ReplyGenerations = Pick<
   Pick<ReturnType<typeof superviseGenerations>, "scheduleAcceptedReply">;
 
 type GenerationSubsystem = Readonly<{
-  generations: Generations;
   replies: ReplyGenerations;
   close: () => Promise<void>;
 }>;
@@ -38,7 +37,6 @@ export function createGenerationSubsystem({
   const supervised = superviseGenerations(engine);
 
   return {
-    generations: supervised.generations,
     replies: {
       acceptReplyInTransaction: engine.acceptReplyInTransaction,
       listLatestForTurns: engine.listLatestForTurns,

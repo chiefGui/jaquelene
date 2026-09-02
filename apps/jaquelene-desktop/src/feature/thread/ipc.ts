@@ -24,6 +24,8 @@ import {
   toIpcReasoningPresetSource,
 } from "@/feature/model/reasoning-preset";
 
+type ThreadMessagingTurns = Pick<Turns, "listForThread" | "submit" | "retry">;
+
 function toIpcAuthor(author: ThreadMessage["author"]) {
   switch (author) {
     case "user":
@@ -153,7 +155,7 @@ function reportUnexpectedFailure(
   });
 }
 
-export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) {
+export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: ErrorReporter) {
   const destinations = new Map<WebFrameMain, ITurnsDispatcher>();
 
   function publishTurnChange(

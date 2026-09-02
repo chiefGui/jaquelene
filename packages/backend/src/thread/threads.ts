@@ -25,11 +25,18 @@ export type DeleteThreadHistoryRequest = Readonly<{
   userMessageId: MessageId;
 }>;
 
+export type ThreadActivity = Readonly<{
+  threadId: ThreadId;
+  lastActivityAt: number;
+  turnCount: number;
+}>;
+
 export type ThreadHistoryDeletion = Readonly<{
   threadId: ThreadId;
   userMessageId: MessageId;
   activeMessageId: MessageId | null;
   deletedTurnCount: number;
+  threadActivity: ThreadActivity;
 }>;
 
 type AppendAssistantMessageRequest = {
@@ -247,10 +254,11 @@ function activateMessage(
   database: Pick<Database, "update">,
   threadId: ThreadId,
   expectedMessageId: MessageId | null,
-  message: Pick<ThreadMessage, "id" | "parentMessageId">,
-) {
+  message: Pick<ThreadMessage, "createdAt" | "id" | "parentMessageId">,
+  turnCountIncrement = 0,
+): ThreadActivity | null {
   if ((message.parentMessageId === null) !== (expectedMessageId === null)) {
-    return false;
+    return null;
   }
 
   const expectedHead =
@@ -259,17 +267,25 @@ function activateMessage(
       : eq(threadTable.activeMessageId, expectedMessageId);
   const movedHead = database
     .update(threadTable)
-    .set({ activeMessageId: message.id })
+    .set({
+      activeMessageId: message.id,
+      lastActivityAt: sql`max(${threadTable.lastActivityAt}, ${message.createdAt})`,
+      turnCount: sql`${threadTable.turnCount} + ${turnCountIncrement}`,
+    })
     .where(and(eq(threadTable.id, threadId), expectedHead))
-    .returning({ id: threadTable.id })
+    .returning({
+      threadId: threadTable.id,
+      lastActivityAt: threadTable.lastActivityAt,
+      turnCount: threadTable.turnCount,
+    })
     .get();
 
   if (!movedHead) {
-    return false;
+    return null;
   }
 
   if (message.parentMessageId === null) {
-    return true;
+    return movedHead;
   }
 
   if (expectedMessageId === null) {
@@ -298,7 +314,7 @@ function activateMessage(
     throw new Error(`Thread "${threadId}" has an invalid active message path.`);
   }
 
-  return true;
+  return movedHead;
 }
 
 function deleteThreadHistoryInTransaction(
@@ -350,9 +366,30 @@ function deleteThreadHistoryInTransaction(
     throw new RangeError(`User message "${userMessageId}" is not on the active thread path.`);
   }
 
+  const retainedHead = target.parentMessageId
+    ? database
+        .select({ createdAt: threadMessageTable.createdAt })
+        .from(threadMessageTable)
+        .where(
+          and(
+            eq(threadMessageTable.threadId, threadId),
+            eq(threadMessageTable.id, target.parentMessageId),
+          ),
+        )
+        .get()
+    : database
+        .select({ createdAt: threadTable.createdAt })
+        .from(threadTable)
+        .where(eq(threadTable.id, threadId))
+        .get();
+
+  if (!retainedHead) {
+    throw new Error(`Thread "${threadId}" has an invalid active message path.`);
+  }
+
   const movedHead = database
     .update(threadTable)
-    .set({ activeMessageId: target.parentMessageId })
+    .set({ activeMessageId: target.parentMessageId, lastActivityAt: retainedHead.createdAt })
     .where(eq(threadTable.id, threadId))
     .run();
 
@@ -403,11 +440,27 @@ function deleteThreadHistoryInTransaction(
     throw new Error(`User message "${userMessageId}" did not delete a turn.`);
   }
 
+  const updatedThread = database
+    .update(threadTable)
+    .set({ turnCount: sql`${threadTable.turnCount} - ${deletedTurnCount}` })
+    .where(eq(threadTable.id, threadId))
+    .returning({
+      threadId: threadTable.id,
+      lastActivityAt: threadTable.lastActivityAt,
+      turnCount: threadTable.turnCount,
+    })
+    .get();
+
+  if (!updatedThread) {
+    throw threadNotFound(threadId);
+  }
+
   return {
     threadId,
     userMessageId,
     activeMessageId: target.parentMessageId,
     deletedTurnCount,
+    threadActivity: updatedThread,
   };
 }
 
@@ -415,6 +468,8 @@ export function insertThread(database: Pick<Database, "insert">, createdAt: numb
   const thread = {
     id: ids.thread.create(),
     createdAt,
+    lastActivityAt: createdAt,
+    turnCount: 0,
     lastMessageSequence: 0,
     activeMessageId: null,
   };
@@ -467,9 +522,9 @@ export function appendAssistantMessageInTransaction(
 
   database.insert(threadMessageTable).values(record).run();
   const message = toThreadMessage(record);
-  const activated = activateMessage(database, threadId, activateIfMessageId, message);
+  const activity = activateMessage(database, threadId, activateIfMessageId, message);
 
-  return { message, activated };
+  return { message, activated: activity !== null };
 }
 
 export function createThreads(database: Database, now: () => number = Date.now) {
@@ -502,11 +557,13 @@ export function createThreads(database: Database, now: () => number = Date.now) 
     transaction.insert(turnTable).values(turn).run();
     transaction.insert(threadMessageTable).values(record).run();
 
-    if (!activateMessage(transaction, threadId, allocation.activeMessageId, message)) {
+    const activity = activateMessage(transaction, threadId, allocation.activeMessageId, message, 1);
+
+    if (!activity) {
       throw new Error(`Thread "${threadId}" changed while its turn was being created.`);
     }
 
-    return { turn, message };
+    return { turn, message, activity };
   }
 
   return {
@@ -522,12 +579,23 @@ export function createThreads(database: Database, now: () => number = Date.now) 
     },
 
     getTurnInput(id: TurnId) {
-      const turn =
-        database.select(turnSelection).from(turnTable).where(eq(turnTable.id, id)).get() ?? null;
+      const storedTurn =
+        database
+          .select({
+            ...turnSelection,
+            lastActivityAt: threadTable.lastActivityAt,
+            turnCount: threadTable.turnCount,
+          })
+          .from(turnTable)
+          .innerJoin(threadTable, eq(threadTable.id, turnTable.threadId))
+          .where(eq(turnTable.id, id))
+          .get() ?? null;
 
-      if (!turn) {
+      if (!storedTurn) {
         return null;
       }
+
+      const { lastActivityAt, turnCount, ...turn } = storedTurn;
 
       const message = database
         .select(threadMessageSelection)
@@ -539,7 +607,11 @@ export function createThreads(database: Database, now: () => number = Date.now) 
         throw new Error(`Turn "${id}" has no user message.`);
       }
 
-      return { turn, message };
+      return {
+        turn,
+        message,
+        activity: { threadId: turn.threadId, lastActivityAt, turnCount },
+      };
     },
 
     startTurn(threadId: ThreadId, value: string) {

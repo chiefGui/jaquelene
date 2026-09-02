@@ -4,6 +4,7 @@ import {
   type Campaign,
   type CampaignDeletion,
   type CampaignPage,
+  type CampaignSummary,
   type StartCampaignRequest,
 } from "@jaquelene/ipc/renderer";
 import {
@@ -79,18 +80,89 @@ function withoutGenerationPreferences(campaign: Campaign): Campaign {
 
 function cacheCampaign(queryClient: QueryClient, campaign: Campaign) {
   queryClient.setQueryData(campaignQuery(campaign.id).queryKey, campaign);
-  queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, (data) =>
-    data
-      ? {
-          ...data,
-          pages: data.pages.map((page) => ({
-            ...page,
-            campaigns: page.campaigns.map((candidate) =>
-              candidate.id === campaign.id ? campaign : candidate,
-            ),
-          })),
-        }
-      : data,
+}
+
+function updateCampaignSummaries(
+  queryClient: QueryClient,
+  update: (campaigns: readonly CampaignSummary[]) => readonly CampaignSummary[],
+) {
+  queryClient.setQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey, (data) => {
+    if (!data) {
+      return data;
+    }
+
+    const campaigns = update(data.pages.flatMap((page) => page.campaigns));
+    let offset = 0;
+    const pages = data.pages.map((page) => {
+      const pageCampaigns = campaigns.slice(offset, offset + page.campaigns.length);
+      offset += page.campaigns.length;
+      return { ...page, campaigns: pageCampaigns };
+    });
+
+    return { ...data, pages };
+  });
+}
+
+function compareCampaignActivity(left: CampaignSummary, right: CampaignSummary) {
+  if (left.lastActivityAt !== right.lastActivityAt) {
+    return right.lastActivityAt - left.lastActivityAt;
+  }
+
+  return left.threadId < right.threadId ? 1 : left.threadId === right.threadId ? 0 : -1;
+}
+
+export function updateCampaignActivity(
+  queryClient: QueryClient,
+  update: Readonly<{
+    threadId: string;
+    lastActivityAt: number;
+    turnCount: number;
+    allowActivityRewind?: boolean;
+  }>,
+) {
+  const data = queryClient.getQueryData<InfiniteData<CampaignPage>>(campaignPagesQuery.queryKey);
+  let campaignFound = false;
+
+  updateCampaignSummaries(queryClient, (campaigns) => {
+    const campaign = campaigns.find((candidate) => candidate.threadId === update.threadId);
+
+    if (!campaign) {
+      return campaigns;
+    }
+
+    campaignFound = true;
+
+    const updatedCampaign = {
+      ...campaign,
+      lastActivityAt: update.allowActivityRewind
+        ? update.lastActivityAt
+        : Math.max(campaign.lastActivityAt, update.lastActivityAt),
+      turnCount: update.turnCount,
+    };
+
+    return [
+      updatedCampaign,
+      ...campaigns.filter((candidate) => candidate.id !== updatedCampaign.id),
+    ].sort(compareCampaignActivity);
+  });
+
+  return (
+    !campaignFound ||
+    !data ||
+    data.pages.length > 1 ||
+    data.pages.some((page) => page.nextCursor !== undefined)
+  );
+}
+
+export function invalidateCampaignPages(queryClient: QueryClient) {
+  return queryClient.invalidateQueries({ queryKey: campaignPagesQuery.queryKey, exact: true });
+}
+
+function updateCampaignSummaryTitle(queryClient: QueryClient, campaign: Campaign) {
+  updateCampaignSummaries(queryClient, (campaigns) =>
+    campaigns.map((candidate) =>
+      candidate.id === campaign.id ? { ...candidate, title: campaign.title } : candidate,
+    ),
   );
 }
 
@@ -171,10 +243,7 @@ export function setCampaignGenerationPreferencesMutationOptions(
     },
     async onMutate(preferences) {
       const context = beginPreferencesMutation(queryClient, id);
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: query.queryKey, exact: true }),
-        queryClient.cancelQueries({ queryKey: campaignPagesQuery.queryKey, exact: true }),
-      ]);
+      await queryClient.cancelQueries({ queryKey: query.queryKey, exact: true });
       const previousCampaign = queryClient.getQueryData<Campaign | null>(query.queryKey);
 
       if (!context.sequence.initialized) {
@@ -306,6 +375,13 @@ export function startCampaignMutationOptions(queryClient: QueryClient) {
     mutationFn: startCampaign,
     onSuccess(campaign) {
       queryClient.setQueryData(campaignQuery(campaign.id).queryKey, campaign);
+      const summary: CampaignSummary = {
+        id: campaign.id,
+        title: campaign.title,
+        threadId: campaign.threadId,
+        lastActivityAt: campaign.startedAt,
+        turnCount: 0,
+      };
       const list = queryClient.getQueryData<InfiniteData<CampaignPage>>(
         campaignPagesQuery.queryKey,
       );
@@ -318,19 +394,16 @@ export function startCampaignMutationOptions(queryClient: QueryClient) {
             {
               ...firstPage,
               campaigns: [
-                campaign,
+                summary,
                 ...firstPage.campaigns.filter((candidate) => candidate.id !== campaign.id),
-              ],
+              ].sort(compareCampaignActivity),
             },
             ...list.pages.slice(1),
           ],
         });
       }
 
-      void queryClient.invalidateQueries({
-        queryKey: campaignPagesQuery.queryKey,
-        exact: true,
-      });
+      void invalidateCampaignPages(queryClient);
     },
   });
 }
@@ -357,6 +430,7 @@ export function useRenameCampaign(id: string) {
     },
     onSuccess(campaign) {
       cacheCampaign(queryClient, campaign);
+      updateCampaignSummaryTitle(queryClient, campaign);
     },
   });
 }

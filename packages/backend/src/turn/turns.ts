@@ -11,6 +11,7 @@ import type { ThreadMessage } from "#backend/thread/schema";
 import {
   requireThreadMessageContent,
   type DeleteThreadHistoryRequest,
+  type ThreadActivity,
   type ThreadEngine,
   type ThreadHistoryDeletion,
 } from "#backend/thread/threads";
@@ -57,6 +58,7 @@ export type RetryTurnRequest = {
 export type TurnAcceptance = {
   userMessage: ThreadMessage;
   generation: Generation;
+  threadActivity: ThreadActivity;
 };
 
 export type TurnSettlement =
@@ -114,6 +116,15 @@ function settleTurn(
     generation: execution.generation,
     assistantMessage: execution.message,
     assistantActivated: execution.activated,
+    threadActivity: execution.activated
+      ? {
+          ...acceptance.threadActivity,
+          lastActivityAt: Math.max(
+            acceptance.threadActivity.lastActivityAt,
+            execution.message.createdAt,
+          ),
+        }
+      : acceptance.threadActivity,
   };
 }
 
@@ -197,7 +208,11 @@ export function createTurns(
         const resolvedConfiguration = await generations.resolveConfiguration(configuration, signal);
         assertNotAborted(signal);
         const accepted = database.transaction((transaction) => {
-          const { turn, message } = threads.startTurnInTransaction(transaction, threadId, content);
+          const { turn, message, activity } = threads.startTurnInTransaction(
+            transaction,
+            threadId,
+            content,
+          );
           const acceptedGeneration = generations.acceptReplyInTransaction(
             transaction,
             turn.id,
@@ -206,6 +221,7 @@ export function createTurns(
           const acceptance = {
             userMessage: message,
             generation: acceptedGeneration.generation,
+            threadActivity: activity,
           } satisfies TurnAcceptance;
 
           return { acceptance, acceptedGeneration };
@@ -246,6 +262,7 @@ export function createTurns(
         const acceptance = {
           userMessage: input.message,
           generation: acceptedGeneration.generation,
+          threadActivity: input.activity,
         } satisfies TurnAcceptance;
 
         return {

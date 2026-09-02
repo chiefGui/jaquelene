@@ -86,6 +86,7 @@ function pendingTurn(sequence: number): TurnSubmission {
   return {
     userMessage,
     generation,
+    threadActivity: { threadId, lastActivityAt: sequence, turnCount: sequence },
   };
 }
 
@@ -369,6 +370,7 @@ describe("thread query cache", () => {
         ...pendingTurn(2).generation,
         turnId: failed.userMessage.turnId,
       },
+      threadActivity: failed.threadActivity,
     };
     const completed = completedTurn(retryAcceptance, 2);
     const data: ThreadQueryData = {

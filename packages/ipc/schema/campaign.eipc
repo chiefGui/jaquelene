@@ -13,6 +13,14 @@ structure Campaign {
   generationPreferences?: CampaignGenerationPreferences
 }
 
+structure CampaignSummary {
+  id: string
+  title: CampaignTitle
+  threadId: string
+  lastActivityAt: UnixTimeMilliseconds
+  turnCount: ThreadTurnCount
+}
+
 subtype CampaignTitle = string(
   minLength: 1
   maxLength: 240
@@ -38,7 +46,7 @@ structure CampaignPageRequest {
 }
 
 structure CampaignPage {
-  campaigns: Campaign[]
+  campaigns: CampaignSummary[]
   nextCursor?: CampaignPageCursor
 }
 

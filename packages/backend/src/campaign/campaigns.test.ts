@@ -20,7 +20,13 @@ import type { ModelSelection } from "#backend/provider/provider";
 import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
 import { providerAttemptTable } from "#backend/usage/schema";
-import { campaignPageSize, createCampaigns, type CampaignGenerationPreferences } from "./campaigns";
+import {
+  campaignPageSize,
+  createCampaigns,
+  type Campaign,
+  type CampaignGenerationPreferences,
+  type CampaignSummary,
+} from "./campaigns";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
 
 const directories: string[] = [];
@@ -32,7 +38,7 @@ function createDatabasePath() {
   return join(directory, "jaquelene.sqlite");
 }
 
-function openCampaigns(path: string, now?: () => number) {
+function openCampaigns(path: string, now?: () => number, threadNow?: () => number) {
   const database = openDatabase(path);
   databases.push(database);
   const prompts = createPrompts(database, [narratorPromptModule]);
@@ -40,12 +46,26 @@ function openCampaigns(path: string, now?: () => number) {
     database,
     campaigns: createCampaigns(database, now),
     prompts,
-    threads: createThreads(database),
+    threads: createThreads(database, threadNow),
   };
 }
 
 function start(campaigns: ReturnType<typeof createCampaigns>, title: string) {
   return campaigns.start({ title, composition: [{ kind: narratorPromptKind.key }] });
+}
+
+function summary(
+  campaign: Campaign,
+  lastActivityAt = campaign.startedAt,
+  turnCount = 0,
+): CampaignSummary {
+  return {
+    id: campaign.id,
+    title: campaign.title,
+    threadId: campaign.threadId,
+    lastActivityAt,
+    turnCount,
+  };
 }
 
 function modelSelection(id: string): ModelSelection {
@@ -90,7 +110,62 @@ describe("campaigns", () => {
       startedAt: 100,
     });
     expect(threads.get(first.threadId)).toEqual({ id: first.threadId, createdAt: 100 });
-    expect(campaigns.list().campaigns).toEqual([second, first]);
+    expect(campaigns.list().campaigns).toEqual([summary(second), summary(first)]);
+  });
+
+  it("orders campaign summaries by active conversation activity", () => {
+    let startedAt = 100;
+    let messageAt = 300;
+    const { campaigns, threads } = openCampaigns(
+      createDatabasePath(),
+      () => startedAt++,
+      () => messageAt++,
+    );
+    const first = start(campaigns, "First campaign");
+    const second = start(campaigns, "Second campaign");
+    const activity = threads.startTurn(first.threadId, "Bring this campaign forward");
+
+    expect(campaigns.list().campaigns).toEqual([
+      summary(first, activity.message.createdAt, 1),
+      summary(second),
+    ]);
+  });
+
+  it("uses the activity index for the bounded sidebar read", () => {
+    const { campaigns, database } = openCampaigns(createDatabasePath(), () => 400);
+    start(campaigns, "Indexed campaign");
+
+    const queries = [
+      `
+        EXPLAIN QUERY PLAN
+        SELECT campaigns.id
+        FROM threads
+        INNER JOIN campaigns ON campaigns.thread_id = threads.id
+        ORDER BY threads.last_activity_at DESC, threads.id DESC
+        LIMIT 51
+      `,
+      `
+        EXPLAIN QUERY PLAN
+        SELECT campaigns.id
+        FROM threads
+        INNER JOIN campaigns ON campaigns.thread_id = threads.id
+        WHERE threads.last_activity_at < 500
+          OR (threads.last_activity_at = 500 AND threads.id < 'thread_z')
+        ORDER BY threads.last_activity_at DESC, threads.id DESC
+        LIMIT 51
+      `,
+    ];
+
+    for (const query of queries) {
+      const plan = database.$client
+        .prepare(query)
+        .all()
+        .map((row) => String(row.detail))
+        .join("\n");
+
+      expect(plan).toContain("threads_last_activity_at_index");
+      expect(plan).not.toContain("USE TEMP B-TREE");
+    }
   });
 
   it("creates the campaign, thread, and explicit composition atomically", () => {
@@ -149,10 +224,12 @@ describe("campaigns", () => {
     const firstPage = campaigns.list();
 
     expect(firstPage.campaigns).toHaveLength(campaignPageSize);
-    expect(firstPage.campaigns[0]).toEqual(created.at(-1));
+    expect(firstPage.campaigns[0]).toEqual(summary(created.at(-1)!));
     expect(firstPage.nextCursor).toEqual(expect.any(String));
     database.delete(campaignTable).where(eq(campaignTable.id, created[1]!.id)).run();
-    expect(campaigns.list({ cursor: firstPage.nextCursor! }).campaigns).toEqual([created[0]]);
+    expect(campaigns.list({ cursor: firstPage.nextCursor! }).campaigns).toEqual([
+      summary(created[0]!),
+    ]);
   });
 
   it("persists, renames, and locates campaigns by their thread", () => {

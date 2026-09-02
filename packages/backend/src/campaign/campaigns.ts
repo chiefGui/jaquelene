@@ -15,6 +15,7 @@ import { requireReasoningPreset, type ReasoningPreset } from "#backend/model/rea
 import { decodeCursor, encodeCursor } from "#backend/pagination/cursor";
 import { campaignPromptSelectionTable, promptKindTable, promptTable } from "#backend/prompt/schema";
 import { requireModelSelection, type ModelSelection } from "#backend/provider/provider";
+import { threadTable } from "#backend/thread/schema";
 import { insertThread } from "#backend/thread/threads";
 import { threadTable, turnTable } from "#backend/thread/schema";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
@@ -49,8 +50,16 @@ export type Campaign = Readonly<{
   generationPreferences?: CampaignGenerationPreferences;
 }>;
 
+export type CampaignSummary = Readonly<{
+  id: CampaignId;
+  title: CampaignTitle;
+  threadId: ThreadId;
+  lastActivityAt: number;
+  turnCount: number;
+}>;
+
 export type CampaignPage = Readonly<{
-  campaigns: readonly Campaign[];
+  campaigns: readonly CampaignSummary[];
   nextCursor?: string;
 }>;
 
@@ -169,18 +178,22 @@ function toCampaign({ generationPreferences, ...campaign }: StoredCampaign): Cam
 }
 
 function parseCampaignCursor(cursor: string) {
-  const [startedAt, idInput] = decodeCursor(cursor, 2);
+  const [lastActivityAt, threadIdInput] = decodeCursor(cursor, 2);
 
-  if (typeof startedAt !== "number" || !Number.isSafeInteger(startedAt) || startedAt < 0) {
+  if (
+    typeof lastActivityAt !== "number" ||
+    !Number.isSafeInteger(lastActivityAt) ||
+    lastActivityAt < 0
+  ) {
     throw new TypeError("Campaign cursor is invalid.");
   }
 
-  if (typeof idInput !== "string") {
+  if (typeof threadIdInput !== "string") {
     throw new TypeError("Campaign cursor is invalid.");
   }
 
   try {
-    return { startedAt, id: ids.campaign.parse(idInput) };
+    return { lastActivityAt, threadId: ids.thread.parse(threadIdInput) };
   } catch (error) {
     throw new TypeError("Campaign cursor is invalid.", { cause: error });
   }
@@ -245,33 +258,36 @@ export function createCampaigns(database: Database, now: () => number = Date.now
 
       const beforeCursor = cursorCampaign
         ? or(
-            lt(campaignTable.startedAt, cursorCampaign.startedAt),
+            lt(threadTable.lastActivityAt, cursorCampaign.lastActivityAt),
             and(
-              eq(campaignTable.startedAt, cursorCampaign.startedAt),
-              lt(campaignTable.id, cursorCampaign.id),
+              eq(threadTable.lastActivityAt, cursorCampaign.lastActivityAt),
+              lt(threadTable.id, cursorCampaign.threadId),
             ),
           )
         : undefined;
       const rows = database
-        .select(campaignSelection)
-        .from(campaignTable)
-        .leftJoin(
-          campaignGenerationPreferencesTable,
-          eq(campaignGenerationPreferencesTable.campaignId, campaignTable.id),
-        )
+        .select({
+          id: campaignTable.id,
+          title: campaignTable.title,
+          threadId: campaignTable.threadId,
+          lastActivityAt: threadTable.lastActivityAt,
+          turnCount: threadTable.turnCount,
+        })
+        .from(threadTable)
+        .innerJoin(campaignTable, eq(campaignTable.threadId, threadTable.id))
         .where(beforeCursor)
-        .orderBy(desc(campaignTable.startedAt), desc(campaignTable.id))
+        .orderBy(desc(threadTable.lastActivityAt), desc(threadTable.id))
         .limit(campaignPageSize + 1)
         .all();
       const hasNextPage = rows.length > campaignPageSize;
       const pageRows = hasNextPage ? rows.slice(0, campaignPageSize) : rows;
       const lastCampaign = hasNextPage ? pageRows.at(-1) : undefined;
       const nextCursor = lastCampaign
-        ? encodeCursor([lastCampaign.startedAt, lastCampaign.id])
+        ? encodeCursor([lastCampaign.lastActivityAt, lastCampaign.threadId])
         : undefined;
 
       return {
-        campaigns: pageRows.map(toCampaign),
+        campaigns: pageRows,
         ...(nextCursor ? { nextCursor } : {}),
       };
     },

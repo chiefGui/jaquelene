@@ -9,6 +9,7 @@ export type {
   CampaignDeletion,
   CampaignPage,
   CampaignPageRequest,
+  CampaignSummary,
   CampaignPromptSelectionInput,
   CampaignGenerationPreferences,
   Campaigns,
@@ -105,7 +106,7 @@ export type {
   SetCampaignPromptSelectionInput,
 } from "#backend/prompt/types";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
-export type { Threads } from "#backend/thread/threads";
+export type { ThreadActivity, Threads } from "#backend/thread/threads";
 export type {
   DeleteThreadHistoryRequest,
   RetryTurnRequest,

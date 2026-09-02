@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "3be2c49f-545a-4783-bd87-b7e4414d9528",
+  "id": "140677af-1b92-48a5-91f0-e83f3e2b1c72",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -531,6 +531,26 @@
       "default": null,
       "generated": null,
       "name": "created_at",
+      "entityType": "columns",
+      "table": "threads"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_activity_at",
+      "entityType": "columns",
+      "table": "threads"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "turn_count",
       "entityType": "columns",
       "table": "threads"
     },
@@ -1229,24 +1249,6 @@
     {
       "columns": [
         {
-          "value": "started_at",
-          "isExpression": false
-        },
-        {
-          "value": "id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "name": "campaigns_started_at_index",
-      "entityType": "indexes",
-      "table": "campaigns"
-    },
-    {
-      "columns": [
-        {
           "value": "thread_id",
           "isExpression": false
         }
@@ -1483,6 +1485,24 @@
     {
       "columns": [
         {
+          "value": "last_activity_at",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "threads_last_activity_at_index",
+      "entityType": "indexes",
+      "table": "threads"
+    },
+    {
+      "columns": [
+        {
           "value": "thread_id",
           "isExpression": false
         },
@@ -1701,6 +1721,18 @@
     {
       "value": "\"created_at\" >= 0",
       "name": "threads_created_at_nonnegative",
+      "entityType": "checks",
+      "table": "threads"
+    },
+    {
+      "value": "\"last_activity_at\" >= 0",
+      "name": "threads_last_activity_at_nonnegative",
+      "entityType": "checks",
+      "table": "threads"
+    },
+    {
+      "value": "\"turn_count\" >= 0",
+      "name": "threads_turn_count_nonnegative",
       "entityType": "checks",
       "table": "threads"
     },

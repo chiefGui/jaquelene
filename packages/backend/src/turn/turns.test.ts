@@ -15,6 +15,7 @@ import type {
 } from "#backend/provider/provider";
 import { narratorPromptModule } from "#backend/prompt/narrator";
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
+import { threadTable } from "#backend/thread/schema";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
@@ -147,6 +148,11 @@ describe("turns", () => {
         providerId: "provider-a",
         modelId: "maker/model",
       }),
+      threadActivity: {
+        threadId: thread.id,
+        lastActivityAt: operation.acceptance.userMessage.createdAt,
+        turnCount: 1,
+      },
     });
     expect(operation.acceptance.generation).not.toHaveProperty("reasoning");
     expect(turns.inspect(thread.id)).toEqual({
@@ -179,6 +185,11 @@ describe("turns", () => {
         content: "Welcome aboard.",
       }),
       assistantActivated: true,
+      threadActivity: {
+        threadId: thread.id,
+        lastActivityAt: settlement.assistantMessage.createdAt,
+        turnCount: 1,
+      },
     });
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
     expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
@@ -331,6 +342,11 @@ describe("turns", () => {
       userMessageId: operation.acceptance.userMessage.id,
       activeMessageId: null,
       deletedTurnCount: 1,
+      threadActivity: {
+        threadId: thread.id,
+        lastActivityAt: thread.createdAt,
+        turnCount: 0,
+      },
     });
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
     expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
@@ -371,6 +387,15 @@ describe("turns", () => {
       generations: [],
       ...threadPageMetadata([]),
     });
+    expect(
+      database
+        .select({
+          lastActivityAt: threadTable.lastActivityAt,
+          turnCount: threadTable.turnCount,
+        })
+        .from(threadTable)
+        .get(),
+    ).toEqual({ lastActivityAt: thread.createdAt, turnCount: 0 });
     expect(generate).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,7 @@
 import {
   ids,
   type Campaign,
+  type CampaignSummary,
   type Campaigns,
   type CampaignUsage as BackendCampaignUsage,
   type CampaignUsageReader,
@@ -13,6 +14,7 @@ import {
   UsageCostSource,
   type CampaignGenerationPreferences as IpcCampaignGenerationPreferences,
   type Campaign as IpcCampaign,
+  type CampaignSummary as IpcCampaignSummary,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
 import { fromIpcReasoningPreset, toIpcReasoningPreset } from "@/feature/model/reasoning-preset";
@@ -49,6 +51,10 @@ function toIpcCampaign(campaign: Campaign): IpcCampaign {
   };
 }
 
+function toIpcCampaignSummary(summary: CampaignSummary): IpcCampaignSummary {
+  return { ...summary };
+}
+
 function fromIpcPreferences(preferences: IpcCampaignGenerationPreferences) {
   return {
     ...(preferences.model ? { model: { ...preferences.model } } : {}),
@@ -76,7 +82,7 @@ export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
     list(request) {
       const page = campaigns.list(request);
       return {
-        campaigns: page.campaigns.map(toIpcCampaign),
+        campaigns: page.campaigns.map(toIpcCampaignSummary),
         ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
       };
     },

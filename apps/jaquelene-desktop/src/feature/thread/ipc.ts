@@ -1,6 +1,7 @@
 import type {
   Generation,
   GenerationFailureKind,
+  ThreadActivity,
   ThreadHistoryDeletion,
   ThreadMessage,
   Turns,
@@ -109,10 +110,15 @@ function toIpcGeneration(generation: Generation) {
   };
 }
 
+function toIpcThreadActivity(activity: ThreadActivity) {
+  return { ...activity };
+}
+
 function toIpcSubmission(acceptance: TurnAcceptance) {
   return {
     userMessage: toIpcMessage(acceptance.userMessage),
     generation: toIpcGeneration(acceptance.generation),
+    threadActivity: toIpcThreadActivity(acceptance.threadActivity),
   };
 }
 
@@ -122,6 +128,7 @@ function toIpcHistoryDeletion(deletion: ThreadHistoryDeletion) {
     userMessageId: deletion.userMessageId,
     ...(deletion.activeMessageId === null ? {} : { activeMessageId: deletion.activeMessageId }),
     deletedTurnCount: deletion.deletedTurnCount,
+    threadActivity: toIpcThreadActivity(deletion.threadActivity),
   };
 }
 
@@ -204,6 +211,7 @@ export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: 
       const failure = {
         userMessage: toIpcMessage(settlement.userMessage),
         generation: toIpcGeneration(settlement.generation),
+        threadActivity: toIpcThreadActivity(settlement.threadActivity),
       };
       publishThreadChange(operation, (dispatcher) => dispatcher.dispatchReplyFailed(failure));
       return;
@@ -221,6 +229,7 @@ export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: 
       userMessage: toIpcMessage(settlement.userMessage),
       assistantMessage: toIpcMessage(settlement.assistantMessage),
       generation: toIpcGeneration(settlement.generation),
+      threadActivity: toIpcThreadActivity(settlement.threadActivity),
     };
     publishThreadChange(operation, (dispatcher) => dispatcher.dispatchReplyCompleted(completion));
   }

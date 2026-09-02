@@ -1,6 +1,7 @@
 import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
 import Book01Icon from "@hugeicons/core-free-icons/Book01Icon";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { formatCompactCount, formatCount } from "@jaquelene/ui";
 import { PrimarySidebar } from "@/layout/primary-sidebar";
 import { campaignPagesQuery } from "./query";
 
@@ -37,11 +38,14 @@ export function CampaignSidebar() {
             id: campaign.id,
             icon: Book01Icon,
             label: campaign.title,
+            accessibleLabel: `${campaign.title}, ${formatCount(campaign.turnCount)} ${campaign.turnCount === 1 ? "turn" : "turns"}`,
+            trailingLabel: formatCompactCount(campaign.turnCount),
             to: "/campaigns/$campaignId" as const,
             params: { campaignId: campaign.id },
           })),
         ],
         ...(pages.isPending ? { loadingItemCount: 3 } : {}),
+        loadingTrailingLabel: true,
         ...(trailingAction ? { trailingAction } : {}),
       }}
     />

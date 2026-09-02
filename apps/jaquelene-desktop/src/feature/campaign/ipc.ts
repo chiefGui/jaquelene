@@ -1,24 +1,103 @@
-import { ids, type Campaigns } from "@jaquelene/backend";
 import {
+  ids,
+  type Campaign,
+  type Campaigns,
+  type CampaignUsage as BackendCampaignUsage,
+  type CampaignUsageReader,
+} from "@jaquelene/backend";
+import {
+  CampaignCostSource,
   CampaignPreferences as CampaignPreferencesIpc,
   Campaigns as CampaignsIpc,
+  CampaignUsage as CampaignUsageIpc,
+  type CampaignGenerationPreferences as IpcCampaignGenerationPreferences,
+  type Campaign as IpcCampaign,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
+import { fromIpcReasoningPreset, toIpcReasoningPreset } from "@/feature/model/reasoning-preset";
 import type { CampaignPreferences } from "./preferences";
+
+function toIpcCostSource(source: BackendCampaignUsage["costs"][number]["source"]) {
+  switch (source) {
+    case "provider-reported":
+      return CampaignCostSource.ProviderReported;
+    case "estimated":
+      return CampaignCostSource.Estimated;
+  }
+
+  const unsupportedSource: never = source;
+  throw new TypeError(`Unsupported campaign cost source: ${String(unsupportedSource)}`);
+}
+
+function toIpcCampaign(campaign: Campaign): IpcCampaign {
+  const { generationPreferences: preferences, ...campaignSnapshot } = campaign;
+  return {
+    ...campaignSnapshot,
+    ...(preferences
+      ? {
+          generationPreferences: {
+            ...(preferences.model ? { model: { ...preferences.model } } : {}),
+            ...(preferences.reasoningPreset === undefined
+              ? {}
+              : {
+                  reasoningPreset: toIpcReasoningPreset(preferences.reasoningPreset),
+                }),
+          },
+        }
+      : {}),
+  };
+}
+
+function fromIpcPreferences(preferences: IpcCampaignGenerationPreferences) {
+  return {
+    ...(preferences.model ? { model: { ...preferences.model } } : {}),
+    ...(preferences.reasoningPreset === undefined
+      ? {}
+      : {
+          reasoningPreset: fromIpcReasoningPreset(preferences.reasoningPreset),
+        }),
+  };
+}
 
 export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
   CampaignsIpc.for(target).setImplementation({
     start(id) {
-      return campaigns.start(ids.scenario.parse(id));
+      return toIpcCampaign(campaigns.start(ids.scenario.parse(id)));
     },
     listForScenario(id) {
-      return campaigns.listForScenario(ids.scenario.parse(id));
+      return campaigns.listForScenario(ids.scenario.parse(id)).map(toIpcCampaign);
     },
     get(id) {
-      return campaigns.get(ids.campaign.parse(id));
+      const campaign = campaigns.get(ids.campaign.parse(id));
+      return campaign ? toIpcCampaign(campaign) : null;
     },
-    setModelOverride(id, model) {
-      return campaigns.setModelOverride(ids.campaign.parse(id), model);
+    setGenerationPreferences(id, preferences) {
+      const campaign = campaigns.setGenerationPreferences(
+        ids.campaign.parse(id),
+        preferences ? fromIpcPreferences(preferences) : null,
+      );
+      return campaign ? toIpcCampaign(campaign) : null;
+    },
+  });
+}
+
+export function exposeCampaignUsage(target: WebFrameMain, usage: CampaignUsageReader) {
+  CampaignUsageIpc.for(target).setImplementation({
+    get(id) {
+      const snapshot = usage.get(ids.campaign.parse(id));
+
+      if (!snapshot) {
+        return null;
+      }
+
+      return {
+        ...snapshot,
+        costs: snapshot.costs.map((cost) => ({
+          ...cost,
+          source: toIpcCostSource(cost.source),
+        })),
+        models: snapshot.models.map((model) => ({ ...model })),
+      };
     },
   });
 }

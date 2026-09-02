@@ -5,7 +5,7 @@
   "prevIds": ["f902bfa0-b469-4561-b29b-34a420c5cbd7"],
   "ddl": [
     {
-      "name": "campaign_model_overrides",
+      "name": "campaign_generation_configuration_overrides",
       "entityType": "tables"
     },
     {
@@ -40,7 +40,7 @@
       "generated": null,
       "name": "campaign_id",
       "entityType": "columns",
-      "table": "campaign_model_overrides"
+      "table": "campaign_generation_configuration_overrides"
     },
     {
       "type": "text",
@@ -50,7 +50,7 @@
       "generated": null,
       "name": "provider_id",
       "entityType": "columns",
-      "table": "campaign_model_overrides"
+      "table": "campaign_generation_configuration_overrides"
     },
     {
       "type": "text",
@@ -60,7 +60,7 @@
       "generated": null,
       "name": "model_id",
       "entityType": "columns",
-      "table": "campaign_model_overrides"
+      "table": "campaign_generation_configuration_overrides"
     },
     {
       "type": "text",
@@ -70,7 +70,7 @@
       "generated": null,
       "name": "name",
       "entityType": "columns",
-      "table": "campaign_model_overrides"
+      "table": "campaign_generation_configuration_overrides"
     },
     {
       "type": "text",
@@ -80,7 +80,17 @@
       "generated": null,
       "name": "brand_id",
       "entityType": "columns",
-      "table": "campaign_model_overrides"
+      "table": "campaign_generation_configuration_overrides"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "reasoning_preset_override",
+      "entityType": "columns",
+      "table": "campaign_generation_configuration_overrides"
     },
     {
       "type": "text",
@@ -159,6 +169,26 @@
       "default": null,
       "generated": null,
       "name": "model_id",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "reasoning_preset",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "reasoning_preset_source",
       "entityType": "columns",
       "table": "generations"
     },
@@ -449,9 +479,9 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_campaign_model_overrides_campaign_id_campaigns_id_fk",
+      "name": "fk_campaign_generation_configuration_overrides_campaign_id_campaigns_id_fk",
       "entityType": "fks",
-      "table": "campaign_model_overrides"
+      "table": "campaign_generation_configuration_overrides"
     },
     {
       "columns": ["scenario_id"],
@@ -566,9 +596,9 @@
     {
       "columns": ["campaign_id"],
       "nameExplicit": false,
-      "name": "campaign_model_overrides_pk",
+      "name": "campaign_generation_configuration_overrides_pk",
       "entityType": "pks",
-      "table": "campaign_model_overrides"
+      "table": "campaign_generation_configuration_overrides"
     },
     {
       "columns": ["id"],
@@ -821,14 +851,20 @@
       "table": "turns"
     },
     {
-      "value": "length(trim(\"provider_id\")) > 0\n        AND length(trim(\"model_id\")) > 0\n        AND length(trim(\"name\")) > 0\n        AND length(trim(\"brand_id\")) > 0",
-      "name": "campaign_model_overrides_values_valid",
+      "value": "length(trim(\"provider_id\")) > 0\n        AND length(trim(\"model_id\")) > 0\n        AND length(trim(\"name\")) > 0\n        AND length(trim(\"brand_id\")) > 0\n        AND (\"reasoning_preset_override\" IS NULL OR \"reasoning_preset_override\" IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'))",
+      "name": "campaign_generation_configuration_overrides_values_valid",
       "entityType": "checks",
-      "table": "campaign_model_overrides"
+      "table": "campaign_generation_configuration_overrides"
     },
     {
       "value": "length(trim(\"provider_id\")) > 0 AND length(trim(\"model_id\")) > 0",
       "name": "generations_model_reference_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "(\"reasoning_preset\" IS NULL AND \"reasoning_preset_source\" IS NULL)\n        OR (\"reasoning_preset\" IS NOT NULL\n          AND \"reasoning_preset_source\" IS NOT NULL\n          AND \"reasoning_preset\" IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')\n          AND \"reasoning_preset_source\" IN ('model-default', 'override'))",
+      "name": "generations_reasoning_valid",
       "entityType": "checks",
       "table": "generations"
     },
@@ -839,7 +875,7 @@
       "table": "generations"
     },
     {
-      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('prompt', 'provider', 'invalid-output', 'interrupted', 'storage')",
+      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('preparation', 'provider', 'invalid-output', 'interrupted', 'storage')",
       "name": "generations_failure_kind_valid",
       "entityType": "checks",
       "table": "generations"

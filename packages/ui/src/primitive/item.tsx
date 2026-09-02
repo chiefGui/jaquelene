@@ -14,8 +14,16 @@ function ItemSection({ style, ...props }: StyleableProps<RoleProps<"section">>) 
   return <Role.section {...props} {...stylex.props(styles.section, style)} />;
 }
 
+function ItemSectionHeader({ style, ...props }: StyleableProps<RoleProps<"div">>) {
+  return <Role.div {...props} {...stylex.props(styles.sectionHeader, style)} />;
+}
+
 function ItemHeading({ style, ...props }: StyleableProps<RoleProps<"h2">>) {
   return <Role.h2 {...props} {...stylex.props(styles.heading, style)} />;
+}
+
+function ItemSectionDescription({ style, ...props }: StyleableProps<RoleProps<"p">>) {
+  return <Role.p {...props} {...stylex.props(styles.sectionDescription, style)} />;
 }
 
 function ItemGroup({ children, style, ...props }: StyleableProps<RoleProps<"div">>) {
@@ -55,7 +63,9 @@ function ItemValueText({ style, ...props }: StyleableProps<RoleProps<"span">>) {
 
 export const Item = {
   Section: ItemSection,
+  SectionHeader: ItemSectionHeader,
   Heading: ItemHeading,
+  SectionDescription: ItemSectionDescription,
   Group: ItemGroup,
   Root: ItemRoot,
   Content: ItemContent,
@@ -71,11 +81,24 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: "0.75rem",
   },
+  sectionHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
   heading: {
     color: tokens.foreground,
     fontSize: tokens.fontSizeSmall,
     fontWeight: 500,
     lineHeight: tokens.lineHeightSmall,
+    paddingInline: "1rem",
+    textBox: "trim-both text",
+  },
+  sectionDescription: {
+    color: tokens.muted,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    margin: 0,
     paddingInline: "1rem",
     textBox: "trim-both text",
   },

@@ -1,8 +1,7 @@
-import { OpenRouterCore } from "@openrouter/sdk/core.js";
-import { chatSend } from "@openrouter/sdk/funcs/chatSend.js";
-import type { ChatMessages, ChatResult } from "@openrouter/sdk/models";
-import type { GenerationMessage, ProviderGenerationAdapter } from "@jaquelene/backend";
+import { chatResultFromJSON, type ChatMessages, type ChatResult } from "@openrouter/sdk/models";
+import type { DialogueMessage, ModelInput, ProviderGenerationAdapter } from "@jaquelene/backend";
 import type { OpenRouterConfiguration } from "./connection";
+import { encodeOpenRouterReasoning, type OpenRouterReasoningRequest } from "./reasoning";
 
 type SendOpenRouterChat = (
   apiKey: string,
@@ -10,16 +9,15 @@ type SendOpenRouterChat = (
     model: string;
     messages: ChatMessages[];
     metadata: Record<string, string>;
-    sessionId: string;
+    reasoning?: OpenRouterReasoningRequest;
+    session_id: string;
     stream: false;
   },
   signal: AbortSignal,
 ) => Promise<ChatResult>;
 
-function toOpenRouterMessage({ role, content }: GenerationMessage): ChatMessages {
+function toOpenRouterDialogue({ role, content }: DialogueMessage): ChatMessages {
   switch (role) {
-    case "system":
-      return { role, content };
     case "user":
       return { role, content };
     case "assistant":
@@ -27,34 +25,54 @@ function toOpenRouterMessage({ role, content }: GenerationMessage): ChatMessages
   }
 }
 
+function toOpenRouterMessages({ instructions, dialogue }: ModelInput): ChatMessages[] {
+  return [
+    ...instructions.map(({ content }) => ({ role: "system" as const, content })),
+    ...dialogue.map(toOpenRouterDialogue),
+  ];
+}
+
 async function sendOpenRouterChat(
   apiKey: string,
   request: Parameters<SendOpenRouterChat>[1],
   signal: AbortSignal,
 ): Promise<ChatResult> {
-  const client = new OpenRouterCore({
-    apiKey,
-    appTitle: "Jaquelene",
-    retryConfig: { strategy: "none" },
-    timeoutMs: 300_000,
-  });
-  const response = await chatSend(
-    client,
-    {
-      chatRequest: request,
+  const operationSignal = AbortSignal.any([signal, AbortSignal.timeout(300_000)]);
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "X-OpenRouter-Metadata": "enabled",
+      "X-OpenRouter-Title": "Jaquelene",
     },
-    { signal },
-  );
+    body: JSON.stringify(request),
+    signal: operationSignal,
+  });
+
+  const body = await response.text();
 
   if (!response.ok) {
-    throw response.error;
+    let cause: unknown = body;
+
+    try {
+      cause = JSON.parse(body);
+    } catch {
+      // Preserve the response body when OpenRouter does not return JSON.
+    }
+
+    throw new Error(`OpenRouter rejected the generation request with status ${response.status}.`, {
+      cause,
+    });
   }
 
-  if (!("choices" in response.value)) {
-    throw new TypeError("OpenRouter returned a stream for a non-streaming generation.");
+  const result = chatResultFromJSON(body);
+
+  if (!result.ok) {
+    throw result.error;
   }
 
-  return response.value;
+  return result.value;
 }
 
 function getResponseText(result: ChatResult) {
@@ -87,6 +105,30 @@ function getResponseText(result: ChatResult) {
   throw new TypeError("OpenRouter returned no assistant text.");
 }
 
+const USD_NANOS = 1_000_000_000;
+
+function usdToNanos(amount: number) {
+  const nanos = Math.round(amount * USD_NANOS);
+
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isSafeInteger(nanos)) {
+    throw new TypeError("OpenRouter returned an invalid generation cost.");
+  }
+
+  return nanos;
+}
+
+function optionalCount(value: number | null | undefined) {
+  return value === null || value === undefined ? undefined : value;
+}
+
+function successfulUpstreamProvider(result: ChatResult) {
+  const attempts = result.openrouterMetadata?.attempts;
+  return (
+    attempts?.findLast(({ status }) => status >= 200 && status < 300)?.provider ??
+    attempts?.at(-1)?.provider
+  );
+}
+
 export function createOpenRouterGeneration(
   configuration: Pick<OpenRouterConfiguration, "withApiKey">,
   send: SendOpenRouterChat = sendOpenRouterChat,
@@ -94,30 +136,57 @@ export function createOpenRouterGeneration(
   return {
     generate: (request, signal) =>
       configuration.withApiKey(async (apiKey) => {
+        const reasoning = encodeOpenRouterReasoning(request.reasoning);
         const result = await send(
           apiKey,
           {
             model: request.modelId,
-            messages: request.messages.map(toOpenRouterMessage),
+            messages: toOpenRouterMessages(request.input),
             metadata: { jaquelene_generation_id: request.generationId },
-            sessionId: request.threadId,
+            ...(reasoning ? { reasoning } : {}),
+            session_id: request.threadId,
             stream: false,
           },
           signal,
         );
         const { choice, text } = getResponseText(result);
+        const upstreamProviderId = successfulUpstreamProvider(result);
+        const cacheRead = optionalCount(result.usage?.promptTokensDetails?.cachedTokens);
+        const cacheWrite = optionalCount(result.usage?.promptTokensDetails?.cacheWriteTokens);
+        const reasoningTokens = optionalCount(
+          result.usage?.completionTokensDetails?.reasoningTokens,
+        );
 
         return {
           text,
           providerGenerationId: result.id,
           resolvedModelId: result.model,
+          ...(upstreamProviderId ? { upstreamProviderId } : {}),
           ...(choice.finishReason ? { finishReason: choice.finishReason } : {}),
           ...(result.usage
             ? {
                 usage: {
-                  inputTokens: result.usage.promptTokens,
-                  outputTokens: result.usage.completionTokens,
-                  totalTokens: result.usage.totalTokens,
+                  tokens: {
+                    input: {
+                      total: result.usage.promptTokens,
+                      ...(cacheRead === undefined ? {} : { cacheRead }),
+                      ...(cacheWrite === undefined ? {} : { cacheWrite }),
+                    },
+                    output: {
+                      total: result.usage.completionTokens,
+                      ...(reasoningTokens === undefined ? {} : { reasoning: reasoningTokens }),
+                    },
+                    total: result.usage.totalTokens,
+                  },
+                  ...(result.usage.cost === null || result.usage.cost === undefined
+                    ? {}
+                    : {
+                        cost: {
+                          currency: "USD" as const,
+                          amountNanos: usdToNanos(result.usage.cost),
+                          source: "provider-reported" as const,
+                        },
+                      }),
                 },
               }
             : {}),

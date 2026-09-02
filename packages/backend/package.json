@@ -14,6 +14,7 @@
     "db:generate": "drizzle-kit generate --config drizzle.config.ts"
   },
   "dependencies": {
+    "@jaquelene/domain": "workspace:*",
     "drizzle-orm": "1.0.0-rc.4",
     "effect": "4.0.0-rc.112",
     "typeid-js": "^1.2.0"

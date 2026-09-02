@@ -9,6 +9,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import type { CampaignId, ScenarioId, ThreadId } from "#backend/id";
+import { reasoningPresets } from "#backend/model/reasoning";
 import { scenarioTable } from "#backend/scenario/schema";
 import { threadTable } from "#backend/thread/schema";
 
@@ -37,26 +38,40 @@ export const campaignTable = sqliteTable(
   ],
 );
 
-export const campaignModelOverrideTable = sqliteTable(
-  "campaign_model_overrides",
+export const campaignGenerationPreferencesTable = sqliteTable(
+  "campaign_generation_preferences",
   {
     campaignId: text("campaign_id")
       .$type<CampaignId>()
       .notNull()
       .references(() => campaignTable.id, { onDelete: "cascade" }),
-    providerId: text("provider_id").notNull(),
-    modelId: text("model_id").notNull(),
-    name: text().notNull(),
-    brandId: text("brand_id").notNull(),
+    providerId: text("provider_id"),
+    modelId: text("model_id"),
+    name: text(),
+    brandId: text("brand_id"),
+    reasoningPreset: text("reasoning_preset", { enum: reasoningPresets }),
   },
-  (modelOverride) => [
-    primaryKey({ columns: [modelOverride.campaignId] }),
+  (preferences) => [
+    primaryKey({ columns: [preferences.campaignId] }),
     check(
-      "campaign_model_overrides_values_valid",
-      sql`length(trim(${modelOverride.providerId})) > 0
-        AND length(trim(${modelOverride.modelId})) > 0
-        AND length(trim(${modelOverride.name})) > 0
-        AND length(trim(${modelOverride.brandId})) > 0`,
+      "campaign_generation_preferences_values_valid",
+      sql`(
+          (${preferences.providerId} IS NULL
+            AND ${preferences.modelId} IS NULL
+            AND ${preferences.name} IS NULL
+            AND ${preferences.brandId} IS NULL)
+          OR
+          (${preferences.providerId} IS NOT NULL
+            AND ${preferences.modelId} IS NOT NULL
+            AND ${preferences.name} IS NOT NULL
+            AND ${preferences.brandId} IS NOT NULL
+            AND length(trim(${preferences.providerId})) > 0
+            AND length(trim(${preferences.modelId})) > 0
+            AND length(trim(${preferences.name})) > 0
+            AND length(trim(${preferences.brandId})) > 0)
+        )
+        AND (${preferences.providerId} IS NOT NULL OR ${preferences.reasoningPreset} IS NOT NULL)
+        AND (${preferences.reasoningPreset} IS NULL OR ${preferences.reasoningPreset} IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'))`,
     ),
   ],
 );

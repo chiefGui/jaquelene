@@ -1,7 +1,8 @@
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { modelsListForUser } from "@openrouter/sdk/funcs/modelsListForUser.js";
-import type { ProviderModelsAdapter } from "@jaquelene/backend";
+import { type ProviderModelsAdapter } from "@jaquelene/backend";
 import type { OpenRouterConfiguration } from "./connection";
+import { normalizeOpenRouterReasoning, type OpenRouterReasoningMetadata } from "./reasoning";
 
 type OpenRouterCatalogModel = {
   id: string;
@@ -15,11 +16,7 @@ type OpenRouterCatalogModel = {
     completion: string;
     discount?: number | undefined;
   };
-  reasoning?:
-    | {
-        mandatory: boolean;
-      }
-    | undefined;
+  reasoning?: OpenRouterReasoningMetadata | undefined;
 };
 
 type LoadOpenRouterModels = (
@@ -137,12 +134,13 @@ function normalizeModel({ id, name, pricing, reasoning }: OpenRouterCatalogModel
   }
 
   const tokenPricing = normalizeTokenPricing(id, pricing);
+  const normalizedReasoning = normalizeOpenRouterReasoning(id, reasoning);
 
   return {
     brandId,
     id,
     name: displayName,
-    ...(reasoning ? { reasoning: { required: reasoning.mandatory } } : {}),
+    ...(normalizedReasoning ? { reasoning: normalizedReasoning } : {}),
     ...(tokenPricing ? { tokenPricing } : {}),
   };
 }

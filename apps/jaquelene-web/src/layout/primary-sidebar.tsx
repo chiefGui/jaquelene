@@ -14,6 +14,7 @@ import {
 } from "@tanstack/react-router";
 import type { ComponentType } from "react";
 import type { FileRoutesByTo } from "@/routeTree.gen";
+import { shellChrome } from "./shell-chrome.stylex";
 
 type PrimarySidebarDestination = {
   [Path in keyof FileRoutesByTo]: ToOptions<RegisteredRouter, string, Path> & { to: Path };
@@ -72,7 +73,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
 
   return (
     <aside aria-label="Primary sidebar" {...stylex.props(styles.root)}>
-      <header {...stylex.props(styles.header)}>
+      <header {...stylex.props(shellChrome.header, styles.header)}>
         <span {...stylex.props(styles.brand)}>Jaquelene</span>
       </header>
 
@@ -161,10 +162,6 @@ const styles = stylex.create({
     minHeight: 0,
   },
   header: {
-    alignItems: "center",
-    display: "flex",
-    flexShrink: 0,
-    height: "3.5rem",
     paddingInline: "1rem",
   },
   brand: {

@@ -12,11 +12,17 @@ import {
   GenerationFailureKind as IpcGenerationFailureKind,
   GenerationStatus as IpcGenerationStatus,
   ThreadMessageAuthor as IpcThreadMessageAuthor,
+  ThreadMessagePageDirection as IpcThreadMessagePageDirection,
   Threads as ThreadsIpc,
   Turns as TurnsIpc,
   type ITurnsDispatcher,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
+import {
+  fromIpcReasoningPreset,
+  toIpcReasoningPreset,
+  toIpcReasoningPresetSource,
+} from "@/feature/model/reasoning-preset";
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
   switch (author) {
@@ -24,6 +30,15 @@ function toIpcAuthor(author: ThreadMessage["author"]) {
       return IpcThreadMessageAuthor.User;
     case "assistant":
       return IpcThreadMessageAuthor.Assistant;
+  }
+}
+
+function fromIpcPageDirection(direction: IpcThreadMessagePageDirection) {
+  switch (direction) {
+    case IpcThreadMessagePageDirection.Older:
+      return "older" as const;
+    case IpcThreadMessagePageDirection.Newer:
+      return "newer" as const;
   }
 }
 
@@ -40,8 +55,8 @@ function toIpcGenerationStatus(status: Generation["status"]) {
 
 function toIpcGenerationFailureKind(failureKind: GenerationFailureKind) {
   switch (failureKind) {
-    case "prompt":
-      return IpcGenerationFailureKind.Prompt;
+    case "preparation":
+      return IpcGenerationFailureKind.Preparation;
     case "provider":
       return IpcGenerationFailureKind.Provider;
     case "invalid-output":
@@ -71,6 +86,14 @@ function toIpcGeneration(generation: Generation) {
     turnId: generation.turnId,
     providerId: generation.providerId,
     modelId: generation.modelId,
+    ...(generation.reasoning
+      ? {
+          reasoning: {
+            preset: toIpcReasoningPreset(generation.reasoning.preset),
+            source: toIpcReasoningPresetSource(generation.reasoning.source),
+          },
+        }
+      : {}),
     status: toIpcGenerationStatus(generation.status),
     ...(generation.failureKind
       ? { failureKind: toIpcGenerationFailureKind(generation.failureKind) }
@@ -90,8 +113,8 @@ function toIpcSubmission(acceptance: TurnAcceptance) {
 
 function unexpectedFailureStage(failureKind: Generation["failureKind"]) {
   switch (failureKind) {
-    case "prompt":
-      return "prompt compilation";
+    case "preparation":
+      return "reply preparation";
     case "invalid-output":
       return "provider output validation";
     case "storage":
@@ -212,8 +235,9 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
       ThreadsIpc.for(target).setImplementation({
         listMessages(request) {
           const page = turns.listForThread({
-            ...request,
             threadId: ids.thread.parse(request.threadId),
+            direction: fromIpcPageDirection(request.direction),
+            ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
           });
 
           return {
@@ -225,19 +249,33 @@ export function createThreadMessaging(turns: Turns, diagnostics: ErrorReporter) 
       });
 
       const dispatcher = TurnsIpc.for(target).setImplementation({
-        submit(request) {
-          const operation = turns.submit({
+        async submit(request) {
+          const operation = await turns.submit({
             threadId: ids.thread.parse(request.threadId),
             content: request.content,
-            model: { ...request.model },
+            configuration: {
+              model: { ...request.configuration.model },
+              ...(request.configuration.reasoningPreset === undefined
+                ? {}
+                : {
+                    reasoningPreset: fromIpcReasoningPreset(request.configuration.reasoningPreset),
+                  }),
+            },
           });
           observeSettlement("thread.turn.submit", operation.settlement);
           return toIpcSubmission(operation.acceptance);
         },
-        retry(request) {
-          const operation = turns.retry({
+        async retry(request) {
+          const operation = await turns.retry({
             turnId: ids.turn.parse(request.turnId),
-            model: { ...request.model },
+            configuration: {
+              model: { ...request.configuration.model },
+              ...(request.configuration.reasoningPreset === undefined
+                ? {}
+                : {
+                    reasoningPreset: fromIpcReasoningPreset(request.configuration.reasoningPreset),
+                  }),
+            },
           });
           observeSettlement("thread.turn.retry", operation.settlement);
           return toIpcGeneration(operation.acceptance.generation);

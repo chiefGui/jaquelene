@@ -15,12 +15,13 @@ import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import StarIcon from "@hugeicons/core-free-icons/StarIcon";
 import Tick01Icon from "@hugeicons/core-free-icons/Tick01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type {
-  AvailableModel,
-  ModelCatalogSnapshot,
-  ModelProvider,
-  ModelReference,
-  ModelSelection,
+import {
+  ReasoningPreset,
+  type AvailableModel,
+  type ModelCatalogSnapshot,
+  type ModelProvider,
+  type ModelReference,
+  type ModelSelection,
 } from "@jaquelene/ipc/renderer";
 import { Button, IconFrame, Input, Skeleton } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
@@ -180,7 +181,7 @@ function useModelPicker(component: string) {
 type ModelPickerRootProps = {
   children: ReactNode;
   value: ModelSelection | null;
-  onValueChange: (value: ModelSelection) => void;
+  onValueChange: (value: ModelSelection, model: AvailableModel) => void;
 };
 
 function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProps) {
@@ -383,7 +384,7 @@ function ModelPickerRoot({ children, value, onValueChange }: ModelPickerRootProp
     }
 
     setActionError(null);
-    onValueChange({ ...reference, name: model.name, brandId: model.brandId });
+    onValueChange({ ...reference, name: model.name, brandId: model.brandId }, model);
     setOpenState(false);
     setInputValue("");
   }
@@ -598,7 +599,11 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                               <FavoriteProviderIndicator provider={provider} />
                             ) : null}
                             {model.reasoning ? (
-                              <ReasoningIndicator required={model.reasoning.required} />
+                              <ReasoningIndicator
+                                required={
+                                  !model.reasoning.supportedPresets.includes(ReasoningPreset.Off)
+                                }
+                              />
                             ) : null}
                           </div>
                         ) : null}

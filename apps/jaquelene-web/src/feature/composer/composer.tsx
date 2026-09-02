@@ -7,13 +7,29 @@ import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
+import { ComposerBacklight } from "./composer-backlight";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
 };
 
-function ComposerRoot({ style, ...props }: StyleableProps<ComponentProps<"form">>) {
-  return <form {...props} {...stylex.props(styles.root, style, stylex.defaultMarker())} />;
+function ComposerRoot({
+  "aria-busy": ariaBusy,
+  children,
+  pending = false,
+  style,
+  ...props
+}: StyleableProps<ComponentProps<"form">> & { pending?: boolean }) {
+  return (
+    <form
+      {...props}
+      aria-busy={ariaBusy ?? (pending || undefined)}
+      {...stylex.props(styles.root, style, stylex.defaultMarker())}
+    >
+      <ComposerBacklight active={pending} />
+      {children}
+    </form>
+  );
 }
 
 function ComposerLabel({ style, ...props }: StyleableProps<ComponentProps<"label">>) {
@@ -121,7 +137,9 @@ const styles = stylex.create({
     boxShadow: tokens.shadowLarge,
     display: "flex",
     flexDirection: "column",
+    isolation: "isolate",
     padding: "0.375rem",
+    position: "relative",
   },
   label: {
     clip: "rect(0 0 0 0)",
@@ -148,8 +166,10 @@ const styles = stylex.create({
     overflowY: "auto",
     paddingBlock: "0.625rem",
     paddingInline: "0.625rem",
+    position: "relative",
     resize: "none",
     width: "100%",
+    zIndex: 1,
     "::placeholder": {
       color: tokens.muted,
     },
@@ -160,6 +180,8 @@ const styles = stylex.create({
     gap: "0.75rem",
     minHeight: tokens.controlHeight,
     paddingLeft: "0.625rem",
+    position: "relative",
+    zIndex: 1,
   },
   controls: {
     alignItems: "center",

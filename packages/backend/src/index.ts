@@ -4,17 +4,45 @@ export type {
   ResourceCacheFailure,
   ResourceCacheInspection,
 } from "#backend/resource-cache/resource-cache";
-export type { Campaign, Campaigns } from "#backend/campaign/campaigns";
-export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
+export type {
+  Campaign,
+  CampaignGenerationPreferences,
+  Campaigns,
+} from "#backend/campaign/campaigns";
+export type { CampaignUsage, CampaignUsageReader } from "#backend/campaign/usage";
 export {
+  requireGenerationConfiguration,
+  requireGenerationConfigurationSelection,
+  type GenerationConfiguration,
+  type GenerationConfigurationSelection,
+} from "#backend/generation/configuration";
+export type { Generations, GenerateReplyRequest } from "#backend/generation/generations";
+export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
+export {
+  reasoningEfforts,
+  reasoningPresets,
+  reasoningPresetSources,
+  requireModelReasoningCapability,
+  requireReasoningPreset,
+  requireResolvedReasoning,
+  resolveReasoning,
+  type ModelReasoningCapability,
+  type ReasoningEffort,
+  type ReasoningPreset,
+  type ReasoningPresetSource,
+  type ResolvedReasoning,
+} from "#backend/model/reasoning";
+export {
+  generationCostSources,
   requireModelReference,
   requireModelSelection,
   type ApiKeyProviderConfiguration,
   type ApiKeyProviderConfigurationSnapshot,
-  type GenerationMessage,
   type GenerationUsage,
+  type GenerationCost,
+  type GenerationCostSource,
+  type GenerationTokenUsage,
   type ModelReference,
-  type ModelReasoningCapability,
   type ModelSelection,
   type ProviderAdapter,
   type ProviderConfiguration,
@@ -56,6 +84,12 @@ export type {
   StorageDeletion,
   StorageUsage,
 } from "#backend/storage/storage";
+export type {
+  CatalogInstruction,
+  Instruction,
+  InstructionCatalog,
+  InstructionGroup,
+} from "#backend/instruction/registry";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/threads";
 export type {

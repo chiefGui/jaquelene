@@ -1,13 +1,15 @@
-import { Button, Input } from "@jaquelene/ui";
+import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
+import Book01Icon from "@hugeicons/core-free-icons/Book01Icon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, type SubmitEvent } from "react";
-import { reportError } from "@/feature/diagnostics/diagnostics";
-import { scenariosQuery, useCreateScenario } from "@/feature/scenario/query";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { scenariosQuery } from "@/feature/scenario/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
+
+const cardHoverBackground = `color-mix(in oklab, ${tokens.accent} 8%, transparent)`;
 
 export const Route = createFileRoute("/scenarios/")({
   component: ScenariosIndexRoute,
@@ -15,45 +17,6 @@ export const Route = createFileRoute("/scenarios/")({
 
 function ScenariosIndexRoute() {
   const { data: scenarios } = useSuspenseQuery(scenariosQuery);
-  const createScenarioMutation = useCreateScenario();
-  const navigate = useNavigate({ from: "/scenarios/" });
-  const [error, setError] = useState<string | null>(null);
-
-  async function createScenario(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const form = event.currentTarget;
-    const title = new FormData(form).get("title");
-
-    if (typeof title !== "string") {
-      setError("Enter a scenario title.");
-      return;
-    }
-
-    setError(null);
-
-    try {
-      const result = await createScenarioMutation.mutateAsync(title);
-
-      if (result.status === "empty-title") {
-        setError("Enter a scenario title.");
-        return;
-      }
-
-      try {
-        await navigate({
-          to: "/scenarios/$scenarioId",
-          params: { scenarioId: result.scenario.id },
-        });
-      } catch (cause) {
-        reportError("scenario.open-created", cause);
-        setError("The scenario was created, but it could not be opened.");
-      }
-    } catch (cause) {
-      reportError("scenario.create", cause);
-      setError("Could not create the scenario.");
-    }
-  }
 
   return (
     <>
@@ -69,60 +32,43 @@ function ScenariosIndexRoute() {
 
       <ContentPane.Viewport>
         <ContentPane.Body style={styles.page}>
-          <section aria-labelledby="create-scenario-heading">
-            <h1 id="create-scenario-heading" {...stylex.props(styles.title)}>
+          <section aria-labelledby="scenarios-heading">
+            <h1 id="scenarios-heading" {...stylex.props(styles.title)}>
               Scenarios
             </h1>
-            <p {...stylex.props(styles.description)}>Create a scenario to get started.</p>
 
-            <form {...stylex.props(styles.form)} onSubmit={createScenario}>
-              <label htmlFor="new-scenario-title" {...stylex.props(styles.label)}>
-                Title
-              </label>
-              <div {...stylex.props(styles.fieldRow)}>
-                <Input
-                  id="new-scenario-title"
-                  name="title"
-                  type="text"
-                  required
-                  aria-describedby={error ? "create-scenario-error" : undefined}
-                  style={styles.input}
-                  placeholder="Scenario title"
+            <div {...stylex.props(styles.grid)}>
+              <Link to="/scenarios/new" {...stylex.props(styles.card, styles.createCard)}>
+                <HugeiconsIcon
+                  icon={Add01Icon}
+                  size={20}
+                  color="currentColor"
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                  {...stylex.props(styles.icon)}
                 />
-                <Button type="submit" disabled={createScenarioMutation.isPending}>
-                  {createScenarioMutation.isPending ? "Creating…" : "Create scenario"}
-                </Button>
-              </div>
-              {error ? (
-                <p id="create-scenario-error" role="alert" {...stylex.props(styles.error)}>
-                  {error}
-                </p>
-              ) : null}
-            </form>
-          </section>
+                <span {...stylex.props(styles.cardLabel)}>Create scenario</span>
+              </Link>
 
-          <section aria-labelledby="scenario-list-heading">
-            <h2 id="scenario-list-heading" {...stylex.props(styles.sectionHeading)}>
-              Your scenarios
-            </h2>
-
-            {scenarios.length === 0 ? (
-              <p {...stylex.props(styles.empty)}>No scenarios yet.</p>
-            ) : (
-              <ul {...stylex.props(styles.list)}>
-                {scenarios.map((scenario) => (
-                  <li key={scenario.id} {...stylex.props(styles.listItem)}>
-                    <Link
-                      to="/scenarios/$scenarioId"
-                      params={{ scenarioId: scenario.id }}
-                      {...stylex.props(styles.listLink)}
-                    >
-                      {scenario.title}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+              {scenarios.map((scenario) => (
+                <Link
+                  key={scenario.id}
+                  to="/scenarios/$scenarioId"
+                  params={{ scenarioId: scenario.id }}
+                  {...stylex.props(styles.card)}
+                >
+                  <HugeiconsIcon
+                    icon={Book01Icon}
+                    size={20}
+                    color="currentColor"
+                    strokeWidth={1.5}
+                    aria-hidden="true"
+                    {...stylex.props(styles.icon)}
+                  />
+                  <span {...stylex.props(styles.cardLabel)}>{scenario.title}</span>
+                </Link>
+              ))}
+            </div>
           </section>
         </ContentPane.Body>
       </ContentPane.Viewport>
@@ -132,9 +78,7 @@ function ScenariosIndexRoute() {
 
 const styles = stylex.create({
   page: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "2rem",
+    minWidth: 0,
   },
   title: {
     fontSize: tokens.fontSizeLarge,
@@ -142,77 +86,36 @@ const styles = stylex.create({
     letterSpacing: "-0.025em",
     lineHeight: tokens.lineHeightLarge,
   },
-  description: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.25rem",
-  },
-  form: {
+  grid: {
+    display: "grid",
+    gap: "0.75rem",
+    gridTemplateColumns: "repeat(auto-fill, minmax(11rem, 1fr))",
     marginTop: "1.25rem",
   },
-  label: {
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
-    lineHeight: tokens.lineHeightSmall,
-  },
-  fieldRow: {
-    display: "flex",
-    gap: "0.5rem",
-    marginTop: "0.5rem",
-  },
-  input: {
-    flex: 1,
-    minWidth: 0,
-  },
-  error: {
-    color: tokens.danger,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.5rem",
-  },
-  sectionHeading: {
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
-    lineHeight: tokens.lineHeightSmall,
-  },
-  empty: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.75rem",
-  },
-  list: {
+  card: {
+    alignItems: "flex-start",
+    backgroundColor: {
+      default: "transparent",
+      ":hover": cardHoverBackground,
+    },
     borderColor: tokens.border,
     borderRadius: tokens.radiusLarge,
     borderStyle: "solid",
     borderWidth: 1,
-    marginTop: "0.75rem",
-    overflow: "hidden",
-  },
-  listItem: {
-    borderColor: tokens.border,
-    borderStyle: "solid",
-    borderTopWidth: {
-      default: 0,
-      ":not(:first-child)": 1,
-    },
-  },
-  listLink: {
-    backgroundColor: {
-      default: "transparent",
-      ":hover": `color-mix(in oklab, ${tokens.accent} 10%, transparent)`,
-    },
-    display: "block",
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
+    color: tokens.foreground,
+    display: "flex",
+    flexDirection: "column",
+    gap: "1.5rem",
+    justifyContent: "space-between",
+    minHeight: "7.5rem",
+    minWidth: 0,
     outlineColor: {
       default: null,
       ":focus-visible": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
     },
     outlineOffset: {
       default: null,
-      ":focus-visible": -1,
+      ":focus-visible": 2,
     },
     outlineStyle: {
       default: "none",
@@ -222,7 +125,25 @@ const styles = stylex.create({
       default: null,
       ":focus-visible": 1,
     },
-    paddingBlock: "0.75rem",
-    paddingInline: "1rem",
+    overflow: "hidden",
+    padding: "1rem",
+    textAlign: "start",
+    width: "100%",
+  },
+  createCard: {
+    borderStyle: "dashed",
+  },
+  icon: {
+    color: tokens.muted,
+    flexShrink: 0,
+  },
+  cardLabel: {
+    fontSize: tokens.fontSizeSmall,
+    fontWeight: 500,
+    lineHeight: tokens.lineHeightSmall,
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
 });

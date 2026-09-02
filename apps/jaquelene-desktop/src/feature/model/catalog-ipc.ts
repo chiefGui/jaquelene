@@ -3,10 +3,29 @@ import {
   ModelCatalogFreshness,
   ModelCatalogRefreshState,
   ModelCatalog as ModelCatalogIpc,
+  type AvailableModel as IpcAvailableModel,
   type ModelCatalogSnapshot as IpcModelCatalogSnapshot,
 } from "@jaquelene/ipc/main";
 import type { WebContents } from "electron";
 import type { ModelCatalog } from "./catalog";
+import { toIpcReasoningPreset } from "./reasoning-preset";
+
+type CatalogModel = Awaited<ReturnType<ModelCatalog["getModels"]>>["models"][number];
+
+function toIpcModel(model: CatalogModel): IpcAvailableModel {
+  const { reasoning, ...modelSnapshot } = model;
+  return {
+    ...modelSnapshot,
+    ...(reasoning
+      ? {
+          reasoning: {
+            defaultPreset: toIpcReasoningPreset(reasoning.defaultPreset),
+            supportedPresets: reasoning.supportedPresets.map(toIpcReasoningPreset),
+          },
+        }
+      : {}),
+  };
+}
 
 function toIpcSnapshot(
   snapshot: Awaited<ReturnType<ModelCatalog["getModels"]>>,
@@ -34,7 +53,7 @@ function toIpcSnapshot(
   })();
 
   return {
-    models: [...snapshot.models],
+    models: snapshot.models.map(toIpcModel),
     revision: snapshot.revision,
     freshness:
       snapshot.freshness === "fresh" ? ModelCatalogFreshness.Fresh : ModelCatalogFreshness.Stale,

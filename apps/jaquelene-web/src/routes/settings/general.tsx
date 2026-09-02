@@ -36,7 +36,6 @@ function GeneralRoute() {
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Separator />
             <Breadcrumb.Item>
               <Breadcrumb.Page>General</Breadcrumb.Page>
             </Breadcrumb.Item>
@@ -65,7 +64,7 @@ function GeneralRoute() {
                 <Item.Value>
                   <ModelPicker.Root
                     value={defaultCampaignModel}
-                    onValueChange={setDefaultCampaignModel.mutate}
+                    onValueChange={(model) => setDefaultCampaignModel.mutate(model)}
                   >
                     <ModelPicker.Trigger
                       id={controlId}

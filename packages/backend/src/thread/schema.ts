@@ -3,7 +3,6 @@ import {
   type AnySQLiteColumn,
   check,
   foreignKey,
-  index,
   integer,
   primaryKey,
   sqliteTable,
@@ -64,6 +63,7 @@ export const threadMessageTable = sqliteTable(
       .references(() => threadTable.id, { onDelete: "cascade" }),
     turnId: text("turn_id").$type<TurnId>().notNull(),
     parentMessageId: text("parent_message_id").$type<MessageId>(),
+    activeChildMessageId: text("active_child_message_id").$type<MessageId>(),
     sequence: integer().notNull(),
     author: text({ enum: threadMessageAuthors }).notNull(),
     content: text().notNull(),
@@ -81,13 +81,22 @@ export const threadMessageTable = sqliteTable(
       foreignColumns: [message.threadId, message.id],
       name: "thread_messages_parent_fk",
     }),
+    foreignKey({
+      columns: [message.threadId, message.id, message.activeChildMessageId],
+      foreignColumns: [message.threadId, message.parentMessageId, message.id],
+      name: "thread_messages_active_child_fk",
+    }),
     uniqueIndex("thread_messages_thread_sequence_unique").on(message.threadId, message.sequence),
     uniqueIndex("thread_messages_thread_id_unique").on(message.threadId, message.id),
+    uniqueIndex("thread_messages_thread_parent_id_unique").on(
+      message.threadId,
+      message.parentMessageId,
+      message.id,
+    ),
     uniqueIndex("thread_messages_turn_id_unique").on(message.turnId, message.id),
     uniqueIndex("thread_messages_turn_user_unique")
       .on(message.turnId)
       .where(sql`${message.author} = 'user'`),
-    index("thread_messages_parent_idx").on(message.threadId, message.parentMessageId),
     check("thread_messages_sequence_positive", sql`${message.sequence} > 0`),
     check("thread_messages_author_valid", sql`${message.author} IN ('user', 'assistant')`),
     check(
@@ -103,4 +112,5 @@ export const threadMessageTable = sqliteTable(
 );
 
 export type Turn = typeof turnTable.$inferSelect;
-export type ThreadMessage = typeof threadMessageTable.$inferSelect;
+export type ThreadMessageRecord = typeof threadMessageTable.$inferSelect;
+export type ThreadMessage = Omit<ThreadMessageRecord, "activeChildMessageId">;

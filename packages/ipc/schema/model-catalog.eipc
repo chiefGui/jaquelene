@@ -15,8 +15,31 @@ structure ModelTokenPricing {
   outputUsdPerMillion: number
 }
 
+enum ReasoningPreset {
+  Automatic = "automatic"
+  On = "on"
+  Max = "max"
+  XHigh = "xhigh"
+  High = "high"
+  Medium = "medium"
+  Low = "low"
+  Minimal = "minimal"
+  Off = "off"
+}
+
+enum ReasoningPresetSource {
+  ModelDefault = "model-default"
+  Selection = "selection"
+}
+
+structure ResolvedReasoning {
+  preset: ReasoningPreset
+  source: ReasoningPresetSource
+}
+
 structure ModelReasoningCapability {
-  required: boolean
+  defaultPreset: ReasoningPreset
+  supportedPresets: ReasoningPreset[]
 }
 
 structure AvailableModel {

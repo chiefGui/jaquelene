@@ -15,12 +15,22 @@ subtype ThreadMessageSequence = number(
   maxValue: 9007199254740991
 )
 
-subtype ThreadMessagePageSize = number(
+subtype ThreadMessageCountLimit = number(
   minValue: 1
   maxValue: 9007199254740991
 )
 
-subtype ThreadMessageContentMaxLength = number(
+subtype ThreadMessageMaxCodeUnits = number(
+  minValue: 1
+  maxValue: 9007199254740991
+)
+
+subtype ThreadMessageContentByteCount = number(
+  minValue: 0
+  maxValue: 9007199254740991
+)
+
+subtype ThreadMessageContentByteBudget = number(
   minValue: 1
   maxValue: 9007199254740991
 )
@@ -30,6 +40,11 @@ enum ThreadMessageAuthor {
   Assistant = "assistant"
 }
 
+enum ThreadMessagePageDirection {
+  Older = "older"
+  Newer = "newer"
+}
+
 enum GenerationStatus {
   Pending = "pending"
   Completed = "completed"
@@ -37,7 +52,7 @@ enum GenerationStatus {
 }
 
 enum GenerationFailureKind {
-  Prompt = "prompt"
+  Preparation = "preparation"
   Provider = "provider"
   InvalidOutput = "invalid-output"
   Interrupted = "interrupted"
@@ -59,6 +74,7 @@ structure TurnGeneration {
   turnId: string
   providerId: string
   modelId: string
+  reasoning?: ResolvedReasoning
   status: GenerationStatus
   failureKind?: GenerationFailureKind
   outputMessageId?: string
@@ -68,26 +84,30 @@ structure TurnGeneration {
 
 structure ThreadMessagePageRequest {
   threadId: string
-  before?: ThreadMessageCursor
+  direction: ThreadMessagePageDirection
+  cursor?: ThreadMessageCursor
 }
 
 structure ThreadMessagePage {
   messages: ThreadMessage[]
   generations: TurnGeneration[]
-  pageSize: ThreadMessagePageSize
-  messageContentMaxLength: ThreadMessageContentMaxLength
-  nextCursor?: ThreadMessageCursor
+  messageCountLimit: ThreadMessageCountLimit
+  messageMaxCodeUnits: ThreadMessageMaxCodeUnits
+  contentByteBudget: ThreadMessageContentByteBudget
+  contentBytes: ThreadMessageContentByteCount
+  olderCursor?: ThreadMessageCursor
+  newerCursor?: ThreadMessageCursor
 }
 
 structure SubmitTurnRequest {
   threadId: string
   content: ThreadMessageContent
-  model: ModelReference
+  configuration: GenerationConfiguration
 }
 
 structure RetryTurnRequest {
   turnId: string
-  model: ModelReference
+  configuration: GenerationConfiguration
 }
 
 structure TurnSubmission {

@@ -2,6 +2,10 @@ import { and, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "#backend/database/database";
 import {
+  requireGenerationConfiguration,
+  type GenerationConfiguration,
+} from "#backend/generation/configuration";
+import {
   appendAssistantMessageInTransaction,
   requireThreadMessageContent,
 } from "#backend/thread/threads";
@@ -11,7 +15,14 @@ import {
   turnTable,
   type ThreadMessage,
 } from "#backend/thread/schema";
-import { ids, type MessageId, type ThreadId, type TurnId } from "#backend/id";
+import { ids, type MessageId, type TurnId } from "#backend/id";
+import type { ModelInput } from "#backend/model/input";
+import {
+  requireResolvedReasoning,
+  resolveReasoning,
+  type ResolvedReasoning,
+} from "#backend/model/reasoning";
+import type { Models } from "#backend/provider/model-catalog";
 import {
   requireModelReference,
   type GenerationUsage,
@@ -19,14 +30,25 @@ import {
   type ProviderGenerationResult,
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
-import type { GenerationPrompt, GenerationPromptCompiler } from "./prompt";
-import { generationTable, type Generation, type GenerationFailureKind } from "./schema";
+import { requireReplyInput, type ReplyAnchor, type ReplyPreparer } from "./reply-preparation";
+import {
+  generationTable,
+  toGeneration,
+  type Generation,
+  type GenerationFailureKind,
+  type StoredGeneration,
+} from "./schema";
 
 export type GenerateReplyRequest = {
   turnId: TurnId;
-  model: ModelReference;
+  configuration: GenerationConfiguration;
   signal?: AbortSignal;
 };
+
+export type ResolvedGenerationConfiguration = Readonly<{
+  model: ModelReference;
+  reasoning?: ResolvedReasoning;
+}>;
 
 export type ReplyGenerationExecution =
   | {
@@ -41,23 +63,22 @@ export type ReplyGenerationExecution =
       cause: unknown;
     };
 
-type NormalizedProviderResult = {
-  text: string;
+type NormalizedProviderAccounting = {
   providerGenerationId: string | null;
   resolvedModelId: string | null;
+  upstreamProviderId: string | null;
   finishReason: string | null;
   usage: GenerationUsage | null;
 };
 
-type TurnGenerationInput = {
-  threadId: ThreadId;
-  inputMessageId: MessageId;
-  activeMessageId: MessageId | null;
+type NormalizedProviderResult = NormalizedProviderAccounting & {
+  text: string;
 };
 
 export type AcceptedReplyGeneration = Readonly<{
   generation: Generation;
-  input: TurnGenerationInput;
+  anchor: ReplyAnchor;
+  activeMessageId: MessageId | null;
 }>;
 
 function interruptionCause(signal: AbortSignal) {
@@ -140,57 +161,163 @@ function requireTokenCount(value: number, field: string) {
   return value;
 }
 
-function normalizeProviderResult(result: ProviderGenerationResult): NormalizedProviderResult {
-  const usage = result.usage
-    ? {
-        inputTokens: requireTokenCount(result.usage.inputTokens, "input token count"),
-        outputTokens: requireTokenCount(result.usage.outputTokens, "output token count"),
-        totalTokens: requireTokenCount(result.usage.totalTokens, "total token count"),
-      }
-    : null;
-
+function normalizeProviderMetadata(
+  result: ProviderGenerationResult,
+): Omit<NormalizedProviderAccounting, "usage"> {
   return {
-    text: requireThreadMessageContent(result.text),
     providerGenerationId: requireOptionalText(result.providerGenerationId, "generation identity"),
     resolvedModelId: requireOptionalText(result.resolvedModelId, "resolved model identity"),
+    upstreamProviderId: requireOptionalText(
+      result.upstreamProviderId,
+      "upstream provider identity",
+    ),
     finishReason: requireOptionalText(result.finishReason, "finish reason"),
-    usage,
   };
 }
 
-function providerResultFields(output: NormalizedProviderResult) {
+function normalizeProviderUsage(result: ProviderGenerationResult): GenerationUsage | null {
+  if (!result.usage) {
+    return null;
+  }
+
+  const usage: GenerationUsage = {
+    tokens: {
+      input: {
+        total: requireTokenCount(result.usage.tokens.input.total, "input token count"),
+        ...(result.usage.tokens.input.cacheRead === undefined
+          ? {}
+          : {
+              cacheRead: requireTokenCount(
+                result.usage.tokens.input.cacheRead,
+                "cache-read input token count",
+              ),
+            }),
+        ...(result.usage.tokens.input.cacheWrite === undefined
+          ? {}
+          : {
+              cacheWrite: requireTokenCount(
+                result.usage.tokens.input.cacheWrite,
+                "cache-write input token count",
+              ),
+            }),
+      },
+      output: {
+        total: requireTokenCount(result.usage.tokens.output.total, "output token count"),
+        ...(result.usage.tokens.output.reasoning === undefined
+          ? {}
+          : {
+              reasoning: requireTokenCount(
+                result.usage.tokens.output.reasoning,
+                "reasoning output token count",
+              ),
+            }),
+      },
+      total: requireTokenCount(result.usage.tokens.total, "total token count"),
+    },
+    ...(result.usage.cost
+      ? {
+          cost: {
+            currency: result.usage.cost.currency,
+            amountNanos: requireTokenCount(result.usage.cost.amountNanos, "cost amount in nanos"),
+            source: result.usage.cost.source,
+          },
+        }
+      : {}),
+  };
+  const { input, output } = usage.tokens;
+
+  if (input.cacheRead !== undefined && input.cacheRead > input.total) {
+    throw new TypeError("A generation provider returned cache-read tokens above input tokens.");
+  }
+
+  if (input.cacheWrite !== undefined && input.cacheWrite > input.total) {
+    throw new TypeError("A generation provider returned cache-write tokens above input tokens.");
+  }
+
+  if (output.reasoning !== undefined && output.reasoning > output.total) {
+    throw new TypeError("A generation provider returned reasoning tokens above output tokens.");
+  }
+
+  if (usage.tokens.total < input.total || usage.tokens.total < output.total) {
+    throw new TypeError("A generation provider returned an invalid total token count.");
+  }
+
+  if (
+    usage.cost &&
+    (usage.cost.currency !== "USD" ||
+      (usage.cost.source !== "provider-reported" && usage.cost.source !== "estimated"))
+  ) {
+    throw new TypeError("A generation provider returned unsupported cost metadata.");
+  }
+
+  return usage;
+}
+
+function normalizeProviderAccounting(result: ProviderGenerationResult) {
+  const causes: unknown[] = [];
+  let metadata: Omit<NormalizedProviderAccounting, "usage"> = {
+    providerGenerationId: null,
+    resolvedModelId: null,
+    upstreamProviderId: null,
+    finishReason: null,
+  };
+  let usage: GenerationUsage | null = null;
+
+  try {
+    metadata = normalizeProviderMetadata(result);
+  } catch (cause) {
+    causes.push(cause);
+  }
+
+  try {
+    usage = normalizeProviderUsage(result);
+  } catch (cause) {
+    causes.push(cause);
+  }
+
+  const accounting = { ...metadata, usage } satisfies NormalizedProviderAccounting;
+
+  return causes.length === 0
+    ? { outcome: "valid" as const, accounting }
+    : {
+        outcome: "invalid" as const,
+        accounting,
+        cause:
+          causes.length === 1
+            ? causes[0]
+            : new AggregateError(causes, "A generation provider returned invalid accounting."),
+      };
+}
+
+function normalizeProviderResult(
+  result: ProviderGenerationResult,
+  accounting: NormalizedProviderAccounting,
+): NormalizedProviderResult {
+  return { ...accounting, text: requireThreadMessageContent(result.text) };
+}
+
+function providerResultFields(output: NormalizedProviderAccounting) {
   return {
     providerGenerationId: output.providerGenerationId,
     resolvedModelId: output.resolvedModelId,
+    upstreamProviderId: output.upstreamProviderId,
     finishReason: output.finishReason,
-    inputTokens: output.usage?.inputTokens ?? null,
-    outputTokens: output.usage?.outputTokens ?? null,
-    totalTokens: output.usage?.totalTokens ?? null,
-  };
-}
-
-function requirePrompt(prompt: GenerationPrompt, turnId: TurnId, input: TurnGenerationInput) {
-  if (prompt.turnId !== turnId) {
-    throw new Error(`The generation prompt does not belong to turn "${turnId}".`);
-  }
-
-  if (prompt.threadId !== input.threadId || prompt.inputMessageId !== input.inputMessageId) {
-    throw new Error(`The generation prompt does not identify the input for turn "${turnId}".`);
-  }
-
-  if (prompt.messages.length === 0 || prompt.messages.at(-1)?.role !== "user") {
-    throw new TypeError("A reply generation prompt must end with a user message.");
-  }
-
-  return {
-    ...prompt,
-    messages: prompt.messages.map((message) => ({ ...message })),
+    inputTokens: output.usage?.tokens.input.total ?? null,
+    cacheReadInputTokens: output.usage?.tokens.input.cacheRead ?? null,
+    cacheWriteInputTokens: output.usage?.tokens.input.cacheWrite ?? null,
+    outputTokens: output.usage?.tokens.output.total ?? null,
+    reasoningOutputTokens: output.usage?.tokens.output.reasoning ?? null,
+    totalTokens: output.usage?.tokens.total ?? null,
+    costCurrency: output.usage?.cost?.currency ?? null,
+    costAmountNanos: output.usage?.cost?.amountNanos ?? null,
+    costSource: output.usage?.cost?.source ?? null,
   };
 }
 
 export function createGenerations(
   database: Database,
-  promptCompiler: GenerationPromptCompiler,
+  replyPreparer: ReplyPreparer,
+  models: Pick<Models, "getModel">,
   providers: ProviderGenerationRouter,
   now: () => number = Date.now,
 ) {
@@ -205,14 +332,11 @@ export function createGenerations(
 
     return provider;
   }
-  function finishedAt(generation: Pick<Generation, "startedAt">) {
-    return Math.max(generation.startedAt, now());
+  function finishedAt(generation: Pick<Generation, "startedAt" | "providerStartedAt">) {
+    return Math.max(generation.startedAt, generation.providerStartedAt ?? 0, now());
   }
 
-  function requireTurnGenerationInput(
-    source: Pick<Database, "select">,
-    turnId: TurnId,
-  ): TurnGenerationInput {
+  function requireReplyContext(source: Pick<Database, "select">, turnId: TurnId) {
     const input = source
       .select({
         threadId: turnTable.threadId,
@@ -236,16 +360,23 @@ export function createGenerations(
       throw new Error(`Turn "${turnId}" has no user message.`);
     }
 
-    return { ...input, inputMessageId: input.inputMessageId };
+    return {
+      anchor: {
+        turnId,
+        threadId: input.threadId,
+        inputMessageId: input.inputMessageId,
+      } satisfies ReplyAnchor,
+      activeMessageId: input.activeMessageId,
+    };
   }
 
   function recordFailure(
-    generation: Pick<Generation, "id" | "startedAt">,
+    generation: Pick<Generation, "id" | "startedAt" | "providerStartedAt">,
     failureKind: GenerationFailureKind,
     cause: unknown,
-    output?: NormalizedProviderResult,
+    output?: NormalizedProviderAccounting,
   ): ReplyGenerationExecution {
-    let failedGeneration: Generation | undefined;
+    let failedGeneration: StoredGeneration | undefined;
 
     try {
       failedGeneration = database
@@ -291,7 +422,7 @@ export function createGenerations(
       }
     }
 
-    return { outcome: "failed", generation: failedGeneration, cause };
+    return { outcome: "failed", generation: toGeneration(failedGeneration), cause };
   }
 
   function listLatestForTurns(turnIds: readonly TurnId[]) {
@@ -302,7 +433,7 @@ export function createGenerations(
     }
 
     const newerGeneration = alias(generationTable, "newer_generation");
-    const generations = database
+    const storedGenerations = database
       .select()
       .from(generationTable)
       .where(
@@ -329,7 +460,10 @@ export function createGenerations(
       )
       .all();
     const generationByTurn = new Map(
-      generations.map((generation) => [generation.turnId, generation]),
+      storedGenerations.map((storedGeneration) => {
+        const generation = toGeneration(storedGeneration);
+        return [generation.turnId, generation];
+      }),
     );
 
     return uniqueTurnIds.flatMap((turnId) => {
@@ -341,14 +475,19 @@ export function createGenerations(
   function acceptReplyInTransaction(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
-    requestedModel: ModelReference,
+    requestedConfiguration: ResolvedGenerationConfiguration,
   ): AcceptedReplyGeneration {
-    const model = {
-      providerId: requestedModel.providerId,
-      modelId: requestedModel.modelId,
+    const configuration = {
+      model: {
+        providerId: requestedConfiguration.model.providerId,
+        modelId: requestedConfiguration.model.modelId,
+      },
+      ...(requestedConfiguration.reasoning === undefined
+        ? {}
+        : { reasoning: requireResolvedReasoning(requestedConfiguration.reasoning) }),
     };
-    requireProvider(model);
-    const input = requireTurnGenerationInput(transaction, turnId);
+    requireProvider(configuration.model);
+    const replyContext = requireReplyContext(transaction, turnId);
 
     const pendingGeneration = transaction
       .select({ id: generationTable.id })
@@ -360,28 +499,31 @@ export function createGenerations(
       throw new RangeError(`Turn "${turnId}" already has a pending generation.`);
     }
 
-    const generation = transaction
+    const storedGeneration = transaction
       .insert(generationTable)
       .values({
         id: ids.generation.create(),
         turnId,
-        providerId: model.providerId,
-        modelId: model.modelId,
+        providerId: configuration.model.providerId,
+        modelId: configuration.model.modelId,
+        reasoningPreset: configuration.reasoning?.preset ?? null,
+        reasoningPresetSource: configuration.reasoning?.source ?? null,
         status: "pending",
         startedAt: now(),
       })
       .returning()
       .get();
 
-    if (!generation) {
+    if (!storedGeneration) {
       throw new Error(`Could not create a generation for turn "${turnId}".`);
     }
 
-    return { generation, input };
+    const generation = toGeneration(storedGeneration);
+    return { generation, ...replyContext };
   }
 
   async function executeAcceptedReply(
-    { generation, input }: AcceptedReplyGeneration,
+    { generation, anchor, activeMessageId }: AcceptedReplyGeneration,
     signal?: AbortSignal,
   ): Promise<ReplyGenerationExecution> {
     const provider = requireProvider({
@@ -393,22 +535,39 @@ export function createGenerations(
       return recordFailure(generation, "interrupted", interruptionCause(signal));
     }
 
-    let prompt: GenerationPrompt;
+    let input: ModelInput;
 
     try {
-      prompt = requirePrompt(
+      input = requireReplyInput(
         await waitForOperation(
-          Promise.resolve(promptCompiler.compile(generation.turnId, signal)),
+          Promise.resolve(replyPreparer.prepare({ ...anchor }, signal)),
           signal,
         ),
-        generation.turnId,
-        input,
+        anchor,
       );
     } catch (cause) {
-      return recordFailure(generation, signal?.aborted ? "interrupted" : "prompt", cause);
+      return recordFailure(generation, signal?.aborted ? "interrupted" : "preparation", cause);
     }
 
     let providerResult: ProviderGenerationResult;
+    let dispatchedGeneration: Generation;
+
+    try {
+      const storedDispatchedGeneration = database
+        .update(generationTable)
+        .set({ providerStartedAt: Math.max(generation.startedAt, now()) })
+        .where(and(eq(generationTable.id, generation.id), eq(generationTable.status, "pending")))
+        .returning()
+        .get();
+
+      if (!storedDispatchedGeneration) {
+        throw new Error(`Generation "${generation.id}" is no longer pending.`);
+      }
+
+      dispatchedGeneration = toGeneration(storedDispatchedGeneration);
+    } catch (cause) {
+      return recordFailure(generation, "storage", cause);
+    }
 
     try {
       if (signal?.aborted) {
@@ -419,38 +578,55 @@ export function createGenerations(
         provider.generate(
           {
             generationId: generation.id,
-            threadId: prompt.threadId,
+            threadId: anchor.threadId,
             modelId: generation.modelId,
-            messages: prompt.messages,
+            input,
+            ...(generation.reasoning ? { reasoning: generation.reasoning } : {}),
           },
           signal,
         ),
         signal,
       );
     } catch (cause) {
-      return recordFailure(generation, signal?.aborted ? "interrupted" : "provider", cause);
+      return recordFailure(
+        dispatchedGeneration,
+        signal?.aborted ? "interrupted" : "provider",
+        cause,
+      );
     }
+
+    const normalizedAccounting = normalizeProviderAccounting(providerResult);
+
+    if (normalizedAccounting.outcome === "invalid") {
+      return recordFailure(
+        dispatchedGeneration,
+        "invalid-output",
+        normalizedAccounting.cause,
+        normalizedAccounting.accounting,
+      );
+    }
+    const { accounting } = normalizedAccounting;
 
     let output: NormalizedProviderResult;
 
     try {
-      output = normalizeProviderResult(providerResult);
+      output = normalizeProviderResult(providerResult, accounting);
     } catch (cause) {
-      return recordFailure(generation, "invalid-output", cause);
+      return recordFailure(dispatchedGeneration, "invalid-output", cause, accounting);
     }
 
     try {
       const result = database.transaction((transaction) => {
-        const completionTime = finishedAt(generation);
+        const completionTime = finishedAt(dispatchedGeneration);
         const { message, activated } = appendAssistantMessageInTransaction(transaction, {
-          threadId: prompt.threadId,
+          threadId: anchor.threadId,
           turnId: generation.turnId,
-          parentMessageId: prompt.inputMessageId,
-          activateIfMessageId: input.activeMessageId,
+          parentMessageId: anchor.inputMessageId,
+          activateIfMessageId: activeMessageId,
           content: output.text,
           createdAt: completionTime,
         });
-        const completedGeneration = transaction
+        const storedCompletedGeneration = transaction
           .update(generationTable)
           .set({
             status: "completed",
@@ -462,36 +638,60 @@ export function createGenerations(
           .returning()
           .get();
 
-        if (!completedGeneration) {
+        if (!storedCompletedGeneration) {
           throw new Error(`Generation "${generation.id}" is no longer pending.`);
         }
 
-        return { generation: completedGeneration, message, activated };
+        return { generation: toGeneration(storedCompletedGeneration), message, activated };
       });
 
       return { outcome: "completed", ...result };
     } catch (cause) {
-      return recordFailure(generation, "storage", cause, output);
+      return recordFailure(dispatchedGeneration, "storage", cause, output);
     }
   }
 
   async function executeReply({
     turnId,
-    model,
+    configuration,
     signal,
   }: GenerateReplyRequest): Promise<ReplyGenerationExecution> {
     if (signal?.aborted) {
       throw interruptionCause(signal);
     }
 
+    const resolvedConfiguration = await resolveConfiguration(configuration, signal);
     const accepted = database.transaction((transaction) =>
-      acceptReplyInTransaction(transaction, turnId, model),
+      acceptReplyInTransaction(transaction, turnId, resolvedConfiguration),
     );
     return executeAcceptedReply(accepted, signal);
   }
 
-  function requireRegisteredModel(model: ModelReference) {
-    requireProvider(model);
+  async function resolveConfiguration(
+    requestedConfiguration: GenerationConfiguration,
+    signal?: AbortSignal,
+  ): Promise<ResolvedGenerationConfiguration> {
+    const configuration = {
+      model: {
+        providerId: requestedConfiguration.model.providerId,
+        modelId: requestedConfiguration.model.modelId,
+      },
+      ...(requestedConfiguration.reasoningPreset === undefined
+        ? {}
+        : { reasoningPreset: requestedConfiguration.reasoningPreset }),
+    };
+    requireGenerationConfiguration(configuration);
+    requireProvider(configuration.model);
+    const model = await models.getModel(configuration.model, signal);
+    const reasoning = resolveReasoning(model.reasoning, configuration.reasoningPreset);
+
+    return {
+      model: {
+        providerId: configuration.model.providerId,
+        modelId: configuration.model.modelId,
+      },
+      ...(reasoning ? { reasoning } : {}),
+    };
   }
 
   return {
@@ -503,7 +703,7 @@ export function createGenerations(
         .set({
           status: "failed",
           failureKind: "interrupted",
-          finishedAt: sql`max(${generationTable.startedAt}, ${recoveryTime})`,
+          finishedAt: sql`max(${generationTable.startedAt}, coalesce(${generationTable.providerStartedAt}, 0), ${recoveryTime})`,
         })
         .where(eq(generationTable.status, "pending"))
         .run();
@@ -513,7 +713,7 @@ export function createGenerations(
     executeAcceptedReply,
     executeReply,
     listLatestForTurns,
-    requireRegisteredModel,
+    resolveConfiguration,
     async generateReply(request: GenerateReplyRequest) {
       const execution = await executeReply(request);
 

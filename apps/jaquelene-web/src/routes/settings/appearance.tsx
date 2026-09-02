@@ -117,7 +117,6 @@ function AppearanceRoute() {
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Separator />
             <Breadcrumb.Item>
               <Breadcrumb.Page>Appearance</Breadcrumb.Page>
             </Breadcrumb.Item>

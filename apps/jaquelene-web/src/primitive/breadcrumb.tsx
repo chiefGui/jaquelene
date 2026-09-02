@@ -1,11 +1,33 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
+import {
+  Chip,
+  type ChipActionProps,
+  type ChipEndEdge,
+  type ChipFrameProps,
+  type ChipStartEdge,
+} from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
+import { Children, cloneElement, createContext, isValidElement, useContext } from "react";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
 };
+
+type BreadcrumbLinkProps = ChipActionProps & {
+  render: NonNullable<ChipActionProps["render"]>;
+};
+
+type BreadcrumbPageProps = ChipFrameProps;
+
+type BreadcrumbItemPosition = "first" | "last" | "middle" | "only";
+
+type BreadcrumbItemProps = StyleableProps<RoleProps<"li">> & {
+  position?: BreadcrumbItemPosition;
+};
+
+const BreadcrumbItemPositionContext = createContext<BreadcrumbItemPosition>("only");
 
 function BreadcrumbRoot({
   "aria-label": ariaLabel = "Breadcrumb",
@@ -15,33 +37,72 @@ function BreadcrumbRoot({
   return <Role.nav aria-label={ariaLabel} {...props} {...stylex.props(styles.root, style)} />;
 }
 
-function BreadcrumbList({ style, ...props }: StyleableProps<RoleProps<"ol">>) {
-  return <Role.ol {...props} {...stylex.props(styles.list, style)} />;
-}
+function BreadcrumbList({ children, style, ...props }: StyleableProps<RoleProps<"ol">>) {
+  const items = Children.toArray(children);
 
-function BreadcrumbItem({ style, ...props }: StyleableProps<RoleProps<"li">>) {
-  return <Role.li {...props} {...stylex.props(styles.textBox, style)} />;
-}
-
-function BreadcrumbLink({ style, ...props }: StyleableProps<RoleProps<"a">>) {
-  return <Role.a {...props} {...stylex.props(styles.link, style)} />;
-}
-
-function BreadcrumbPage({ style, ...props }: StyleableProps<RoleProps<"span">>) {
-  return <Role.span {...props} aria-current="page" {...stylex.props(styles.page, style)} />;
-}
-
-function BreadcrumbSeparator({ children = ">", style, ...props }: StyleableProps<RoleProps<"li">>) {
   return (
-    <Role.li
-      {...props}
-      role="presentation"
-      aria-hidden="true"
-      {...stylex.props(styles.separator, style)}
-    >
-      {children}
-    </Role.li>
+    <Role.ol {...props} {...stylex.props(styles.list, style)}>
+      {items.map((item, index) =>
+        isValidElement<BreadcrumbItemProps>(item)
+          ? cloneElement(item, {
+              position:
+                items.length === 1
+                  ? "only"
+                  : index === 0
+                    ? "first"
+                    : index === items.length - 1
+                      ? "last"
+                      : "middle",
+            })
+          : item,
+      )}
+    </Role.ol>
   );
+}
+
+function BreadcrumbItem({ children, position = "only", style, ...props }: BreadcrumbItemProps) {
+  const edges = getEdges(position);
+
+  return (
+    <BreadcrumbItemPositionContext value={position}>
+      <Role.li {...props} {...stylex.props(styles.item, style)}>
+        {position === "middle" || position === "last" ? (
+          <Chip.Divider style={styles.divider} />
+        ) : null}
+        {typeof children === "string" || typeof children === "number" ? (
+          <Chip.Frame {...edges} compound>
+            {children}
+          </Chip.Frame>
+        ) : (
+          children
+        )}
+      </Role.li>
+    </BreadcrumbItemPositionContext>
+  );
+}
+
+function BreadcrumbLink({ style, ...props }: BreadcrumbLinkProps) {
+  const edges = getEdges(useContext(BreadcrumbItemPositionContext));
+
+  return <Chip.Action {...props} {...edges} compound style={style} />;
+}
+
+function BreadcrumbPage({ style, ...props }: BreadcrumbPageProps) {
+  const edges = getEdges(useContext(BreadcrumbItemPositionContext));
+
+  return (
+    <Chip.Frame {...props} {...edges} aria-current="page" compound style={[styles.page, style]} />
+  );
+}
+
+function getEdges(position: BreadcrumbItemPosition): {
+  endEdge: ChipEndEdge;
+  startEdge: ChipStartEdge;
+} {
+  return {
+    endEdge: position === "last" || position === "only" ? "rounded" : "pointed",
+    startEdge: position === "first" || position === "only" ? "rounded" : "notched",
+  };
 }
 
 export const Breadcrumb = {
@@ -50,55 +111,48 @@ export const Breadcrumb = {
   Item: BreadcrumbItem,
   Link: BreadcrumbLink,
   Page: BreadcrumbPage,
-  Separator: BreadcrumbSeparator,
 } as const;
 
 const styles = stylex.create({
   root: {
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
+    alignItems: "center",
+    display: "flex",
+    height: "100%",
+    maxWidth: "100%",
     minWidth: 0,
+  },
+  divider: {
+    left: 0,
+    position: "absolute",
+    top: "-0.0625rem",
+    zIndex: 1,
   },
   list: {
     alignItems: "center",
+    backgroundColor: `color-mix(in oklch, ${tokens.accent} 8%, transparent)`,
+    borderColor: tokens.surfaceRaisedBorder,
+    borderRadius: tokens.radiusMedium,
+    borderStyle: "solid",
+    borderWidth: 1,
     display: "flex",
-    gap: "0.5rem",
+    height: "1.375rem",
+    maxWidth: "100%",
     minWidth: 0,
+    overflow: "hidden",
   },
-  textBox: {
+  item: {
+    alignItems: "center",
     color: tokens.muted,
-    textBox: "trim-both text",
-  },
-  link: {
-    color: {
-      default: tokens.muted,
-      ":hover": tokens.foreground,
+    display: "flex",
+    height: "1.25rem",
+    marginInlineStart: {
+      default: "-0.375rem",
+      ":first-child": 0,
     },
-    outlineColor: {
-      default: null,
-      ":focus-visible": `color-mix(in oklab, ${tokens.accent} 60%, transparent)`,
-    },
-    outlineOffset: {
-      default: null,
-      ":focus-visible": 2,
-    },
-    outlineStyle: {
-      default: "none",
-      ":focus-visible": "solid",
-    },
-    outlineWidth: {
-      default: null,
-      ":focus-visible": 1,
-    },
-    textBox: "trim-both text",
+    minWidth: 0,
+    position: "relative",
   },
   page: {
     color: tokens.foreground,
-    fontWeight: 500,
-    textBox: "trim-both text",
-  },
-  separator: {
-    color: tokens.muted,
-    textBox: "trim-both text",
   },
 });

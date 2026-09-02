@@ -110,6 +110,26 @@
     },
     {
       "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "reasoning_preset",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "reasoning_preset_source",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
       "notNull": true,
       "autoincrement": false,
       "default": null,
@@ -755,13 +775,19 @@
       "table": "generations"
     },
     {
+      "value": "(\"reasoning_preset\" IS NULL AND \"reasoning_preset_source\" IS NULL)\n        OR (\"reasoning_preset\" IS NOT NULL\n          AND \"reasoning_preset_source\" IS NOT NULL\n          AND \"reasoning_preset\" IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')\n          AND \"reasoning_preset_source\" IN ('model-default', 'override'))",
+      "name": "generations_reasoning_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
       "value": "\"status\" IN ('pending', 'completed', 'failed')",
       "name": "generations_status_valid",
       "entityType": "checks",
       "table": "generations"
     },
     {
-      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('prompt', 'provider', 'invalid-output', 'interrupted', 'storage')",
+      "value": "\"failure_kind\" IS NULL OR \"failure_kind\" IN ('preparation', 'provider', 'invalid-output', 'interrupted', 'storage')",
       "name": "generations_failure_kind_valid",
       "entityType": "checks",
       "table": "generations"

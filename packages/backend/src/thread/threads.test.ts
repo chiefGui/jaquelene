@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
@@ -8,8 +9,9 @@ import { threadMessageTable, turnTable } from "./schema";
 import {
   appendAssistantMessageInTransaction,
   createThreads,
-  THREAD_MESSAGE_CONTENT_MAX_LENGTH,
-  THREAD_MESSAGE_PAGE_SIZE,
+  THREAD_MESSAGE_MAX_CODE_UNITS,
+  THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+  THREAD_MESSAGE_PAGE_MAX_COUNT,
 } from "./threads";
 
 const directories: string[] = [];
@@ -42,6 +44,19 @@ afterEach(() => {
 });
 
 describe("threads", () => {
+  it("returns the bounded page contract for a thread without messages", () => {
+    const { threads } = openThreads(createDatabasePath(), () => 50);
+    const thread = threads.create();
+
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
+      messages: [],
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 0,
+    });
+  });
+
   it("creates a campaign-agnostic thread and retrieves it by identity", () => {
     const { threads } = openThreads(createDatabasePath(), () => 100);
     const thread = threads.create();
@@ -82,10 +97,12 @@ describe("threads", () => {
         sequence: 2,
       }),
     );
-    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [first.message, second.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 31,
     });
   });
 
@@ -117,42 +134,182 @@ describe("threads", () => {
 
     expect(firstReply.activated).toBe(true);
     expect(siblingReply.activated).toBe(false);
+    expect(
+      database
+        .select({
+          id: threadMessageTable.id,
+          activeChildMessageId: threadMessageTable.activeChildMessageId,
+        })
+        .from(threadMessageTable)
+        .all(),
+    ).toEqual(
+      expect.arrayContaining([
+        { id: first.message.id, activeChildMessageId: firstReply.message.id },
+        { id: firstReply.message.id, activeChildMessageId: second.message.id },
+        { id: second.message.id, activeChildMessageId: null },
+        { id: siblingReply.message.id, activeChildMessageId: null },
+      ]),
+    );
     expect(threads.getTurnContext(second.turn.id)).toEqual({
       turnId: second.turn.id,
       threadId: thread.id,
       inputMessageId: second.message.id,
       messages: [first.message, firstReply.message, second.message],
     });
-    expect(threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [first.message, firstReply.message, second.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 48,
     });
+    expect(() =>
+      threads.listMessages({
+        threadId: thread.id,
+        direction: "newer",
+        cursor: siblingReply.message.id,
+      }),
+    ).toThrow(TypeError);
   });
 
   it("pages backward through one branch with an opaque message cursor", () => {
     const { threads } = openThreads(createDatabasePath(), () => 400);
     const thread = threads.create();
-    const turns = Array.from({ length: THREAD_MESSAGE_PAGE_SIZE + 2 }, (_, index) =>
+    const turns = Array.from({ length: THREAD_MESSAGE_PAGE_MAX_COUNT + 2 }, (_, index) =>
       threads.startTurn(thread.id, `Message ${index + 1}`),
     );
 
-    const newestPage = threads.listMessages({ threadId: thread.id });
+    const newestPage = threads.listMessages({ threadId: thread.id, direction: "older" });
 
-    expect(newestPage.messages).toHaveLength(THREAD_MESSAGE_PAGE_SIZE);
+    expect(newestPage.messages).toHaveLength(THREAD_MESSAGE_PAGE_MAX_COUNT);
     expect(newestPage.messages[0]?.sequence).toBe(3);
-    expect(newestPage.messages.at(-1)?.sequence).toBe(THREAD_MESSAGE_PAGE_SIZE + 2);
-    expect(newestPage.nextCursor).toBe(turns[1]?.message.id);
+    expect(newestPage.messages.at(-1)?.sequence).toBe(THREAD_MESSAGE_PAGE_MAX_COUNT + 2);
+    expect(newestPage.olderCursor).toBe(turns[1]?.message.id);
 
-    if (!newestPage.nextCursor) {
+    if (!newestPage.olderCursor) {
       throw new Error("Expected another page of thread messages.");
     }
 
-    expect(threads.listMessages({ threadId: thread.id, before: newestPage.nextCursor })).toEqual({
+    expect(
+      threads.listMessages({
+        threadId: thread.id,
+        direction: "older",
+        cursor: newestPage.olderCursor,
+      }),
+    ).toEqual({
       messages: [turns[0]?.message, turns[1]?.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 18,
+      newerCursor: turns[2]?.message.id,
     });
+  });
+
+  it("pages forward through the active branch without scanning from the thread head", () => {
+    const { threads } = openThreads(createDatabasePath(), () => 425);
+    const thread = threads.create();
+    const turns = Array.from({ length: THREAD_MESSAGE_PAGE_MAX_COUNT + 2 }, (_, index) =>
+      threads.startTurn(thread.id, `Message ${index + 1}`),
+    );
+    const newestPage = threads.listMessages({ threadId: thread.id, direction: "older" });
+    const olderCursor = newestPage.olderCursor;
+
+    if (!olderCursor) {
+      throw new Error("Expected another page of thread messages.");
+    }
+
+    const oldestPage = threads.listMessages({
+      threadId: thread.id,
+      direction: "older",
+      cursor: olderCursor,
+    });
+
+    expect(oldestPage.messages).toEqual([turns[0]?.message, turns[1]?.message]);
+    expect(oldestPage.newerCursor).toBe(turns[2]?.message.id);
+
+    if (!oldestPage.newerCursor) {
+      throw new Error("Expected a forward cursor from the historical page.");
+    }
+
+    expect(
+      threads.listMessages({
+        threadId: thread.id,
+        direction: "newer",
+        cursor: oldestPage.newerCursor,
+      }),
+    ).toEqual(newestPage);
+  });
+
+  it("bounds a page by UTF-8 content bytes without splitting its anchor", () => {
+    const { threads } = openThreads(createDatabasePath(), () => 450);
+    const thread = threads.create();
+    const excluded = threads.startTurn(thread.id, "Older message");
+    const multibyte = threads.startTurn(thread.id, "é".repeat(32_768));
+    const newest = threads.startTurn(thread.id, "x".repeat(65_536));
+
+    const newestPage = threads.listMessages({ threadId: thread.id, direction: "older" });
+
+    expect(newestPage).toEqual({
+      messages: [multibyte.message, newest.message],
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      olderCursor: excluded.message.id,
+    });
+
+    if (!newestPage.olderCursor) {
+      throw new Error("Expected another page of thread messages.");
+    }
+
+    expect(
+      threads.listMessages({
+        threadId: thread.id,
+        direction: "older",
+        cursor: newestPage.olderCursor,
+      }),
+    ).toEqual({
+      messages: [excluded.message],
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 13,
+      newerCursor: multibyte.message.id,
+    });
+    expect(
+      threads.listMessages({
+        threadId: thread.id,
+        direction: "newer",
+        cursor: multibyte.message.id,
+      }),
+    ).toEqual(newestPage);
+  });
+
+  it("returns an oversized anchor alone and reports its actual UTF-8 weight", () => {
+    const { threads } = openThreads(createDatabasePath(), () => 475);
+    const thread = threads.create();
+    const parent = threads.startTurn(thread.id, "Parent message");
+    const oversized = threads.startTurn(thread.id, "😀".repeat(50_000));
+
+    expect(oversized.message.content).toHaveLength(THREAD_MESSAGE_MAX_CODE_UNITS);
+    const latestPage = threads.listMessages({ threadId: thread.id, direction: "older" });
+
+    expect(latestPage).toEqual({
+      messages: [oversized.message],
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 200_000,
+      olderCursor: parent.message.id,
+    });
+    expect(
+      threads.listMessages({
+        threadId: thread.id,
+        direction: "newer",
+        cursor: oversized.message.id,
+      }),
+    ).toEqual(latestPage);
   });
 
   it("persists turns, messages, ancestry, and the active head when reopened", () => {
@@ -171,10 +328,14 @@ describe("threads", () => {
       inputMessageId: started.message.id,
       messages: [started.message],
     });
-    expect(secondConnection.threads.listMessages({ threadId: thread.id })).toEqual({
+    expect(
+      secondConnection.threads.listMessages({ threadId: thread.id, direction: "older" }),
+    ).toEqual({
       messages: [started.message],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+      messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+      contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+      contentBytes: 18,
     });
   });
 
@@ -199,6 +360,32 @@ describe("threads", () => {
 
     expect(database.select().from(turnTable).all()).toEqual([]);
     expect(threads.startTurn(thread.id, "Accepted message").message.sequence).toBe(1);
+  });
+
+  it("moves the active head and selected path edge atomically", () => {
+    const { database, threads } = openThreads(createDatabasePath(), () => 650);
+    const thread = threads.create();
+    const root = threads.startTurn(thread.id, "Root message");
+
+    database.$client.exec(`
+      CREATE TRIGGER reject_active_path
+      BEFORE UPDATE OF active_child_message_id ON thread_messages
+      WHEN NEW.active_child_message_id IS NOT NULL
+      BEGIN
+        SELECT RAISE(ABORT, 'rejected by test');
+      END;
+    `);
+
+    try {
+      expect(() => threads.startTurn(thread.id, "Rejected child")).toThrow();
+    } finally {
+      database.$client.exec("DROP TRIGGER reject_active_path;");
+    }
+
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" }).messages).toEqual([
+      root.message,
+    ]);
+    expect(threads.startTurn(thread.id, "Accepted child").message.sequence).toBe(2);
   });
 
   it("enforces turn ownership and message graph invariants in storage", () => {
@@ -258,6 +445,22 @@ describe("threads", () => {
         .prepare("UPDATE threads SET active_message_id = ? WHERE id = ?")
         .run(otherMessage.id, thread.id),
     ).toThrow();
+    const child = threads.startTurn(thread.id, "Child");
+    const grandchild = threads.startTurn(thread.id, "Grandchild");
+    expect(() =>
+      database.$client
+        .prepare(
+          "UPDATE thread_messages SET active_child_message_id = ? WHERE thread_id = ? AND id = ?",
+        )
+        .run(grandchild.message.id, thread.id, started.message.id),
+    ).toThrow();
+    expect(
+      database
+        .select({ activeChildMessageId: threadMessageTable.activeChildMessageId })
+        .from(threadMessageTable)
+        .where(eq(threadMessageTable.id, started.message.id))
+        .get(),
+    ).toEqual({ activeChildMessageId: child.message.id });
   });
 
   it("requires identities for every persisted turn and message", () => {
@@ -287,7 +490,7 @@ describe("threads", () => {
 
     expect(() => threads.startTurn(thread.id, " \n\t ")).toThrow(TypeError);
     expect(() =>
-      threads.startTurn(thread.id, "x".repeat(THREAD_MESSAGE_CONTENT_MAX_LENGTH + 1)),
+      threads.startTurn(thread.id, "x".repeat(THREAD_MESSAGE_MAX_CODE_UNITS + 1)),
     ).toThrow(RangeError);
     expect(() => threads.startTurn(missingThreadId, "Hello")).toThrow(
       `Thread "${missingThreadId}" does not exist.`,
@@ -304,16 +507,28 @@ describe("threads", () => {
     const otherMessage = threads.startTurn(otherThread.id, "Other thread").message;
     const missingThreadId = ids.thread.create();
 
-    expect(() => threads.listMessages({ threadId: thread.id, before: "not-a-cursor" })).toThrow(
+    expect(() => threads.listMessages({ threadId: thread.id, direction: "newer" })).toThrow(
       TypeError,
     );
+
     expect(() =>
-      threads.listMessages({ threadId: thread.id, before: ids.message.create() }),
+      threads.listMessages({ threadId: thread.id, direction: "older", cursor: "not-a-cursor" }),
     ).toThrow(TypeError);
-    expect(() => threads.listMessages({ threadId: thread.id, before: otherMessage.id })).toThrow(
-      TypeError,
-    );
-    expect(() => threads.listMessages({ threadId: missingThreadId })).toThrow(
+    expect(() =>
+      threads.listMessages({
+        threadId: thread.id,
+        direction: "older",
+        cursor: ids.message.create(),
+      }),
+    ).toThrow(TypeError);
+    expect(() =>
+      threads.listMessages({
+        threadId: thread.id,
+        direction: "older",
+        cursor: otherMessage.id,
+      }),
+    ).toThrow(TypeError);
+    expect(() => threads.listMessages({ threadId: missingThreadId, direction: "older" })).toThrow(
       `Thread "${missingThreadId}" does not exist.`,
     );
   });

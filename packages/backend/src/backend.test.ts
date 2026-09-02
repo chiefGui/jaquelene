@@ -12,14 +12,25 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import { StorageCategory } from "#backend/storage/storage";
+import { factoryRoleplay } from "#backend/instruction/factory/roleplay";
 import {
   createThreads,
-  THREAD_MESSAGE_CONTENT_MAX_LENGTH,
-  THREAD_MESSAGE_PAGE_SIZE,
+  THREAD_MESSAGE_MAX_CODE_UNITS,
+  THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+  THREAD_MESSAGE_PAGE_MAX_COUNT,
 } from "#backend/thread/threads";
 import { createBackend, type BackendOptions } from "./backend";
 
 const directories: string[] = [];
+
+function threadPageMetadata(messages: readonly { content: string }[]) {
+  return {
+    messageCountLimit: THREAD_MESSAGE_PAGE_MAX_COUNT,
+    messageMaxCodeUnits: THREAD_MESSAGE_MAX_CODE_UNITS,
+    contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
+    contentBytes: messages.reduce((total, { content }) => total + Buffer.byteLength(content), 0),
+  };
+}
 
 function createDatabasePath() {
   const directory = mkdtempSync(join(tmpdir(), "jaquelene-backend-"));
@@ -54,7 +65,9 @@ function providerAdapter(id: string, generation?: ProviderGenerationAdapter): Pr
   return {
     descriptor: { id, name: id, brandId: id },
     configuration: { kind: "none" },
-    models: { list: async () => [] },
+    models: {
+      list: async () => [{ id: "maker/model", name: "Model", brandId: "maker" }],
+    },
     generation: generation ?? { generate: async () => ({ text: "Unused" }) },
   };
 }
@@ -91,7 +104,7 @@ describe("backend", () => {
         id: "maker/model",
         name: "Model",
         brandId: "maker",
-        reasoning: { required: true },
+        reasoning: { defaultPreset: "high" as const, supportedPresets: ["high"] as const },
       },
     ]);
     const first = await createBackend(
@@ -109,11 +122,17 @@ describe("backend", () => {
           id: "maker/model",
           name: "Model",
           brandId: "maker",
-          reasoning: { required: true },
+          reasoning: { defaultPreset: "high", supportedPresets: ["high"] },
         },
       ],
       freshness: "fresh",
     });
+    await expect(
+      first.models.getModel({ providerId: "provider-a", modelId: "maker/model" }),
+    ).resolves.toMatchObject({ id: "maker/model", name: "Model" });
+    await expect(
+      first.models.getModel({ providerId: "provider-a", modelId: "maker/missing" }),
+    ).rejects.toThrow('does not expose model "maker/missing"');
     expect(firstList).toHaveBeenCalledOnce();
     await first.close();
 
@@ -135,7 +154,7 @@ describe("backend", () => {
           id: "maker/model",
           name: "Model",
           brandId: "maker",
-          reasoning: { required: true },
+          reasoning: { defaultPreset: "high", supportedPresets: ["high"] },
         },
       ],
       freshness: "fresh",
@@ -179,12 +198,15 @@ describe("backend", () => {
       },
     });
     const first = await createBackend(backendOptions(databasePath, [provider]));
-    const scenario = first.scenarios.create("Voyage");
+    expect(first.instructions.listGroups()).toEqual(factoryRoleplay.listGroups());
+    const scenario = first.scenarios.create({ title: "Voyage" });
     const campaign = first.campaigns.start(scenario.id);
-    const submittedOperation = first.turns.submit({
+    const submittedOperation = await first.turns.submit({
       threadId: campaign.threadId,
       content: "Begin",
-      model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      configuration: {
+        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      },
     });
     const submitted = await submittedOperation.settlement;
 
@@ -192,11 +214,29 @@ describe("backend", () => {
       throw new Error("Expected the submitted reply to complete.");
     }
 
+    const campaignUsage = {
+      campaignId: campaign.id,
+      attempts: { provider: 1, preparing: 0, pending: 0, completed: 1, failed: 0 },
+      tokenCoverage: { reported: 0, unknown: 1 },
+      costCoverage: { reported: 0, unknown: 1 },
+      costs: [],
+      models: [
+        {
+          providerId: provider.descriptor.id,
+          requestedModelId: "maker/model",
+          attempts: 1,
+        },
+      ],
+    };
+    expect(first.campaignUsage.get(campaign.id)).toEqual(campaignUsage);
+
     const firstClose = first.close();
     expect(first.close()).toBe(firstClose);
     await firstClose;
 
     expect(() => first.scenarios.list()).toThrow("Backend is closed.");
+    expect(() => first.instructions.listGroups()).toThrow("Backend is closed.");
+    expect(() => first.campaignUsage.get(campaign.id)).toThrow("Backend is closed.");
     await expect(first.storage.measureUsage()).rejects.toThrow("Backend is closed.");
     await expect(first.storage.deleteArea("content")).rejects.toThrow("Backend is closed.");
     await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(
@@ -206,7 +246,9 @@ describe("backend", () => {
       first.turns.submit({
         threadId: campaign.threadId,
         content: "Continue",
-        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+        configuration: {
+          model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+        },
       }),
     ).toThrow("Backend is closed.");
 
@@ -214,11 +256,13 @@ describe("backend", () => {
 
     expect(reopened.scenarios.get(scenario.id)).toEqual(scenario);
     expect(reopened.campaigns.get(campaign.id)).toEqual(campaign);
-    expect(reopened.turns.listForThread({ threadId: campaign.threadId })).toEqual({
+    expect(reopened.campaignUsage.get(campaign.id)).toEqual(campaignUsage);
+    expect(
+      reopened.turns.listForThread({ threadId: campaign.threadId, direction: "older" }),
+    ).toEqual({
       messages: [submitted.userMessage, submitted.assistantMessage],
       generations: [submitted.generation],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([submitted.userMessage, submitted.assistantMessage]),
     });
     await reopened.close();
   });
@@ -361,10 +405,12 @@ describe("backend", () => {
     });
     const backend = await createBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
-    const pending = backend.turns.submit({
+    const pending = await backend.turns.submit({
       threadId: thread.id,
       content: "Hello",
-      model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      configuration: {
+        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      },
     });
     await providerStarted.promise;
 
@@ -403,10 +449,12 @@ describe("backend", () => {
     const provider = providerAdapter("provider-a", { generate });
     const backend = await createBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
-    const pending = backend.turns.submit({
+    const pending = await backend.turns.submit({
       threadId: thread.id,
       content: "Hello",
-      model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      configuration: {
+        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+      },
     });
 
     const closing = backend.close();
@@ -419,11 +467,10 @@ describe("backend", () => {
     );
     const reopened = await createBackend(backendOptions(databasePath));
 
-    expect(reopened.turns.listForThread({ threadId: thread.id })).toEqual({
+    expect(reopened.turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [interrupted.userMessage],
       generations: [interrupted.generation],
-      pageSize: THREAD_MESSAGE_PAGE_SIZE,
-      messageContentMaxLength: THREAD_MESSAGE_CONTENT_MAX_LENGTH,
+      ...threadPageMetadata([interrupted.userMessage]),
     });
     await reopened.close();
   });
@@ -480,7 +527,7 @@ describe("backend", () => {
     await expect(
       backend.generations.generateReply({
         turnId: ids.turn.create(),
-        model: { providerId: "provider-a", modelId: "maker/model" },
+        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
       }),
     ).rejects.toThrow("Backend is closed.");
     await closing;

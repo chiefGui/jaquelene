@@ -1,4 +1,10 @@
-import { Threads, Turns, type ModelReference } from "@jaquelene/ipc/renderer";
+import {
+  ThreadMessagePageDirection,
+  Threads,
+  Turns,
+  type GenerationConfiguration,
+  type ThreadMessagePageRequest,
+} from "@jaquelene/ipc/renderer";
 import {
   type QueryClient,
   infiniteQueryOptions,
@@ -8,9 +14,17 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { invalidateCampaignUsage } from "@/feature/campaign/usage-query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 import {
+  THREAD_HISTORY_RETAINED_PAGE_LIMIT,
+  createLatestThreadHistory,
+  isLatestThreadHistory,
+  latestThreadHistoryPageParam,
   reconcileThreadTurn,
+  requireValidThreadHistory,
+  retainThreadHistory,
+  type ThreadHistoryPageParam,
   type ThreadQueryData,
   type ThreadTurnUpdate,
 } from "./thread-query-cache";
@@ -27,20 +41,43 @@ export type SubmitTurnVariables = {
   clientId: string;
   content: string;
   submittedAt: number;
-  model: ModelReference;
+  configuration: GenerationConfiguration;
 };
+
+function toThreadMessagePageRequest(
+  threadId: string,
+  pageParam: ThreadHistoryPageParam,
+): ThreadMessagePageRequest {
+  if (pageParam.kind === "latest") {
+    return { threadId, direction: ThreadMessagePageDirection.Older };
+  }
+
+  return {
+    threadId,
+    direction:
+      pageParam.direction === "older"
+        ? ThreadMessagePageDirection.Older
+        : ThreadMessagePageDirection.Newer,
+    cursor: pageParam.cursor,
+  };
+}
 
 export function threadMessagesQuery(threadId: string) {
   return infiniteQueryOptions({
     ...ipcQueryOptions,
     queryKey: [...threadQueryKey, threadId, "messages"],
-    initialPageParam: "",
-    queryFn: ({ pageParam }) =>
-      listThreadMessages({
-        threadId,
-        ...(pageParam ? { before: pageParam } : {}),
-      }),
-    getNextPageParam: (page) => page.nextCursor,
+    initialPageParam: latestThreadHistoryPageParam,
+    maxPages: THREAD_HISTORY_RETAINED_PAGE_LIMIT,
+    queryFn: ({ pageParam }) => listThreadMessages(toThreadMessagePageRequest(threadId, pageParam)),
+    getNextPageParam: (page) =>
+      page.olderCursor
+        ? ({ kind: "cursor", direction: "older", cursor: page.olderCursor } as const)
+        : undefined,
+    getPreviousPageParam: (page) =>
+      page.newerCursor
+        ? ({ kind: "cursor", direction: "newer", cursor: page.newerCursor } as const)
+        : undefined,
+    select: (data) => requireValidThreadHistory(data, threadId),
   });
 }
 
@@ -52,8 +89,18 @@ function turnMutationKey(threadId: string) {
   return [...threadQueryKey, threadId, "turn"] as const;
 }
 
-function copyModelReference({ providerId, modelId }: ModelReference): ModelReference {
-  return { providerId, modelId };
+function copyGenerationConfiguration(
+  configuration: GenerationConfiguration,
+): GenerationConfiguration {
+  return {
+    model: {
+      providerId: configuration.model.providerId,
+      modelId: configuration.model.modelId,
+    },
+    ...(configuration.reasoningPreset === undefined
+      ? {}
+      : { reasoningPreset: configuration.reasoningPreset }),
+  };
 }
 
 function reconcileTurn(queryClient: QueryClient, threadId: string, update: ThreadTurnUpdate) {
@@ -71,6 +118,7 @@ function reconcileTurn(queryClient: QueryClient, threadId: string, update: Threa
       queryClient.setQueryData(query.queryKey, reconciliation.data);
       return;
     case "current":
+    case "historical":
       return;
     case "reload":
       reportError(
@@ -82,8 +130,49 @@ function reconcileTurn(queryClient: QueryClient, threadId: string, update: Threa
 }
 
 function reloadThread(queryClient: QueryClient, threadId: string) {
+  const query = threadMessagesQuery(threadId);
+  const current = queryClient.getQueryData<ThreadQueryData>(query.queryKey);
+
+  if (current && !isLatestThreadHistory(current)) {
+    return Promise.resolve();
+  }
+
+  return queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
+}
+
+function refreshCampaignUsage(queryClient: QueryClient) {
+  void invalidateCampaignUsage(queryClient).catch((cause: unknown) =>
+    reportError("campaign.usage.refresh", cause),
+  );
+}
+
+export function retainLoadedThreadMessages(
+  queryClient: QueryClient,
+  threadId: string,
+  direction: "older" | "newer",
+) {
   const queryKey = threadMessagesQuery(threadId).queryKey;
-  return queryClient.invalidateQueries({ queryKey, exact: true });
+
+  queryClient.setQueryData<ThreadQueryData>(queryKey, (current) =>
+    current ? retainThreadHistory(current, direction === "older" ? "oldest" : "newest") : current,
+  );
+}
+
+export function useReturnToLatestThreadMessages(threadId: string) {
+  const queryClient = useQueryClient();
+  const queryKey = threadMessagesQuery(threadId).queryKey;
+
+  return useMutation({
+    ...ipcMutationOptions,
+    mutationKey: [...threadQueryKey, threadId, "return-to-latest"],
+    mutationFn: () => listThreadMessages({ threadId, direction: ThreadMessagePageDirection.Older }),
+    onSuccess(page) {
+      queryClient.setQueryData<ThreadQueryData>(
+        queryKey,
+        createLatestThreadHistory(page, threadId),
+      );
+    },
+  });
 }
 
 export function useIsTurnOperationPending(threadId: string) {
@@ -105,6 +194,7 @@ export function usePendingTurnSubmission(threadId: string) {
 
 export function installThreadSettlementReconciliation(queryClient: QueryClient) {
   function applyEvent(threadId: string, update: ThreadTurnUpdate) {
+    refreshCampaignUsage(queryClient);
     try {
       void Promise.resolve(reconcileTurn(queryClient, threadId, update)).catch((cause: unknown) =>
         reportError("thread.turn.settlement", cause),
@@ -121,6 +211,7 @@ export function installThreadSettlementReconciliation(queryClient: QueryClient) 
     applyEvent(completion.userMessage.threadId, { type: "reply-completed", ...completion });
   });
   const stopSupersededListener = onReplySuperseded(({ threadId }) => {
+    refreshCampaignUsage(queryClient);
     try {
       void reloadThread(queryClient, threadId).catch((cause: unknown) =>
         reportError("thread.turn.settlement", cause),
@@ -144,9 +235,14 @@ export function useSubmitTurn(threadId: string) {
     ...ipcMutationOptions,
     mutationKey: [...turnMutationKey(threadId), "submit"],
     scope: turnMutationScope(threadId),
-    mutationFn: ({ content, model }: SubmitTurnVariables) =>
-      submitTurn({ threadId, content, model: copyModelReference(model) }),
+    mutationFn: ({ content, configuration }: SubmitTurnVariables) =>
+      submitTurn({
+        threadId,
+        content,
+        configuration: copyGenerationConfiguration(configuration),
+      }),
     onSuccess(submission) {
+      refreshCampaignUsage(queryClient);
       return reconcileTurn(queryClient, threadId, {
         type: "submission-accepted",
         ...submission,
@@ -165,9 +261,15 @@ export function useRetryTurn(threadId: string) {
     ...ipcMutationOptions,
     mutationKey: [...turnMutationKey(threadId), "retry"],
     scope: turnMutationScope(threadId),
-    mutationFn: ({ turnId, model }: { turnId: string; model: ModelReference }) =>
-      retryTurn({ turnId, model: copyModelReference(model) }),
+    mutationFn: ({
+      turnId,
+      configuration,
+    }: {
+      turnId: string;
+      configuration: GenerationConfiguration;
+    }) => retryTurn({ turnId, configuration: copyGenerationConfiguration(configuration) }),
     onSuccess(generation) {
+      refreshCampaignUsage(queryClient);
       return reconcileTurn(queryClient, threadId, { type: "retry-accepted", generation });
     },
     onError() {

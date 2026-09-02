@@ -1,13 +1,11 @@
-import {
-  GenerationFailureKind,
-  GenerationStatus,
-  type ModelReference,
-  type TurnGeneration,
+import type {
+  GenerationConfiguration,
+  GenerationConfigurationSelection,
 } from "@jaquelene/ipc/renderer";
-import { Button, formatTimestamp } from "@jaquelene/ui";
+import { Button } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import {
   memo,
   useCallback,
@@ -18,292 +16,162 @@ import {
   useState,
   type KeyboardEvent,
   type ReactNode,
-  type RefObject,
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { Composer } from "@/primitive/composer";
+import { Composer } from "@/feature/composer/composer";
 import {
+  retainLoadedThreadMessages,
   threadMessagesQuery,
   useIsTurnOperationPending,
   usePendingTurnSubmission,
+  useReturnToLatestThreadMessages,
   useRetryTurn,
   useSubmitTurn,
-  type SubmitTurnVariables,
 } from "./query";
-import { deriveThreadViewState, type ThreadViewState } from "./thread-view-state";
+import { isLatestThreadHistory } from "./thread-query-cache";
+import { threadLayout } from "./thread-layout.stylex";
+import { ThreadTimeline } from "./thread-timeline";
+import { deriveThreadViewState } from "./thread-view-state";
 
 type RetryStatus = "pending" | "failed" | null;
 
-function isScrolledToEnd(viewport: HTMLElement) {
-  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
+function toGenerationConfiguration(
+  configuration: GenerationConfigurationSelection,
+): GenerationConfiguration {
+  return {
+    model: {
+      providerId: configuration.model.providerId,
+      modelId: configuration.model.modelId,
+    },
+    ...(configuration.reasoningPreset === undefined
+      ? {}
+      : { reasoningPreset: configuration.reasoningPreset }),
+  };
 }
 
 function scrollToEnd(viewport: HTMLElement) {
   viewport.scrollTop = viewport.scrollHeight;
 }
 
-function replyStatusText(generation: TurnGeneration, retrying: boolean) {
-  if (retrying) {
-    return "Retrying…";
-  }
-
-  switch (generation.status) {
-    case GenerationStatus.Pending:
-      return "Generating reply…";
-    case GenerationStatus.Completed:
-      return "Reply generated.";
-    case GenerationStatus.Failed:
-      return generation.failureKind === GenerationFailureKind.Interrupted
-        ? "Reply interrupted."
-        : "Couldn’t generate a reply.";
-  }
+function isScrolledToEnd(viewport: HTMLElement) {
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
 }
 
-type ThreadTimelineProps = Readonly<{
-  view: ThreadViewState;
-  pendingSubmission: SubmitTurnVariables | null;
-  viewport: RefObject<HTMLElement | null>;
-  pinnedToEnd: RefObject<boolean>;
-  modelAvailable: boolean;
-  retryStatus: RetryStatus;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  isFetchNextPageError: boolean;
-  operationPending: boolean;
-  loadOlder: () => Promise<unknown>;
-  retryReply: (turnId: string) => Promise<void>;
+type ThreadControlsLayerProps = Readonly<{
+  children: ReactNode;
+  onHeightChange: (height: number) => void;
 }>;
 
-const ThreadTimeline = memo(function ThreadTimeline({
-  view,
-  pendingSubmission,
-  viewport,
-  pinnedToEnd,
-  modelAvailable,
-  retryStatus,
-  hasNextPage,
-  isFetchingNextPage,
-  isFetchNextPageError,
-  operationPending,
-  loadOlder,
-  retryReply,
-}: ThreadTimelineProps) {
-  const messageList = useRef<HTMLOListElement>(null);
-  const initialScrollComplete = useRef(false);
-  const lastPendingSubmissionId = useRef<string | null>(null);
-  const loadingOlder = useRef(false);
-  const paginationAnchor = useRef<{
-    element: Element;
-    top: number;
-  } | null>(null);
-  const [paginationRevision, setPaginationRevision] = useState(0);
-  const optimisticSubmission = view.replyPending ? null : pendingSubmission;
-  const empty = view.messages.length === 0 && !optimisticSubmission;
+function ThreadControlsLayer({ children, onHeightChange }: ThreadControlsLayerProps) {
+  const layer = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    const element = viewport.current;
+    const element = layer.current;
 
-    if (!element || initialScrollComplete.current) {
+    if (!element) {
       return;
     }
 
-    scrollToEnd(element);
-    initialScrollComplete.current = true;
-  }, [viewport]);
+    const updateHeight = (height: number) => {
+      onHeightChange(Math.ceil(height));
+    };
 
-  useLayoutEffect(() => {
-    const element = viewport.current;
-    const clientId = optimisticSubmission?.clientId ?? null;
+    updateHeight(element.offsetHeight);
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      updateHeight(entry?.borderBoxSize[0]?.blockSize ?? element.offsetHeight);
+    });
+    resizeObserver.observe(element);
 
-    if (!element || !clientId || clientId === lastPendingSubmissionId.current) {
-      return;
-    }
-
-    scrollToEnd(element);
-    lastPendingSubmissionId.current = clientId;
-  }, [optimisticSubmission?.clientId, viewport]);
-
-  useLayoutEffect(() => {
-    const element = viewport.current;
-
-    if (element && pinnedToEnd.current) {
-      scrollToEnd(element);
-    }
-  }, [modelAvailable, pinnedToEnd, retryStatus, view.latestMessageId, view.replyPending, viewport]);
-
-  useLayoutEffect(() => {
-    const element = viewport.current;
-    const anchor = paginationAnchor.current;
-
-    if (!element || !anchor) {
-      return;
-    }
-
-    if (element.contains(anchor.element)) {
-      element.scrollTop += anchor.element.getBoundingClientRect().top - anchor.top;
-    }
-
-    paginationAnchor.current = null;
-  }, [paginationRevision, viewport]);
-
-  async function loadOlderMessages() {
-    if (loadingOlder.current) {
-      return;
-    }
-
-    loadingOlder.current = true;
-    const element = viewport.current;
-    const anchorElement = messageList.current?.firstElementChild;
-
-    if (element && anchorElement) {
-      paginationAnchor.current = {
-        element: anchorElement,
-        top: anchorElement.getBoundingClientRect().top,
-      };
-    }
-
-    try {
-      await loadOlder();
-    } catch (cause) {
-      reportError("thread.messages.load-older", cause);
-    } finally {
-      loadingOlder.current = false;
-      setPaginationRevision((revision) => revision + 1);
-    }
-  }
+    return () => resizeObserver.disconnect();
+  }, [onHeightChange]);
 
   return (
-    <div {...stylex.props(styles.messageBody)}>
-      {hasNextPage ? (
-        <div {...stylex.props(styles.loadOlder)}>
+    <div {...stylex.props(styles.controlsAnchor)}>
+      <div
+        ref={layer}
+        {...stylex.props(threadLayout.column, threadLayout.gutter, styles.controlsLayer)}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type ThreadHistoryControlsProps = Readonly<{
+  hasNewerMessages: boolean;
+  loadingNewerMessages: boolean;
+  newerMessagesFailed: boolean;
+  returnToLatestFailed: boolean;
+  returningToLatest: boolean;
+  navigationPending: boolean;
+  loadNewer: () => Promise<void>;
+  returnToLatest: () => Promise<void>;
+}>;
+
+const ThreadHistoryControls = memo(function ThreadHistoryControls({
+  hasNewerMessages,
+  loadingNewerMessages,
+  newerMessagesFailed,
+  returnToLatestFailed,
+  returningToLatest,
+  navigationPending,
+  loadNewer,
+  returnToLatest,
+}: ThreadHistoryControlsProps) {
+  return (
+    <>
+      <div {...stylex.props(styles.historyControls)}>
+        <p {...stylex.props(styles.historyDescription)}>Viewing message history.</p>
+        <div {...stylex.props(styles.historyActions)}>
+          {hasNewerMessages ? (
+            <Button
+              type="button"
+              variant="ghost"
+              style={styles.loadNewerAction}
+              disabled={navigationPending}
+              onClick={() => void loadNewer()}
+            >
+              {loadingNewerMessages ? "Loading…" : "Load newer messages"}
+            </Button>
+          ) : null}
           <Button
             type="button"
-            variant="ghost"
-            disabled={isFetchingNextPage}
-            onClick={() => void loadOlderMessages()}
+            style={styles.returnToLatestAction}
+            disabled={navigationPending}
+            onClick={() => void returnToLatest()}
           >
-            {isFetchingNextPage ? "Loading…" : "Load older messages"}
+            {returningToLatest ? "Returning…" : "Return to latest"}
           </Button>
         </div>
-      ) : null}
-
-      {isFetchNextPageError ? (
-        <p role="alert" {...stylex.props(styles.pageError)}>
-          Could not load older messages.
+      </div>
+      {newerMessagesFailed || returnToLatestFailed ? (
+        <p role="alert" {...stylex.props(styles.historyError)}>
+          {newerMessagesFailed
+            ? "Could not load newer messages."
+            : "Could not return to the latest messages."}
         </p>
       ) : null}
-
-      {empty ? (
-        <div {...stylex.props(styles.empty)}>
-          <p {...stylex.props(styles.emptyDescription)}>No messages yet.</p>
-        </div>
-      ) : (
-        <ol ref={messageList} {...stylex.props(styles.messageList)}>
-          {view.messages.map(({ message, fromUser, reply }) => {
-            return (
-              <li
-                key={message.id}
-                {...stylex.props(
-                  styles.message,
-                  fromUser ? styles.userMessage : styles.assistantMessage,
-                )}
-              >
-                <article
-                  aria-label={fromUser ? "You" : "Assistant"}
-                  {...stylex.props(
-                    styles.bubble,
-                    fromUser ? styles.userBubble : styles.assistantBubble,
-                  )}
-                >
-                  <p {...stylex.props(styles.content)}>{message.content}</p>
-                </article>
-                <time
-                  dateTime={new Date(message.createdAt).toISOString()}
-                  {...stylex.props(styles.timestamp)}
-                >
-                  {formatTimestamp(message.createdAt)}
-                </time>
-                {reply ? (
-                  <div {...stylex.props(styles.replyState)}>
-                    <p
-                      role={message.id === view.latestMessageId ? "status" : undefined}
-                      {...stylex.props(
-                        styles.replyStatus,
-                        reply.generation.status === GenerationStatus.Failed && styles.replyFailure,
-                      )}
-                    >
-                      {replyStatusText(reply.generation, reply.retrying)}
-                    </p>
-                    {reply.canRetry && !reply.retrying ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        style={styles.retryButton}
-                        disabled={operationPending}
-                        onClick={() => void retryReply(message.turnId)}
-                      >
-                        Retry
-                      </Button>
-                    ) : null}
-                    {reply.retryFailed ? (
-                      <p role="alert" {...stylex.props(styles.retryError)}>
-                        Couldn’t retry the reply.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-
-          {optimisticSubmission ? (
-            <li
-              key={optimisticSubmission.clientId}
-              {...stylex.props(styles.message, styles.userMessage)}
-            >
-              <article aria-label="You" {...stylex.props(styles.bubble, styles.userBubble)}>
-                <p {...stylex.props(styles.content)}>{optimisticSubmission.content}</p>
-              </article>
-              <time
-                dateTime={new Date(optimisticSubmission.submittedAt).toISOString()}
-                {...stylex.props(styles.timestamp)}
-              >
-                {formatTimestamp(optimisticSubmission.submittedAt)}
-              </time>
-              <div {...stylex.props(styles.replyState)}>
-                <p role="status" {...stylex.props(styles.replyStatus)}>
-                  Sending…
-                </p>
-              </div>
-            </li>
-          ) : null}
-        </ol>
-      )}
-    </div>
+    </>
   );
 });
 
 type ThreadComposerProps = Readonly<{
   threadId: string;
-  model: ModelReference | null;
-  modelPending: boolean;
+  configuration: GenerationConfigurationSelection | null;
+  configurationPending: boolean;
   operationPending: boolean;
-  messageContentMaxLength: number;
+  messageMaxCodeUnits: number;
   composerControls: ReactNode;
-  viewport: RefObject<HTMLElement | null>;
-  pinnedToEnd: RefObject<boolean>;
 }>;
 
 const ThreadComposer = memo(function ThreadComposer({
   threadId,
-  model,
-  modelPending,
+  configuration,
+  configurationPending,
   operationPending,
-  messageContentMaxLength,
+  messageMaxCodeUnits,
   composerControls,
-  viewport,
-  pinnedToEnd,
 }: ThreadComposerProps) {
   const submitTurnMutation = useSubmitTurn(threadId);
   const [draft, setDraft] = useState("");
@@ -312,31 +180,12 @@ const ThreadComposer = memo(function ThreadComposer({
   const draftRevision = useRef(0);
   const composerInputId = useId();
   const sendErrorId = useId();
-  const composerShell = useRef<HTMLDivElement>(null);
-  const submissionBlocked = operationPending || modelPending;
-
-  useLayoutEffect(() => {
-    const scrollViewport = viewport.current;
-    const shell = composerShell.current;
-
-    if (!scrollViewport || !shell) {
-      return;
-    }
-
-    const resizeObserver = new ResizeObserver(() => {
-      if (pinnedToEnd.current) {
-        scrollToEnd(scrollViewport);
-      }
-    });
-    resizeObserver.observe(shell);
-
-    return () => resizeObserver.disconnect();
-  }, [pinnedToEnd, viewport]);
+  const submissionBlocked = operationPending || configurationPending;
 
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (submissionBlocked || acceptingSubmission.current || !model) {
+    if (submissionBlocked || acceptingSubmission.current || !configuration) {
       return;
     }
 
@@ -356,7 +205,7 @@ const ThreadComposer = memo(function ThreadComposer({
         clientId: crypto.randomUUID(),
         content,
         submittedAt: Date.now(),
-        model: { providerId: model.providerId, modelId: model.modelId },
+        configuration: toGenerationConfiguration(configuration),
       });
     } catch (cause) {
       setDraft((currentDraft) =>
@@ -377,78 +226,91 @@ const ThreadComposer = memo(function ThreadComposer({
   }
 
   return (
-    <div ref={composerShell} {...stylex.props(styles.composerShell)}>
-      <Composer onSubmit={sendMessage}>
-        <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
-        <Composer.Input
-          id={composerInputId}
-          value={draft}
-          maxLength={messageContentMaxLength}
-          aria-describedby={sendError ? sendErrorId : undefined}
-          onChange={(event) => {
-            draftRevision.current += 1;
-            setDraft(event.currentTarget.value);
-            setSendError(null);
-          }}
-          onKeyDown={handleComposerKeyDown}
+    <Composer pending={operationPending} onSubmit={sendMessage}>
+      <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
+      <Composer.Input
+        id={composerInputId}
+        value={draft}
+        maxLength={messageMaxCodeUnits}
+        aria-describedby={sendError ? sendErrorId : undefined}
+        onChange={(event) => {
+          draftRevision.current += 1;
+          setDraft(event.currentTarget.value);
+          setSendError(null);
+        }}
+        onKeyDown={handleComposerKeyDown}
+      />
+      <Composer.Footer>
+        <Composer.Controls>
+          {composerControls}
+          {sendError ? (
+            <Composer.Status id={sendErrorId} role="alert" tone="danger">
+              {sendError}
+            </Composer.Status>
+          ) : null}
+        </Composer.Controls>
+        <Composer.Submit
+          pending={operationPending}
+          disabled={configurationPending || !configuration || !draft.trim()}
         />
-        <Composer.Footer>
-          <Composer.Controls>
-            {composerControls}
-            {sendError ? (
-              <Composer.Status id={sendErrorId} role="alert" tone="danger">
-                {sendError}
-              </Composer.Status>
-            ) : null}
-          </Composer.Controls>
-          <Composer.Submit disabled={submissionBlocked || !model || !draft.trim()} />
-        </Composer.Footer>
-      </Composer>
-    </div>
+      </Composer.Footer>
+    </Composer>
   );
 });
 
 export function ThreadView({
   threadId,
-  model,
-  modelPending,
+  configuration,
+  configurationPending,
   composerControls,
 }: {
   threadId: string;
-  model: ModelReference | null;
-  modelPending: boolean;
+  configuration: GenerationConfigurationSelection | null;
+  configurationPending: boolean;
   composerControls: ReactNode;
 }) {
+  const queryClient = useQueryClient();
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
+  const returnToLatestMutation = useReturnToLatestThreadMessages(threadId);
+  const returnToLatestMessages = returnToLatestMutation.mutateAsync;
   const retryTurnMutation = useRetryTurn(threadId);
   const retryTurn = retryTurnMutation.mutateAsync;
   const resetRetry = retryTurnMutation.reset;
   const acceptingRetry = useRef(false);
+  const historyNavigation = useRef<"older" | "newer" | "latest" | null>(null);
   const turnOperationPending = useIsTurnOperationPending(threadId);
   const pendingSubmission = usePendingTurnSubmission(threadId);
-  const viewport = useRef<HTMLElement>(null);
+  const viewport = useRef<HTMLDivElement>(null);
   const pinnedToEnd = useRef(true);
+  const [timelineBottomInset, setTimelineBottomInset] = useState(0);
   const retryTurnId = retryTurnMutation.variables?.turnId;
   const retryStatus: RetryStatus = retryTurnMutation.isPending
     ? "pending"
     : retryTurnMutation.isError
       ? "failed"
       : null;
+  const historical = !isLatestThreadHistory(messagesQuery.data);
   const threadView = useMemo(
     () =>
       deriveThreadViewState({
         pages: messagesQuery.data.pages,
         retryActivity:
           retryTurnId && retryStatus ? { turnId: retryTurnId, status: retryStatus } : null,
-        hasModel: model !== null,
+        hasModel: configuration !== null && !historical,
       }),
-    [messagesQuery.data.pages, model, retryStatus, retryTurnId],
+    [configuration, historical, messagesQuery.data.pages, retryStatus, retryTurnId],
   );
-  const operationPending = turnOperationPending || threadView.replyPending;
+  const operationPending = turnOperationPending || (!historical && threadView.replyPending);
 
   const retryReply = useCallback(
     async (turnId: string) => {
-      if (operationPending || !model || modelPending || acceptingRetry.current) {
+      if (
+        historical ||
+        operationPending ||
+        !configuration ||
+        configurationPending ||
+        acceptingRetry.current
+      ) {
         return;
       }
 
@@ -458,7 +320,7 @@ export function ThreadView({
       try {
         await retryTurn({
           turnId,
-          model: { providerId: model.providerId, modelId: model.modelId },
+          configuration: toGenerationConfiguration(configuration),
         });
       } catch (cause) {
         reportError("thread.turn.retry", cause);
@@ -466,46 +328,136 @@ export function ThreadView({
         acceptingRetry.current = false;
       }
     },
-    [model, modelPending, operationPending, resetRetry, retryTurn],
+    [configuration, configurationPending, historical, operationPending, resetRetry, retryTurn],
   );
 
-  const loadOlder = useCallback(() => messagesQuery.fetchNextPage(), [messagesQuery.fetchNextPage]);
+  const loadOlder = useCallback(async () => {
+    if (historyNavigation.current || operationPending) {
+      return;
+    }
+
+    historyNavigation.current = "older";
+
+    try {
+      const result = await messagesQuery.fetchNextPage({ cancelRefetch: false });
+
+      if (result.isError) {
+        reportError("thread.messages.load-older", result.error);
+        return;
+      }
+
+      retainLoadedThreadMessages(queryClient, threadId, "older");
+    } catch (cause) {
+      reportError("thread.messages.load-older", cause);
+    } finally {
+      historyNavigation.current = null;
+    }
+  }, [messagesQuery.fetchNextPage, operationPending, queryClient, threadId]);
+  const loadNewer = useCallback(async () => {
+    if (historyNavigation.current || operationPending) {
+      return;
+    }
+
+    historyNavigation.current = "newer";
+
+    try {
+      const result = await messagesQuery.fetchPreviousPage({ cancelRefetch: false });
+
+      if (result.isError) {
+        reportError("thread.messages.load-newer", result.error);
+        return;
+      }
+
+      retainLoadedThreadMessages(queryClient, threadId, "newer");
+    } catch (cause) {
+      reportError("thread.messages.load-newer", cause);
+    } finally {
+      historyNavigation.current = null;
+    }
+  }, [messagesQuery.fetchPreviousPage, operationPending, queryClient, threadId]);
+  const returnToLatest = useCallback(async () => {
+    if (historyNavigation.current || operationPending) {
+      return;
+    }
+
+    historyNavigation.current = "latest";
+    const wasPinnedToEnd = pinnedToEnd.current;
+    pinnedToEnd.current = true;
+
+    try {
+      await returnToLatestMessages();
+    } catch (cause) {
+      pinnedToEnd.current = wasPinnedToEnd;
+      reportError("thread.messages.return-to-latest", cause);
+    } finally {
+      historyNavigation.current = null;
+    }
+  }, [operationPending, returnToLatestMessages]);
+  const historyNavigationPending =
+    operationPending ||
+    messagesQuery.isFetchingNextPage ||
+    messagesQuery.isFetchingPreviousPage ||
+    returnToLatestMutation.isPending;
+  const retryPending = operationPending || configurationPending || historyNavigationPending;
+
+  useLayoutEffect(() => {
+    const element = viewport.current;
+
+    if (element && pinnedToEnd.current) {
+      scrollToEnd(element);
+    }
+  }, [timelineBottomInset]);
 
   return (
-    <section
-      ref={viewport}
-      aria-label="Thread"
-      onScroll={(event) => {
-        pinnedToEnd.current = isScrolledToEnd(event.currentTarget);
-      }}
-      {...stylex.props(styles.root)}
-    >
-      <ThreadTimeline
-        key={`timeline:${threadId}`}
-        view={threadView}
-        pendingSubmission={pendingSubmission}
-        viewport={viewport}
-        pinnedToEnd={pinnedToEnd}
-        modelAvailable={model !== null}
-        retryStatus={retryStatus}
-        hasNextPage={messagesQuery.hasNextPage}
-        isFetchingNextPage={messagesQuery.isFetchingNextPage}
-        isFetchNextPageError={messagesQuery.isFetchNextPageError}
-        operationPending={operationPending || modelPending}
-        loadOlder={loadOlder}
-        retryReply={retryReply}
-      />
-      <ThreadComposer
-        key={`composer:${threadId}`}
-        threadId={threadId}
-        model={model}
-        modelPending={modelPending}
-        operationPending={operationPending}
-        messageContentMaxLength={threadView.messageContentMaxLength}
-        composerControls={composerControls}
-        viewport={viewport}
-        pinnedToEnd={pinnedToEnd}
-      />
+    <section aria-label="Thread" {...stylex.props(styles.root)}>
+      <div
+        ref={viewport}
+        onScroll={(event) => {
+          pinnedToEnd.current = isScrolledToEnd(event.currentTarget);
+        }}
+        {...stylex.props(styles.viewport)}
+      >
+        <ThreadTimeline
+          key={`timeline:${threadId}`}
+          view={threadView}
+          pendingSubmission={historical ? null : pendingSubmission}
+          bottomInset={timelineBottomInset}
+          viewport={viewport}
+          pinnedToEnd={pinnedToEnd}
+          latestHistory={!historical}
+          hasOlderMessages={messagesQuery.hasNextPage}
+          loadingOlderMessages={messagesQuery.isFetchingNextPage}
+          olderMessagesFailed={messagesQuery.isFetchNextPageError}
+          historyNavigationPending={historyNavigationPending}
+          retryPending={retryPending}
+          loadOlder={loadOlder}
+          retryReply={retryReply}
+        />
+        <ThreadControlsLayer onHeightChange={setTimelineBottomInset}>
+          {historical ? (
+            <ThreadHistoryControls
+              hasNewerMessages={messagesQuery.hasPreviousPage}
+              loadingNewerMessages={messagesQuery.isFetchingPreviousPage}
+              newerMessagesFailed={messagesQuery.isFetchPreviousPageError}
+              returnToLatestFailed={returnToLatestMutation.isError}
+              returningToLatest={returnToLatestMutation.isPending}
+              navigationPending={historyNavigationPending}
+              loadNewer={loadNewer}
+              returnToLatest={returnToLatest}
+            />
+          ) : (
+            <ThreadComposer
+              key={`composer:${threadId}`}
+              threadId={threadId}
+              configuration={configuration}
+              configurationPending={configurationPending}
+              operationPending={operationPending}
+              messageMaxCodeUnits={threadView.messageMaxCodeUnits}
+              composerControls={composerControls}
+            />
+          )}
+        </ThreadControlsLayer>
+      </div>
     </section>
   );
 }
@@ -516,119 +468,65 @@ const styles = stylex.create({
     flex: 1,
     flexDirection: "column",
     minHeight: 0,
+    overflow: "hidden",
+  },
+  viewport: {
+    flex: 1,
+    minHeight: 0,
+    overflowAnchor: "none",
     overflowY: "auto",
     scrollbarGutter: "stable",
   },
-  messageBody: {
-    display: "flex",
-    flex: "1 0 auto",
-    flexDirection: "column",
-    marginInline: "auto",
-    maxWidth: "42rem",
-    padding: "1.5rem",
-    width: "100%",
+  controlsAnchor: {
+    bottom: 0,
+    height: 0,
+    position: "sticky",
+    zIndex: 1,
   },
-  loadOlder: {
-    display: "flex",
-    justifyContent: "center",
-    marginBottom: "1rem",
+  controlsLayer: {
+    bottom: 0,
+    left: 0,
+    paddingBlock: "0 1.5rem",
+    position: "absolute",
+    right: 0,
   },
-  pageError: {
-    color: tokens.danger,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginBottom: "1rem",
-    textAlign: "center",
-  },
-  empty: {
+  historyControls: {
     alignItems: "center",
-    display: "flex",
-    flex: 1,
-    flexDirection: "column",
-    justifyContent: "center",
-    textAlign: "center",
-  },
-  emptyDescription: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.25rem",
-  },
-  messageList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "1rem",
-  },
-  message: {
-    display: "flex",
-    flexDirection: "column",
-  },
-  userMessage: {
-    alignItems: "flex-end",
-  },
-  assistantMessage: {
-    alignItems: "flex-start",
-  },
-  bubble: {
-    borderRadius: tokens.radiusLarge,
-    fontSize: tokens.fontSizeBase,
-    lineHeight: tokens.lineHeightBase,
-    maxWidth: "82%",
-    paddingBlock: "0.625rem",
-    paddingInline: "0.75rem",
-  },
-  userBubble: {
-    backgroundColor: `color-mix(in oklab, ${tokens.accent} 22%, ${tokens.surfaceRaised})`,
-  },
-  assistantBubble: {
     backgroundColor: tokens.surfaceRaised,
     borderColor: tokens.surfaceRaisedBorder,
+    borderRadius: tokens.radiusLarge,
     borderStyle: "solid",
     borderWidth: 1,
-  },
-  content: {
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap",
-  },
-  timestamp: {
-    color: tokens.muted,
-    fontSize: tokens.fontSizeXSmall,
-    lineHeight: tokens.lineHeightXSmall,
-    marginTop: "0.375rem",
-  },
-  replyState: {
-    alignItems: "flex-end",
     display: "flex",
-    flexDirection: "column",
-    gap: "0.25rem",
-    marginTop: "0.375rem",
+    flexWrap: "wrap",
+    gap: "1rem",
+    justifyContent: "space-between",
+    padding: "0.75rem",
   },
-  replyStatus: {
+  historyDescription: {
     color: tokens.muted,
-    fontSize: tokens.fontSizeXSmall,
-    lineHeight: tokens.lineHeightXSmall,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
   },
-  replyFailure: {
-    color: tokens.danger,
-  },
-  retryButton: {
-    height: "2rem",
-    paddingInline: "0.5rem",
-  },
-  retryError: {
-    color: tokens.danger,
-    fontSize: tokens.fontSizeXSmall,
-    lineHeight: tokens.lineHeightXSmall,
-  },
-  composerShell: {
-    bottom: 0,
+  historyActions: {
+    alignItems: "center",
+    display: "flex",
+    flexWrap: "wrap",
     flexShrink: 0,
-    marginInline: "auto",
-    maxWidth: "42rem",
-    paddingBlock: "0 1.5rem",
-    paddingInline: "1.5rem",
-    position: "sticky",
-    width: "100%",
-    zIndex: 1,
+    gap: "0.5rem",
+    justifyContent: "flex-end",
+    marginInlineStart: "auto",
+  },
+  loadNewerAction: {
+    minWidth: "9.75rem",
+  },
+  returnToLatestAction: {
+    minWidth: "7.75rem",
+  },
+  historyError: {
+    color: tokens.danger,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
+    marginTop: "0.375rem",
   },
 });

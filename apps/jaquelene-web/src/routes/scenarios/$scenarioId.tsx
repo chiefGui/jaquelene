@@ -1,11 +1,28 @@
-import { Button, Input, formatTimestamp } from "@jaquelene/ui";
+import {
+  Form as AriakitForm,
+  FormDescription,
+  FormError,
+  FormInput,
+  FormLabel,
+  useFormStore,
+  useFormSubmit,
+} from "@ariakit/react/form";
+import { useStoreState } from "@ariakit/react/store";
+import {
+  SCENARIO_TITLE_MAX_LENGTH,
+  SCENARIO_TITLE_MAX_UTF16_LENGTH,
+  scenarioTitleInputSchema,
+  type ScenarioTitleInput,
+} from "@jaquelene/domain";
+import { Button, Field, Form as FormLayout, Input, formatTimestamp } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/theme.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, type SubmitEvent } from "react";
+import { useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { campaignsForScenarioQuery, useStartCampaign } from "@/feature/campaign/query";
+import { useScenarioTitleFormValidation } from "@/feature/scenario/form";
 import { scenarioQuery, useRenameScenario } from "@/feature/scenario/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
@@ -34,42 +51,42 @@ function ScenarioRoute() {
   const renameScenarioMutation = useRenameScenario();
   const startCampaignMutation = useStartCampaign();
   const navigate = useNavigate({ from: "/scenarios/$scenarioId" });
+  const renameForm = useFormStore({
+    defaultValues: { title: scenario?.title ?? "" } satisfies ScenarioTitleInput,
+  });
+  const renameSubmitting = useStoreState(renameForm, "submitting");
+  const renameSubmitted = useStoreState(
+    renameForm,
+    ["submitFailed", "submitSucceed"],
+    (state) => state.submitFailed > 0 || state.submitSucceed > 0,
+  );
   const [renameError, setRenameError] = useState<string | null>(null);
   const [campaignError, setCampaignError] = useState<string | null>(null);
 
-  async function renameScenario(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  useScenarioTitleFormValidation(renameForm);
+  useFormSubmit(renameForm, async (state) => {
     if (!scenario) {
       return;
     }
 
-    const title = new FormData(event.currentTarget).get("title");
-
-    if (typeof title !== "string") {
-      setRenameError("Enter a scenario title.");
-      return;
-    }
-
-    setRenameError(null);
-
     try {
-      const result = await renameScenarioMutation.mutateAsync({ id: scenario.id, title });
+      const input = scenarioTitleInputSchema.parse(state.values);
+      const renamed = await renameScenarioMutation.mutateAsync({
+        id: scenario.id,
+        title: input.title,
+      });
 
-      if (result.status === "empty-title") {
-        setRenameError("Enter a scenario title.");
-        return;
-      }
-
-      if (result.status === "not-found") {
+      if (!renamed) {
         setRenameError("This scenario no longer exists.");
         return;
       }
+
+      renameForm.setValue(renameForm.names.title, renamed.title);
     } catch (cause) {
       reportError("scenario.rename", cause);
       setRenameError("Could not rename the scenario.");
     }
-  }
+  });
 
   async function startCampaign() {
     if (!scenario) {
@@ -104,11 +121,8 @@ function ScenarioRoute() {
             <Breadcrumb.Item>
               <Breadcrumb.Link render={<Link to="/scenarios" />}>Scenarios</Breadcrumb.Link>
             </Breadcrumb.Item>
-            <Breadcrumb.Separator />
-            <Breadcrumb.Item style={styles.breadcrumbItem}>
-              <Breadcrumb.Page style={styles.breadcrumbPage}>
-                {scenario?.title ?? "Scenario"}
-              </Breadcrumb.Page>
+            <Breadcrumb.Item>
+              <Breadcrumb.Page>{scenario?.title ?? "Scenario"}</Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
         </Breadcrumb.Root>
@@ -124,31 +138,48 @@ function ScenarioRoute() {
                 </h1>
                 <p {...stylex.props(styles.description)}>Rename this scenario.</p>
 
-                <form {...stylex.props(styles.form)} onSubmit={renameScenario}>
-                  <label htmlFor="scenario-title" {...stylex.props(styles.label)}>
-                    Title
-                  </label>
-                  <div {...stylex.props(styles.fieldRow)}>
-                    <Input
-                      key={scenario.title}
-                      id="scenario-title"
-                      name="title"
-                      type="text"
-                      required
-                      defaultValue={scenario.title}
-                      aria-describedby={renameError ? "rename-scenario-error" : undefined}
-                      style={styles.input}
-                    />
-                    <Button type="submit" disabled={renameScenarioMutation.isPending}>
-                      {renameScenarioMutation.isPending ? "Saving…" : "Save"}
-                    </Button>
-                  </div>
-                  {renameError ? (
-                    <p id="rename-scenario-error" role="alert" {...stylex.props(styles.error)}>
-                      {renameError}
-                    </p>
-                  ) : null}
-                </form>
+                <AriakitForm
+                  store={renameForm}
+                  aria-busy={renameSubmitting || undefined}
+                  onSubmit={() => setRenameError(null)}
+                  render={<FormLayout.Root style={styles.form} />}
+                  resetOnSubmit={false}
+                  validateOnBlur={renameSubmitted}
+                  validateOnChange={renameSubmitted}
+                >
+                  <Field.Root>
+                    <FormLabel name={renameForm.names.title} render={<Field.Label />}>
+                      Title
+                    </FormLabel>
+                    <FormDescription name={renameForm.names.title} render={<Field.Description />}>
+                      Up to {SCENARIO_TITLE_MAX_LENGTH} characters.
+                    </FormDescription>
+                    <Field.Control>
+                      <FormInput
+                        name={renameForm.names.title}
+                        render={
+                          <Input
+                            type="text"
+                            disabled={renameSubmitting}
+                            maxLength={SCENARIO_TITLE_MAX_UTF16_LENGTH}
+                            style={styles.input}
+                          />
+                        }
+                      />
+                      <Button type="submit" disabled={renameSubmitting} style={styles.submitButton}>
+                        {renameSubmitting ? "Saving…" : "Save"}
+                      </Button>
+                    </Field.Control>
+                    <FormError name={renameForm.names.title} render={<Field.Error />} />
+                  </Field.Root>
+
+                  <FormLayout.Status
+                    role={renameError ? "alert" : undefined}
+                    tone={renameError ? "danger" : "neutral"}
+                  >
+                    {renameError}
+                  </FormLayout.Status>
+                </AriakitForm>
               </section>
 
               <section aria-labelledby="campaigns-heading">
@@ -208,15 +239,6 @@ function ScenarioRoute() {
 }
 
 const styles = stylex.create({
-  breadcrumbItem: {
-    minWidth: 0,
-  },
-  breadcrumbPage: {
-    display: "block",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
   page: {
     display: "flex",
     flexDirection: "column",
@@ -236,20 +258,14 @@ const styles = stylex.create({
   },
   form: {
     marginTop: "1.25rem",
-  },
-  label: {
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
-    lineHeight: tokens.lineHeightSmall,
-  },
-  fieldRow: {
-    display: "flex",
-    gap: "0.5rem",
-    marginTop: "0.5rem",
+    maxWidth: "34rem",
   },
   input: {
     flex: 1,
     minWidth: 0,
+  },
+  submitButton: {
+    minWidth: "4.5rem",
   },
   error: {
     color: tokens.danger,

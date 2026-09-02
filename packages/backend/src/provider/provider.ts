@@ -1,4 +1,6 @@
 import type { GenerationId, ThreadId } from "#backend/id";
+import type { ModelInput } from "#backend/model/input";
+import type { ModelReasoningCapability, ResolvedReasoning } from "#backend/model/reasoning";
 
 export type ProviderId = string;
 
@@ -18,10 +20,6 @@ export function requireModelReference(reference: ModelReference) {
     throw new TypeError("A model reference requires provider and model identities.");
   }
 }
-
-export type ModelReasoningCapability = Readonly<{
-  required: boolean;
-}>;
 
 export type ProviderModel = Readonly<{
   id: string;
@@ -44,28 +42,46 @@ export function requireModelSelection(selection: ModelSelection) {
   }
 }
 
-export type GenerationMessage = Readonly<{
-  role: "system" | "user" | "assistant";
-  content: string;
+export type GenerationTokenUsage = Readonly<{
+  input: Readonly<{
+    total: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+  }>;
+  output: Readonly<{
+    total: number;
+    reasoning?: number;
+  }>;
+  total: number;
+}>;
+
+export const generationCostSources = ["provider-reported", "estimated"] as const;
+export type GenerationCostSource = (typeof generationCostSources)[number];
+
+export type GenerationCost = Readonly<{
+  currency: "USD";
+  amountNanos: number;
+  source: GenerationCostSource;
 }>;
 
 export type GenerationUsage = Readonly<{
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
+  tokens: GenerationTokenUsage;
+  cost?: GenerationCost;
 }>;
 
 export type ProviderGenerationRequest = Readonly<{
   generationId: GenerationId;
   threadId: ThreadId;
   modelId: string;
-  messages: readonly GenerationMessage[];
+  input: ModelInput;
+  reasoning?: ResolvedReasoning;
 }>;
 
 export type ProviderGenerationResult = Readonly<{
   text: string;
   providerGenerationId?: string;
   resolvedModelId?: string;
+  upstreamProviderId?: string;
   finishReason?: string;
   usage?: GenerationUsage;
 }>;

@@ -35,6 +35,7 @@ import {
   campaignPagesQuery,
   campaignQuery,
   setCampaignGenerationPreferencesMutationOptions,
+  startCampaignMutationOptions,
 } from "./query";
 
 function modelSelection(id: string): ModelSelection {
@@ -105,6 +106,30 @@ function observePreferencesMutation(queryClient: QueryClient, id: string) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+});
+
+describe("campaign start mutation", () => {
+  it("publishes a started campaign immediately and schedules list reconciliation", async () => {
+    const queryClient = createQueryClient();
+    const existing = campaign();
+    const started: Campaign = {
+      id: "campaign-new",
+      title: "New campaign",
+      threadId: "thread-new",
+      startedAt: 200,
+    };
+    const request = { title: started.title, composition: [] };
+    campaignsIpc.start.mockResolvedValue(started);
+    cacheCampaignPage(queryClient, existing);
+    const mutation = new MutationObserver(queryClient, startCampaignMutationOptions(queryClient));
+
+    await expect(mutation.mutate(request)).resolves.toEqual(started);
+
+    expect(queryClient.getQueryData(campaignQuery(started.id).queryKey)).toEqual(started);
+    expect(cachedCampaignPage(queryClient)?.pages[0]?.campaigns).toEqual([started, existing]);
+    expect(queryClient.getQueryState(campaignPagesQuery.queryKey)?.isInvalidated).toBe(true);
+    expect(campaignsIpc.list).not.toHaveBeenCalled();
+  });
 });
 
 describe("campaign generation preferences mutation", () => {

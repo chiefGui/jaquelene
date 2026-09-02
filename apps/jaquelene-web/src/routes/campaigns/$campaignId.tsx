@@ -6,7 +6,7 @@ import { IconButton } from "@jaquelene/ui";
 import { tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { CampaignGenerationControls } from "@/feature/campaign/generation-controls";
 import {
@@ -89,9 +89,6 @@ function CampaignRoute() {
       <ContentPane.Header style={styles.header}>
         <Breadcrumb.Root>
           <Breadcrumb.List>
-            <Breadcrumb.Item>
-              <Breadcrumb.Link render={<Link to="/campaigns" />}>Campaigns</Breadcrumb.Link>
-            </Breadcrumb.Item>
             <Breadcrumb.Item>
               <Breadcrumb.Page>{campaign?.title ?? "Campaign"}</Breadcrumb.Page>
             </Breadcrumb.Item>

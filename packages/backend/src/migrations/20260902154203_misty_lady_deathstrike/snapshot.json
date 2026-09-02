@@ -1,8 +1,10 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "0c980b56-b2e7-4763-ad3e-a21b3102689e",
-  "prevIds": ["3899f57f-66a4-4304-b0ff-c3f94e9120d5"],
+  "id": "a52ecd85-beb4-4fe5-8744-699dea9acdbc",
+  "prevIds": [
+    "3899f57f-66a4-4304-b0ff-c3f94e9120d5"
+  ],
   "ddl": [
     {
       "name": "campaign_generation_preferences",
@@ -18,6 +20,10 @@
     },
     {
       "name": "campaign_roleplay_instructions",
+      "entityType": "tables"
+    },
+    {
+      "name": "roleplay_instruction_preferences",
       "entityType": "tables"
     },
     {
@@ -266,13 +272,33 @@
     },
     {
       "type": "text",
-      "notNull": true,
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
       "name": "instruction_id",
       "entityType": "columns",
       "table": "campaign_roleplay_instructions"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "slot",
+      "entityType": "columns",
+      "table": "roleplay_instruction_preferences"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "default_instruction_id",
+      "entityType": "columns",
+      "table": "roleplay_instruction_preferences"
     },
     {
       "type": "text",
@@ -725,9 +751,13 @@
       "table": "provider_attempts"
     },
     {
-      "columns": ["campaign_id"],
+      "columns": [
+        "campaign_id"
+      ],
       "tableTo": "campaigns",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -736,9 +766,13 @@
       "table": "campaign_generation_preferences"
     },
     {
-      "columns": ["scenario_id"],
+      "columns": [
+        "scenario_id"
+      ],
       "tableTo": "scenarios",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -747,9 +781,13 @@
       "table": "campaigns"
     },
     {
-      "columns": ["thread_id"],
+      "columns": [
+        "thread_id"
+      ],
       "tableTo": "threads",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -758,9 +796,13 @@
       "table": "campaigns"
     },
     {
-      "columns": ["turn_id"],
+      "columns": [
+        "turn_id"
+      ],
       "tableTo": "turns",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -769,9 +811,15 @@
       "table": "generations"
     },
     {
-      "columns": ["turn_id", "output_message_id"],
+      "columns": [
+        "turn_id",
+        "output_message_id"
+      ],
       "tableTo": "thread_messages",
-      "columnsTo": ["turn_id", "id"],
+      "columnsTo": [
+        "turn_id",
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": true,
@@ -780,9 +828,13 @@
       "table": "generations"
     },
     {
-      "columns": ["campaign_id"],
+      "columns": [
+        "campaign_id"
+      ],
       "tableTo": "campaigns",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -791,9 +843,13 @@
       "table": "campaign_roleplay_instructions"
     },
     {
-      "columns": ["instruction_id"],
+      "columns": [
+        "instruction_id"
+      ],
       "tableTo": "roleplay_instructions",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -802,9 +858,28 @@
       "table": "campaign_roleplay_instructions"
     },
     {
-      "columns": ["thread_id"],
+      "columns": [
+        "default_instruction_id"
+      ],
+      "tableTo": "roleplay_instructions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_roleplay_instruction_preferences_default_instruction_id_roleplay_instructions_id_fk",
+      "entityType": "fks",
+      "table": "roleplay_instruction_preferences"
+    },
+    {
+      "columns": [
+        "thread_id"
+      ],
       "tableTo": "threads",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -813,9 +888,15 @@
       "table": "thread_messages"
     },
     {
-      "columns": ["thread_id", "turn_id"],
+      "columns": [
+        "thread_id",
+        "turn_id"
+      ],
       "tableTo": "turns",
-      "columnsTo": ["thread_id", "id"],
+      "columnsTo": [
+        "thread_id",
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": true,
@@ -824,9 +905,15 @@
       "table": "thread_messages"
     },
     {
-      "columns": ["thread_id", "parent_message_id"],
+      "columns": [
+        "thread_id",
+        "parent_message_id"
+      ],
       "tableTo": "thread_messages",
-      "columnsTo": ["thread_id", "id"],
+      "columnsTo": [
+        "thread_id",
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": true,
@@ -835,9 +922,17 @@
       "table": "thread_messages"
     },
     {
-      "columns": ["thread_id", "id", "active_child_message_id"],
+      "columns": [
+        "thread_id",
+        "id",
+        "active_child_message_id"
+      ],
       "tableTo": "thread_messages",
-      "columnsTo": ["thread_id", "parent_message_id", "id"],
+      "columnsTo": [
+        "thread_id",
+        "parent_message_id",
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": true,
@@ -846,9 +941,13 @@
       "table": "thread_messages"
     },
     {
-      "columns": ["active_message_id"],
+      "columns": [
+        "active_message_id"
+      ],
       "tableTo": "thread_messages",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "nameExplicit": false,
@@ -857,9 +956,15 @@
       "table": "threads"
     },
     {
-      "columns": ["id", "active_message_id"],
+      "columns": [
+        "id",
+        "active_message_id"
+      ],
       "tableTo": "thread_messages",
-      "columnsTo": ["thread_id", "id"],
+      "columnsTo": [
+        "thread_id",
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": true,
@@ -868,9 +973,13 @@
       "table": "threads"
     },
     {
-      "columns": ["thread_id"],
+      "columns": [
+        "thread_id"
+      ],
       "tableTo": "threads",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -879,70 +988,99 @@
       "table": "turns"
     },
     {
-      "columns": ["campaign_id"],
+      "columns": [
+        "campaign_id"
+      ],
       "nameExplicit": false,
       "name": "campaign_generation_preferences_pk",
       "entityType": "pks",
       "table": "campaign_generation_preferences"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "campaigns_pk",
       "entityType": "pks",
       "table": "campaigns"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "generations_pk",
       "entityType": "pks",
       "table": "generations"
     },
     {
-      "columns": ["campaign_id"],
+      "columns": [
+        "campaign_id"
+      ],
       "nameExplicit": false,
       "name": "campaign_roleplay_instructions_pk",
       "entityType": "pks",
       "table": "campaign_roleplay_instructions"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "slot"
+      ],
+      "nameExplicit": false,
+      "name": "roleplay_instruction_preferences_pk",
+      "entityType": "pks",
+      "table": "roleplay_instruction_preferences"
+    },
+    {
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "roleplay_instructions_pk",
       "entityType": "pks",
       "table": "roleplay_instructions"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "scenarios_pk",
       "entityType": "pks",
       "table": "scenarios"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "thread_messages_pk",
       "entityType": "pks",
       "table": "thread_messages"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "threads_pk",
       "entityType": "pks",
       "table": "threads"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "turns_pk",
       "entityType": "pks",
       "table": "turns"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "provider_attempts_pk",
       "entityType": "pks",
@@ -1265,6 +1403,12 @@
       "name": "generations_state_valid",
       "entityType": "checks",
       "table": "generations"
+    },
+    {
+      "value": "\"slot\" = 1",
+      "name": "roleplay_instruction_preferences_singleton",
+      "entityType": "checks",
+      "table": "roleplay_instruction_preferences"
     },
     {
       "value": "\"title\" = trim(\"title\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length(\"title\") > 0 AND length(\"title\") <= 120",

@@ -336,6 +336,14 @@ export async function createBackend(
         assertOpen();
         return services.instructions.delete(id);
       },
+      getDefaultSelection() {
+        assertOpen();
+        return services.instructions.getDefaultSelection();
+      },
+      setDefaultSelection(instructionKey) {
+        assertOpen();
+        return services.instructions.setDefaultSelection(instructionKey);
+      },
       getCampaignSelection(campaignId) {
         assertOpen();
         return services.instructions.getCampaignSelection(campaignId);

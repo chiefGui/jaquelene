@@ -12,6 +12,7 @@ import type { CampaignId, InstructionId } from "#backend/id";
 
 const titleMaxLengthSql = sql.raw(String(ROLEPLAY_INSTRUCTION_TITLE_MAX_LENGTH));
 const bodyMaxLengthSql = sql.raw(String(ROLEPLAY_INSTRUCTION_BODY_MAX_LENGTH));
+export const roleplayInstructionPreferenceSlot = 1;
 
 export const roleplayInstructionTable = sqliteTable(
   "roleplay_instructions",
@@ -44,11 +45,25 @@ export const campaignRoleplayInstructionTable = sqliteTable(
       .references(() => campaignTable.id, { onDelete: "cascade" }),
     instructionId: text("instruction_id")
       .$type<InstructionId>()
-      .notNull()
       .references(() => roleplayInstructionTable.id, { onDelete: "cascade" }),
   },
   (selection) => [
     primaryKey({ columns: [selection.campaignId] }),
     index("campaign_roleplay_instructions_instruction_index").on(selection.instructionId),
+  ],
+);
+
+export const roleplayInstructionPreferenceTable = sqliteTable(
+  "roleplay_instruction_preferences",
+  {
+    slot: integer().notNull(),
+    defaultInstructionId: text("default_instruction_id")
+      .$type<InstructionId>()
+      .notNull()
+      .references(() => roleplayInstructionTable.id, { onDelete: "cascade" }),
+  },
+  (preference) => [
+    primaryKey({ columns: [preference.slot] }),
+    check("roleplay_instruction_preferences_singleton", sql`${preference.slot} = 1`),
   ],
 );

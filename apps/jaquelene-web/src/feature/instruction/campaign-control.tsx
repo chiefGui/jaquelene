@@ -8,6 +8,7 @@ import { reportError } from "@/feature/diagnostics/diagnostics";
 import {
   campaignRoleplayInstructionKeyQuery,
   instructionGroupsQuery,
+  useIsDefaultRoleplayInstructionPending,
   useSetCampaignRoleplayInstruction,
 } from "./query";
 import { InstructionSelect, type InstructionSelectOption } from "./select";
@@ -18,6 +19,7 @@ export function CampaignRoleplayInstructionControl({ campaignId }: { campaignId:
     campaignRoleplayInstructionKeyQuery(campaignId),
   );
   const setSelection = useSetCampaignRoleplayInstruction(campaignId);
+  const defaultSelectionPending = useIsDefaultRoleplayInstructionPending();
   const controlId = useId();
   const labelId = useId();
   const errorId = useId();
@@ -51,8 +53,8 @@ export function CampaignRoleplayInstructionControl({ campaignId }: { campaignId:
       <InstructionSelect
         id={controlId}
         aria-labelledby={labelId}
-        aria-describedby={setSelection.isError ? errorId : undefined}
-        busy={setSelection.isPending}
+        {...(setSelection.isError ? { "aria-describedby": errorId } : {})}
+        busy={setSelection.isPending || defaultSelectionPending}
         footerAction={{
           label: "Manage instructions",
           render: <Link to="/settings/instructions" preload="render" />,

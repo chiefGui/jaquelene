@@ -1,21 +1,38 @@
-import { parseRoleplayInstructionInput, type RoleplayInstructionInput } from "@jaquelene/domain";
+import {
+  composeCampaignRoleplayInstructionKey,
+  parseRoleplayInstructionInput,
+  setCampaignRoleplayInstructionPreference,
+  type CampaignRoleplayInstructionPreference,
+  type RoleplayInstructionInput,
+} from "@jaquelene/domain";
 import { asc, eq } from "drizzle-orm";
 import { campaignTable } from "#backend/campaign/schema";
 import type { Database } from "#backend/database/database";
 import { ids, type CampaignId, type InstructionId } from "#backend/id";
-import { defaultRoleplayInstruction, roleplayInstructionGroup } from "./factory/roleplay";
+import { jaqueleneRoleplayInstruction, roleplayInstructionGroup } from "./factory/roleplay";
 import type {
   CatalogInstruction,
   InstructionContext,
   InstructionGroup,
   InstructionSource,
 } from "./registry";
-import { campaignRoleplayInstructionTable, roleplayInstructionTable } from "./schema";
+import {
+  campaignRoleplayInstructionTable,
+  roleplayInstructionPreferenceSlot,
+  roleplayInstructionPreferenceTable,
+  roleplayInstructionTable,
+} from "./schema";
+
+export type RoleplayInstructionDeletion = Readonly<{
+  defaultInstructionKey: string;
+}>;
 
 export type RoleplayInstructionManagement = Readonly<{
   create: (input: RoleplayInstructionInput) => CatalogInstruction;
   update: (id: InstructionId, input: RoleplayInstructionInput) => CatalogInstruction | null;
-  delete: (id: InstructionId) => boolean;
+  delete: (id: InstructionId) => RoleplayInstructionDeletion | null;
+  getDefaultSelection: () => string;
+  setDefaultSelection: (instructionKey: string) => string;
   getCampaignSelection: (campaignId: CampaignId) => string | null;
   setCampaignSelection: (campaignId: CampaignId, instructionKey: string) => string | null;
 }>;
@@ -43,16 +60,31 @@ export function createRoleplayInstructions(database: Database, now: () => number
       .map(toCatalogInstruction);
   }
 
+  function getDefaultSelection() {
+    const preference = database
+      .select({ instructionId: roleplayInstructionPreferenceTable.defaultInstructionId })
+      .from(roleplayInstructionPreferenceTable)
+      .where(eq(roleplayInstructionPreferenceTable.slot, roleplayInstructionPreferenceSlot))
+      .get();
+    return preference?.instructionId ?? jaqueleneRoleplayInstruction.key;
+  }
+
   function getCampaignSelection(campaignId: CampaignId) {
     const selection = database
       .select({
         campaignId: campaignTable.id,
-        instructionId: campaignRoleplayInstructionTable.instructionId,
+        preferenceCampaignId: campaignRoleplayInstructionTable.campaignId,
+        preferenceInstructionId: campaignRoleplayInstructionTable.instructionId,
+        defaultInstructionId: roleplayInstructionPreferenceTable.defaultInstructionId,
       })
       .from(campaignTable)
       .leftJoin(
         campaignRoleplayInstructionTable,
         eq(campaignRoleplayInstructionTable.campaignId, campaignTable.id),
+      )
+      .leftJoin(
+        roleplayInstructionPreferenceTable,
+        eq(roleplayInstructionPreferenceTable.slot, roleplayInstructionPreferenceSlot),
       )
       .where(eq(campaignTable.id, campaignId))
       .get();
@@ -61,7 +93,17 @@ export function createRoleplayInstructions(database: Database, now: () => number
       return null;
     }
 
-    return selection.instructionId ?? defaultRoleplayInstruction.key;
+    const preference: CampaignRoleplayInstructionPreference | undefined =
+      selection.preferenceCampaignId === null
+        ? undefined
+        : { instructionKey: selection.preferenceInstructionId };
+    const defaultInstructionKey =
+      selection.defaultInstructionId ?? jaqueleneRoleplayInstruction.key;
+    return composeCampaignRoleplayInstructionKey(
+      jaqueleneRoleplayInstruction.key,
+      defaultInstructionKey,
+      preference,
+    );
   }
 
   const instructions = {
@@ -69,7 +111,7 @@ export function createRoleplayInstructions(database: Database, now: () => number
       return [
         {
           ...roleplayInstructionGroup,
-          instructions: [defaultRoleplayInstruction, ...listCustomInstructions()],
+          instructions: [jaqueleneRoleplayInstruction, ...listCustomInstructions()],
         },
       ];
     },
@@ -79,22 +121,27 @@ export function createRoleplayInstructions(database: Database, now: () => number
         return [];
       }
 
+      const instructionKey = getCampaignSelection(campaign.id);
+
+      if (!instructionKey) {
+        throw new Error(`Campaign "${campaign.id}" has no instruction selection.`);
+      }
+
+      if (instructionKey === jaqueleneRoleplayInstruction.key) {
+        return [jaqueleneRoleplayInstruction];
+      }
+
       const selected = database
-        .select({
-          id: roleplayInstructionTable.id,
-          title: roleplayInstructionTable.title,
-          body: roleplayInstructionTable.body,
-          createdAt: roleplayInstructionTable.createdAt,
-        })
-        .from(campaignRoleplayInstructionTable)
-        .innerJoin(
-          roleplayInstructionTable,
-          eq(roleplayInstructionTable.id, campaignRoleplayInstructionTable.instructionId),
-        )
-        .where(eq(campaignRoleplayInstructionTable.campaignId, campaign.id))
+        .select()
+        .from(roleplayInstructionTable)
+        .where(eq(roleplayInstructionTable.id, ids.instruction.parse(instructionKey)))
         .get();
 
-      return [selected ? toCatalogInstruction(selected) : defaultRoleplayInstruction];
+      if (!selected) {
+        throw new Error(`Roleplay instruction "${instructionKey}" does not exist.`);
+      }
+
+      return [toCatalogInstruction(selected)];
     },
 
     create(input: RoleplayInstructionInput) {
@@ -121,13 +168,49 @@ export function createRoleplayInstructions(database: Database, now: () => number
     },
 
     delete(id: InstructionId) {
-      return Boolean(
+      const deleted = database
+        .delete(roleplayInstructionTable)
+        .where(eq(roleplayInstructionTable.id, id))
+        .returning({ id: roleplayInstructionTable.id })
+        .get();
+
+      return deleted ? { defaultInstructionKey: getDefaultSelection() } : null;
+    },
+
+    getDefaultSelection,
+
+    setDefaultSelection(instructionKey: string) {
+      if (instructionKey === jaqueleneRoleplayInstruction.key) {
         database
-          .delete(roleplayInstructionTable)
-          .where(eq(roleplayInstructionTable.id, id))
-          .returning({ id: roleplayInstructionTable.id })
-          .get(),
-      );
+          .delete(roleplayInstructionPreferenceTable)
+          .where(eq(roleplayInstructionPreferenceTable.slot, roleplayInstructionPreferenceSlot))
+          .run();
+        return jaqueleneRoleplayInstruction.key;
+      }
+
+      const instructionId = ids.instruction.parse(instructionKey);
+      const instruction = database
+        .select({ id: roleplayInstructionTable.id })
+        .from(roleplayInstructionTable)
+        .where(eq(roleplayInstructionTable.id, instructionId))
+        .get();
+
+      if (!instruction) {
+        throw new RangeError(`Roleplay instruction "${instructionId}" does not exist.`);
+      }
+
+      database
+        .insert(roleplayInstructionPreferenceTable)
+        .values({
+          slot: roleplayInstructionPreferenceSlot,
+          defaultInstructionId: instructionId,
+        })
+        .onConflictDoUpdate({
+          target: roleplayInstructionPreferenceTable.slot,
+          set: { defaultInstructionId: instructionId },
+        })
+        .run();
+      return instructionId;
     },
 
     getCampaignSelection,
@@ -144,23 +227,40 @@ export function createRoleplayInstructions(database: Database, now: () => number
           return null;
         }
 
-        if (instructionKey === defaultRoleplayInstruction.key) {
+        const defaultPreference = transaction
+          .select({ instructionId: roleplayInstructionPreferenceTable.defaultInstructionId })
+          .from(roleplayInstructionPreferenceTable)
+          .where(eq(roleplayInstructionPreferenceTable.slot, roleplayInstructionPreferenceSlot))
+          .get();
+        const defaultInstructionKey =
+          defaultPreference?.instructionId ?? jaqueleneRoleplayInstruction.key;
+        const preference = setCampaignRoleplayInstructionPreference(
+          jaqueleneRoleplayInstruction.key,
+          defaultInstructionKey,
+          instructionKey,
+        );
+
+        if (!preference) {
           transaction
             .delete(campaignRoleplayInstructionTable)
             .where(eq(campaignRoleplayInstructionTable.campaignId, campaignId))
             .run();
-          return defaultRoleplayInstruction.key;
+          return instructionKey;
         }
 
-        const instructionId = ids.instruction.parse(instructionKey);
-        const instruction = transaction
-          .select({ id: roleplayInstructionTable.id })
-          .from(roleplayInstructionTable)
-          .where(eq(roleplayInstructionTable.id, instructionId))
-          .get();
+        let instructionId: InstructionId | null = null;
 
-        if (!instruction) {
-          throw new RangeError(`Roleplay instruction "${instructionId}" does not exist.`);
+        if (preference.instructionKey !== null) {
+          instructionId = ids.instruction.parse(preference.instructionKey);
+          const instruction = transaction
+            .select({ id: roleplayInstructionTable.id })
+            .from(roleplayInstructionTable)
+            .where(eq(roleplayInstructionTable.id, instructionId))
+            .get();
+
+          if (!instruction) {
+            throw new RangeError(`Roleplay instruction "${instructionId}" does not exist.`);
+          }
         }
 
         transaction
@@ -171,7 +271,7 @@ export function createRoleplayInstructions(database: Database, now: () => number
             set: { instructionId },
           })
           .run();
-        return instructionId;
+        return instructionKey;
       });
     },
   };

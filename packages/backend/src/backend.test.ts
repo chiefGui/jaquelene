@@ -14,7 +14,7 @@ import type {
 } from "#backend/provider/provider";
 import { StorageCategory } from "#backend/storage/storage";
 import {
-  defaultRoleplayInstruction,
+  jaqueleneRoleplayInstruction,
   roleplayInstructionGroup,
 } from "#backend/instruction/factory/roleplay";
 import {
@@ -205,7 +205,7 @@ describe("backend", () => {
     expect(first.instructions.listGroups()).toEqual([
       {
         ...roleplayInstructionGroup,
-        instructions: [defaultRoleplayInstruction],
+        instructions: [jaqueleneRoleplayInstruction],
       },
     ]);
     const scenario = first.scenarios.create({ title: "Voyage" });

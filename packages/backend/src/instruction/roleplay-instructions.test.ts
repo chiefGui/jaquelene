@@ -56,14 +56,22 @@ describe("roleplay instructions", () => {
       origin: "custom",
     });
     expect(first.instructions.listGroups()[0]!.instructions).toEqual([
-      expect.objectContaining({ key: "factory.roleplay.default", origin: "factory" }),
+      expect.objectContaining({
+        key: "factory.roleplay.jaquelene",
+        title: "Jaquelene",
+        origin: "factory",
+      }),
       created,
     ]);
 
     closeDatabase(first.database);
     const reopened = openInstructions(path);
     expect(reopened.instructions.listGroups()[0]!.instructions).toEqual([
-      expect.objectContaining({ key: "factory.roleplay.default", origin: "factory" }),
+      expect.objectContaining({
+        key: "factory.roleplay.jaquelene",
+        title: "Jaquelene",
+        origin: "factory",
+      }),
       created,
     ]);
     expect(reopened.instructions.getCampaignSelection(campaign.id)).toBe(created.key);
@@ -79,8 +87,10 @@ describe("roleplay instructions", () => {
       title: "Revised",
       body: "Revised body",
     });
-    expect(instructions.delete(id)).toBe(true);
-    expect(instructions.delete(id)).toBe(false);
+    expect(instructions.delete(id)).toEqual({
+      defaultInstructionKey: "factory.roleplay.jaquelene",
+    });
+    expect(instructions.delete(id)).toBeNull();
     expect(instructions.update(id, { title: "Missing", body: "Missing body" })).toBeNull();
   });
 
@@ -98,17 +108,69 @@ describe("roleplay instructions", () => {
     };
 
     expect(registry.resolve({ threadId: ids.thread.create(), campaign: null })).toEqual([]);
-    expect(instructions.getCampaignSelection(campaign.id)).toBe("factory.roleplay.default");
+    expect(instructions.getCampaignSelection(campaign.id)).toBe("factory.roleplay.jaquelene");
     expect(instructions.setCampaignSelection(campaign.id, custom.key)).toBe(custom.key);
     expect(instructions.getCampaignSelection(campaign.id)).toBe(custom.key);
     expect(registry.resolve(context)).toEqual([
       { sourceKey: custom.key, content: "This body reaches the model." },
     ]);
     expect(JSON.stringify(registry.resolve(context))).not.toContain("Organizational title");
-    expect(instructions.setCampaignSelection(campaign.id, "factory.roleplay.default")).toBe(
-      "factory.roleplay.default",
+    expect(instructions.setCampaignSelection(campaign.id, "factory.roleplay.jaquelene")).toBe(
+      "factory.roleplay.jaquelene",
     );
-    expect(instructions.getCampaignSelection(campaign.id)).toBe("factory.roleplay.default");
+    expect(instructions.getCampaignSelection(campaign.id)).toBe("factory.roleplay.jaquelene");
+  });
+
+  it("inherits the current default while preserving explicit campaign choices", () => {
+    const path = createDatabasePath();
+    const first = openInstructions(path);
+    const inheritingCampaign = first.campaigns.start(
+      first.scenarios.create({ title: "Inherited default" }).id,
+    );
+    const pinnedCampaign = first.campaigns.start(
+      first.scenarios.create({ title: "Pinned instruction" }).id,
+    );
+    const firstDefault = first.instructions.create({
+      title: "First default",
+      body: "First default body",
+    });
+    const secondDefault = first.instructions.create({
+      title: "Second default",
+      body: "Second default body",
+    });
+
+    expect(first.instructions.getDefaultSelection()).toBe("factory.roleplay.jaquelene");
+    expect(first.instructions.setDefaultSelection(firstDefault.key)).toBe(firstDefault.key);
+    expect(first.instructions.getCampaignSelection(inheritingCampaign.id)).toBe(firstDefault.key);
+
+    first.instructions.setCampaignSelection(pinnedCampaign.id, "factory.roleplay.jaquelene");
+    first.instructions.setDefaultSelection(secondDefault.key);
+
+    expect(first.instructions.getCampaignSelection(inheritingCampaign.id)).toBe(secondDefault.key);
+    expect(first.instructions.getCampaignSelection(pinnedCampaign.id)).toBe(
+      "factory.roleplay.jaquelene",
+    );
+
+    first.instructions.setCampaignSelection(inheritingCampaign.id, secondDefault.key);
+    first.instructions.setDefaultSelection(firstDefault.key);
+    expect(first.instructions.getCampaignSelection(inheritingCampaign.id)).toBe(firstDefault.key);
+
+    closeDatabase(first.database);
+    const reopened = openInstructions(path);
+    expect(reopened.instructions.getDefaultSelection()).toBe(firstDefault.key);
+    expect(reopened.instructions.getCampaignSelection(inheritingCampaign.id)).toBe(
+      firstDefault.key,
+    );
+    expect(reopened.instructions.getCampaignSelection(pinnedCampaign.id)).toBe(
+      "factory.roleplay.jaquelene",
+    );
+
+    expect(reopened.instructions.setDefaultSelection("factory.roleplay.jaquelene")).toBe(
+      "factory.roleplay.jaquelene",
+    );
+    expect(reopened.instructions.getCampaignSelection(inheritingCampaign.id)).toBe(
+      "factory.roleplay.jaquelene",
+    );
   });
 
   it("uses an updated selection on the next resolution in an existing campaign", () => {
@@ -128,21 +190,39 @@ describe("roleplay instructions", () => {
     expect(registry.resolve(context)[0]!.content).toBe("Second body");
   });
 
-  it("returns selected campaigns to the built-in instruction when custom content is deleted", () => {
+  it("returns selected campaigns to the current default when custom content is deleted", () => {
     const { campaigns, instructions, scenarios } = openInstructions(createDatabasePath());
     const campaign = campaigns.start(scenarios.create({ title: "Fallback" }).id);
+    const defaultInstruction = instructions.create({
+      title: "Persistent default",
+      body: "Persistent default body",
+    });
     const custom = instructions.create({ title: "Temporary", body: "Temporary body" });
+    instructions.setDefaultSelection(defaultInstruction.key);
     instructions.setCampaignSelection(campaign.id, custom.key);
 
     instructions.delete(ids.instruction.parse(custom.key));
 
-    expect(instructions.getCampaignSelection(campaign.id)).toBe("factory.roleplay.default");
+    expect(instructions.getCampaignSelection(campaign.id)).toBe(defaultInstruction.key);
     expect(
       createInstructionRegistry([instructions]).resolve({
         threadId: campaign.threadId,
         campaign: { id: campaign.id, scenarioId: campaign.scenarioId },
       })[0]!.sourceKey,
-    ).toBe("factory.roleplay.default");
+    ).toBe(defaultInstruction.key);
+  });
+
+  it("returns the app default to Jaquelene when its custom instruction is deleted", () => {
+    const { campaigns, instructions, scenarios } = openInstructions(createDatabasePath());
+    const campaign = campaigns.start(scenarios.create({ title: "Default fallback" }).id);
+    const custom = instructions.create({ title: "Temporary default", body: "Temporary body" });
+    instructions.setDefaultSelection(custom.key);
+
+    expect(instructions.delete(ids.instruction.parse(custom.key))).toEqual({
+      defaultInstructionKey: "factory.roleplay.jaquelene",
+    });
+    expect(instructions.getDefaultSelection()).toBe("factory.roleplay.jaquelene");
+    expect(instructions.getCampaignSelection(campaign.id)).toBe("factory.roleplay.jaquelene");
   });
 
   it("rejects unavailable selections and protects stored content invariants", () => {
@@ -153,9 +233,10 @@ describe("roleplay instructions", () => {
     expect(() => instructions.setCampaignSelection(campaign.id, ids.instruction.create())).toThrow(
       RangeError,
     );
+    expect(() => instructions.setDefaultSelection(ids.instruction.create())).toThrow(RangeError);
     expect(instructions.getCampaignSelection(ids.campaign.create())).toBeNull();
     expect(
-      instructions.setCampaignSelection(ids.campaign.create(), "factory.roleplay.default"),
+      instructions.setCampaignSelection(ids.campaign.create(), "factory.roleplay.jaquelene"),
     ).toBeNull();
 
     closeDatabase(database);

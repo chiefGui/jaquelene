@@ -1,10 +1,18 @@
 import type {
+  DeleteRoleplayInstructionResult,
   Instruction,
   InstructionGroup,
   RoleplayInstructionInput,
   UpdateRoleplayInstructionRequest,
 } from "@jaquelene/ipc/renderer";
-import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  mutationOptions,
+  queryOptions,
+  useIsMutating,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { ipcMutationOptions, ipcQueryOptions } from "@/ipc";
 import { instructionIpc } from "./ipc";
 
@@ -13,11 +21,21 @@ const campaignRoleplayInstructionKeyQueryKey = [
   ...instructionQueryKey,
   "campaign-roleplay-key",
 ] as const;
+const setDefaultRoleplayInstructionMutationKey = [
+  ...instructionQueryKey,
+  "set-default-roleplay-key",
+] as const;
 
 export const instructionGroupsQuery = queryOptions({
   ...ipcQueryOptions,
   queryKey: instructionQueryKey,
   queryFn: instructionIpc.listGroups,
+});
+
+export const defaultRoleplayInstructionKeyQuery = queryOptions({
+  ...ipcQueryOptions,
+  queryKey: [...instructionQueryKey, "default-roleplay-key"],
+  queryFn: instructionIpc.getDefaultRoleplayInstructionKey,
 });
 
 export function campaignRoleplayInstructionKeyQuery(campaignId: string) {
@@ -91,25 +109,89 @@ export function useUpdateRoleplayInstruction() {
 export function useDeleteRoleplayInstruction() {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useMutation<
+    DeleteRoleplayInstructionResult & { deletedInstructionKey: string },
+    Error,
+    string
+  >({
     ...ipcMutationOptions,
     async mutationFn(key: string) {
-      if (!(await instructionIpc.deleteRoleplayInstruction(key))) {
+      const result = await instructionIpc.deleteRoleplayInstruction(key);
+
+      if (!result) {
         throw new Error(`Roleplay instruction "${key}" is unavailable.`);
       }
 
-      return key;
+      return { ...result, deletedInstructionKey: key };
     },
-    onSuccess(key) {
+    onSuccess({ defaultInstructionKey, deletedInstructionKey }) {
       queryClient.setQueryData<InstructionGroup[]>(instructionGroupsQuery.queryKey, (groups) =>
         groups?.map((group) => ({
           ...group,
-          instructions: group.instructions.filter((instruction) => instruction.key !== key),
+          instructions: group.instructions.filter(
+            (instruction) => instruction.key !== deletedInstructionKey,
+          ),
         })),
       );
-      void queryClient.invalidateQueries({ queryKey: campaignRoleplayInstructionKeyQueryKey });
+      queryClient.setQueryData(defaultRoleplayInstructionKeyQuery.queryKey, defaultInstructionKey);
+      return queryClient.invalidateQueries({ queryKey: campaignRoleplayInstructionKeyQueryKey });
     },
   });
+}
+
+type SetDefaultRoleplayInstructionContext = {
+  previousInstructionKey: string | undefined;
+};
+
+export function setDefaultRoleplayInstructionMutationOptions(queryClient: QueryClient) {
+  return mutationOptions<string, Error, string, SetDefaultRoleplayInstructionContext>({
+    ...ipcMutationOptions,
+    mutationKey: setDefaultRoleplayInstructionMutationKey,
+    scope: { id: "default-roleplay-instruction" },
+    mutationFn: instructionIpc.setDefaultRoleplayInstructionKey,
+    async onMutate(instructionKey) {
+      await queryClient.cancelQueries({
+        queryKey: defaultRoleplayInstructionKeyQuery.queryKey,
+        exact: true,
+      });
+      const previousInstructionKey = queryClient.getQueryData<string>(
+        defaultRoleplayInstructionKeyQuery.queryKey,
+      );
+      queryClient.setQueryData(defaultRoleplayInstructionKeyQuery.queryKey, instructionKey);
+      return { previousInstructionKey };
+    },
+    onError(_error, _instructionKey, context) {
+      if (!context) {
+        return;
+      }
+
+      if (context.previousInstructionKey === undefined) {
+        queryClient.removeQueries({
+          queryKey: defaultRoleplayInstructionKeyQuery.queryKey,
+          exact: true,
+        });
+        return;
+      }
+
+      queryClient.setQueryData(
+        defaultRoleplayInstructionKeyQuery.queryKey,
+        context.previousInstructionKey,
+      );
+    },
+    onSuccess(instructionKey) {
+      queryClient.setQueryData(defaultRoleplayInstructionKeyQuery.queryKey, instructionKey);
+      return queryClient.invalidateQueries({ queryKey: campaignRoleplayInstructionKeyQueryKey });
+    },
+  });
+}
+
+export function useSetDefaultRoleplayInstruction() {
+  const queryClient = useQueryClient();
+  return useMutation(setDefaultRoleplayInstructionMutationOptions(queryClient));
+}
+
+export function useIsDefaultRoleplayInstructionPending() {
+  return useIsMutating({ mutationKey: setDefaultRoleplayInstructionMutationKey }) > 0;
 }
 
 export function useSetCampaignRoleplayInstruction(campaignId: string) {

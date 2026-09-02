@@ -13,7 +13,7 @@ import type {
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import { createScenarios } from "#backend/scenario/scenarios";
-import { defaultRoleplayInstruction } from "#backend/instruction/factory/roleplay";
+import { jaqueleneRoleplayInstruction } from "#backend/instruction/factory/roleplay";
 import { createInstructionRegistry } from "#backend/instruction/registry";
 import { createRoleplayInstructions } from "#backend/instruction/roleplay-instructions";
 import { threadMessageTable } from "#backend/thread/schema";
@@ -306,7 +306,7 @@ describe("generations", () => {
       configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
     });
 
-    const defaultRoleplay = defaultRoleplayInstruction;
+    const defaultRoleplay = jaqueleneRoleplayInstruction;
 
     expect(provider.generate).toHaveBeenCalledWith({
       generationId: expect.stringMatching(/^generation_/),

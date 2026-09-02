@@ -6,6 +6,12 @@ export const instructionIpc = {
   createRoleplayInstruction: requireIpcMethod(Instructions?.createRoleplayInstruction),
   updateRoleplayInstruction: requireIpcMethod(Instructions?.updateRoleplayInstruction),
   deleteRoleplayInstruction: requireIpcMethod(Instructions?.deleteRoleplayInstruction),
+  getDefaultRoleplayInstructionKey: requireIpcMethod(
+    Instructions?.getDefaultRoleplayInstructionKey,
+  ),
+  setDefaultRoleplayInstructionKey: requireIpcMethod(
+    Instructions?.setDefaultRoleplayInstructionKey,
+  ),
   getCampaignRoleplayInstructionKey: requireIpcMethod(
     Instructions?.getCampaignRoleplayInstructionKey,
   ),

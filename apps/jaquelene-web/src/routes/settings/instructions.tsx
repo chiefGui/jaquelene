@@ -11,16 +11,34 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { RoleplayInstructionEditor } from "@/feature/instruction/editor";
-import { instructionGroupsQuery, useDeleteRoleplayInstruction } from "@/feature/instruction/query";
+import {
+  defaultRoleplayInstructionKeyQuery,
+  instructionGroupsQuery,
+  useDeleteRoleplayInstruction,
+  useSetDefaultRoleplayInstruction,
+} from "@/feature/instruction/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/instructions")({
-  loader: ({ context }) => context.queryClient.query(instructionGroupsQuery),
+  loader: async ({ context }) => {
+    await Promise.all([
+      context.queryClient.query(instructionGroupsQuery),
+      context.queryClient.query(defaultRoleplayInstructionKeyQuery),
+    ]);
+  },
   component: InstructionsRoute,
 });
 
-function DeleteInstruction({ instruction }: { instruction: Instruction }) {
+function DeleteInstruction({
+  disabled,
+  instruction,
+  isDefault,
+}: {
+  disabled: boolean;
+  instruction: Instruction;
+  isDefault: boolean;
+}) {
   const deleteInstruction = useDeleteRoleplayInstruction();
   const [open, setOpen] = useState(false);
 
@@ -50,19 +68,73 @@ function DeleteInstruction({ instruction }: { instruction: Instruction }) {
           aria-label={`Delete ${instruction.title}`}
           size="small"
           variant="ghost"
-          disabled={deleteInstruction.isPending}
+          disabled={disabled || deleteInstruction.isPending}
         >
           <HugeiconsIcon icon={TrashIcon} size={14} strokeWidth={1.5} aria-hidden="true" />
           <Button.Label>Delete</Button.Label>
         </Button>
       }
       heading={`Delete “${instruction.title}”?`}
-      description="Campaigns using it will return to the built-in Default instruction. This can’t be undone."
+      description={
+        isDefault
+          ? "Jaquelene will become the default, and campaigns using this instruction will return to it. This can’t be undone."
+          : "Campaigns using it will return to their default instruction. This can’t be undone."
+      }
       confirmLabel="Delete"
       pending={deleteInstruction.isPending}
       error={deleteInstruction.isError ? "Couldn’t delete this instruction." : undefined}
       onConfirm={() => void remove()}
     />
+  );
+}
+
+function InstructionFooter({
+  defaultError,
+  defaultPending,
+  instruction,
+  isDefault,
+  onSetDefault,
+}: {
+  defaultError: boolean;
+  defaultPending: boolean;
+  instruction: Instruction;
+  isDefault: boolean;
+  onSetDefault: () => void;
+}) {
+  const custom = instruction.origin === InstructionOrigin.Custom;
+
+  return (
+    <div {...stylex.props(styles.instructionFooter)}>
+      <div {...stylex.props(styles.defaultAction)}>
+        {isDefault ? (
+          <Badge>Default</Badge>
+        ) : (
+          <Button
+            type="button"
+            size="small"
+            variant="ghost"
+            disabled={defaultPending}
+            onClick={onSetDefault}
+          >
+            Set as default
+          </Button>
+        )}
+
+        {defaultError ? (
+          <span role="alert" {...stylex.props(styles.defaultError)}>
+            Couldn’t set default.
+          </span>
+        ) : null}
+      </div>
+
+      {custom ? (
+        <DeleteInstruction
+          disabled={defaultPending}
+          instruction={instruction}
+          isDefault={isDefault}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -81,7 +153,19 @@ function InstructionSummary({ instruction }: { instruction: Instruction }) {
   );
 }
 
-function InstructionItem({ instruction }: { instruction: Instruction }) {
+function InstructionItem({
+  defaultError,
+  defaultInstructionKey,
+  defaultPending,
+  instruction,
+  onSetDefault,
+}: {
+  defaultError: boolean;
+  defaultInstructionKey: string;
+  defaultPending: boolean;
+  instruction: Instruction;
+  onSetDefault: () => void;
+}) {
   if (
     instruction.origin !== InstructionOrigin.Custom &&
     instruction.origin !== InstructionOrigin.Factory
@@ -89,18 +173,15 @@ function InstructionItem({ instruction }: { instruction: Instruction }) {
     throw new Error(`Unknown instruction origin "${instruction.origin}".`);
   }
 
-  if (instruction.origin === InstructionOrigin.Factory) {
-    return (
-      <Item.Root style={styles.instruction}>
-        <div {...stylex.props(styles.instructionContent)}>
-          <InstructionSummary instruction={instruction} />
-        </div>
-      </Item.Root>
-    );
-  }
+  const isDefault = instruction.key === defaultInstructionKey;
+  let content = (
+    <div {...stylex.props(styles.instructionContent)}>
+      <InstructionSummary instruction={instruction} />
+    </div>
+  );
 
-  return (
-    <Item.Root style={styles.instruction}>
+  if (instruction.origin === InstructionOrigin.Custom) {
+    content = (
       <RoleplayInstructionEditor
         instruction={instruction}
         trigger={
@@ -113,16 +194,28 @@ function InstructionItem({ instruction }: { instruction: Instruction }) {
           </button>
         }
       />
+    );
+  }
 
-      <div {...stylex.props(styles.instructionFooter)}>
-        <DeleteInstruction instruction={instruction} />
-      </div>
+  return (
+    <Item.Root style={styles.instruction}>
+      {content}
+
+      <InstructionFooter
+        defaultError={defaultError}
+        defaultPending={defaultPending}
+        instruction={instruction}
+        isDefault={isDefault}
+        onSetDefault={onSetDefault}
+      />
     </Item.Root>
   );
 }
 
 function InstructionsRoute() {
   const { data: groups } = useSuspenseQuery(instructionGroupsQuery);
+  const { data: defaultInstructionKey } = useSuspenseQuery(defaultRoleplayInstructionKeyQuery);
+  const setDefaultInstruction = useSetDefaultRoleplayInstruction();
 
   return (
     <>
@@ -176,7 +269,24 @@ function InstructionsRoute() {
 
                 <Item.Group variant="separated">
                   {group.instructions.map((instruction) => (
-                    <InstructionItem key={instruction.key} instruction={instruction} />
+                    <InstructionItem
+                      key={instruction.key}
+                      defaultError={
+                        setDefaultInstruction.isError &&
+                        setDefaultInstruction.variables === instruction.key
+                      }
+                      defaultInstructionKey={defaultInstructionKey}
+                      defaultPending={setDefaultInstruction.isPending}
+                      instruction={instruction}
+                      onSetDefault={() => {
+                        setDefaultInstruction.reset();
+                        setDefaultInstruction.mutate(instruction.key, {
+                          onError(cause) {
+                            reportError("roleplay-instruction.default.update", cause);
+                          },
+                        });
+                      }}
+                    />
                   ))}
                 </Item.Group>
               </Item.Section>
@@ -248,8 +358,20 @@ const styles = stylex.create({
     borderBlockStartStyle: "solid",
     borderBlockStartWidth: 1,
     display: "flex",
-    justifyContent: "flex-end",
+    gap: "1rem",
+    justifyContent: "space-between",
     padding: "0.5rem 0.75rem",
+  },
+  defaultAction: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.5rem",
+    minWidth: 0,
+  },
+  defaultError: {
+    color: colors.foregroundDanger,
+    fontSize: tokens.fontSizeXSmall,
+    lineHeight: tokens.lineHeightXSmall,
   },
   instructionBody: {
     color: colors.foregroundPrimary,

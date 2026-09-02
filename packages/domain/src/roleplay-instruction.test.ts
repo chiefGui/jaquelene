@@ -2,7 +2,9 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   ROLEPLAY_INSTRUCTION_BODY_MAX_LENGTH,
   ROLEPLAY_INSTRUCTION_TITLE_MAX_LENGTH,
+  composeCampaignRoleplayInstructionKey,
   parseRoleplayInstructionInput,
+  setCampaignRoleplayInstructionPreference,
 } from "./roleplay-instruction";
 
 describe("roleplay instruction input", () => {
@@ -44,5 +46,39 @@ describe("roleplay instruction input", () => {
         body: "b".repeat(ROLEPLAY_INSTRUCTION_BODY_MAX_LENGTH + 1),
       }),
     ).toThrow(TypeError);
+  });
+});
+
+describe("campaign roleplay instruction preferences", () => {
+  const factory = "factory";
+  const defaultInstruction = "default";
+  const custom = "custom";
+
+  it("composes inheritance and explicit campaign choices", () => {
+    expect(composeCampaignRoleplayInstructionKey(factory, defaultInstruction, undefined)).toBe(
+      defaultInstruction,
+    );
+    expect(
+      composeCampaignRoleplayInstructionKey(factory, defaultInstruction, {
+        instructionKey: null,
+      }),
+    ).toBe(factory);
+    expect(
+      composeCampaignRoleplayInstructionKey(factory, defaultInstruction, {
+        instructionKey: custom,
+      }),
+    ).toBe(custom);
+  });
+
+  it("stores only choices that differ from the current default", () => {
+    expect(
+      setCampaignRoleplayInstructionPreference(factory, defaultInstruction, defaultInstruction),
+    ).toBeUndefined();
+    expect(setCampaignRoleplayInstructionPreference(factory, defaultInstruction, factory)).toEqual({
+      instructionKey: null,
+    });
+    expect(setCampaignRoleplayInstructionPreference(factory, defaultInstruction, custom)).toEqual({
+      instructionKey: custom,
+    });
   });
 });

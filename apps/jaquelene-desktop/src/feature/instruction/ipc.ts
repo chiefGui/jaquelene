@@ -48,6 +48,8 @@ export function exposeInstructions(target: WebFrameMain, instructions: Instructi
       return instruction ? toIpcInstruction(instruction) : null;
     },
     deleteRoleplayInstruction: (key) => instructions.delete(ids.instruction.parse(key)),
+    getDefaultRoleplayInstructionKey: instructions.getDefaultSelection,
+    setDefaultRoleplayInstructionKey: instructions.setDefaultSelection,
     getCampaignRoleplayInstructionKey: (campaignId) =>
       instructions.getCampaignSelection(ids.campaign.parse(campaignId)),
     setCampaignRoleplayInstructionKey: ({ campaignId, instructionKey }) =>

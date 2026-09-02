@@ -90,7 +90,7 @@ function InstructionSelectContent({
   labelledBy,
   options,
 }: {
-  footerAction?: InstructionSelectFooterAction;
+  footerAction: InstructionSelectFooterAction | undefined;
   labelledBy: string;
   options: readonly InstructionSelectOption[];
 }) {

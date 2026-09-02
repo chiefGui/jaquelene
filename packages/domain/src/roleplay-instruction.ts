@@ -28,6 +28,36 @@ export type RoleplayInstructionTitle = z.output<typeof roleplayInstructionTitleS
 export type RoleplayInstructionBody = z.output<typeof roleplayInstructionBodySchema>;
 export type RoleplayInstructionInput = z.input<typeof roleplayInstructionInputSchema>;
 
+export type CampaignRoleplayInstructionPreference<Key extends string = string> = Readonly<{
+  instructionKey: Key | null;
+}>;
+
+export function composeCampaignRoleplayInstructionKey<Key extends string>(
+  factoryInstructionKey: Key,
+  defaultInstructionKey: Key,
+  preference: CampaignRoleplayInstructionPreference<Key> | undefined,
+): Key {
+  if (!preference) {
+    return defaultInstructionKey;
+  }
+
+  return preference.instructionKey ?? factoryInstructionKey;
+}
+
+export function setCampaignRoleplayInstructionPreference<Key extends string>(
+  factoryInstructionKey: Key,
+  defaultInstructionKey: Key,
+  instructionKey: Key,
+): CampaignRoleplayInstructionPreference<Key> | undefined {
+  if (instructionKey === defaultInstructionKey) {
+    return undefined;
+  }
+
+  return {
+    instructionKey: instructionKey === factoryInstructionKey ? null : instructionKey,
+  };
+}
+
 export function parseRoleplayInstructionInput(value: unknown) {
   const result = roleplayInstructionInputSchema.safeParse(value);
 

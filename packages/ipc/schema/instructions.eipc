@@ -25,6 +25,10 @@ structure UpdateRoleplayInstructionRequest {
   input: RoleplayInstructionInput
 }
 
+structure DeleteRoleplayInstructionResult {
+  defaultInstructionKey: string
+}
+
 structure SetCampaignRoleplayInstructionKeyRequest {
   campaignId: string
   instructionKey: string
@@ -44,7 +48,9 @@ interface Instructions {
   listGroups() -> InstructionGroup[]
   createRoleplayInstruction(input: RoleplayInstructionInput) -> Instruction
   updateRoleplayInstruction(request: UpdateRoleplayInstructionRequest) -> Instruction?
-  deleteRoleplayInstruction(key: string) -> boolean
+  deleteRoleplayInstruction(key: string) -> DeleteRoleplayInstructionResult?
+  getDefaultRoleplayInstructionKey() -> string
+  setDefaultRoleplayInstructionKey(instructionKey: string) -> string
   getCampaignRoleplayInstructionKey(campaignId: string) -> string?
   setCampaignRoleplayInstructionKey(request: SetCampaignRoleplayInstructionKeyRequest) -> string?
 }

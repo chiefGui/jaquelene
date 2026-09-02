@@ -36,7 +36,7 @@ export const draculaTheme = stylex.createTheme(colors, {
   buttonDangerSolidForeground: "oklch(0.16218 0.00847 296.89)",
 
   // Control backgrounds
-  backgroundControlChecked: "oklch(0.58172 0.22593 284.37)",
+  backgroundControlChecked: "oklch(0.58 0.16 142)",
   backgroundControlThumb: "oklch(0.86523 0.01381 295.28)",
 
   // Product backgrounds
@@ -75,7 +75,7 @@ export const draculaTheme = stylex.createTheme(colors, {
   borderFocus: "oklch(0.6493 0.18797 287.7)",
   borderDanger: "oklch(0.70927 0.1686 32.68 / 65%)",
   borderDangerFocus: "oklch(0.70927 0.1686 32.68)",
-  borderControlChecked: "oklch(0.58172 0.22593 284.37)",
+  borderControlChecked: "oklch(0.6 0.17 142)",
   focusRing: "oklch(0.6493 0.18797 287.7)",
 
   // Native controls

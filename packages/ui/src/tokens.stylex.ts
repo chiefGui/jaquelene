@@ -31,7 +31,7 @@ export const colors = stylex.defineVars({
   buttonDangerSolidForeground: "oklch(0.135 0.01 272)",
 
   // Control backgrounds
-  backgroundControlChecked: "oklch(0.55 0.06 276)",
+  backgroundControlChecked: "oklch(0.55 0.11 158)",
   backgroundControlThumb: "oklch(0.925 0.014 282)",
 
   // Product backgrounds
@@ -70,7 +70,7 @@ export const colors = stylex.defineVars({
   borderFocus: "oklch(0.71 0.08 276 / 45%)",
   borderDanger: "oklch(0.7 0.16 22 / 58%)",
   borderDangerFocus: "oklch(0.7 0.16 22 / 72%)",
-  borderControlChecked: "oklch(0.565 0.065 276)",
+  borderControlChecked: "oklch(0.58 0.12 158)",
   focusRing: "oklch(0.71 0.08 276 / 70%)",
 
   // Native controls

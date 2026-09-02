@@ -11,14 +11,6 @@ function EmptyStateRoot({ style, ...props }: StyleableProps<RoleProps<"div">>) {
   return <Role.div {...props} {...stylex.props(styles.root, style)} />;
 }
 
-function EmptyStateIllustration({ style, ...props }: StyleableProps<RoleProps<"div">>) {
-  return <Role.div {...props} {...stylex.props(styles.illustration, style)} />;
-}
-
-function EmptyStateContent({ style, ...props }: StyleableProps<RoleProps<"div">>) {
-  return <Role.div {...props} {...stylex.props(styles.content, style)} />;
-}
-
 function EmptyStateTitle({ style, ...props }: StyleableProps<RoleProps<"h2">>) {
   return <Role.h2 {...props} {...stylex.props(styles.title, style)} />;
 }
@@ -29,8 +21,6 @@ function EmptyStateDescription({ style, ...props }: StyleableProps<RoleProps<"p"
 
 export const EmptyState = {
   Root: EmptyStateRoot,
-  Illustration: EmptyStateIllustration,
-  Content: EmptyStateContent,
   Title: EmptyStateTitle,
   Description: EmptyStateDescription,
 } as const;
@@ -40,21 +30,10 @@ const styles = stylex.create({
     alignItems: "flex-start",
     display: "flex",
     flexDirection: "column",
-    gap: "1.25rem",
-    justifyContent: "center",
+    gap: "0.25rem",
     maxWidth: "24rem",
     textAlign: "left",
     width: "100%",
-  },
-  illustration: {
-    color: `color-mix(in oklab, ${tokens.foreground} 42%, ${tokens.muted})`,
-    display: "flex",
-  },
-  content: {
-    alignItems: "flex-start",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.25rem",
   },
   title: {
     color: tokens.foreground,

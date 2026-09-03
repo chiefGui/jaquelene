@@ -1,4 +1,5 @@
 import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
+import { MotionProvider } from "@jaquelene/ui/motion";
 import {
   RouterContextProvider,
   createMemoryHistory,
@@ -28,7 +29,9 @@ function renderSidebar(navigation: PrimarySidebarNavigation, initialEntry: strin
 
   return renderToStaticMarkup(
     <RouterContextProvider router={router}>
-      <PrimarySidebar navigation={navigation} />
+      <MotionProvider mode="reduced">
+        <PrimarySidebar navigation={navigation} />
+      </MotionProvider>
     </RouterContextProvider>,
   );
 }

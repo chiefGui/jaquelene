@@ -4,6 +4,7 @@ import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { IconButton, Skeleton } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import {
   Link,
@@ -13,7 +14,7 @@ import {
   useMatchRoute,
   useRouter,
 } from "@tanstack/react-router";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactElement } from "react";
 import type { FileRoutesByTo } from "@/routeTree.gen";
 import { shellChrome } from "./shell-chrome.stylex";
 
@@ -117,34 +118,58 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
 
       <footer {...stylex.props(styles.footer)}>
         {utilityAreaActive ? (
-          <IconButton
-            type="button"
-            aria-label="Back"
-            onClick={returnToWorkspace}
-            style={styles.footerAction}
-          >
-            <PrimarySidebarIcon icon={ArrowLeft01Icon} />
-          </IconButton>
+          <PrimarySidebarFooterAction
+            label="Back"
+            action={
+              <IconButton
+                type="button"
+                aria-label="Back"
+                onClick={returnToWorkspace}
+                style={styles.footerAction}
+              >
+                <PrimarySidebarIcon icon={ArrowLeft01Icon} />
+              </IconButton>
+            }
+          />
         ) : (
           <>
-            <IconButton
-              render={<Link to="/settings/general" preload="render" />}
-              aria-label="Settings"
-              style={styles.footerAction}
-            >
-              <PrimarySidebarIcon icon={Settings01Icon} />
-            </IconButton>
-            <IconButton
-              render={<Link to="/library/narrator" preload="render" />}
-              aria-label="Library"
-              style={styles.footerAction}
-            >
-              <PrimarySidebarIcon icon={Bookshelf01Icon} />
-            </IconButton>
+            <PrimarySidebarFooterAction
+              label="Settings"
+              action={
+                <IconButton
+                  render={<Link to="/settings/general" preload="render" />}
+                  aria-label="Settings"
+                  style={styles.footerAction}
+                >
+                  <PrimarySidebarIcon icon={Settings01Icon} />
+                </IconButton>
+              }
+            />
+            <PrimarySidebarFooterAction
+              label="Library"
+              action={
+                <IconButton
+                  render={<Link to="/library/narrator" preload="render" />}
+                  aria-label="Library"
+                  style={styles.footerAction}
+                >
+                  <PrimarySidebarIcon icon={Bookshelf01Icon} />
+                </IconButton>
+              }
+            />
           </>
         )}
       </footer>
     </aside>
+  );
+}
+
+function PrimarySidebarFooterAction({ action, label }: { action: ReactElement; label: string }) {
+  return (
+    <Tooltip.Root placement="top">
+      <Tooltip.Anchor render={action} />
+      <Tooltip>{label}</Tooltip>
+    </Tooltip.Root>
   );
 }
 

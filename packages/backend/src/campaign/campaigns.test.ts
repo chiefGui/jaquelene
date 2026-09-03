@@ -13,7 +13,7 @@ import {
   jaqueleneNarratorPrompt,
   narratorPromptKind,
   narratorPromptModule,
-} from "#backend/prompt/narrator";
+} from "#backend/narrator/module";
 import { createPrompts } from "#backend/prompt/prompts";
 import { campaignPromptSelectionTable } from "#backend/prompt/schema";
 import type { ModelSelection } from "#backend/provider/provider";

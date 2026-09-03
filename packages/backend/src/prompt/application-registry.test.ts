@@ -3,9 +3,9 @@ import { describe, expect, it } from "vite-plus/test";
 import { ids } from "#backend/id";
 import { createPromptApplicationRegistry, type PromptApplication } from "./application-registry";
 
-const narratorPromptKind = parsePromptKindKey("narrator");
+const primaryPromptKind = parsePromptKindKey("primary");
 
-function application(kind: PromptKindKey = narratorPromptKind): PromptApplication {
+function application(kind: PromptKindKey = primaryPromptKind): PromptApplication {
   return {
     kind,
     apply: ({ campaign }) =>
@@ -26,7 +26,7 @@ describe("prompt application registry", () => {
         campaign: { id: ids.campaign.create() },
       }),
     ).toEqual([
-      { sourceKey: "factory.narrator.default", content: "narrator content" },
+      { sourceKey: "factory.primary.default", content: "primary content" },
       { sourceKey: "factory.setting.default", content: "setting content" },
     ]);
   });
@@ -38,7 +38,7 @@ describe("prompt application registry", () => {
 
   it("rejects multiple applications for one prompt kind", () => {
     expect(() => createPromptApplicationRegistry([application(), application()])).toThrow(
-      'Prompt kind "narrator" has multiple applications.',
+      'Prompt kind "primary" has multiple applications.',
     );
   });
 });

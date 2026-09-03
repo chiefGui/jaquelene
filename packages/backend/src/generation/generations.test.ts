@@ -16,7 +16,7 @@ import {
   jaqueleneNarratorPrompt,
   narratorPromptKind,
   narratorPromptModule,
-} from "#backend/prompt/narrator";
+} from "#backend/narrator/module";
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import { threadMessageTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";

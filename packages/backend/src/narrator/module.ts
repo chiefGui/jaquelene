@@ -1,6 +1,6 @@
 import { parsePromptKey, parsePromptKindKey, parseUpdatePromptInput } from "@jaquelene/domain";
-import type { PromptKindModule } from "./subsystem";
-import type { FactoryPromptDefinition, PromptKind } from "./types";
+import type { PromptKindModule } from "#backend/prompt/subsystem";
+import type { FactoryPromptDefinition, PromptKind } from "#backend/prompt/types";
 
 export const narratorPromptKind = Object.freeze({
   key: parsePromptKindKey("narrator"),

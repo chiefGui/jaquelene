@@ -13,7 +13,7 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import { StorageCategory } from "#backend/storage/storage";
-import { jaqueleneNarratorPrompt, narratorPromptKind } from "#backend/prompt/narrator";
+import { jaqueleneNarratorPrompt, narratorPromptKind } from "#backend/narrator/module";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,

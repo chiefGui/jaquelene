@@ -25,7 +25,7 @@ export function Switch({ checked, onCheckedChange, style, ...props }: SwitchProp
       {...stylex.props(styles.root, style)}
     >
       <span {...stylex.props(styles.track, checked && styles.trackChecked)}>
-        <span {...stylex.props(styles.thumb, checked && styles.thumbChecked)} />
+        <span {...stylex.props(styles.thumb)} />
       </span>
     </AriakitButton>
   );
@@ -51,14 +51,16 @@ const styles = stylex.create({
     width: "2.5rem",
   },
   track: {
+    alignItems: "center",
     backgroundColor: colors.backgroundSurfaceRaised,
     borderColor: colors.borderDefault,
     borderRadius: radii.full,
     borderStyle: "solid",
     borderWidth: 1,
     boxSizing: "border-box",
-    display: "block",
+    display: "flex",
     height: "1.125rem",
+    justifyContent: "flex-start",
     outlineColor: {
       default: null,
       [stylex.when.ancestor("[data-focus-visible]")]: colors.focusRing,
@@ -75,22 +77,20 @@ const styles = stylex.create({
       default: null,
       [stylex.when.ancestor("[data-focus-visible]")]: 2,
     },
-    padding: "0.0625rem",
+    paddingInline: "0.0625rem",
     width: "2rem",
   },
   trackChecked: {
     backgroundColor: colors.backgroundControlChecked,
     borderColor: colors.borderControlChecked,
+    justifyContent: "flex-end",
   },
   thumb: {
     backgroundColor: colors.backgroundControlThumb,
     borderRadius: radii.full,
     display: "block",
+    flexShrink: 0,
     height: "0.875rem",
-    transform: "translateX(0)",
     width: "0.875rem",
-  },
-  thumbChecked: {
-    transform: "translateX(0.875rem)",
   },
 });

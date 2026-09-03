@@ -52,13 +52,12 @@ function EditPromptRoute() {
                 Narrator
               </Breadcrumb.Link>
             </Breadcrumb.Item>
-            <Breadcrumb.Item>{prompt?.title ?? "Prompt"}</Breadcrumb.Item>
             <Breadcrumb.Item>
               <Breadcrumb.Page
                 id={pageHeadingId}
                 aria-label={prompt ? `Edit ${prompt.title}` : "Edit prompt"}
               >
-                Edit
+                {prompt?.title ?? "Prompt"}
               </Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>

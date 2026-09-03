@@ -29,14 +29,7 @@ type PrimarySidebarLink = PrimarySidebarDestination & {
   replace?: Exclude<LinkProps["replace"], undefined>;
 };
 
-type PrimarySidebarItem =
-  | (PrimarySidebarLink & { id: string })
-  | {
-      action: "history-back";
-      icon: IconSvgElement;
-      id: string;
-      label: string;
-    };
+type PrimarySidebarItem = PrimarySidebarLink & { id: string };
 
 interface PrimarySidebarNavigation {
   navigationLabel: string;
@@ -60,6 +53,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
   const router = useRouter();
   const settingsActive = Boolean(matchRoute({ to: "/settings", fuzzy: true }));
   const libraryActive = Boolean(matchRoute({ to: "/library", fuzzy: true }));
+  const utilityAreaActive = settingsActive || libraryActive;
 
   function returnToWorkspace() {
     if (router.history.canGoBack()) {
@@ -83,20 +77,6 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
       >
         <ul {...stylex.props(styles.list)}>
           {navigation.items.map((item) => {
-            if ("action" in item) {
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    onClick={returnToWorkspace}
-                    {...stylex.props(styles.navigationItem)}
-                  >
-                    <PrimarySidebarItemContent icon={item.icon} label={item.label} />
-                  </button>
-                </li>
-              );
-            }
-
             const { activeOptions = { exact: true }, id, icon, label, ...destination } = item;
 
             return (
@@ -136,7 +116,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
       </nav>
 
       <footer {...stylex.props(styles.footer)}>
-        {settingsActive ? (
+        {utilityAreaActive ? (
           <IconButton
             type="button"
             aria-label="Back"
@@ -146,31 +126,22 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
             <PrimarySidebarIcon icon={ArrowLeft01Icon} />
           </IconButton>
         ) : (
-          <IconButton
-            render={<Link to="/settings/general" preload="render" />}
-            aria-label="Settings"
-            style={styles.footerAction}
-          >
-            <PrimarySidebarIcon icon={Settings01Icon} />
-          </IconButton>
-        )}
-        {libraryActive ? (
-          <IconButton
-            type="button"
-            aria-label="Back"
-            onClick={returnToWorkspace}
-            style={styles.footerAction}
-          >
-            <PrimarySidebarIcon icon={ArrowLeft01Icon} />
-          </IconButton>
-        ) : (
-          <IconButton
-            render={<Link to="/library/narrator" preload="render" />}
-            aria-label="Library"
-            style={styles.footerAction}
-          >
-            <PrimarySidebarIcon icon={Bookshelf01Icon} />
-          </IconButton>
+          <>
+            <IconButton
+              render={<Link to="/settings/general" preload="render" />}
+              aria-label="Settings"
+              style={styles.footerAction}
+            >
+              <PrimarySidebarIcon icon={Settings01Icon} />
+            </IconButton>
+            <IconButton
+              render={<Link to="/library/narrator" preload="render" />}
+              aria-label="Library"
+              style={styles.footerAction}
+            >
+              <PrimarySidebarIcon icon={Bookshelf01Icon} />
+            </IconButton>
+          </>
         )}
       </footer>
     </aside>

@@ -119,6 +119,7 @@ function PromptItem({
     <Link
       to="/library/narrator/$promptKey/edit"
       params={{ promptKey: prompt.key }}
+      replace
       aria-label={`Edit ${prompt.title}`}
       {...stylex.props(styles.promptEditSurface)}
     >
@@ -182,7 +183,7 @@ function PromptKindSection({ kind }: { kind: PromptKind }) {
           <Item.Heading id={headingId}>{kind.name}</Item.Heading>
           <Item.SectionDescription id={descriptionId}>{kind.description}</Item.SectionDescription>
         </Item.SectionContent>
-        <Button variant="ghost" render={<Link to="/library/narrator/new" />}>
+        <Button variant="ghost" render={<Link to="/library/narrator/new" replace />}>
           <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} aria-hidden="true" />
           <Button.Label>Create</Button.Label>
         </Button>

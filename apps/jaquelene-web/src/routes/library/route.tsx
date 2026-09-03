@@ -1,5 +1,4 @@
 import AiFile01Icon from "@hugeicons/core-free-icons/AiFile01Icon";
-import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { PrimarySidebar } from "@/layout/primary-sidebar";
 
@@ -9,12 +8,6 @@ function LibrarySidebar() {
       navigation={{
         navigationLabel: "Library",
         items: [
-          {
-            action: "history-back",
-            id: "back",
-            icon: ArrowLeft01Icon,
-            label: "Back",
-          },
           {
             activeOptions: { exact: false },
             id: "narrator",

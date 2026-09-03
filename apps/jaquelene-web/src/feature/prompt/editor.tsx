@@ -145,11 +145,14 @@ export function PromptEditor(props: PromptEditorProps) {
         <FormError name={form.names.title} render={<Field.Error />} />
       </Field.Root>
 
-      <Field.Root>
+      <Field.Root style={styles.promptField}>
         <FormLabel name={form.names.body} render={<Field.Label />}>
           Prompt
         </FormLabel>
-        <FormDescription name={form.names.body} render={<Field.Description />}>
+        <FormDescription
+          name={form.names.body}
+          render={<Field.Description style={styles.promptDescription} />}
+        >
           This text is applied according to the prompt’s kind.
         </FormDescription>
         <FormControl
@@ -163,7 +166,7 @@ export function PromptEditor(props: PromptEditorProps) {
             />
           }
         />
-        <FormError name={form.names.body} render={<Field.Error />} />
+        <FormError name={form.names.body} render={<Field.Error style={styles.promptError} />} />
       </Field.Root>
 
       <FormLayout.Status
@@ -188,6 +191,17 @@ export function PromptEditor(props: PromptEditorProps) {
 
 const styles = stylex.create({
   titleInput: { width: "100%" },
+  promptField: {
+    gap: 0,
+    marginBlockStart: "0.5rem",
+  },
+  promptDescription: {
+    marginBlockEnd: "0.75rem",
+    marginBlockStart: "0.25rem",
+  },
+  promptError: {
+    marginBlockStart: "0.5rem",
+  },
   actions: {
     display: "flex",
     gap: "0.5rem",

@@ -397,7 +397,6 @@ const styles = stylex.create({
     fontFamily: "inherit",
     fontSize: tokens.fontSizeBase,
     lineHeight: tokens.lineHeightLarge,
-    minHeight: "24rem",
     opacity: {
       default: 1,
       ':is([data-disabled="true"])': 0.5,
@@ -423,7 +422,8 @@ const styles = stylex.create({
     flexGrow: 1,
     fontSize: tokens.fontSizeBase,
     lineHeight: tokens.lineHeightBase,
-    minHeight: "20rem",
+    maxHeight: "32rem",
+    minHeight: "8rem",
     overflow: "auto",
     padding: "1rem",
   },

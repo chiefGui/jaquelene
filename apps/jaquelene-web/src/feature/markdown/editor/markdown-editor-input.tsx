@@ -345,8 +345,6 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
 
 const styles = stylex.create({
   root: {
-    flexGrow: 1,
-    minHeight: "20rem",
     minWidth: 0,
   },
 });

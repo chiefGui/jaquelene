@@ -4,13 +4,13 @@ import {
   type ApiKeyConfiguration,
   type ApiKeyConfigurationDependencies,
 } from "../api-key-configuration";
-import { openRouterProviderId } from "./identity";
+import { openRouterProviderDescriptor } from "./identity";
 
 export type OpenRouterConfigurationDependencies = ApiKeyConfigurationDependencies;
 export type OpenRouterConfiguration = ApiKeyConfiguration;
 
 export function getOpenRouterConnectionStoragePaths(userDataDirectory: string) {
-  return getApiKeyConfigurationStoragePaths(userDataDirectory, openRouterProviderId);
+  return getApiKeyConfigurationStoragePaths(userDataDirectory, openRouterProviderDescriptor.id);
 }
 
 export function createOpenRouterConfiguration(
@@ -19,7 +19,11 @@ export function createOpenRouterConfiguration(
 ): OpenRouterConfiguration {
   return createApiKeyConfiguration(
     userDataDirectory,
-    { id: openRouterProviderId, name: "OpenRouter" },
+    {
+      id: openRouterProviderDescriptor.id,
+      name: openRouterProviderDescriptor.name,
+      apiKeyPrefixes: ["sk-or-v1-"],
+    },
     dependencies,
   );
 }

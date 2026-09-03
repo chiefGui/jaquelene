@@ -5,7 +5,7 @@ import {
   type NanoGptConfigurationDependencies,
 } from "./connection";
 import { createNanoGptGeneration } from "./generation";
-import { nanoGptProviderId } from "./identity";
+import { nanoGptProviderDescriptor, nanoGptProviderId } from "./identity";
 import { createNanoGptModels } from "./models";
 
 export { nanoGptProviderId } from "./identity";
@@ -17,11 +17,7 @@ export function createNanoGptProvider(
   const configuration = createNanoGptConfiguration(userDataDirectory, dependencies);
 
   return {
-    descriptor: {
-      id: nanoGptProviderId,
-      name: "NanoGPT",
-      brandId: nanoGptProviderId,
-    },
+    descriptor: nanoGptProviderDescriptor,
     configuration,
     models: createNanoGptModels(configuration),
     generation: createNanoGptGeneration(configuration),

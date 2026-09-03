@@ -181,7 +181,7 @@ function requireApiKeyConfiguration(
     throw new TypeError(`Provider "${providerId}" returned an invalid configuration state.`);
   }
 
-  if (configuration.keyLabel !== undefined && !configuration.keyLabel.trim()) {
+  if (typeof configuration.keyLabel !== "string" || !configuration.keyLabel.trim()) {
     throw new TypeError(`Provider "${providerId}" returned an invalid API-key label.`);
   }
 
@@ -201,7 +201,7 @@ function requireConfigureResult(providerId: ProviderId, result: ProviderConfigur
     throw new TypeError(`Provider "${providerId}" returned an invalid configuration result.`);
   }
 
-  if (result.keyLabel !== undefined && !result.keyLabel.trim()) {
+  if (typeof result.keyLabel !== "string" || !result.keyLabel.trim()) {
     throw new TypeError(`Provider "${providerId}" returned an invalid API-key label.`);
   }
 
@@ -295,7 +295,7 @@ export function createProviderSubsystem(
     return {
       kind: "api-key",
       state: "configured",
-      ...(configuration.keyLabel ? { keyLabel: configuration.keyLabel } : {}),
+      keyLabel: configuration.keyLabel,
     };
   }
 

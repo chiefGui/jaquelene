@@ -9,7 +9,7 @@ function operationSignal() {
 
 describe("NanoGPT API key verification", () => {
   it("accepts a key that can inspect its account balance", async () => {
-    const apiKey = "nanogpt-accepted-key";
+    const apiKey = "sk-nano-123e4567-e89b-12d3-a456-426614174000";
     const request = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(

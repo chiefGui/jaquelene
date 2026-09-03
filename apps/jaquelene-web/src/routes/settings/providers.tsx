@@ -39,6 +39,12 @@ function ProviderSettings({ provider }: { provider: Provider }) {
   const usesApiKey = provider.configuration.kind === ProviderConfigurationKind.ApiKey;
   const configured = provider.configuration.state === ProviderConfigurationState.Configured;
   const keyLabel = configured ? provider.configuration.keyLabel : undefined;
+
+  if (configured && !keyLabel?.trim()) {
+    throw new TypeError(`Configured provider "${provider.id}" has no API-key label.`);
+  }
+
+  const keyPlaceholder = configured ? keyLabel : "Paste API key";
   const pending = configureProvider.isPending || clearProvider.isPending;
 
   function startEditingConnection() {
@@ -173,7 +179,7 @@ function ProviderSettings({ provider }: { provider: Provider }) {
                 spellCheck={false}
                 aria-describedby={connectionError ? errorId : undefined}
                 style={styles.input}
-                placeholder={keyLabel ?? "Paste API key"}
+                placeholder={keyPlaceholder}
               />
               <Button type="submit" disabled={pending}>
                 {configureProvider.isPending ? "Connecting…" : "Connect"}

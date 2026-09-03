@@ -1,7 +1,6 @@
 import type {
   ApiKeyProviderConfigurationSnapshot,
   ProviderConfigurationAdapter,
-  ProviderConfigureResult,
 } from "@jaquelene/backend";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
@@ -10,7 +9,7 @@ import { deleteStoreFile } from "@/storage/delete-store-file";
 
 type StoredApiKeyCredential = {
   encryptedApiKey: string;
-  keyLabel?: string;
+  keyLabel: string;
   revision: string;
 };
 
@@ -18,15 +17,30 @@ type StoredApiKeyConnection = {
   credential?: StoredApiKeyCredential;
 };
 
+export type ApiKeyVerificationResult =
+  | Readonly<{ state: "configured"; keyLabel?: string }>
+  | Readonly<{ state: "rejected" }>
+  | Readonly<{ state: "unavailable" }>;
+
 export type ApiKeyConfigurationDependencies = {
   encrypt: (value: string) => Promise<Buffer>;
   decrypt: (value: Buffer) => Promise<string>;
-  verify: (apiKey: string, signal: AbortSignal) => Promise<ProviderConfigureResult>;
+  verify: (apiKey: string, signal: AbortSignal) => Promise<ApiKeyVerificationResult>;
 };
 
 export type ApiKeyConfiguration = Extract<ProviderConfigurationAdapter, { kind: "api-key" }> & {
   withApiKey: <Result>(use: (apiKey: string) => Promise<Result>) => Promise<Result>;
 };
+
+type ApiKeyProvider = Readonly<{
+  id: string;
+  name: string;
+  apiKeyPrefixes?: readonly string[];
+}>;
+
+const opaqueApiKeyLabel = "••••";
+const visibleSuffixLength = 4;
+const minimumHiddenLength = 8;
 
 const schema = {
   credential: {
@@ -37,7 +51,7 @@ const schema = {
       keyLabel: { type: "string", minLength: 1 },
       revision: { type: "string", minLength: 1 },
     },
-    required: ["encryptedApiKey", "revision"],
+    required: ["encryptedApiKey", "keyLabel", "revision"],
   },
 } satisfies Schema<StoredApiKeyConnection>;
 
@@ -47,7 +61,7 @@ export function getApiKeyConfigurationStoragePaths(userDataDirectory: string, pr
 
 export function createApiKeyConfiguration(
   userDataDirectory: string,
-  provider: Readonly<{ id: string; name: string }>,
+  provider: ApiKeyProvider,
   { encrypt, decrypt, verify }: ApiKeyConfigurationDependencies,
 ): ApiKeyConfiguration {
   const store = new Store<StoredApiKeyConnection>({
@@ -68,8 +82,35 @@ export function createApiKeyConfiguration(
     return {
       state: "configured",
       revision: credential.revision,
-      ...(credential.keyLabel ? { keyLabel: credential.keyLabel } : {}),
+      keyLabel: credential.keyLabel,
     };
+  }
+
+  function redactApiKey(apiKey: string) {
+    if (apiKey.length < visibleSuffixLength + minimumHiddenLength) {
+      return opaqueApiKeyLabel;
+    }
+
+    const prefix = provider.apiKeyPrefixes?.find(
+      (candidate) =>
+        apiKey.startsWith(candidate) &&
+        apiKey.length - candidate.length >= visibleSuffixLength + minimumHiddenLength,
+    );
+    return `${prefix ?? ""}...${apiKey.slice(-visibleSuffixLength)}`;
+  }
+
+  function resolveKeyLabel(apiKey: string, candidate: string | undefined) {
+    if (candidate === undefined) {
+      return redactApiKey(apiKey);
+    }
+
+    const label = candidate.trim();
+
+    if (!label || label.includes(apiKey)) {
+      throw new TypeError(`${provider.name} returned an unsafe API-key label.`);
+    }
+
+    return label;
   }
 
   async function readApiKey() {
@@ -111,15 +152,16 @@ export function createApiKeyConfiguration(
         return verification;
       }
 
+      const label = resolveKeyLabel(apiKey, verification.keyLabel);
       signal.throwIfAborted();
       const encryptedApiKey = await encrypt(apiKey);
       signal.throwIfAborted();
       store.set("credential", {
         encryptedApiKey: encryptedApiKey.toString("base64"),
         revision: randomUUID(),
-        ...(verification.keyLabel ? { keyLabel: verification.keyLabel } : {}),
+        keyLabel: label,
       });
-      return verification;
+      return { state: "configured", keyLabel: label };
     },
 
     async clear() {

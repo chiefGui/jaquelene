@@ -29,9 +29,7 @@ function toIpcConfiguration(configuration: ProviderConfiguration): IpcConfigurat
           configuration.state === "configured"
             ? ProviderConfigurationState.Configured
             : ProviderConfigurationState.Unconfigured,
-        ...(configuration.state === "configured" && configuration.keyLabel
-          ? { keyLabel: configuration.keyLabel }
-          : {}),
+        ...(configuration.state === "configured" ? { keyLabel: configuration.keyLabel } : {}),
       };
   }
 }
@@ -50,7 +48,7 @@ function toIpcConfigureResult(result: ProviderConfigureResult): IpcConfigureResu
     case "configured":
       return {
         state: ProviderConfigureState.Configured,
-        ...(result.keyLabel ? { keyLabel: result.keyLabel } : {}),
+        keyLabel: result.keyLabel,
       };
     case "rejected":
       return { state: ProviderConfigureState.Rejected };

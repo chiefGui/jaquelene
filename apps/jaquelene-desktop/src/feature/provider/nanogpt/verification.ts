@@ -1,4 +1,4 @@
-import type { ProviderConfigureResult } from "@jaquelene/backend";
+import type { ApiKeyVerificationResult } from "../api-key-configuration";
 
 const balanceEndpoint = "https://nano-gpt.com/api/check-balance";
 
@@ -9,7 +9,7 @@ function isBalance(value: unknown) {
 export async function verifyNanoGptApiKey(
   apiKey: string,
   signal: AbortSignal,
-): Promise<ProviderConfigureResult> {
+): Promise<ApiKeyVerificationResult> {
   let response: Response;
 
   try {

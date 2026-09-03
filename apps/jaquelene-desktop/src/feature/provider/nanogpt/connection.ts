@@ -4,13 +4,13 @@ import {
   type ApiKeyConfiguration,
   type ApiKeyConfigurationDependencies,
 } from "../api-key-configuration";
-import { nanoGptProviderId } from "./identity";
+import { nanoGptProviderDescriptor } from "./identity";
 
 export type NanoGptConfigurationDependencies = ApiKeyConfigurationDependencies;
 export type NanoGptConfiguration = ApiKeyConfiguration;
 
 export function getNanoGptConnectionStoragePaths(userDataDirectory: string) {
-  return getApiKeyConfigurationStoragePaths(userDataDirectory, nanoGptProviderId);
+  return getApiKeyConfigurationStoragePaths(userDataDirectory, nanoGptProviderDescriptor.id);
 }
 
 export function createNanoGptConfiguration(
@@ -19,7 +19,11 @@ export function createNanoGptConfiguration(
 ): NanoGptConfiguration {
   return createApiKeyConfiguration(
     userDataDirectory,
-    { id: nanoGptProviderId, name: "NanoGPT" },
+    {
+      id: nanoGptProviderDescriptor.id,
+      name: nanoGptProviderDescriptor.name,
+      apiKeyPrefixes: ["sk-nano-"],
+    },
     dependencies,
   );
 }

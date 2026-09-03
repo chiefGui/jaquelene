@@ -36,11 +36,15 @@ describe("NanoGPT provider", () => {
       expect(provider.configuration.storagePaths).toEqual([
         join(userDataDirectory, `${nanoGptProviderId}.json`),
       ]);
-      await provider.configuration.configure("nanogpt-key", new AbortController().signal);
-      expect(verify).toHaveBeenCalledWith("nanogpt-key", expect.any(AbortSignal));
+      const apiKey = "sk-nano-123e4567-e89b-12d3-a456-426614174000";
+      await expect(
+        provider.configuration.configure(apiKey, new AbortController().signal),
+      ).resolves.toEqual({ state: "configured", keyLabel: "sk-nano-...4000" });
+      expect(verify).toHaveBeenCalledWith(apiKey, expect.any(AbortSignal));
       expect(provider.configuration.inspect()).toEqual({
         state: "configured",
         revision: expect.any(String),
+        keyLabel: "sk-nano-...4000",
       });
     } finally {
       rmSync(userDataDirectory, { recursive: true, force: true });

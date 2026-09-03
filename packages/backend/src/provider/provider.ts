@@ -97,18 +97,18 @@ export type ProviderGenerationResult = Readonly<{
 
 export type ApiKeyProviderConfiguration =
   | Readonly<{ state: "unconfigured" }>
-  | Readonly<{ state: "configured"; keyLabel?: string }>;
+  | Readonly<{ state: "configured"; keyLabel: string }>;
 
 export type ApiKeyProviderConfigurationSnapshot =
   | Readonly<{ state: "unconfigured" }>
-  | Readonly<{ state: "configured"; revision: string; keyLabel?: string }>;
+  | Readonly<{ state: "configured"; revision: string; keyLabel: string }>;
 
 export type ProviderConfiguration =
   | (ApiKeyProviderConfiguration & Readonly<{ kind: "api-key" }>)
   | Readonly<{ kind: "none"; state: "configured" }>;
 
 export type ProviderConfigureResult =
-  | Readonly<{ state: "configured"; keyLabel?: string }>
+  | Readonly<{ state: "configured"; keyLabel: string }>
   | Readonly<{ state: "rejected" }>
   | Readonly<{ state: "unavailable" }>;
 

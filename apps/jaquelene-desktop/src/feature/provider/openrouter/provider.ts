@@ -5,7 +5,7 @@ import {
   type OpenRouterConfigurationDependencies,
 } from "./connection";
 import { createOpenRouterGeneration } from "./generation";
-import { openRouterProviderId } from "./identity";
+import { openRouterProviderDescriptor, openRouterProviderId } from "./identity";
 import { createOpenRouterModels } from "./models";
 
 export { openRouterProviderId } from "./identity";
@@ -17,11 +17,7 @@ export function createOpenRouterProvider(
   const configuration = createOpenRouterConfiguration(userDataDirectory, dependencies);
 
   return {
-    descriptor: {
-      id: openRouterProviderId,
-      name: "OpenRouter",
-      brandId: openRouterProviderId,
-    },
+    descriptor: openRouterProviderDescriptor,
     configuration,
     models: createOpenRouterModels(configuration),
     generation: createOpenRouterGeneration(configuration),

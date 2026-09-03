@@ -26,7 +26,7 @@ import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 
 type Brand = Readonly<{
-  iconUrl: string;
+  iconUrl?: string;
   name: string;
 }>;
 
@@ -44,6 +44,7 @@ const brands: ReadonlyMap<string, Brand> = new Map([
   ["minimax", { iconUrl: minimaxIcon, name: "MiniMax" }],
   ["mistral", { iconUrl: mistralIcon, name: "Mistral AI" }],
   ["moonshot", { iconUrl: moonshotIcon, name: "Moonshot AI" }],
+  ["nanogpt", { name: "NanoGPT" }],
   ["nousresearch", { iconUrl: nousResearchIcon, name: "Nous Research" }],
   ["nvidia", { iconUrl: nvidiaIcon, name: "NVIDIA" }],
   ["openai", { iconUrl: openAiIcon, name: "OpenAI" }],

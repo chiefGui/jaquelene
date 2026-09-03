@@ -7,6 +7,8 @@ import { appUrl, handleAppScheme } from "../app-protocol";
 import type { ApplicationDiagnostics } from "../diagnostics/diagnostics";
 import { createFavoriteModels } from "../feature/model/favorite-models";
 import { createFavoriteModelsStorage } from "../feature/model/favorite-models-store";
+import { createNanoGptProviderFactory } from "../feature/provider/nanogpt/provider";
+import { verifyNanoGptApiKey } from "../feature/provider/nanogpt/verification";
 import { createOpenRouterProviderFactory } from "../feature/provider/openrouter/provider";
 import { verifyOpenRouterApiKey } from "../feature/provider/openrouter/verification";
 import { createLocalState } from "../local-state";
@@ -97,17 +99,24 @@ export function launchDesktopApplication({
       const { databasePath, cachePath } = getApplicationDatabasePaths(userDataDirectory);
       const localState = createLocalState(userDataDirectory, diagnostics);
       const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
-      const openRouter = createOpenRouterProviderFactory(userDataDirectory, {
-        async encrypt(apiKey) {
+      const credentialProtection = {
+        async encrypt(apiKey: string) {
           await requireSecureStorage();
           return safeStorage.encryptStringAsync(apiKey);
         },
-        async decrypt(encryptedApiKey) {
+        async decrypt(encryptedApiKey: Buffer) {
           await requireSecureStorage();
           const { result } = await safeStorage.decryptStringAsync(encryptedApiKey);
           return result;
         },
+      };
+      const openRouter = createOpenRouterProviderFactory(userDataDirectory, {
+        ...credentialProtection,
         verify: verifyOpenRouterApiKey,
+      });
+      const nanoGpt = createNanoGptProviderFactory(userDataDirectory, {
+        ...credentialProtection,
+        verify: verifyNanoGptApiKey,
       });
       const backend = yield* Effect.acquireRelease(
         Effect.tryPromise({
@@ -124,7 +133,7 @@ export function launchDesktopApplication({
                       error: failure.error,
                     }),
                 },
-                providers: [openRouter],
+                providers: [openRouter, nanoGpt],
                 storageAreas: createStorageAreas({
                   diagnostics,
                   favoriteModels,

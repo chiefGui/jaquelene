@@ -1,34 +1,43 @@
+import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
+import Bookmark02Icon from "@hugeicons/core-free-icons/Bookmark02Icon";
+import Edit02Icon from "@hugeicons/core-free-icons/Edit02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PromptOrigin, type Prompt, type PromptKind } from "@jaquelene/ipc/renderer";
-import { Badge, Button, Item } from "@jaquelene/ui";
+import { Badge, Button, IconButton, Item } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { NarratorPromptDeleteAction } from "@/feature/narrator/delete-action";
+import { narratorPromptKindKey } from "@/feature/narrator/kind";
 import {
-  narratorPromptKind,
   promptDefaultQuery,
   promptKindsQuery,
   promptPagesQuery,
+  useDeletePrompt,
   useSetPromptDefault,
 } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
+type DeletePromptMutation = ReturnType<typeof useDeletePrompt>;
+type SetPromptDefaultMutation = ReturnType<typeof useSetPromptDefault>;
+
 export const Route = createFileRoute("/library/narrator/")({
   loader: async ({ context }) => {
     const kinds = await context.queryClient.query(promptKindsQuery);
-    const kind = kinds.find(({ key }) => key === narratorPromptKind) ?? null;
+    const kind = kinds.find(({ key }) => key === narratorPromptKindKey) ?? null;
 
     if (!kind) {
       return null;
     }
 
     await Promise.all([
-      context.queryClient.query(promptDefaultQuery(narratorPromptKind)),
-      context.queryClient.infiniteQuery(promptPagesQuery(narratorPromptKind)),
+      context.queryClient.query(promptDefaultQuery(narratorPromptKindKey)),
+      context.queryClient.infiniteQuery(promptPagesQuery(narratorPromptKindKey)),
     ]);
 
     return kind;
@@ -36,87 +45,164 @@ export const Route = createFileRoute("/library/narrator/")({
   component: NarratorRoute,
 });
 
-function PromptSummary({ prompt }: { prompt: Prompt }) {
+function NarratorPromptEditAction({ prompt }: { prompt: Prompt }) {
   return (
-    <>
-      <span {...stylex.props(styles.promptHeading)}>
-        <Item.Label render={<span />} style={styles.promptTitle}>
-          {prompt.title}
-        </Item.Label>
-        {prompt.origin === PromptOrigin.Factory ? <Badge>Built-in</Badge> : null}
-      </span>
-      <span {...stylex.props(styles.promptBody)}>{prompt.body}</span>
-    </>
+    <Tooltip.Root>
+      <Tooltip.Anchor
+        render={
+          <IconButton
+            render={
+              <Link
+                to="/library/narrator/$promptKey/edit"
+                params={{ promptKey: prompt.key }}
+                replace
+              />
+            }
+            aria-label={`Edit ${prompt.title}`}
+            style={styles.promptAction}
+          >
+            <HugeiconsIcon icon={Edit02Icon} size={16} strokeWidth={1.5} aria-hidden="true" />
+          </IconButton>
+        }
+      />
+      <Tooltip>Edit</Tooltip>
+    </Tooltip.Root>
   );
 }
 
-function PromptItem({
+function NarratorPromptDefaultAction({
   defaultPromptKey,
+  deletePending,
   prompt,
   setDefault,
 }: {
   defaultPromptKey: string | undefined;
+  deletePending: boolean;
   prompt: Prompt;
-  setDefault: ReturnType<typeof useSetPromptDefault>;
+  setDefault: SetPromptDefaultMutation;
 }) {
-  const isDefault = prompt.key === defaultPromptKey;
-  const custom = prompt.origin === PromptOrigin.Custom;
-  const content = custom ? (
-    <Link
-      to="/library/narrator/$promptKey/edit"
-      params={{ promptKey: prompt.key }}
-      replace
-      aria-label={`Edit ${prompt.title}`}
-      {...stylex.props(styles.promptEditSurface)}
-    >
-      <PromptSummary prompt={prompt} />
-    </Link>
-  ) : (
-    <div {...stylex.props(styles.promptContent)}>
-      <PromptSummary prompt={prompt} />
-    </div>
-  );
+  const displayedDefaultPromptKey = setDefault.isPending ? setDefault.variables : defaultPromptKey;
+  const isDefault = prompt.key === displayedDefaultPromptKey;
+  const defaultPending = setDefault.isPending && setDefault.variables === prompt.key;
+  const defaultFailed = setDefault.isError && setDefault.variables === prompt.key;
+  const defaultTooltip = defaultFailed
+    ? "Couldn't set default"
+    : isDefault
+      ? "Default"
+      : "Set as default";
+
+  function setAsDefault() {
+    setDefault.reset();
+    setDefault.mutate(prompt.key, {
+      onError(cause) {
+        reportError("prompt.default.update", cause);
+      },
+    });
+  }
 
   return (
-    <Item.Root inset="none" style={styles.prompt}>
-      {content}
-      <div {...stylex.props(styles.promptFooter)}>
-        <div {...stylex.props(styles.defaultAction)}>
-          {isDefault ? (
-            <Badge>Default</Badge>
-          ) : (
-            <Button
+    <>
+      <Tooltip.Root>
+        <Tooltip.Anchor
+          render={
+            <IconButton
               type="button"
-              size="small"
-              variant="ghost"
-              disabled={setDefault.isPending}
-              onClick={() => {
-                setDefault.reset();
-                setDefault.mutate(prompt.key, {
-                  onError(cause) {
-                    reportError("prompt.default.update", cause);
-                  },
-                });
-              }}
+              aria-busy={defaultPending || undefined}
+              aria-label={
+                isDefault
+                  ? `${prompt.title} is the default narrator`
+                  : `Set ${prompt.title} as the default narrator`
+              }
+              aria-pressed={isDefault}
+              disabled={isDefault || defaultPending || deletePending}
+              onClick={setAsDefault}
+              style={[
+                styles.promptAction,
+                styles.defaultAction,
+                isDefault && styles.defaultActionOn,
+                defaultFailed && styles.defaultActionError,
+              ]}
             >
-              Set as default
-            </Button>
-          )}
-          {setDefault.isError && setDefault.variables === prompt.key ? (
-            <span role="alert" {...stylex.props(styles.defaultError)}>
-              Couldn't set default.
-            </span>
-          ) : null}
+              <HugeiconsIcon
+                icon={Bookmark02Icon}
+                size={16}
+                strokeWidth={1.5}
+                fill={isDefault ? "currentColor" : "none"}
+                aria-hidden="true"
+              />
+            </IconButton>
+          }
+        />
+        <Tooltip>{defaultTooltip}</Tooltip>
+      </Tooltip.Root>
+
+      {defaultFailed ? (
+        <VisuallyHidden role="alert">
+          Couldn't set {prompt.title} as the default narrator
+        </VisuallyHidden>
+      ) : null}
+    </>
+  );
+}
+
+function NarratorPromptItem({
+  defaultPromptKey,
+  deletePrompt,
+  prompt,
+  setDefault,
+}: {
+  defaultPromptKey: string | undefined;
+  deletePrompt: DeletePromptMutation;
+  prompt: Prompt;
+  setDefault: SetPromptDefaultMutation;
+}) {
+  const custom = prompt.origin === PromptOrigin.Custom;
+
+  return (
+    <Item.Root
+      render={<li {...stylex.props(stylex.defaultMarker())} />}
+      inset="none"
+      style={styles.prompt}
+    >
+      <div {...stylex.props(styles.promptContent)}>
+        <NarratorPromptDefaultAction
+          defaultPromptKey={defaultPromptKey}
+          deletePending={deletePrompt.isPending}
+          prompt={prompt}
+          setDefault={setDefault}
+        />
+
+        <div {...stylex.props(styles.promptIdentity)}>
+          <Item.Label render={<h3 />} style={styles.promptTitle}>
+            {prompt.title}
+          </Item.Label>
+          {prompt.origin === PromptOrigin.Factory ? <Badge>Built-in</Badge> : null}
         </div>
+
+        {custom ? (
+          <div {...stylex.props(styles.promptActions)}>
+            <NarratorPromptEditAction prompt={prompt} />
+            <NarratorPromptDeleteAction
+              deletePrompt={deletePrompt}
+              disabled={setDefault.isPending}
+              isDefault={prompt.key === defaultPromptKey}
+              prompt={prompt}
+              style={styles.promptAction}
+            />
+          </div>
+        ) : null}
+
+        <p {...stylex.props(styles.promptBody)}>{prompt.body}</p>
       </div>
     </Item.Root>
   );
 }
 
-function PromptKindSection({ kind }: { kind: PromptKind }) {
-  const pages = useSuspenseInfiniteQuery(promptPagesQuery(kind.key));
-  const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(kind.key));
-  const setDefault = useSetPromptDefault(kind.key);
+function NarratorSection({ kind }: { kind: PromptKind }) {
+  const pages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
+  const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
+  const setDefault = useSetPromptDefault(narratorPromptKindKey);
+  const deletePrompt = useDeletePrompt();
   const prompts = pages.data.pages.flatMap((page) => page.prompts);
   const headingId = `prompt-kind-${kind.key}`;
   const descriptionId = `prompt-kind-description-${kind.key}`;
@@ -134,11 +220,12 @@ function PromptKindSection({ kind }: { kind: PromptKind }) {
         </Button>
       </Item.SectionHeader>
 
-      <Item.Group variant="separated">
+      <Item.Group render={<ul />} variant="separated">
         {prompts.map((prompt) => (
-          <PromptItem
+          <NarratorPromptItem
             key={prompt.key}
             defaultPromptKey={defaultSelection.promptKey}
+            deletePrompt={deletePrompt}
             prompt={prompt}
             setDefault={setDefault}
           />
@@ -179,7 +266,7 @@ function NarratorRoute() {
       <ContentPane.Viewport>
         <ContentPane.Body>
           {kind ? (
-            <PromptKindSection kind={kind} />
+            <NarratorSection kind={kind} />
           ) : (
             <div role="status" {...stylex.props(styles.unavailable)}>
               Narrator prompts aren't available right now.
@@ -198,46 +285,61 @@ const styles = stylex.create({
     justifyContent: "space-between",
   },
   prompt: { display: "block", minHeight: 0 },
-  promptContent: { minWidth: 0, padding: "1rem" },
-  promptEditSurface: {
-    backgroundColor: {
-      default: "transparent",
-      ":hover": colors.backgroundInteractive,
-      ":focus-visible": colors.backgroundInteractive,
-    },
-    color: colors.foregroundPrimary,
-    display: "block",
-    minWidth: 0,
-    outlineColor: { default: null, ":focus-visible": colors.focusRing },
-    outlineOffset: { default: null, ":focus-visible": -2 },
-    outlineStyle: { default: "none", ":focus-visible": "solid" },
-    outlineWidth: { default: null, ":focus-visible": 1 },
-    padding: "1rem",
-    textAlign: "start",
-    width: "100%",
-  },
-  promptHeading: { alignItems: "center", display: "flex", gap: "0.75rem", minWidth: 0 },
-  promptTitle: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  promptFooter: {
+  promptContent: {
     alignItems: "center",
-    borderBlockStartColor: colors.borderSubtle,
-    borderBlockStartStyle: "solid",
-    borderBlockStartWidth: 1,
-    display: "flex",
-    padding: "0.5rem 0.75rem",
+    columnGap: "0.75rem",
+    display: "grid",
+    gridTemplateColumns: "2rem minmax(0, 1fr) auto",
+    minWidth: 0,
+    padding: "1rem",
+    rowGap: "0.75rem",
   },
-  defaultAction: { alignItems: "center", display: "flex", gap: "0.5rem", minWidth: 0 },
-  defaultError: {
+  promptIdentity: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.75rem",
+    gridColumn: "2",
+    gridRow: "1",
+    minWidth: 0,
+  },
+  promptTitle: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  promptActions: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.25rem",
+    gridColumn: "3",
+    gridRow: "1",
+    justifySelf: "end",
+  },
+  promptAction: {
+    height: "2rem",
+    opacity: {
+      default: 0,
+      ":disabled": 0,
+      [stylex.when.ancestor(":hover")]: 1,
+      [stylex.when.ancestor(":focus-within")]: 1,
+    },
+    width: "2rem",
+  },
+  defaultAction: {
+    gridColumn: "1",
+    gridRow: "1",
+  },
+  defaultActionOn: {
+    color: colors.foregroundAccent,
+    opacity: { default: 1, ":disabled": 1 },
+  },
+  defaultActionError: {
     color: colors.foregroundDanger,
-    fontSize: tokens.fontSizeXSmall,
-    lineHeight: tokens.lineHeightXSmall,
+    opacity: 1,
   },
   promptBody: {
-    color: colors.foregroundPrimary,
+    color: colors.foregroundSecondary,
     display: "-webkit-box",
     fontSize: tokens.fontSizeSmall,
+    gridColumn: "2 / -1",
+    gridRow: "2",
     lineHeight: tokens.lineHeightSmall,
-    marginBlock: "1rem 0",
     overflow: "hidden",
     overflowWrap: "anywhere",
     whiteSpace: "pre-wrap",

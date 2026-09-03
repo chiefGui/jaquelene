@@ -2,8 +2,9 @@ import { Button } from "@jaquelene/ui";
 import type { Prompt } from "@jaquelene/ipc/renderer";
 import * as stylex from "@stylexjs/stylex";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { narratorPromptKindKey } from "@/feature/narrator/kind";
 import { PromptEditor } from "@/feature/prompt/editor";
-import { narratorPromptKind, promptKindsQuery } from "@/feature/prompt/query";
+import { promptKindsQuery } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EmptyState } from "@/primitive/empty-state";
@@ -11,7 +12,7 @@ import { EmptyState } from "@/primitive/empty-state";
 export const Route = createFileRoute("/library/narrator/new")({
   loader: async ({ context }) => {
     const kinds = await context.queryClient.query(promptKindsQuery);
-    return kinds.find((kind) => kind.key === narratorPromptKind) ?? null;
+    return kinds.find((kind) => kind.key === narratorPromptKindKey) ?? null;
   },
   component: NewPromptRoute,
 });
@@ -28,6 +29,10 @@ function NewPromptRoute() {
       params: { promptKey: prompt.key },
       replace: true,
     });
+  }
+
+  function openNarrator() {
+    return navigate({ to: "/library/narrator", replace: true });
   }
 
   return (
@@ -58,7 +63,8 @@ function NewPromptRoute() {
           {kind ? (
             <PromptEditor
               aria-labelledby={pageHeadingId}
-              kind={narratorPromptKind}
+              kind={narratorPromptKindKey}
+              onCancel={openNarrator}
               onSaved={openPrompt}
             />
           ) : (

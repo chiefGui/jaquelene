@@ -28,6 +28,7 @@ import { useCreatePrompt, useUpdatePrompt } from "./query";
 
 type PromptEditorProps = {
   "aria-labelledby": string;
+  onCancel?: () => void | Promise<void>;
 } & (
   | {
       kind: string;
@@ -50,7 +51,7 @@ function promptValuesEqual(left: UpdatePromptInput, right: UpdatePromptInput) {
 }
 
 export function PromptEditor(props: PromptEditorProps) {
-  const { "aria-labelledby": ariaLabelledBy, onSaved, prompt } = props;
+  const { "aria-labelledby": ariaLabelledBy, onCancel, onSaved, prompt } = props;
   const createPrompt = useCreatePrompt();
   const updatePrompt = useUpdatePrompt();
   const form = useFormStore({ defaultValues: getEditorValues(prompt) });
@@ -170,7 +171,6 @@ export function PromptEditor(props: PromptEditorProps) {
           render={
             <Input
               type="text"
-              autoFocus
               maxLength={PROMPT_TITLE_MAX_UTF16_LENGTH}
               onChange={clearStatus}
               readOnly={editorReadOnly}
@@ -213,6 +213,12 @@ export function PromptEditor(props: PromptEditorProps) {
         >
           {status?.message}
         </FormLayout.Status>
+
+        {onCancel ? (
+          <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>
+            Cancel
+          </Button>
+        ) : null}
 
         <Button type="submit" aria-busy={saving || undefined}>
           {submitLabel}

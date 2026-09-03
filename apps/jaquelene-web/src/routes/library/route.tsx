@@ -1,17 +1,26 @@
-import AiFile01Icon from "@hugeicons/core-free-icons/AiFile01Icon";
-import { Outlet, createFileRoute } from "@tanstack/react-router";
+import Idea01Icon from "@hugeicons/core-free-icons/Idea01Icon";
+import { Outlet, createFileRoute, useMatchRoute } from "@tanstack/react-router";
 import { PrimarySidebar } from "@/layout/primary-sidebar";
 
+const narratorParentDestination = { to: "/library/narrator", replace: true } as const;
+
 function LibrarySidebar() {
+  const matchRoute = useMatchRoute();
+  const narratorEditorActive = Boolean(
+    matchRoute({ to: "/library/narrator/new" }) ||
+    matchRoute({ to: "/library/narrator/$promptKey/edit" }),
+  );
+
   return (
     <PrimarySidebar
       navigation={{
+        ...(narratorEditorActive ? { backDestination: narratorParentDestination } : {}),
         navigationLabel: "Library",
         items: [
           {
             activeOptions: { exact: false },
             id: "narrator",
-            icon: AiFile01Icon,
+            icon: Idea01Icon,
             label: "Narrator",
             replace: true,
             to: "/library/narrator",

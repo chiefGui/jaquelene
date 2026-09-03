@@ -3,7 +3,7 @@ import { Timestamp, formatCount, formatCurrencyNanos } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId, type ReactNode } from "react";
-import { CampaignNarratorControl } from "@/feature/prompt/campaign-control";
+import { CampaignNarratorControl } from "@/feature/narrator/campaign-control";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
 import { summarizeCosts } from "@/feature/usage/presentation";
 import { CampaignDeleteControl } from "./delete-control";

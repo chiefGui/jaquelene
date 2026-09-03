@@ -5,29 +5,29 @@ import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-quer
 import { Link } from "@tanstack/react-router";
 import { useId } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { PromptSelect, type PromptSelectOption } from "./select";
+import { PromptSelect, type PromptSelectOption } from "@/feature/prompt/select";
 import {
   campaignPromptSelectionQuery,
-  narratorPromptKind,
   promptDefaultQuery,
   promptPagesQuery,
   promptQuery,
   useIsPromptDefaultPending,
   useSetCampaignPromptSelection,
-} from "./query";
+} from "@/feature/prompt/query";
+import { narratorPromptKindKey } from "./kind";
 
 export function CampaignNarratorControl({ campaignId }: { campaignId: string }) {
-  const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKind));
-  const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKind));
+  const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
+  const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const { data: selection } = useSuspenseQuery(
-    campaignPromptSelectionQuery(campaignId, narratorPromptKind),
+    campaignPromptSelectionQuery(campaignId, narratorPromptKindKey),
   );
   const effectivePromptKey = selection?.effectivePromptKey;
   const { data: effectivePrompt } = useSuspenseQuery(
     promptQuery(effectivePromptKey ?? "missing-narrator-prompt"),
   );
-  const setSelection = useSetCampaignPromptSelection(campaignId, narratorPromptKind);
-  const defaultPending = useIsPromptDefaultPending(narratorPromptKind);
+  const setSelection = useSetCampaignPromptSelection(campaignId, narratorPromptKindKey);
+  const defaultPending = useIsPromptDefaultPending(narratorPromptKindKey);
   const controlId = useId();
   const labelId = useId();
   const errorId = useId();

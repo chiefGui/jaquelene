@@ -20,7 +20,6 @@ import { campaignMutationKey, campaignMutationScope } from "@/feature/campaign/m
 import { ipcMutationOptions, ipcQueryOptions } from "@/ipc";
 import { promptIpc } from "./ipc";
 
-export const narratorPromptKind = "narrator";
 export { promptQueryKey } from "@/feature/cache-keys";
 const promptDefaultMutationKey = [...promptQueryKey, "set-default"] as const;
 

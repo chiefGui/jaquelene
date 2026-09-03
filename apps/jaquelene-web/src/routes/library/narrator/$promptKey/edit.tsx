@@ -5,14 +5,10 @@ import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { narratorPromptKindKey } from "@/feature/narrator/kind";
+import { NarratorPromptManagement } from "@/feature/narrator/management";
 import { PromptEditor } from "@/feature/prompt/editor";
-import { NarratorPromptManagement } from "@/feature/prompt/narrator-management";
-import {
-  narratorPromptKind,
-  promptDefaultQuery,
-  promptKindsQuery,
-  promptQuery,
-} from "@/feature/prompt/query";
+import { promptDefaultQuery, promptKindsQuery, promptQuery } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EmptyState } from "@/primitive/empty-state";
@@ -29,14 +25,14 @@ export const Route = createFileRoute("/library/narrator/$promptKey/edit")({
       context.queryClient.query(promptKindsQuery),
       context.queryClient.query(promptQuery(promptKey.data)),
     ]);
-    const registered = kinds.some((kind) => kind.key === narratorPromptKind);
+    const registered = kinds.some((kind) => kind.key === narratorPromptKindKey);
 
-    if (!registered || prompt?.kind !== narratorPromptKind) {
+    if (!registered || prompt?.kind !== narratorPromptKindKey) {
       return null;
     }
 
     if (prompt.origin === PromptOrigin.Custom) {
-      await context.queryClient.query(promptDefaultQuery(narratorPromptKind));
+      await context.queryClient.query(promptDefaultQuery(narratorPromptKindKey));
     }
 
     return prompt.key;

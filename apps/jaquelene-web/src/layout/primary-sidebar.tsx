@@ -19,7 +19,10 @@ import type { FileRoutesByTo } from "@/routeTree.gen";
 import { shellChrome } from "./shell-chrome.stylex";
 
 type PrimarySidebarDestination = {
-  [Path in keyof FileRoutesByTo]: ToOptions<RegisteredRouter, string, Path> & { to: Path };
+  [Path in keyof FileRoutesByTo]: ToOptions<RegisteredRouter, string, Path> & {
+    replace?: Exclude<LinkProps["replace"], undefined>;
+    to: Path;
+  };
 }[keyof FileRoutesByTo];
 
 type PrimarySidebarLink = PrimarySidebarDestination & {
@@ -27,12 +30,12 @@ type PrimarySidebarLink = PrimarySidebarDestination & {
   icon: IconSvgElement;
   label: string;
   preload?: Exclude<LinkProps["preload"], undefined>;
-  replace?: Exclude<LinkProps["replace"], undefined>;
 };
 
 type PrimarySidebarItem = PrimarySidebarLink & { id: string };
 
 interface PrimarySidebarNavigation {
+  backDestination?: PrimarySidebarDestination;
   navigationLabel: string;
   items: readonly PrimarySidebarItem[];
   loadingItemCount?: number;
@@ -56,7 +59,12 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
   const libraryActive = Boolean(matchRoute({ to: "/library", fuzzy: true }));
   const utilityAreaActive = settingsActive || libraryActive;
 
-  function returnToWorkspace() {
+  function navigateBack() {
+    if (navigation.backDestination) {
+      void router.navigate(navigation.backDestination);
+      return;
+    }
+
     if (router.history.canGoBack()) {
       router.history.back();
       return;
@@ -124,7 +132,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
               <IconButton
                 type="button"
                 aria-label="Back"
-                onClick={returnToWorkspace}
+                onClick={navigateBack}
                 style={styles.footerAction}
               >
                 <PrimarySidebarIcon icon={ArrowLeft01Icon} />

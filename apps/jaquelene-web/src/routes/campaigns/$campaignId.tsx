@@ -17,9 +17,9 @@ import { campaignQuery, useIsCampaignGenerationPreferencesPending } from "@/feat
 import { campaignUsageQuery } from "@/feature/campaign/usage-query";
 import { CampaignDetailsSidebar } from "@/feature/campaign/details-sidebar";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
+import { narratorPromptKindKey } from "@/feature/narrator/kind";
 import {
   campaignPromptSelectionQuery,
-  narratorPromptKind,
   promptDefaultQuery,
   promptPagesQuery,
   promptQuery,
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
       staleTime: "static",
     });
     const narratorSelectionPromise = context.queryClient.query(
-      campaignPromptSelectionQuery(params.campaignId, narratorPromptKind),
+      campaignPromptSelectionQuery(params.campaignId, narratorPromptKindKey),
     );
 
     await Promise.all([
@@ -45,8 +45,8 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
       context.queryClient.query(campaignUsageQuery(params.campaignId)),
       context.queryClient.query(defaultCampaignModelQuery),
       context.queryClient.query(modelProvidersQuery),
-      context.queryClient.query(promptDefaultQuery(narratorPromptKind)),
-      context.queryClient.ensureInfiniteQueryData(promptPagesQuery(narratorPromptKind)),
+      context.queryClient.query(promptDefaultQuery(narratorPromptKindKey)),
+      context.queryClient.ensureInfiniteQueryData(promptPagesQuery(narratorPromptKindKey)),
       narratorSelectionPromise,
       narratorSelectionPromise.then((selection) =>
         selection?.effectivePromptKey

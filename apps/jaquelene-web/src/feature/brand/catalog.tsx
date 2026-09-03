@@ -24,6 +24,7 @@ import xAiIcon from "@lobehub/icons-static-svg/icons/xai.svg?no-inline";
 import zAiIcon from "@lobehub/icons-static-svg/icons/zai.svg?no-inline";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
+import nanoGptIcon from "./nanogpt.svg?no-inline";
 
 type Brand = Readonly<{
   iconUrl?: string;
@@ -44,7 +45,7 @@ const brands: ReadonlyMap<string, Brand> = new Map([
   ["minimax", { iconUrl: minimaxIcon, name: "MiniMax" }],
   ["mistral", { iconUrl: mistralIcon, name: "Mistral AI" }],
   ["moonshot", { iconUrl: moonshotIcon, name: "Moonshot AI" }],
-  ["nanogpt", { name: "NanoGPT" }],
+  ["nanogpt", { iconUrl: nanoGptIcon, name: "NanoGPT" }],
   ["nousresearch", { iconUrl: nousResearchIcon, name: "Nous Research" }],
   ["nvidia", { iconUrl: nvidiaIcon, name: "NVIDIA" }],
   ["openai", { iconUrl: openAiIcon, name: "OpenAI" }],

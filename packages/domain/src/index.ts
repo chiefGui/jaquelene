@@ -1,15 +1,13 @@
 export {
   CAMPAIGN_TITLE_MAX_LENGTH,
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,
-  InvalidCampaignTitleError,
   campaignTitleInputSchema,
   campaignTitleSchema,
   parseCampaignTitle,
   parseCampaignTitleInput,
   type CampaignTitle,
-  type CampaignTitleErrorReason,
   type CampaignTitleInput,
-} from "./campaign";
+} from "./campaign/title";
 export {
   composeCampaignGenerationConfiguration,
   setCampaignGenerationModel,
@@ -18,27 +16,31 @@ export {
   type GenerationConfiguration,
   type ModelIdentity,
   type ModelReasoningOptions,
-} from "./generation-configuration";
+} from "./campaign/generation-configuration";
+export { narratorPromptKindKey } from "./narrator/prompt-kind";
 export {
   PROMPT_BODY_MAX_LENGTH,
   PROMPT_BODY_MAX_UTF16_LENGTH,
-  PROMPT_KEY_MAX_LENGTH,
   PROMPT_TITLE_MAX_LENGTH,
   PROMPT_TITLE_MAX_UTF16_LENGTH,
   createPromptInputSchema,
   parseCreatePromptInput,
-  parsePromptKey,
-  parsePromptKindKey,
   parseUpdatePromptInput,
   promptBodySchema,
-  promptKindKeySchema,
-  promptKeySchema,
   promptTitleSchema,
   updatePromptInputSchema,
   type CreatePromptInput,
   type PromptBody,
-  type PromptKindKey,
-  type PromptKey,
   type PromptTitle,
   type UpdatePromptInput,
-} from "./prompt";
+} from "./prompt/content";
+export {
+  PROMPT_KEY_MAX_LENGTH,
+  PROMPT_KIND_KEY_MAX_LENGTH,
+  parsePromptKey,
+  parsePromptKindKey,
+  promptKindKeySchema,
+  promptKeySchema,
+  type PromptKindKey,
+  type PromptKey,
+} from "./prompt/identity";

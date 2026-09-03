@@ -1,8 +1,8 @@
 import { Button } from "@jaquelene/ui";
+import { narratorPromptKindKey } from "@jaquelene/domain";
 import type { Prompt } from "@jaquelene/ipc/renderer";
 import * as stylex from "@stylexjs/stylex";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { narratorPromptKindKey } from "@/feature/narrator/kind";
 import { PromptEditor } from "@/feature/prompt/editor";
 import { promptKindsQuery } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";

@@ -1,6 +1,7 @@
 import {
   PROMPT_BODY_MAX_LENGTH,
   PROMPT_KEY_MAX_LENGTH,
+  PROMPT_KIND_KEY_MAX_LENGTH,
   PROMPT_TITLE_MAX_LENGTH,
   type PromptBody,
   type PromptKindKey,
@@ -25,6 +26,7 @@ import type { CampaignId } from "#backend/id";
 const promptTitleMaxLengthSql = sql.raw(String(PROMPT_TITLE_MAX_LENGTH));
 const promptBodyMaxLengthSql = sql.raw(String(PROMPT_BODY_MAX_LENGTH));
 const promptKeyMaxLengthSql = sql.raw(String(PROMPT_KEY_MAX_LENGTH));
+const promptKindKeyMaxLengthSql = sql.raw(String(PROMPT_KIND_KEY_MAX_LENGTH));
 
 export const promptOrigins = ["factory", "custom"] as const;
 export type PromptOrigin = (typeof promptOrigins)[number];
@@ -40,7 +42,7 @@ export const promptKindTable = sqliteTable(
     primaryKey({ columns: [kind.key] }),
     check(
       "prompt_kinds_key_valid",
-      sql`length(${kind.key}) > 0 AND length(${kind.key}) <= 64 AND ${kind.key} NOT GLOB '*[^a-z0-9-]*' AND ${kind.key} GLOB '[a-z]*'`,
+      sql`length(${kind.key}) > 0 AND length(${kind.key}) <= ${promptKindKeyMaxLengthSql} AND ${kind.key} NOT GLOB '*[^a-z0-9-]*' AND ${kind.key} GLOB '[a-z]*'`,
     ),
     check(
       "prompt_kinds_name_valid",

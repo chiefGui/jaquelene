@@ -11,7 +11,6 @@ import type { useDeletePrompt } from "@/feature/prompt/query";
 
 type NarratorPromptDeleteActionProps = {
   deletePrompt: ReturnType<typeof useDeletePrompt>;
-  disabled?: boolean;
   isDefault: boolean;
   onDeleted?: () => Promise<void>;
   prompt: Prompt;
@@ -20,7 +19,6 @@ type NarratorPromptDeleteActionProps = {
 
 export function NarratorPromptDeleteAction({
   deletePrompt,
-  disabled = false,
   isDefault,
   onDeleted,
   prompt,
@@ -67,7 +65,7 @@ export function NarratorPromptDeleteAction({
             render={
               <IconButton
                 aria-label={`Delete ${prompt.title}`}
-                disabled={disabled || deletePrompt.isPending}
+                disabled={deletePrompt.isPending}
                 style={style}
               >
                 <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />

@@ -6,8 +6,9 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
+import type { PromptKindModule } from "./module";
 import { promptPageSize } from "./prompts";
-import { createPromptSubsystem, type PromptKindModule } from "./subsystem";
+import { createPromptSubsystem } from "./subsystem";
 
 const testPromptKind = Object.freeze({
   key: parsePromptKindKey("test"),

@@ -1,3 +1,4 @@
+import { narratorPromptKindKey } from "@jaquelene/domain";
 import type { Prompt } from "@jaquelene/ipc/renderer";
 import { Item, Switch } from "@jaquelene/ui";
 import { colors } from "@jaquelene/ui/tokens.stylex";
@@ -7,7 +8,6 @@ import { useId } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { promptDefaultQuery, useDeletePrompt, useSetPromptDefault } from "@/feature/prompt/query";
 import { NarratorPromptDeleteAction } from "./delete-action";
-import { narratorPromptKindKey } from "./kind";
 
 type NarratorPromptManagementProps = {
   onDeleted: () => Promise<void>;
@@ -17,7 +17,7 @@ type NarratorPromptManagementProps = {
 export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptManagementProps) {
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const setDefault = useSetPromptDefault(narratorPromptKindKey);
-  const deletePrompt = useDeletePrompt();
+  const deletePrompt = useDeletePrompt(narratorPromptKindKey);
   const defaultLabelId = useId();
   const defaultDescriptionId = useId();
   const defaultErrorId = useId();
@@ -74,7 +74,6 @@ export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptMa
 
         <NarratorPromptDeleteAction
           deletePrompt={deletePrompt}
-          disabled={setDefault.isPending}
           isDefault={isDefault}
           onDeleted={onDeleted}
           prompt={prompt}

@@ -1,11 +1,10 @@
-import { promptKeySchema } from "@jaquelene/domain";
+import { narratorPromptKindKey, promptKeySchema } from "@jaquelene/domain";
 import { PromptOrigin } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { narratorPromptKindKey } from "@/feature/narrator/kind";
 import { NarratorPromptManagement } from "@/feature/narrator/management";
 import { PromptEditor } from "@/feature/prompt/editor";
 import { promptDefaultQuery, promptKindsQuery, promptQuery } from "@/feature/prompt/query";

@@ -1,3 +1,4 @@
+import { narratorPromptKindKey } from "@jaquelene/domain";
 import { Field } from "@jaquelene/ui";
 import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
@@ -14,7 +15,6 @@ import {
   useIsPromptDefaultPending,
   useSetCampaignPromptSelection,
 } from "@/feature/prompt/query";
-import { narratorPromptKindKey } from "./kind";
 
 export function CampaignNarratorControl({ campaignId }: { campaignId: string }) {
   const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));

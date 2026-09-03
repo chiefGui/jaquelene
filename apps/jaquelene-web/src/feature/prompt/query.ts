@@ -22,6 +22,11 @@ import { promptIpc } from "./ipc";
 
 export { promptQueryKey } from "@/feature/cache-keys";
 const promptDefaultMutationKey = [...promptQueryKey, "set-default"] as const;
+const promptDeleteMutationKey = [...promptQueryKey, "delete"] as const;
+
+function promptKindMutationScope(kind: string) {
+  return { id: `prompt-kind:${kind}` };
+}
 
 export const promptKindsQuery = queryOptions({
   ...ipcQueryOptions,
@@ -100,10 +105,12 @@ export function useUpdatePrompt() {
   });
 }
 
-export function useDeletePrompt() {
+export function useDeletePrompt(kind: string) {
   const queryClient = useQueryClient();
   return useMutation<PromptDeletion & { deletedPromptKey: string }, Error, string>({
     ...ipcMutationOptions,
+    mutationKey: [...promptDeleteMutationKey, kind],
+    scope: promptKindMutationScope(kind),
     async mutationFn(key) {
       const deletion = await promptIpc.delete(key);
 
@@ -128,7 +135,7 @@ export function setPromptDefaultMutationOptions(queryClient: QueryClient, kind: 
   return mutationOptions<PromptDefault, Error, string | undefined>({
     ...ipcMutationOptions,
     mutationKey: [...promptDefaultMutationKey, kind],
-    scope: { id: `prompt-default:${kind}` },
+    scope: promptKindMutationScope(kind),
     mutationFn: (promptKey) =>
       promptIpc.setDefault({
         kind,

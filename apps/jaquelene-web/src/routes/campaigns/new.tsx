@@ -10,6 +10,7 @@ import { useStoreState } from "@ariakit/react/store";
 import {
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,
   campaignTitleInputSchema,
+  narratorPromptKindKey,
   type CampaignTitleInput,
 } from "@jaquelene/domain";
 import type { Campaign } from "@jaquelene/ipc/renderer";
@@ -21,7 +22,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useCampaignTitleFormValidation } from "@/feature/campaign/form";
 import { useStartCampaign } from "@/feature/campaign/query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { narratorPromptKindKey } from "@/feature/narrator/kind";
 import { promptDefaultQuery, promptPagesQuery, promptQuery } from "@/feature/prompt/query";
 import { PromptSelect, type PromptSelectOption } from "@/feature/prompt/select";
 import { ContentPane } from "@/layout/content-pane";
@@ -33,7 +33,10 @@ export const Route = createFileRoute("/campaigns/new")({
       promptDefaultQuery(narratorPromptKindKey),
     );
     await Promise.all([
-      context.queryClient.ensureInfiniteQueryData(promptPagesQuery(narratorPromptKindKey)),
+      context.queryClient.infiniteQuery({
+        ...promptPagesQuery(narratorPromptKindKey),
+        staleTime: "static",
+      }),
       defaultSelection.promptKey
         ? context.queryClient.query(promptQuery(defaultSelection.promptKey))
         : undefined,

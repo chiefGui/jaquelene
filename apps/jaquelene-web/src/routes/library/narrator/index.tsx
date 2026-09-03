@@ -3,6 +3,7 @@ import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
 import Bookmark02Icon from "@hugeicons/core-free-icons/Bookmark02Icon";
 import Edit02Icon from "@hugeicons/core-free-icons/Edit02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { narratorPromptKindKey } from "@jaquelene/domain";
 import { PromptOrigin, type Prompt, type PromptKind } from "@jaquelene/ipc/renderer";
 import { Badge, Button, IconButton, Item } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -12,7 +13,6 @@ import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-quer
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { NarratorPromptDeleteAction } from "@/feature/narrator/delete-action";
-import { narratorPromptKindKey } from "@/feature/narrator/kind";
 import {
   promptDefaultQuery,
   promptKindsQuery,
@@ -72,12 +72,10 @@ function NarratorPromptEditAction({ prompt }: { prompt: Prompt }) {
 
 function NarratorPromptDefaultAction({
   defaultPromptKey,
-  deletePending,
   prompt,
   setDefault,
 }: {
   defaultPromptKey: string | undefined;
-  deletePending: boolean;
   prompt: Prompt;
   setDefault: SetPromptDefaultMutation;
 }) {
@@ -114,7 +112,7 @@ function NarratorPromptDefaultAction({
                   : `Set ${prompt.title} as the default narrator`
               }
               aria-pressed={isDefault}
-              disabled={isDefault || defaultPending || deletePending}
+              disabled={isDefault || defaultPending}
               onClick={setAsDefault}
               style={[
                 styles.promptAction,
@@ -167,7 +165,6 @@ function NarratorPromptItem({
       <div {...stylex.props(styles.promptContent)}>
         <NarratorPromptDefaultAction
           defaultPromptKey={defaultPromptKey}
-          deletePending={deletePrompt.isPending}
           prompt={prompt}
           setDefault={setDefault}
         />
@@ -184,7 +181,6 @@ function NarratorPromptItem({
             <NarratorPromptEditAction prompt={prompt} />
             <NarratorPromptDeleteAction
               deletePrompt={deletePrompt}
-              disabled={setDefault.isPending}
               isDefault={prompt.key === defaultPromptKey}
               prompt={prompt}
               style={styles.promptAction}
@@ -202,7 +198,7 @@ function NarratorSection({ kind }: { kind: PromptKind }) {
   const pages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const setDefault = useSetPromptDefault(narratorPromptKindKey);
-  const deletePrompt = useDeletePrompt();
+  const deletePrompt = useDeletePrompt(narratorPromptKindKey);
   const prompts = pages.data.pages.flatMap((page) => page.prompts);
   const headingId = `prompt-kind-${kind.key}`;
   const descriptionId = `prompt-kind-description-${kind.key}`;
@@ -315,7 +311,6 @@ const styles = stylex.create({
     height: "2rem",
     opacity: {
       default: 0,
-      ":disabled": 0,
       [stylex.when.ancestor(":hover")]: 1,
       [stylex.when.ancestor(":focus-within")]: 1,
     },

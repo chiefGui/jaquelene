@@ -1,4 +1,4 @@
-import { composeCampaignGenerationConfiguration } from "@jaquelene/domain";
+import { composeCampaignGenerationConfiguration, narratorPromptKindKey } from "@jaquelene/domain";
 import PanelRightCloseIcon from "@hugeicons/core-free-icons/PanelRightCloseIcon";
 import PanelRightOpenIcon from "@hugeicons/core-free-icons/PanelRightOpenIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -17,7 +17,6 @@ import { campaignQuery, useIsCampaignGenerationPreferencesPending } from "@/feat
 import { campaignUsageQuery } from "@/feature/campaign/usage-query";
 import { CampaignDetailsSidebar } from "@/feature/campaign/details-sidebar";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
-import { narratorPromptKindKey } from "@/feature/narrator/kind";
 import {
   campaignPromptSelectionQuery,
   promptDefaultQuery,
@@ -46,7 +45,10 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
       context.queryClient.query(defaultCampaignModelQuery),
       context.queryClient.query(modelProvidersQuery),
       context.queryClient.query(promptDefaultQuery(narratorPromptKindKey)),
-      context.queryClient.ensureInfiniteQueryData(promptPagesQuery(narratorPromptKindKey)),
+      context.queryClient.infiniteQuery({
+        ...promptPagesQuery(narratorPromptKindKey),
+        staleTime: "static",
+      }),
       narratorSelectionPromise,
       narratorSelectionPromise.then((selection) =>
         selection?.effectivePromptKey

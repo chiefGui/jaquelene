@@ -20,6 +20,7 @@ export {
   formatCount,
   formatCurrency,
   formatCurrencyNanos,
+  formatPluralizedCount,
   formatUsd,
   formatUsdNanos,
 } from "./util/format-number";

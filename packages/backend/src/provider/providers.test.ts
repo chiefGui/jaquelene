@@ -11,6 +11,16 @@ import type {
 } from "./provider";
 import { createProviderSubsystem } from "./providers";
 
+const keyLabel = "key...123";
+
+function keyLabelProperty(value: string | undefined) {
+  if (value === undefined) {
+    return {};
+  }
+
+  return { keyLabel: value };
+}
+
 async function createTestResourceCache() {
   const entries = new Map<string, StoredCacheEntry>();
   let revision = 0;
@@ -79,7 +89,7 @@ function apiKeyProvider(overrides: Partial<ProviderAdapter> = {}): ProviderAdapt
         signal.throwIfAborted();
         const result = {
           state: "configured",
-          keyLabel: "key...123",
+          keyLabel,
         } satisfies ProviderConfigureResult;
         configuration = { ...result, revision: "configuration-1" };
         return result;
@@ -320,25 +330,82 @@ describe("provider subsystem", () => {
     await subsystem.close();
   });
 
+  it.each([undefined, " "])(
+    "rejects configured API-key state with the invalid label %j",
+    async (invalidKeyLabel) => {
+      const configuration = {
+        state: "configured",
+        revision: "configuration-1",
+        ...keyLabelProperty(invalidKeyLabel),
+      } as unknown as ApiKeyProviderConfigurationSnapshot;
+      const adapter = apiKeyProvider({
+        configuration: {
+          kind: "api-key",
+          inspect: () => configuration,
+          async configure() {
+            return { state: "configured", keyLabel };
+          },
+          async clear() {},
+          storagePaths: [],
+        },
+      });
+      const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+
+      expect(() => subsystem.providers.list()).toThrow(
+        'Provider "api-key-provider" returned an invalid API-key label.',
+      );
+      await subsystem.close();
+    },
+  );
+
+  it.each([undefined, " "])(
+    "rejects configured API-key results with the invalid label %j",
+    async (invalidKeyLabel) => {
+      const adapter = apiKeyProvider({
+        configuration: {
+          kind: "api-key",
+          inspect: () => ({ state: "unconfigured" }),
+          async configure() {
+            return {
+              state: "configured",
+              ...keyLabelProperty(invalidKeyLabel),
+            } as unknown as ProviderConfigureResult;
+          },
+          async clear() {},
+          storagePaths: [],
+        },
+      });
+      const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+
+      await expect(
+        subsystem.providers.configureApiKey(adapter.descriptor.id, "secret"),
+      ).rejects.toThrow('Provider "api-key-provider" returned an invalid API-key label.');
+      await subsystem.close();
+    },
+  );
+
   it("isolates model snapshots across provider configuration revisions", async () => {
     let configuration: ApiKeyProviderConfigurationSnapshot = {
       state: "configured",
       revision: "configuration-1",
+      keyLabel,
     };
-    const list = vi.fn(async () => [
-      {
-        id: "maker/model",
-        name: configuration.state === "configured" ? configuration.revision : "unconfigured",
-        brandId: "maker",
-      },
-    ]);
+    const list = vi.fn(async () => {
+      let name = "unconfigured";
+
+      if (configuration.state === "configured") {
+        name = configuration.revision;
+      }
+
+      return [{ id: "maker/model", name, brandId: "maker" }];
+    });
     const adapter = apiKeyProvider({
       configuration: {
         kind: "api-key",
         inspect: () => configuration,
         async configure() {
-          configuration = { state: "configured", revision: "configuration-2" };
-          return { state: "configured" };
+          configuration = { state: "configured", revision: "configuration-2", keyLabel };
+          return { state: "configured", keyLabel };
         },
         async clear() {
           configuration = { state: "unconfigured" };
@@ -367,6 +434,7 @@ describe("provider subsystem", () => {
     let configuration: ApiKeyProviderConfigurationSnapshot = {
       state: "configured",
       revision: "configuration-1",
+      keyLabel,
     };
     const firstList =
       Promise.withResolvers<readonly [{ id: string; name: string; brandId: string }]>();
@@ -383,8 +451,8 @@ describe("provider subsystem", () => {
         kind: "api-key",
         inspect: () => configuration,
         async configure() {
-          configuration = { state: "configured", revision: "configuration-2" };
-          return { state: "configured" };
+          configuration = { state: "configured", revision: "configuration-2", keyLabel };
+          return { state: "configured", keyLabel };
         },
         async clear() {
           configuration = { state: "unconfigured" };
@@ -418,9 +486,9 @@ describe("provider subsystem", () => {
           events.push("configure:start");
           await finishConfiguration.promise;
           signal.throwIfAborted();
-          configuration = { state: "configured", revision: "configuration-1" };
+          configuration = { state: "configured", revision: "configuration-1", keyLabel };
           events.push("configure:end");
-          return { state: "configured" };
+          return { state: "configured", keyLabel };
         },
         async clear() {
           events.push("clear");
@@ -436,7 +504,7 @@ describe("provider subsystem", () => {
     await vi.waitFor(() => expect(events).toEqual(["configure:start"]));
     finishConfiguration.resolve();
 
-    await expect(configuring).resolves.toEqual({ state: "configured" });
+    await expect(configuring).resolves.toEqual({ state: "configured", keyLabel });
     await expect(clearing).resolves.toBeUndefined();
     expect(events).toEqual(["configure:start", "configure:end", "clear"]);
     expect(subsystem.providers.inspectConfiguration(adapter.descriptor.id)).toEqual({
@@ -450,6 +518,7 @@ describe("provider subsystem", () => {
     let configuration: ApiKeyProviderConfigurationSnapshot = {
       state: "configured",
       revision: "configuration-1",
+      keyLabel,
     };
     let activeSignal: AbortSignal | undefined;
     const modelListingStarted = Promise.withResolvers<void>();
@@ -460,7 +529,7 @@ describe("provider subsystem", () => {
         kind: "api-key",
         inspect: () => configuration,
         async configure() {
-          return { state: "configured" };
+          return { state: "configured", keyLabel };
         },
         async clear() {
           clearStarted.resolve();
@@ -513,9 +582,9 @@ describe("provider subsystem", () => {
     const adapter = apiKeyProvider({
       configuration: {
         kind: "api-key",
-        inspect: () => ({ state: "configured", revision: "configuration-1" }),
+        inspect: () => ({ state: "configured", revision: "configuration-1", keyLabel }),
         async configure() {
-          return { state: "configured" };
+          return { state: "configured", keyLabel };
         },
         async clear() {
           throw failure;
@@ -530,7 +599,7 @@ describe("provider subsystem", () => {
     );
     await expect(
       subsystem.providers.configureApiKey(adapter.descriptor.id, "replacement"),
-    ).resolves.toEqual({ state: "configured" });
+    ).resolves.toEqual({ state: "configured", keyLabel });
     await expect(listModels(subsystem, adapter.descriptor.id)).resolves.toEqual([
       { id: "maker/model", name: "Model", brandId: "maker" },
     ]);

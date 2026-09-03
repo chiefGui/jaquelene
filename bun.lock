@@ -5,6 +5,7 @@
     "": {
       "name": "jaquelene",
       "devDependencies": {
+        "effect": "4.0.0-rc.112",
         "typescript": "^7.0.2",
         "vite-plus": "^0.3.0",
       },

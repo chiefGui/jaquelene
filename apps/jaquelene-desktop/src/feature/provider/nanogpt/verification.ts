@@ -1,18 +1,23 @@
 import type { ApiKeyVerificationResult } from "../api-key-configuration";
 
-const currentKeyEndpoint = "https://openrouter.ai/api/v1/key";
+const balanceEndpoint = "https://nano-gpt.com/api/check-balance";
 
-export async function verifyOpenRouterApiKey(
+function isBalance(value: unknown) {
+  return typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value));
+}
+
+export async function verifyNanoGptApiKey(
   apiKey: string,
   signal: AbortSignal,
 ): Promise<ApiKeyVerificationResult> {
   let response: Response;
 
   try {
-    response = await fetch(currentKeyEndpoint, {
+    response = await fetch(balanceEndpoint, {
+      method: "POST",
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        "X-API-Key": apiKey,
       },
       signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
     });
@@ -26,7 +31,7 @@ export async function verifyOpenRouterApiKey(
     throw cause;
   }
 
-  if (response.status === 401 || response.status === 403) {
+  if ([400, 401, 403].includes(response.status)) {
     return { state: "rejected" };
   }
 
@@ -49,15 +54,13 @@ export async function verifyOpenRouterApiKey(
   if (
     typeof body !== "object" ||
     body === null ||
-    !("data" in body) ||
-    typeof body.data !== "object" ||
-    body.data === null ||
-    !("label" in body.data) ||
-    typeof body.data.label !== "string" ||
-    !body.data.label
+    !("usd_balance" in body) ||
+    !isBalance(body.usd_balance) ||
+    !("nano_balance" in body) ||
+    !isBalance(body.nano_balance)
   ) {
     return { state: "unavailable" };
   }
 
-  return { state: "configured", keyLabel: body.data.label };
+  return { state: "configured" };
 }

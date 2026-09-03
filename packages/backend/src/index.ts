@@ -40,6 +40,9 @@ export {
 } from "#backend/model/reasoning";
 export {
   generationCostSources,
+  createGenerationUsage,
+  createProviderGenerationResult,
+  createProviderModel,
   requireContextWindowTokens,
   requireModelReference,
   requireModelSelection,

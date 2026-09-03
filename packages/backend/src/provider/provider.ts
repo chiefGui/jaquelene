@@ -1,6 +1,13 @@
+import type { ApiKeyProviderConfiguration, ProviderConfigureResult } from "@jaquelene/domain";
 import type { GenerationId, ThreadId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import type { ModelReasoningCapability, ResolvedReasoning } from "#backend/model/reasoning";
+
+export type {
+  ApiKeyProviderConfiguration,
+  ProviderConfiguration,
+  ProviderConfigureResult,
+} from "@jaquelene/domain";
 
 export type ProviderId = string;
 
@@ -32,6 +39,38 @@ export type ProviderModel = Readonly<{
     outputUsdPerMillion: number;
   }>;
 }>;
+
+type ProviderModelInput = Readonly<
+  Pick<ProviderModel, "brandId" | "id" | "name"> & {
+    contextWindowTokens: ProviderModel["contextWindowTokens"];
+    reasoning: ProviderModel["reasoning"];
+    tokenPricing: ProviderModel["tokenPricing"];
+  }
+>;
+
+type MutableProviderModel = { -readonly [Key in keyof ProviderModel]: ProviderModel[Key] };
+
+export function createProviderModel(input: ProviderModelInput): ProviderModel {
+  const model: MutableProviderModel = {
+    brandId: input.brandId,
+    id: input.id,
+    name: input.name,
+  };
+
+  if (input.contextWindowTokens !== undefined) {
+    model.contextWindowTokens = input.contextWindowTokens;
+  }
+
+  if (input.reasoning !== undefined) {
+    model.reasoning = input.reasoning;
+  }
+
+  if (input.tokenPricing !== undefined) {
+    model.tokenPricing = input.tokenPricing;
+  }
+
+  return model;
+}
 
 export function requireContextWindowTokens(value: unknown, description: string) {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
@@ -78,6 +117,56 @@ export type GenerationUsage = Readonly<{
   cost?: GenerationCost;
 }>;
 
+type GenerationUsageInput = Readonly<{
+  inputTotal: number;
+  inputCacheRead: number | undefined;
+  inputCacheWrite: number | undefined;
+  outputTotal: number;
+  outputReasoning: number | undefined;
+  total: number;
+  cost: GenerationCost | undefined;
+}>;
+
+export function createGenerationUsage(input: GenerationUsageInput): GenerationUsage {
+  const inputTokens: {
+    total: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+  } = { total: input.inputTotal };
+  const outputTokens: {
+    total: number;
+    reasoning?: number;
+  } = { total: input.outputTotal };
+  const usage: {
+    tokens: GenerationTokenUsage;
+    cost?: GenerationCost;
+  } = {
+    tokens: {
+      input: inputTokens,
+      output: outputTokens,
+      total: input.total,
+    },
+  };
+
+  if (input.inputCacheRead !== undefined) {
+    inputTokens.cacheRead = input.inputCacheRead;
+  }
+
+  if (input.inputCacheWrite !== undefined) {
+    inputTokens.cacheWrite = input.inputCacheWrite;
+  }
+
+  if (input.outputReasoning !== undefined) {
+    outputTokens.reasoning = input.outputReasoning;
+  }
+
+  if (input.cost !== undefined) {
+    usage.cost = input.cost;
+  }
+
+  return usage;
+}
+
 export type ProviderGenerationRequest = Readonly<{
   generationId: GenerationId;
   threadId: ThreadId;
@@ -95,22 +184,50 @@ export type ProviderGenerationResult = Readonly<{
   usage?: GenerationUsage;
 }>;
 
-export type ApiKeyProviderConfiguration =
-  | Readonly<{ state: "unconfigured" }>
-  | Readonly<{ state: "configured"; keyLabel?: string }>;
+type ProviderGenerationResultInput = Readonly<{
+  text: string;
+  providerGenerationId: string | undefined;
+  resolvedModelId: string | undefined;
+  upstreamProviderId: string | undefined;
+  finishReason: string | undefined;
+  usage: GenerationUsage | undefined;
+}>;
+
+type MutableProviderGenerationResult = {
+  -readonly [Key in keyof ProviderGenerationResult]: ProviderGenerationResult[Key];
+};
+
+export function createProviderGenerationResult(
+  input: ProviderGenerationResultInput,
+): ProviderGenerationResult {
+  const result: MutableProviderGenerationResult = { text: input.text };
+
+  if (input.providerGenerationId !== undefined) {
+    result.providerGenerationId = input.providerGenerationId;
+  }
+
+  if (input.resolvedModelId !== undefined) {
+    result.resolvedModelId = input.resolvedModelId;
+  }
+
+  if (input.upstreamProviderId !== undefined) {
+    result.upstreamProviderId = input.upstreamProviderId;
+  }
+
+  if (input.finishReason !== undefined) {
+    result.finishReason = input.finishReason;
+  }
+
+  if (input.usage !== undefined) {
+    result.usage = input.usage;
+  }
+
+  return result;
+}
 
 export type ApiKeyProviderConfigurationSnapshot =
-  | Readonly<{ state: "unconfigured" }>
-  | Readonly<{ state: "configured"; revision: string; keyLabel?: string }>;
-
-export type ProviderConfiguration =
-  | (ApiKeyProviderConfiguration & Readonly<{ kind: "api-key" }>)
-  | Readonly<{ kind: "none"; state: "configured" }>;
-
-export type ProviderConfigureResult =
-  | Readonly<{ state: "configured"; keyLabel?: string }>
-  | Readonly<{ state: "rejected" }>
-  | Readonly<{ state: "unavailable" }>;
+  | Extract<ApiKeyProviderConfiguration, { state: "unconfigured" }>
+  | Readonly<Extract<ApiKeyProviderConfiguration, { state: "configured" }> & { revision: string }>;
 
 export type ProviderConfigurationAdapter =
   | Readonly<{

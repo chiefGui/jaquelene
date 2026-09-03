@@ -9,6 +9,17 @@
 - Fix root causes. Do not ship workarounds, silent fallbacks, or competing sources of truth.
 - Every state needs a way in, a way out, and a way to inspect it. Close requires reopen. Irreversibility requires an explicit product decision.
 - Keep complexity at adapter boundaries. Domain logic and orchestration stay transport- and framework-agnostic; UI renders state and emits intent.
+- Do not use ternary expressions. Prefer explicit control flow or state-specific functions.
+
+## Learning more about Effect
+
+This repository uses the Effect Typescript library.
+
+Before writing any Effect code, first read `node_modules/effect/AGENTS.md`
+**completely**, and follow the links in the file when required.
+
+If you need to learn more about particular Effect APIs and concepts that the
+guide doesn't cover, search through the source code in `node_modules/effect/src`.
 
 ## Frontend
 

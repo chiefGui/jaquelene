@@ -55,3 +55,15 @@ export {
   type PromptKindKey,
   type PromptKey,
 } from "./prompt/identity";
+export {
+  ProviderConfigurationKind,
+  ProviderConfigurationState,
+  ProviderConfigureState,
+  apiKeyProviderConfigurationSchema,
+  providerConfigurationSchema,
+  providerConfigureResultSchema,
+  providerKeyLabelSchema,
+  type ApiKeyProviderConfiguration,
+  type ProviderConfiguration,
+  type ProviderConfigureResult,
+} from "./provider/configuration";

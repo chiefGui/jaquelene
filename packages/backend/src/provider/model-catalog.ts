@@ -6,6 +6,7 @@ import type {
 import { ResourceUnavailableError } from "#backend/resource-cache/resource-cache";
 import { requireModelReasoningCapability } from "#backend/model/reasoning";
 import {
+  createProviderModel,
   requireContextWindowTokens,
   requireModelReference,
   type ModelReference,
@@ -116,14 +117,14 @@ function requireModel(providerId: ProviderId, candidate: unknown): ProviderModel
     tokenPricing = { inputUsdPerMillion, outputUsdPerMillion };
   }
 
-  return {
+  return createProviderModel({
     id,
     name,
     brandId,
-    ...(contextWindowTokens === undefined ? {} : { contextWindowTokens }),
-    ...(reasoning ? { reasoning } : {}),
-    ...(tokenPricing ? { tokenPricing } : {}),
-  };
+    contextWindowTokens,
+    reasoning,
+    tokenPricing,
+  });
 }
 
 function requireModels(providerId: ProviderId, candidates: readonly unknown[]) {
@@ -157,6 +158,14 @@ function decodeValue(payload: Uint8Array): ModelCatalogValue {
   }
 
   return { providerId, models: requireModels(providerId, value.models) };
+}
+
+function operationOptions(signal: AbortSignal | undefined) {
+  if (signal) {
+    return { signal };
+  }
+
+  return {};
 }
 
 function toCatalogSnapshot(snapshot: ResourceSnapshot<ModelCatalogValue>): ModelCatalogSnapshot {
@@ -267,7 +276,7 @@ export function createModelCatalog(
       getModels(providerId, signal) {
         return exposeCatalogFailure(async () =>
           toCatalogSnapshot(
-            await resource.resolve(dependencies.getSource(providerId), signal ? { signal } : {}),
+            await resource.resolve(dependencies.getSource(providerId), operationOptions(signal)),
           ),
         );
       },
@@ -277,7 +286,7 @@ export function createModelCatalog(
           toCatalogSnapshot(
             await resource.resolve(
               dependencies.getSource(reference.providerId),
-              signal ? { signal } : {},
+              operationOptions(signal),
             ),
           ),
         );
@@ -305,7 +314,7 @@ export function createModelCatalog(
         return exposeCatalogFailure(async () =>
           toCatalogSnapshot(
             await resource.refresh(dependencies.getSource(providerId), {
-              ...(signal ? { signal } : {}),
+              ...operationOptions(signal),
               force: true,
             }),
           ),

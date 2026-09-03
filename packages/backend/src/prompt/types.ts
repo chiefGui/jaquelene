@@ -84,7 +84,7 @@ export type PromptManagement = Readonly<{
   update: (key: PromptKey, input: UpdatePromptInput) => Prompt | null;
   delete: (key: PromptKey) => PromptDeletion | null;
   getDefault: (kind: PromptKindKey) => PromptDefault;
-  setDefault: (kind: PromptKindKey, promptKey: PromptKey) => PromptDefault;
+  setDefault: (kind: PromptKindKey, promptKey?: PromptKey) => PromptDefault;
   getCampaignSelection: (
     campaignId: CampaignId,
     kind: PromptKindKey,

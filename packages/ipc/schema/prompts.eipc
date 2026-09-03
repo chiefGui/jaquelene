@@ -96,7 +96,7 @@ structure PromptDefault {
 
 structure SetPromptDefaultRequest {
   kind: PromptKindKey
-  promptKey: PromptKey
+  promptKey?: PromptKey
 }
 
 structure CampaignPromptSelection {

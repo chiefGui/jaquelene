@@ -163,6 +163,23 @@ describe("prompts", () => {
     });
   });
 
+  it("restores the registered fallback when the default override is cleared", () => {
+    const { prompts } = openEnvironment();
+    const custom = prompts.create({
+      kind: narratorPromptKind.key,
+      title: "Custom",
+      body: "Use second person.",
+    });
+
+    prompts.setDefault(narratorPromptKind.key, custom.key);
+
+    expect(prompts.setDefault(narratorPromptKind.key)).toEqual({
+      kind: narratorPromptKind.key,
+      promptKey: jaqueleneNarratorPrompt.key,
+      source: "fallback",
+    });
+  });
+
   it("uses edited prompt content on the next application", () => {
     const { campaigns, promptApplications, prompts } = openEnvironment();
     const custom = prompts.create({

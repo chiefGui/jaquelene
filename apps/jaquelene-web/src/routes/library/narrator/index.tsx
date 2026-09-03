@@ -1,21 +1,17 @@
 import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
-import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PromptOrigin, type Prompt, type PromptKind } from "@jaquelene/ipc/renderer";
 import { Badge, Button, Item } from "@jaquelene/ui";
-import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import {
   narratorPromptKind,
   promptDefaultQuery,
   promptKindsQuery,
   promptPagesQuery,
-  useDeletePrompt,
   useSetPromptDefault,
 } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
@@ -39,56 +35,6 @@ export const Route = createFileRoute("/library/narrator/")({
   },
   component: NarratorRoute,
 });
-
-function DeletePrompt({ prompt, isDefault }: { prompt: Prompt; isDefault: boolean }) {
-  const deletePrompt = useDeletePrompt();
-  const [open, setOpen] = useState(false);
-
-  function setConfirmationOpen(nextOpen: boolean) {
-    if (nextOpen) {
-      deletePrompt.reset();
-    }
-    setOpen(nextOpen);
-  }
-
-  async function remove() {
-    try {
-      await deletePrompt.mutateAsync(prompt.key);
-      setOpen(false);
-    } catch (cause) {
-      reportError("prompt.delete", cause);
-    }
-  }
-
-  return (
-    <ConfirmDialog
-      open={open}
-      setOpen={setConfirmationOpen}
-      trigger={
-        <Button
-          type="button"
-          aria-label={`Delete ${prompt.title}`}
-          size="small"
-          variant="ghost"
-          disabled={deletePrompt.isPending}
-        >
-          <HugeiconsIcon icon={TrashIcon} size={14} strokeWidth={1.5} aria-hidden="true" />
-          <Button.Label>Delete</Button.Label>
-        </Button>
-      }
-      heading={`Delete “${prompt.title}”?`}
-      description={
-        isDefault
-          ? "The built-in narrator will become the default, and campaigns using this prompt will return to it. This can’t be undone."
-          : "Campaigns using this prompt will return to their default. This can’t be undone."
-      }
-      confirmLabel="Delete"
-      pending={deletePrompt.isPending}
-      error={deletePrompt.isError ? "Couldn’t delete this prompt." : undefined}
-      onConfirm={() => void remove()}
-    />
-  );
-}
 
 function PromptSummary({ prompt }: { prompt: Prompt }) {
   return (
@@ -162,7 +108,6 @@ function PromptItem({
             </span>
           ) : null}
         </div>
-        {custom ? <DeletePrompt prompt={prompt} isDefault={isDefault} /> : null}
       </div>
     </Item.Root>
   );
@@ -279,8 +224,6 @@ const styles = stylex.create({
     borderBlockStartStyle: "solid",
     borderBlockStartWidth: 1,
     display: "flex",
-    gap: "1rem",
-    justifyContent: "space-between",
     padding: "0.5rem 0.75rem",
   },
   defaultAction: { alignItems: "center", display: "flex", gap: "0.5rem", minWidth: 0 },

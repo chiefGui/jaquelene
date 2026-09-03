@@ -3,8 +3,15 @@ import { PromptOrigin } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { PromptEditor } from "@/feature/prompt/editor";
-import { narratorPromptKind, promptKindsQuery, promptQuery } from "@/feature/prompt/query";
+import { PromptManagement } from "@/feature/prompt/management";
+import {
+  narratorPromptKind,
+  promptDefaultQuery,
+  promptKindsQuery,
+  promptQuery,
+} from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EmptyState } from "@/primitive/empty-state";
@@ -23,7 +30,15 @@ export const Route = createFileRoute("/library/narrator/$promptKey/edit")({
     ]);
     const registered = kinds.some((kind) => kind.key === narratorPromptKind);
 
-    return registered && prompt?.kind === narratorPromptKind ? prompt : null;
+    if (!registered || prompt?.kind !== narratorPromptKind) {
+      return null;
+    }
+
+    if (prompt.origin === PromptOrigin.Custom) {
+      await context.queryClient.query(promptDefaultQuery(narratorPromptKind));
+    }
+
+    return prompt;
   },
   remountDeps: ({ params }) => params.promptKey,
   component: EditPromptRoute,
@@ -36,9 +51,15 @@ function EditPromptRoute() {
   const navigate = useNavigate({
     from: "/library/narrator/$promptKey/edit",
   });
+  const [deleted, setDeleted] = useState(false);
 
   function openNarrator() {
     return navigate({ to: "/library/narrator", replace: true });
+  }
+
+  function finishDeletion() {
+    setDeleted(true);
+    return openNarrator();
   }
 
   return (
@@ -66,13 +87,24 @@ function EditPromptRoute() {
 
       <ContentPane.Viewport>
         <ContentPane.Body>
-          {prompt?.origin === PromptOrigin.Custom ? (
-            <PromptEditor
-              aria-labelledby={pageHeadingId}
-              prompt={prompt}
-              onCancel={() => void openNarrator()}
-              onSaved={openNarrator}
-            />
+          {deleted ? (
+            <EmptyState.Root>
+              <EmptyState.Title>Prompt deleted</EmptyState.Title>
+              <EmptyState.Description>Return to narrator to continue.</EmptyState.Description>
+              <Button onClick={() => void openNarrator()} style={styles.returnAction}>
+                Back to narrator
+              </Button>
+            </EmptyState.Root>
+          ) : prompt?.origin === PromptOrigin.Custom ? (
+            <div {...stylex.props(styles.editor)}>
+              <PromptEditor
+                aria-labelledby={pageHeadingId}
+                prompt={prompt}
+                onCancel={() => void openNarrator()}
+                onSaved={openNarrator}
+              />
+              <PromptManagement prompt={prompt} onDeleted={finishDeletion} />
+            </div>
           ) : (
             <EmptyState.Root>
               <EmptyState.Title>{prompt ? "Built-in prompt" : "Prompt not found"}</EmptyState.Title>
@@ -91,5 +123,6 @@ function EditPromptRoute() {
 }
 
 const styles = stylex.create({
+  editor: { display: "flex", flexDirection: "column", gap: "1.5rem" },
   returnAction: { marginTop: "0.75rem" },
 });

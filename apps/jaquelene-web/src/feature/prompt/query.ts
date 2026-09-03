@@ -126,11 +126,11 @@ export function useDeletePrompt() {
 }
 
 export function setPromptDefaultMutationOptions(queryClient: QueryClient, kind: string) {
-  return mutationOptions<PromptDefault, Error, string>({
+  return mutationOptions<PromptDefault, Error, string | undefined>({
     ...ipcMutationOptions,
     mutationKey: [...promptDefaultMutationKey, kind],
     scope: { id: `prompt-default:${kind}` },
-    mutationFn: (promptKey) => promptIpc.setDefault({ kind, promptKey }),
+    mutationFn: (promptKey) => promptIpc.setDefault({ kind, ...(promptKey ? { promptKey } : {}) }),
     onSuccess(selection) {
       queryClient.setQueryData(promptDefaultQuery(kind).queryKey, selection);
       return queryClient.invalidateQueries({ queryKey: campaignPromptSelectionQueryKey });

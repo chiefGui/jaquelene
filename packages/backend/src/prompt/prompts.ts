@@ -356,8 +356,17 @@ export function createPrompts(
       return readDefault(database, kind);
     },
 
-    setDefault(kind: PromptKindKey, promptKey: PromptKey) {
+    setDefault(kind: PromptKindKey, promptKey?: PromptKey) {
       requireKind(kind);
+
+      if (promptKey === undefined) {
+        database
+          .delete(promptDefaultOverrideTable)
+          .where(eq(promptDefaultOverrideTable.kind, kind))
+          .run();
+        return readDefault(database, kind);
+      }
+
       requirePromptForKind(database, kind, promptKey);
       const fallback = database
         .select({ promptKey: promptKindFallbackTable.promptKey })

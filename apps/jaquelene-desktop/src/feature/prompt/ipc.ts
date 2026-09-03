@@ -102,7 +102,10 @@ export function exposePrompts(target: WebFrameMain, prompts: Prompts) {
     getDefault: (kind) => toIpcPromptDefault(prompts.getDefault(promptKindKeySchema.parse(kind))),
     setDefault: ({ kind, promptKey }) =>
       toIpcPromptDefault(
-        prompts.setDefault(promptKindKeySchema.parse(kind), promptKeySchema.parse(promptKey)),
+        prompts.setDefault(
+          promptKindKeySchema.parse(kind),
+          promptKey === undefined ? undefined : promptKeySchema.parse(promptKey),
+        ),
       ),
     getCampaignSelection: ({ campaignId, kind }) => {
       const selection = prompts.getCampaignSelection(

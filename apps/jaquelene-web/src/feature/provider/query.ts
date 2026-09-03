@@ -24,7 +24,13 @@ function updateProvider(
   providerId: string,
   update: (provider: Provider) => Provider,
 ) {
-  return providers?.map((provider) => (provider.id === providerId ? update(provider) : provider));
+  return providers?.map((provider) => {
+    if (provider.id === providerId) {
+      return update(provider);
+    }
+
+    return provider;
+  });
 }
 
 export function useConfigureProviderApiKey(providerId: string) {

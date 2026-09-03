@@ -2,6 +2,7 @@ import {
   ProviderConfigurationKind,
   ProviderConfigurationState,
   ProviderConfigureState,
+  type ApiKeyProviderConfiguration,
 } from "@jaquelene/domain";
 import type { Provider } from "@jaquelene/ipc/renderer";
 import { Button, IconFrame, Input, Item, Ping } from "@jaquelene/ui";
@@ -11,7 +12,14 @@ import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useId, useRef, useState, type SubmitEvent } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+  type SubmitEvent,
+} from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { ProviderMark } from "@/feature/provider/mark";
 import {
@@ -27,7 +35,45 @@ export const Route = createFileRoute("/settings/providers")({
   component: ProvidersRoute,
 });
 
-function ProviderSettings({ provider }: { provider: Provider }) {
+function ProviderRow({
+  provider,
+  connected,
+  actions,
+}: {
+  provider: Provider;
+  connected: boolean;
+  actions?: ReactNode;
+}) {
+  return (
+    <Item.Root>
+      <div {...stylex.props(styles.provider)}>
+        <IconFrame style={styles.providerMarkContainer}>
+          <ProviderMark brandId={provider.brandId} style={styles.providerMark} />
+        </IconFrame>
+        <Item.Content>
+          <div {...stylex.props(styles.providerLabel)}>
+            <Item.Label>{provider.name}</Item.Label>
+            {connected && (
+              <>
+                <Ping style={styles.connected} />
+                <VisuallyHidden>Connected</VisuallyHidden>
+              </>
+            )}
+          </div>
+        </Item.Content>
+      </div>
+      {actions}
+    </Item.Root>
+  );
+}
+
+function ApiKeyProviderSettings({
+  provider,
+  configuration,
+}: {
+  provider: Provider;
+  configuration: ApiKeyProviderConfiguration;
+}) {
   const configureProvider = useConfigureProviderApiKey(provider.id);
   const clearProvider = useClearProviderConfiguration(provider.id);
   const [editingConnection, setEditingConnection] = useState(false);
@@ -36,14 +82,29 @@ function ProviderSettings({ provider }: { provider: Provider }) {
   const connectButton = useRef<HTMLButtonElement>(null);
   const inputId = useId();
   const errorId = useId();
-  const usesApiKey = provider.configuration.kind === ProviderConfigurationKind.ApiKey;
-  const configured = provider.configuration.state === ProviderConfigurationState.Configured;
-  const keyPlaceholder =
-    provider.configuration.kind === ProviderConfigurationKind.ApiKey &&
-    provider.configuration.state === ProviderConfigurationState.Configured
-      ? provider.configuration.keyLabel
-      : "Paste API key";
+  const connected = configuration.state === ProviderConfigurationState.Configured;
   const pending = configureProvider.isPending || clearProvider.isPending;
+  let keyPlaceholder = "Paste API key";
+  let disconnectError: string | undefined;
+  let describedBy: string | undefined;
+  let connectLabel = "Connect";
+  let disconnectTrigger: ReactElement | null = null;
+
+  if (configuration.state === ProviderConfigurationState.Configured) {
+    keyPlaceholder = configuration.keyLabel;
+  }
+
+  if (clearProvider.isError) {
+    disconnectError = `Couldn't disconnect ${provider.name}.`;
+  }
+
+  if (connectionError) {
+    describedBy = errorId;
+  }
+
+  if (configureProvider.isPending) {
+    connectLabel = "Connecting…";
+  }
 
   function startEditingConnection() {
     setConnectionError(null);
@@ -103,63 +164,50 @@ function ProviderSettings({ provider }: { provider: Provider }) {
     }
   }
 
+  if (!editingConnection && connected) {
+    disconnectTrigger = (
+      <Button variant="ghost" tone="danger" disabled={pending}>
+        Disconnect
+      </Button>
+    );
+  }
+
   return (
     <>
-      <Item.Root>
-        <div {...stylex.props(styles.provider)}>
-          <IconFrame style={styles.providerMarkContainer}>
-            <ProviderMark brandId={provider.brandId} style={styles.providerMark} />
-          </IconFrame>
-          <Item.Content>
-            <div {...stylex.props(styles.providerLabel)}>
-              <Item.Label>{provider.name}</Item.Label>
-              {configured ? (
-                <>
-                  <Ping style={styles.connected} />
-                  <VisuallyHidden>Connected</VisuallyHidden>
-                </>
-              ) : null}
-            </div>
-          </Item.Content>
-        </div>
-
-        {usesApiKey ? (
+      <ProviderRow
+        provider={provider}
+        connected={connected}
+        actions={
           <div {...stylex.props(styles.actions)}>
-            {!editingConnection && configured ? (
+            {!editingConnection && connected && (
               <Button variant="ghost" disabled={pending} onClick={startEditingConnection}>
                 Manage
               </Button>
-            ) : null}
+            )}
 
             <ConfirmDialog
               open={confirmingDisconnect}
               setOpen={setDisconnectConfirmationOpen}
-              trigger={
-                !editingConnection && configured ? (
-                  <Button variant="ghost" tone="danger" disabled={pending}>
-                    Disconnect
-                  </Button>
-                ) : null
-              }
+              trigger={disconnectTrigger}
               heading={`Disconnect ${provider.name}?`}
               description="Removes your saved API key from this device."
               confirmLabel="Disconnect"
               pending={clearProvider.isPending}
-              error={clearProvider.isError ? `Couldn't disconnect ${provider.name}.` : undefined}
+              error={disconnectError}
               finalFocus={connectButton}
               onConfirm={() => void disconnect()}
             />
 
-            {!editingConnection && !configured ? (
+            {!editingConnection && !connected && (
               <Button ref={connectButton} disabled={pending} onClick={startEditingConnection}>
                 Connect
               </Button>
-            ) : null}
+            )}
           </div>
-        ) : null}
-      </Item.Root>
+        }
+      />
 
-      {usesApiKey && editingConnection ? (
+      {editingConnection && (
         <Item.Root render={<form noValidate onSubmit={connect} />} style={styles.form}>
           <Item.Label render={<label htmlFor={inputId} />} style={styles.formLabel}>
             API key
@@ -175,12 +223,12 @@ function ProviderSettings({ provider }: { provider: Provider }) {
                 autoComplete="off"
                 disabled={pending}
                 spellCheck={false}
-                aria-describedby={connectionError ? errorId : undefined}
+                aria-describedby={describedBy}
                 style={styles.input}
                 placeholder={keyPlaceholder}
               />
               <Button type="submit" disabled={pending}>
-                {configureProvider.isPending ? "Connecting…" : "Connect"}
+                {connectLabel}
               </Button>
               <Button
                 type="button"
@@ -192,16 +240,25 @@ function ProviderSettings({ provider }: { provider: Provider }) {
               </Button>
             </div>
 
-            {connectionError ? (
+            {connectionError && (
               <p id={errorId} role="alert" {...stylex.props(styles.formError)}>
                 {connectionError}
               </p>
-            ) : null}
+            )}
           </div>
         </Item.Root>
-      ) : null}
+      )}
     </>
   );
+}
+
+function ProviderSettings({ provider }: { provider: Provider }): ReactElement {
+  switch (provider.configuration.kind) {
+    case ProviderConfigurationKind.ApiKey:
+      return <ApiKeyProviderSettings provider={provider} configuration={provider.configuration} />;
+    case ProviderConfigurationKind.None:
+      return <ProviderRow provider={provider} connected />;
+  }
 }
 
 function ProvidersRoute() {

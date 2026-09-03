@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { createNanoGptProvider, nanoGptProviderId } from "./provider";
+import { createApiKeyProviderFactory } from "../api-key-provider";
+import { nanoGptProviderDefinition, nanoGptProviderId } from "./provider";
 
 describe("NanoGPT provider", () => {
   it("composes every capability under one provider identity", async () => {
@@ -10,11 +11,15 @@ describe("NanoGPT provider", () => {
     const verify = vi.fn(async () => ({ state: "configured" as const }));
 
     try {
-      const provider = createNanoGptProvider(userDataDirectory, {
-        encrypt: async (value) => Buffer.from(value),
-        decrypt: async (value) => value.toString(),
-        verify,
-      });
+      const factory = createApiKeyProviderFactory(
+        userDataDirectory,
+        { ...nanoGptProviderDefinition, verifyApiKey: verify },
+        {
+          encrypt: async (value) => Buffer.from(value),
+          decrypt: async (value) => value.toString(),
+        },
+      );
+      const provider = await factory.create(new AbortController().signal);
 
       expect(provider.descriptor).toEqual({
         id: nanoGptProviderId,
@@ -36,6 +41,7 @@ describe("NanoGPT provider", () => {
       expect(provider.configuration.storagePaths).toEqual([
         join(userDataDirectory, `${nanoGptProviderId}.json`),
       ]);
+      expect(factory.storagePaths).toEqual(provider.configuration.storagePaths);
       const apiKey = "sk-nano-123e4567-e89b-12d3-a456-426614174000";
       await expect(
         provider.configuration.configure(apiKey, new AbortController().signal),

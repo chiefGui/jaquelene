@@ -1,39 +1,18 @@
-import type { ProviderAdapter, ProviderFactory } from "@jaquelene/backend";
-import {
-  createNanoGptConfiguration,
-  getNanoGptConnectionStoragePaths,
-  type NanoGptConfigurationDependencies,
-} from "./connection";
+import { defineApiKeyProvider } from "../api-key-provider";
 import { createNanoGptGeneration } from "./generation";
-import { nanoGptProviderDescriptor, nanoGptProviderId } from "./identity";
 import { createNanoGptModels } from "./models";
+import { verifyNanoGptApiKey } from "./verification";
 
-export { nanoGptProviderId } from "./identity";
+export const nanoGptProviderId = "nanogpt";
 
-export function createNanoGptProvider(
-  userDataDirectory: string,
-  dependencies: NanoGptConfigurationDependencies,
-): ProviderAdapter {
-  const configuration = createNanoGptConfiguration(userDataDirectory, dependencies);
-
-  return {
-    descriptor: nanoGptProviderDescriptor,
-    configuration,
-    models: createNanoGptModels(configuration),
-    generation: createNanoGptGeneration(configuration),
-  };
-}
-
-export function createNanoGptProviderFactory(
-  userDataDirectory: string,
-  dependencies: NanoGptConfigurationDependencies,
-): ProviderFactory {
-  return {
+export const nanoGptProviderDefinition = defineApiKeyProvider({
+  descriptor: {
     id: nanoGptProviderId,
-    storagePaths: getNanoGptConnectionStoragePaths(userDataDirectory),
-    create(signal) {
-      signal.throwIfAborted();
-      return createNanoGptProvider(userDataDirectory, dependencies);
-    },
-  };
-}
+    name: "NanoGPT",
+    brandId: nanoGptProviderId,
+  },
+  apiKeyPrefixes: ["sk-nano-"],
+  verifyApiKey: verifyNanoGptApiKey,
+  createModels: createNanoGptModels,
+  createGeneration: createNanoGptGeneration,
+});

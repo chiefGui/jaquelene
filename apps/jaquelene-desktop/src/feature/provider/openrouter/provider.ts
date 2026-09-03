@@ -1,39 +1,18 @@
-import type { ProviderAdapter, ProviderFactory } from "@jaquelene/backend";
-import {
-  createOpenRouterConfiguration,
-  getOpenRouterConnectionStoragePaths,
-  type OpenRouterConfigurationDependencies,
-} from "./connection";
+import { defineApiKeyProvider } from "../api-key-provider";
 import { createOpenRouterGeneration } from "./generation";
-import { openRouterProviderDescriptor, openRouterProviderId } from "./identity";
 import { createOpenRouterModels } from "./models";
+import { verifyOpenRouterApiKey } from "./verification";
 
-export { openRouterProviderId } from "./identity";
+export const openRouterProviderId = "openrouter";
 
-export function createOpenRouterProvider(
-  userDataDirectory: string,
-  dependencies: OpenRouterConfigurationDependencies,
-): ProviderAdapter {
-  const configuration = createOpenRouterConfiguration(userDataDirectory, dependencies);
-
-  return {
-    descriptor: openRouterProviderDescriptor,
-    configuration,
-    models: createOpenRouterModels(configuration),
-    generation: createOpenRouterGeneration(configuration),
-  };
-}
-
-export function createOpenRouterProviderFactory(
-  userDataDirectory: string,
-  dependencies: OpenRouterConfigurationDependencies,
-): ProviderFactory {
-  return {
+export const openRouterProviderDefinition = defineApiKeyProvider({
+  descriptor: {
     id: openRouterProviderId,
-    storagePaths: getOpenRouterConnectionStoragePaths(userDataDirectory),
-    create(signal) {
-      signal.throwIfAborted();
-      return createOpenRouterProvider(userDataDirectory, dependencies);
-    },
-  };
-}
+    name: "OpenRouter",
+    brandId: openRouterProviderId,
+  },
+  apiKeyPrefixes: ["sk-or-v1-"],
+  verifyApiKey: verifyOpenRouterApiKey,
+  createModels: createOpenRouterModels,
+  createGeneration: createOpenRouterGeneration,
+});

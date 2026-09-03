@@ -35,7 +35,7 @@ export type ApiKeyConfiguration = Extract<ProviderConfigurationAdapter, { kind: 
 type ApiKeyProvider = Readonly<{
   id: string;
   name: string;
-  apiKeyPrefixes?: readonly string[];
+  apiKeyPrefixes: readonly string[];
 }>;
 
 const opaqueApiKeyLabel = "••••";
@@ -91,7 +91,7 @@ export function createApiKeyConfiguration(
       return opaqueApiKeyLabel;
     }
 
-    const prefix = provider.apiKeyPrefixes?.find(
+    const prefix = provider.apiKeyPrefixes.find(
       (candidate) =>
         apiKey.startsWith(candidate) &&
         apiKey.length - candidate.length >= visibleSuffixLength + minimumHiddenLength,

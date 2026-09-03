@@ -45,7 +45,12 @@ export function normalizeNanoGptReasoning(
 
   for (const candidate of reportedEfforts ?? []) {
     const effort = requireReasoningEffort(modelId, candidate);
-    supportedPresets.push(effort === "none" ? "off" : effort);
+
+    if (effort === "none") {
+      supportedPresets.push("off");
+    } else {
+      supportedPresets.push(effort);
+    }
   }
 
   return requireModelReasoningCapability(

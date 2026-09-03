@@ -217,9 +217,19 @@ function requireConfigureResult(
 }
 
 function interruption(signal: AbortSignal) {
-  return signal.reason instanceof Error
-    ? signal.reason
-    : new Error("Provider operation was interrupted.", { cause: signal.reason });
+  if (signal.reason instanceof Error) {
+    return signal.reason;
+  }
+
+  return new Error("Provider operation was interrupted.", { cause: signal.reason });
+}
+
+function combineSignals(external: AbortSignal | undefined, internal: AbortSignal) {
+  if (external) {
+    return AbortSignal.any([external, internal]);
+  }
+
+  return internal;
 }
 
 function waitForOperation<Result>(operation: Promise<Result>, signal: AbortSignal) {
@@ -336,9 +346,7 @@ export function createProviderSubsystem(
     }
 
     const controller = new AbortController();
-    const operationSignal = signal
-      ? AbortSignal.any([signal, controller.signal])
-      : controller.signal;
+    const operationSignal = combineSignals(signal, controller.signal);
     return trackOperation(
       controller,
       operationSignal,
@@ -382,16 +390,17 @@ export function createProviderSubsystem(
     }
 
     const controller = new AbortController();
-    const operationSignal = signal
-      ? AbortSignal.any([signal, controller.signal])
-      : controller.signal;
+    const operationSignal = combineSignals(signal, controller.signal);
     const operationResult = provider.configurationTail.then(() => {
       operationSignal.throwIfAborted();
       return operation(operationSignal);
     });
-    const finalizedResult = afterCompletion
-      ? operationResult.finally(afterCompletion)
-      : operationResult;
+    let finalizedResult = operationResult;
+
+    if (afterCompletion) {
+      finalizedResult = operationResult.finally(afterCompletion);
+    }
+
     provider.configurationTail = finalizedResult.then(
       () => undefined,
       () => undefined,
@@ -406,21 +415,27 @@ export function createProviderSubsystem(
       throw new Error(`Provider "${provider.adapter.descriptor.id}" is not configured.`);
     }
 
-    return configuration.kind === "none" ? "configuration-free-v1" : configuration.revision;
+    if (configuration.kind === "none") {
+      return "configuration-free-v1";
+    }
+
+    return configuration.revision;
   }
 
   const modelCatalog = createModelCatalog(resourceCache, {
     listProviders: () =>
-      [...providersById.values()].flatMap<ModelProvider>((provider) =>
-        inspectAdapterConfiguration(provider.adapter).state === "configured"
-          ? [
-              {
-                id: provider.adapter.descriptor.id,
-                brandId: provider.adapter.descriptor.brandId,
-              },
-            ]
-          : [],
-      ),
+      [...providersById.values()].flatMap<ModelProvider>((provider) => {
+        if (inspectAdapterConfiguration(provider.adapter).state !== "configured") {
+          return [];
+        }
+
+        return [
+          {
+            id: provider.adapter.descriptor.id,
+            brandId: provider.adapter.descriptor.brandId,
+          },
+        ];
+      }),
     getSource(providerId) {
       if (state !== "open") {
         throw new Error("Providers are closed.");
@@ -605,10 +620,13 @@ export class ProvidersService extends Context.Service<ProvidersService, Provider
         return yield* Effect.acquireRelease(
           Effect.tryPromise({
             try: (signal) => createOwnedProviderSubsystem(factories, resourceCache, signal),
-            catch: (error) =>
-              error instanceof Error
-                ? error
-                : new Error("Could not create provider adapters.", { cause: error }),
+            catch: (error) => {
+              if (error instanceof Error) {
+                return error;
+              }
+
+              return new Error("Could not create provider adapters.", { cause: error });
+            },
           }),
           (providers) => Effect.promise(() => providers.close()),
           { interruptible: true },

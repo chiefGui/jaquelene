@@ -90,13 +90,16 @@ export function normalizeOpenRouterReasoning(
   }
 
   const reportedDefaultEffort = metadata.defaultEffort;
+  let reportedDefaultPreset: ReasoningEffort | undefined;
+
   // OpenRouter uses a default "none" to mean no effort argument, not disabled reasoning.
-  const reportedDefaultPreset =
-    reportedDefaultEffort === undefined ||
-    reportedDefaultEffort === null ||
-    reportedDefaultEffort === "none"
-      ? undefined
-      : requireReasoningEffort(reportedDefaultEffort, "default", modelId);
+  if (
+    reportedDefaultEffort !== undefined &&
+    reportedDefaultEffort !== null &&
+    reportedDefaultEffort !== "none"
+  ) {
+    reportedDefaultPreset = requireReasoningEffort(reportedDefaultEffort, "default", modelId);
+  }
 
   const reportedSupportedEfforts = metadata.supportedEfforts;
 
@@ -116,7 +119,11 @@ export function normalizeOpenRouterReasoning(
         defaultPreset = "automatic";
         supportedPresets.unshift("automatic");
       } else if (reportedDefaultPreset !== undefined) {
-        defaultPreset = reportedDefaultPreset === "xhigh" ? "max" : reportedDefaultPreset;
+        defaultPreset = reportedDefaultPreset;
+
+        if (reportedDefaultPreset === "xhigh") {
+          defaultPreset = "max";
+        }
       } else if (defaultEnabled === true) {
         // OpenRouter defines enabled reasoning without an effort as medium.
         defaultPreset = "medium";
@@ -135,24 +142,29 @@ export function normalizeOpenRouterReasoning(
       );
     }
 
-    const defaultPreset =
-      defaultEnabled === true ? "on" : defaultEnabled === false ? "off" : "automatic";
-    return requireModelReasoningCapability(
-      {
-        defaultPreset,
-        supportedPresets:
-          defaultPreset === "automatic" ? ["automatic", "on", "off"] : ["on", "off"],
-      },
-      description,
-    );
+    let defaultPreset: ReasoningPreset = "automatic";
+    let supportedPresets: ReasoningPreset[] = ["automatic", "on", "off"];
+
+    if (defaultEnabled === true) {
+      defaultPreset = "on";
+      supportedPresets = ["on", "off"];
+    } else if (defaultEnabled === false) {
+      defaultPreset = "off";
+      supportedPresets = ["on", "off"];
+    }
+
+    return requireModelReasoningCapability({ defaultPreset, supportedPresets }, description);
   }
 
-  if (reportedSupportedEfforts !== null && !Array.isArray(reportedSupportedEfforts)) {
+  let supportedEfforts: readonly unknown[];
+
+  if (reportedSupportedEfforts === null) {
+    supportedEfforts = reasoningEfforts;
+  } else if (Array.isArray(reportedSupportedEfforts)) {
+    supportedEfforts = reportedSupportedEfforts;
+  } else {
     throw new TypeError(`OpenRouter model "${modelId}" reasoning has invalid supported efforts.`);
   }
-
-  const supportedEfforts =
-    reportedSupportedEfforts === null ? reasoningEfforts : reportedSupportedEfforts;
 
   if (supportedEfforts.length === 0) {
     throw new TypeError(
@@ -160,9 +172,13 @@ export function normalizeOpenRouterReasoning(
     );
   }
 
-  const supportedPresets: ReasoningPreset[] = supportedEfforts.map((effort) =>
-    effort === "none" ? "off" : requireReasoningEffort(effort, "supported", modelId),
-  );
+  const supportedPresets: ReasoningPreset[] = supportedEfforts.map((effort) => {
+    if (effort === "none") {
+      return "off";
+    }
+
+    return requireReasoningEffort(effort, "supported", modelId);
+  });
 
   if (mandatory && supportedPresets.includes("off")) {
     throw new TypeError(

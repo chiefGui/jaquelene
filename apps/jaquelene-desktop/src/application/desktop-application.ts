@@ -7,10 +7,7 @@ import { appUrl, handleAppScheme } from "../app-protocol";
 import type { ApplicationDiagnostics } from "../diagnostics/diagnostics";
 import { createFavoriteModels } from "../feature/model/favorite-models";
 import { createFavoriteModelsStorage } from "../feature/model/favorite-models-store";
-import { createNanoGptProviderFactory } from "../feature/provider/nanogpt/provider";
-import { verifyNanoGptApiKey } from "../feature/provider/nanogpt/verification";
-import { createOpenRouterProviderFactory } from "../feature/provider/openrouter/provider";
-import { verifyOpenRouterApiKey } from "../feature/provider/openrouter/verification";
+import { createProviderFactories } from "../feature/provider/registry";
 import { createLocalState } from "../local-state";
 import type { Preferences } from "../preferences/preferences";
 import { createStorageAreas } from "../storage/areas";
@@ -31,13 +28,21 @@ export type DesktopApplication = Readonly<{
 }>;
 
 function asError(error: unknown, message: string) {
-  return error instanceof Error ? error : new Error(message, { cause: error });
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error(message, { cause: error });
 }
 
 function errorFromCause(cause: Cause.Cause<Error>, message: string) {
   const errors = Cause.prettyErrors(cause);
 
-  return errors.length === 1 ? errors[0]! : new AggregateError(errors, message);
+  if (errors.length === 1) {
+    return errors[0]!;
+  }
+
+  return new AggregateError(errors, message);
 }
 
 function waitForSignal<Result>(result: Promise<Result>, signal: AbortSignal) {
@@ -87,9 +92,12 @@ export function launchDesktopApplication({
       });
 
       if (!developmentServerUrl) {
-        const webAppDirectory = app.isPackaged
-          ? join(process.resourcesPath, "web")
-          : join(app.getAppPath(), "../jaquelene-web/dist");
+        let webAppDirectory = join(app.getAppPath(), "../jaquelene-web/dist");
+
+        if (app.isPackaged) {
+          webAppDirectory = join(process.resourcesPath, "web");
+        }
+
         yield* Effect.acquireRelease(
           Effect.sync(() => handleAppScheme(webAppDirectory)),
           (registration) => Effect.sync(() => registration[Symbol.dispose]()),
@@ -110,14 +118,7 @@ export function launchDesktopApplication({
           return result;
         },
       };
-      const openRouter = createOpenRouterProviderFactory(userDataDirectory, {
-        ...credentialProtection,
-        verify: verifyOpenRouterApiKey,
-      });
-      const nanoGpt = createNanoGptProviderFactory(userDataDirectory, {
-        ...credentialProtection,
-        verify: verifyNanoGptApiKey,
-      });
+      const providers = createProviderFactories(userDataDirectory, credentialProtection);
       const backend = yield* Effect.acquireRelease(
         Effect.tryPromise({
           try: (signal) =>
@@ -133,7 +134,7 @@ export function launchDesktopApplication({
                       error: failure.error,
                     }),
                 },
-                providers: [openRouter, nanoGpt],
+                providers,
                 storageAreas: createStorageAreas({
                   diagnostics,
                   favoriteModels,
@@ -191,11 +192,13 @@ export function launchDesktopApplication({
 
     if (!readySettled) {
       readySettled = true;
-      ready.reject(
-        Exit.isFailure(exit)
-          ? errorFromCause(exit.cause, "Desktop application startup failed.")
-          : new Error("Desktop application stopped before becoming ready."),
-      );
+      let error = new Error("Desktop application stopped before becoming ready.");
+
+      if (Exit.isFailure(exit)) {
+        error = errorFromCause(exit.cause, "Desktop application startup failed.");
+      }
+
+      ready.reject(error);
     }
   });
 
@@ -222,10 +225,18 @@ export function launchDesktopApplication({
       }
       await showMainWindow();
     },
-    inspect: () => ({
-      state,
-      ...(mainWindowInspection ? { window: mainWindowInspection() } : {}),
-    }),
+    inspect: () => {
+      const inspection: {
+        state: DesktopApplicationInspection["state"];
+        window?: MainWindowInspection;
+      } = { state };
+
+      if (mainWindowInspection) {
+        inspection.window = mainWindowInspection();
+      }
+
+      return inspection;
+    },
     stop,
   };
 }

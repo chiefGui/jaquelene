@@ -1,19 +1,15 @@
-import { requireContextWindowTokens, type ProviderModelsAdapter } from "@jaquelene/backend";
-import type { NanoGptConfiguration } from "./connection";
+import {
+  createProviderModel,
+  requireContextWindowTokens,
+  type ProviderModelsAdapter,
+} from "@jaquelene/backend";
+import type { ApiKeyConfiguration } from "../api-key-configuration";
+import { removeKnownAuthorPrefix, resolveModelAuthor } from "../model-author";
 import { normalizeNanoGptReasoning } from "./reasoning";
 
 type LoadNanoGptModels = (apiKey: string, signal: AbortSignal) => Promise<readonly unknown[]>;
 
 type JsonObject = Record<string, unknown>;
-
-const authorIdentities: ReadonlyMap<string, string> = new Map([
-  ["arcee-ai", "arcee"],
-  ["bytedance-seed", "bytedance"],
-  ["ibm-granite", "ibm"],
-  ["meta-llama", "meta"],
-  ["mistralai", "mistral"],
-  ["moonshotai", "moonshot"],
-]);
 
 function requireObject(candidate: unknown, description: string): JsonObject {
   if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) {
@@ -31,29 +27,16 @@ function requireText(candidate: unknown, description: string) {
   return candidate.trim();
 }
 
-function normalizeIdentity(value: string) {
-  return value.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
-}
-
-function normalizeName(id: string, candidate: unknown, ownerId: string, brandId: string) {
+function normalizeName(id: string, candidate: unknown, ownerId: string) {
   const name = requireText(candidate, `NanoGPT model "${id}" name`);
-  const separator = name.indexOf(":");
-
-  if (separator <= 0) {
-    return name;
-  }
-
-  const prefix = normalizeIdentity(name.slice(0, separator));
-  const hasBrandPrefix = [ownerId, brandId].some(
-    (identity) => normalizeIdentity(identity) === prefix,
-  );
-  const displayName = hasBrandPrefix ? name.slice(separator + 1).trim() : name;
+  const author = resolveModelAuthor(ownerId);
+  const displayName = removeKnownAuthorPrefix(name, ownerId, author);
 
   if (!displayName) {
     throw new TypeError(`NanoGPT model "${id}" name must contain text.`);
   }
 
-  return displayName;
+  return { brandId: author.brandId, displayName };
 }
 
 function normalizeContextWindow(id: string, candidate: unknown) {
@@ -99,24 +82,24 @@ function normalizeModel(candidate: unknown) {
   const model = requireObject(candidate, "A NanoGPT model");
   const id = requireText(model.id, "A NanoGPT model identity");
   const ownerId = requireText(model.owned_by, `NanoGPT model "${id}" owner`).toLowerCase();
-  const brandId = authorIdentities.get(ownerId) ?? ownerId;
-  const name = normalizeName(id, model.name, ownerId, brandId);
+  const { brandId, displayName } = normalizeName(id, model.name, ownerId);
   const contextWindowTokens = normalizeContextWindow(id, model.context_length);
   const tokenPricing = normalizeTokenPricing(id, model.pricing);
-  const capabilities =
-    model.capabilities === undefined || model.capabilities === null
-      ? undefined
-      : requireObject(model.capabilities, `NanoGPT model "${id}" capabilities`);
-  const reasoning = normalizeNanoGptReasoning(id, capabilities?.reasoning, model.reasoning_efforts);
+  let capabilities: JsonObject | undefined;
 
-  return {
+  if (model.capabilities !== undefined && model.capabilities !== null) {
+    capabilities = requireObject(model.capabilities, `NanoGPT model "${id}" capabilities`);
+  }
+
+  const reasoning = normalizeNanoGptReasoning(id, capabilities?.reasoning, model.reasoning_efforts);
+  return createProviderModel({
     id,
-    name,
+    name: displayName,
     brandId,
-    ...(contextWindowTokens === undefined ? {} : { contextWindowTokens }),
-    ...(reasoning ? { reasoning } : {}),
-    ...(tokenPricing ? { tokenPricing } : {}),
-  };
+    contextWindowTokens,
+    reasoning,
+    tokenPricing,
+  });
 }
 
 async function loadNanoGptModels(apiKey: string, signal: AbortSignal) {
@@ -156,7 +139,7 @@ async function loadNanoGptModels(apiKey: string, signal: AbortSignal) {
 }
 
 export function createNanoGptModels(
-  configuration: Pick<NanoGptConfiguration, "withApiKey">,
+  configuration: Pick<ApiKeyConfiguration, "withApiKey">,
   loadModels: LoadNanoGptModels = loadNanoGptModels,
 ): ProviderModelsAdapter {
   return {

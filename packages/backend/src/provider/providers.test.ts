@@ -13,6 +13,14 @@ import { createProviderSubsystem } from "./providers";
 
 const keyLabel = "key...123";
 
+function keyLabelProperty(value: string | undefined) {
+  if (value === undefined) {
+    return {};
+  }
+
+  return { keyLabel: value };
+}
+
 async function createTestResourceCache() {
   const entries = new Map<string, StoredCacheEntry>();
   let revision = 0;
@@ -328,7 +336,7 @@ describe("provider subsystem", () => {
       const configuration = {
         state: "configured",
         revision: "configuration-1",
-        ...(invalidKeyLabel === undefined ? {} : { keyLabel: invalidKeyLabel }),
+        ...keyLabelProperty(invalidKeyLabel),
       } as unknown as ApiKeyProviderConfigurationSnapshot;
       const adapter = apiKeyProvider({
         configuration: {
@@ -360,7 +368,7 @@ describe("provider subsystem", () => {
           async configure() {
             return {
               state: "configured",
-              ...(invalidKeyLabel === undefined ? {} : { keyLabel: invalidKeyLabel }),
+              ...keyLabelProperty(invalidKeyLabel),
             } as unknown as ProviderConfigureResult;
           },
           async clear() {},
@@ -382,13 +390,15 @@ describe("provider subsystem", () => {
       revision: "configuration-1",
       keyLabel,
     };
-    const list = vi.fn(async () => [
-      {
-        id: "maker/model",
-        name: configuration.state === "configured" ? configuration.revision : "unconfigured",
-        brandId: "maker",
-      },
-    ]);
+    const list = vi.fn(async () => {
+      let name = "unconfigured";
+
+      if (configuration.state === "configured") {
+        name = configuration.revision;
+      }
+
+      return [{ id: "maker/model", name, brandId: "maker" }];
+    });
     const adapter = apiKeyProvider({
       configuration: {
         kind: "api-key",

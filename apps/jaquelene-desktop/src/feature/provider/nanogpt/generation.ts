@@ -1,5 +1,11 @@
-import type { DialogueMessage, ModelInput, ProviderGenerationAdapter } from "@jaquelene/backend";
-import type { NanoGptConfiguration } from "./connection";
+import {
+  createGenerationUsage,
+  createProviderGenerationResult,
+  type DialogueMessage,
+  type ModelInput,
+  type ProviderGenerationAdapter,
+} from "@jaquelene/backend";
+import type { ApiKeyConfiguration } from "../api-key-configuration";
 import { encodeNanoGptReasoning, type NanoGptReasoningEffort } from "./reasoning";
 
 type NanoGptChatMessage = Readonly<{
@@ -14,6 +20,10 @@ type NanoGptChatRequest = Readonly<{
   reasoning_effort?: NanoGptReasoningEffort;
   stream: false;
 }>;
+
+type MutableNanoGptChatRequest = {
+  -readonly [Key in keyof NanoGptChatRequest]: NanoGptChatRequest[Key];
+};
 
 type SendNanoGptChat = (
   apiKey: string,
@@ -56,9 +66,11 @@ function requireCount(candidate: unknown, description: string) {
 }
 
 function optionalCount(candidate: unknown, description: string) {
-  return candidate === undefined || candidate === null
-    ? undefined
-    : requireCount(candidate, description);
+  if (candidate === undefined || candidate === null) {
+    return undefined;
+  }
+
+  return requireCount(candidate, description);
 }
 
 function toNanoGptDialogue({ role, content }: DialogueMessage): NanoGptChatMessage {
@@ -143,7 +155,12 @@ function getResponseText(choice: JsonObject) {
     const text = content
       .flatMap((candidate) => {
         const part = requireObject(candidate, "A NanoGPT assistant content part");
-        return part.type === "text" && typeof part.text === "string" ? [part.text] : [];
+
+        if (part.type === "text" && typeof part.text === "string") {
+          return [part.text];
+        }
+
+        return [];
       })
       .join("");
 
@@ -204,14 +221,20 @@ function normalizeUsage(result: JsonObject) {
   }
 
   const usage = requireObject(result.usage, "NanoGPT generation usage");
-  const promptDetails =
-    usage.prompt_tokens_details === undefined || usage.prompt_tokens_details === null
-      ? undefined
-      : requireObject(usage.prompt_tokens_details, "NanoGPT prompt token details");
-  const completionDetails =
-    usage.completion_tokens_details === undefined || usage.completion_tokens_details === null
-      ? undefined
-      : requireObject(usage.completion_tokens_details, "NanoGPT completion token details");
+  let promptDetails: JsonObject | undefined;
+  let completionDetails: JsonObject | undefined;
+
+  if (usage.prompt_tokens_details !== undefined && usage.prompt_tokens_details !== null) {
+    promptDetails = requireObject(usage.prompt_tokens_details, "NanoGPT prompt token details");
+  }
+
+  if (usage.completion_tokens_details !== undefined && usage.completion_tokens_details !== null) {
+    completionDetails = requireObject(
+      usage.completion_tokens_details,
+      "NanoGPT completion token details",
+    );
+  }
+
   const cacheRead =
     optionalCount(usage.cache_read_input_tokens, "cache-read input token count") ??
     optionalCount(promptDetails?.cached_tokens, "cached input token count");
@@ -224,21 +247,15 @@ function normalizeUsage(result: JsonObject) {
     optionalCount(usage.reasoning_tokens, "reasoning output token count");
   const cost = normalizeCost(result);
 
-  return {
-    tokens: {
-      input: {
-        total: requireCount(usage.prompt_tokens, "input token count"),
-        ...(cacheRead === undefined ? {} : { cacheRead }),
-        ...(cacheWrite === undefined ? {} : { cacheWrite }),
-      },
-      output: {
-        total: requireCount(usage.completion_tokens, "output token count"),
-        ...(reasoning === undefined ? {} : { reasoning }),
-      },
-      total: requireCount(usage.total_tokens, "total token count"),
-    },
-    ...(cost ? { cost } : {}),
-  };
+  return createGenerationUsage({
+    inputTotal: requireCount(usage.prompt_tokens, "input token count"),
+    inputCacheRead: cacheRead,
+    inputCacheWrite: cacheWrite,
+    outputTotal: requireCount(usage.completion_tokens, "output token count"),
+    outputReasoning: reasoning,
+    total: requireCount(usage.total_tokens, "total token count"),
+    cost,
+  });
 }
 
 function normalizeResult(candidate: unknown) {
@@ -250,34 +267,36 @@ function normalizeResult(candidate: unknown) {
   const finishReason = optionalText(choice.finish_reason, "NanoGPT finish reason");
   const usage = normalizeUsage(result);
 
-  return {
+  return createProviderGenerationResult({
     text,
-    ...(providerGenerationId ? { providerGenerationId } : {}),
-    ...(resolvedModelId ? { resolvedModelId } : {}),
-    ...(finishReason ? { finishReason } : {}),
-    ...(usage ? { usage } : {}),
-  };
+    providerGenerationId,
+    resolvedModelId,
+    upstreamProviderId: undefined,
+    finishReason,
+    usage,
+  });
 }
 
 export function createNanoGptGeneration(
-  configuration: Pick<NanoGptConfiguration, "withApiKey">,
+  configuration: Pick<ApiKeyConfiguration, "withApiKey">,
   send: SendNanoGptChat = sendNanoGptChat,
 ): ProviderGenerationAdapter {
   return {
     generate: (request, signal) =>
       configuration.withApiKey(async (apiKey) => {
         const reasoningEffort = encodeNanoGptReasoning(request.reasoning);
-        const result = await send(
-          apiKey,
-          {
-            model: request.modelId,
-            messages: toNanoGptMessages(request.input),
-            include_usage: true,
-            ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-            stream: false,
-          },
-          signal,
-        );
+        const chatRequest: MutableNanoGptChatRequest = {
+          model: request.modelId,
+          messages: toNanoGptMessages(request.input),
+          include_usage: true,
+          stream: false,
+        };
+
+        if (reasoningEffort !== undefined) {
+          chatRequest.reasoning_effort = reasoningEffort;
+        }
+
+        const result = await send(apiKey, chatRequest, signal);
 
         return normalizeResult(result);
       }),

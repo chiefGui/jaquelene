@@ -96,7 +96,7 @@ describe("API-key configuration", () => {
       const encrypt = vi.fn(async (value: string) => Buffer.from(value));
       const configuration = createApiKeyConfiguration(
         createUserDataDirectory(),
-        { id: "provider", name: "Provider" },
+        { id: "provider", name: "Provider", apiKeyPrefixes: [] },
         {
           ...dependencies(async () => ({ state: "configured", keyLabel })),
           encrypt,
@@ -139,5 +139,141 @@ describe("API-key configuration", () => {
       "Provider is not connected.",
     );
     expect(decrypt).not.toHaveBeenCalled();
+  });
+
+  it("reopens a persisted credential without verification or decryption", async () => {
+    const directory = createUserDataDirectory();
+    const apiKey = "provider-accepted-key";
+    const keyLabel = "provider...1234";
+    const encrypt = vi.fn(async (value: string) => Buffer.from(`encrypted:${value}`));
+    const decrypt = vi.fn(async (value: Buffer) => value.toString().replace("encrypted:", ""));
+    const verify = vi.fn(async () => ({ state: "configured" as const, keyLabel }));
+    const configuration = createApiKeyConfiguration(
+      directory,
+      { id: "provider", name: "Provider", apiKeyPrefixes: [] },
+      { encrypt, decrypt, verify },
+    );
+
+    await configuration.configure(apiKey, operationSignal());
+    const configured = configuration.inspect();
+    const reopened = createApiKeyConfiguration(
+      directory,
+      { id: "provider", name: "Provider", apiKeyPrefixes: [] },
+      { encrypt, decrypt, verify },
+    );
+
+    expect(reopened.inspect()).toEqual(configured);
+    expect(verify).toHaveBeenCalledOnce();
+    expect(decrypt).not.toHaveBeenCalled();
+    await expect(reopened.withApiKey(async (value) => value)).resolves.toBe(apiKey);
+  });
+
+  it("keeps credential use inside the configuration boundary", async () => {
+    const useApiKey = vi.fn(async (value: string) => `used:${value}`);
+    const configuration = createApiKeyConfiguration(
+      createUserDataDirectory(),
+      { id: "provider", name: "Provider", apiKeyPrefixes: [] },
+      dependencies(async () => ({ state: "configured", keyLabel: "provider...1234" })),
+    );
+
+    await expect(configuration.withApiKey(useApiKey)).rejects.toThrow("Provider is not connected.");
+    expect(useApiKey).not.toHaveBeenCalled();
+
+    await configuration.configure("provider-key", operationSignal());
+
+    await expect(configuration.withApiKey(useApiKey)).resolves.toBe("used:provider-key");
+    expect(useApiKey).toHaveBeenCalledWith("provider-key");
+  });
+
+  it("rejects an empty API key before verification", async () => {
+    const verify = vi.fn(async () => ({
+      state: "configured" as const,
+      keyLabel: "provider...1234",
+    }));
+    const encrypt = vi.fn(async (value: string) => Buffer.from(value));
+    const configuration = createApiKeyConfiguration(
+      createUserDataDirectory(),
+      { id: "provider", name: "Provider", apiKeyPrefixes: [] },
+      {
+        ...dependencies(verify),
+        encrypt,
+      },
+    );
+
+    await expect(configuration.configure(" \t ", operationSignal())).rejects.toThrow(TypeError);
+    expect(verify).not.toHaveBeenCalled();
+    expect(encrypt).not.toHaveBeenCalled();
+  });
+
+  it.each(["rejected", "unavailable"] as const)(
+    "does not persist an API key when verification is %s",
+    async (state) => {
+      const encrypt = vi.fn(async (value: string) => Buffer.from(value));
+      const configuration = createApiKeyConfiguration(
+        createUserDataDirectory(),
+        { id: "provider", name: "Provider", apiKeyPrefixes: [] },
+        {
+          ...dependencies(async () => ({ state })),
+          encrypt,
+        },
+      );
+
+      await expect(
+        configuration.configure(`provider-${state}-key`, operationSignal()),
+      ).resolves.toEqual({ state });
+      expect(encrypt).not.toHaveBeenCalled();
+      expect(configuration.inspect()).toEqual({ state: "unconfigured" });
+    },
+  );
+
+  it("preserves a working credential when its replacement is rejected", async () => {
+    const encrypt = vi.fn(async (value: string) => Buffer.from(`encrypted:${value}`));
+    const verify = vi.fn(async (apiKey: string) => {
+      if (apiKey === "replacement-key") {
+        return { state: "rejected" as const };
+      }
+
+      return { state: "configured" as const, keyLabel: "provider...1234" };
+    });
+    const configuration = createApiKeyConfiguration(
+      createUserDataDirectory(),
+      { id: "provider", name: "Provider", apiKeyPrefixes: [] },
+      {
+        encrypt,
+        decrypt: async (value) => value.toString().replace("encrypted:", ""),
+        verify,
+      },
+    );
+
+    await configuration.configure("current-key", operationSignal());
+    await expect(configuration.configure("replacement-key", operationSignal())).resolves.toEqual({
+      state: "rejected",
+    });
+    expect(encrypt).not.toHaveBeenCalledWith("replacement-key");
+    await expect(configuration.withApiKey(async (value) => value)).resolves.toBe("current-key");
+  });
+
+  it("preserves encryption failures without changing the credential", async () => {
+    const failure = new Error("Encryption failed");
+    const encrypt = vi.fn(async () => Buffer.from("encrypted"));
+    encrypt.mockRejectedValueOnce(failure);
+    const configuration = createApiKeyConfiguration(
+      createUserDataDirectory(),
+      { id: "provider", name: "Provider", apiKeyPrefixes: [] },
+      {
+        ...dependencies(async () => ({
+          state: "configured",
+          keyLabel: "provider...1234",
+        })),
+        encrypt,
+      },
+    );
+
+    await expect(configuration.configure("first-key", operationSignal())).rejects.toBe(failure);
+    expect(configuration.inspect()).toEqual({ state: "unconfigured" });
+    await expect(configuration.configure("second-key", operationSignal())).resolves.toEqual({
+      state: "configured",
+      keyLabel: "provider...1234",
+    });
   });
 });

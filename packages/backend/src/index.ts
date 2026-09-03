@@ -40,12 +40,16 @@ export {
 } from "#backend/model/reasoning";
 export {
   generationCostSources,
+  createGenerationUsage,
+  createProviderGenerationResult,
+  createProviderModel,
   requireContextWindowTokens,
   requireModelReference,
   requireModelSelection,
   type ApiKeyProviderConfiguration,
   type ApiKeyProviderConfigurationSnapshot,
   type GenerationUsage,
+  type GenerationUsageInput,
   type GenerationCost,
   type GenerationCostSource,
   type GenerationTokenUsage,
@@ -59,9 +63,11 @@ export {
   type ProviderGenerationAdapter,
   type ProviderGenerationRequest,
   type ProviderGenerationResult,
+  type ProviderGenerationResultInput,
   type ProviderFactory,
   type ProviderId,
   type ProviderModel,
+  type ProviderModelInput,
   type ProviderModelsAdapter,
 } from "#backend/provider/provider";
 export type {

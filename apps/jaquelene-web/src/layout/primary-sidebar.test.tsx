@@ -1,4 +1,5 @@
 import Home01Icon from "@hugeicons/core-free-icons/Home01Icon";
+import { MotionProvider } from "@jaquelene/ui/motion";
 import {
   RouterContextProvider,
   createMemoryHistory,
@@ -28,13 +29,15 @@ function renderSidebar(navigation: PrimarySidebarNavigation, initialEntry: strin
 
   return renderToStaticMarkup(
     <RouterContextProvider router={router}>
-      <PrimarySidebar navigation={navigation} />
+      <MotionProvider mode="reduced">
+        <PrimarySidebar navigation={navigation} />
+      </MotionProvider>
     </RouterContextProvider>,
   );
 }
 
 describe("primary sidebar", () => {
-  it("renders the persistent Settings action outside Settings", () => {
+  it("renders the persistent utility actions outside Settings", () => {
     const markup = renderSidebar(
       {
         navigationLabel: "Campaigns",
@@ -53,20 +56,16 @@ describe("primary sidebar", () => {
     expect(markup).toContain("<footer");
     expect(markup).toContain('aria-label="Settings"');
     expect(markup).toContain('href="/settings/general"');
+    expect(markup).toContain('aria-label="Library"');
+    expect(markup).toContain('href="/library/narrator"');
     expect(markup).not.toContain("<button");
   });
 
-  it("renders a Back button in Settings", () => {
+  it("renders one Back action in Settings", () => {
     const markup = renderSidebar(
       {
         navigationLabel: "Settings",
         items: [
-          {
-            action: "history-back",
-            id: "back",
-            icon: Home01Icon,
-            label: "Back",
-          },
           {
             id: "general",
             icon: Home01Icon,
@@ -78,15 +77,13 @@ describe("primary sidebar", () => {
       },
       "/settings/general",
     );
-    const backPosition = markup.indexOf(">Back</span>");
-    const generalPosition = markup.indexOf(">General</span>");
     const footerMarkup = markup.slice(markup.indexOf("<footer"));
 
-    expect(backPosition).toBeGreaterThan(-1);
-    expect(backPosition).toBeLessThan(generalPosition);
     expect(footerMarkup).toContain("<button");
     expect(footerMarkup).toContain('type="button"');
     expect(footerMarkup).toContain('aria-label="Back"');
     expect(footerMarkup).not.toContain('aria-label="Settings"');
+    expect(footerMarkup).not.toContain('aria-label="Library"');
+    expect(footerMarkup.match(/<button/g)).toHaveLength(1);
   });
 });

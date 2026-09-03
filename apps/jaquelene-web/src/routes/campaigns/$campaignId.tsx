@@ -1,4 +1,4 @@
-import { composeCampaignGenerationConfiguration } from "@jaquelene/domain";
+import { composeCampaignGenerationConfiguration, narratorPromptKindKey } from "@jaquelene/domain";
 import PanelRightCloseIcon from "@hugeicons/core-free-icons/PanelRightCloseIcon";
 import PanelRightOpenIcon from "@hugeicons/core-free-icons/PanelRightOpenIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -19,7 +19,6 @@ import { CampaignDetailsSidebar } from "@/feature/campaign/details-sidebar";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import {
   campaignPromptSelectionQuery,
-  narratorPromptKind,
   promptDefaultQuery,
   promptPagesQuery,
   promptQuery,
@@ -37,7 +36,7 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
       staleTime: "static",
     });
     const narratorSelectionPromise = context.queryClient.query(
-      campaignPromptSelectionQuery(params.campaignId, narratorPromptKind),
+      campaignPromptSelectionQuery(params.campaignId, narratorPromptKindKey),
     );
 
     await Promise.all([
@@ -45,8 +44,11 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
       context.queryClient.query(campaignUsageQuery(params.campaignId)),
       context.queryClient.query(defaultCampaignModelQuery),
       context.queryClient.query(modelProvidersQuery),
-      context.queryClient.query(promptDefaultQuery(narratorPromptKind)),
-      context.queryClient.ensureInfiniteQueryData(promptPagesQuery(narratorPromptKind)),
+      context.queryClient.query(promptDefaultQuery(narratorPromptKindKey)),
+      context.queryClient.infiniteQuery({
+        ...promptPagesQuery(narratorPromptKindKey),
+        staleTime: "static",
+      }),
       narratorSelectionPromise,
       narratorSelectionPromise.then((selection) =>
         selection?.effectivePromptKey

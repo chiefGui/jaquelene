@@ -63,7 +63,7 @@ function ProviderSettings({ provider }: { provider: Provider }) {
     const apiKey = new FormData(form).get("apiKey");
 
     if (typeof apiKey !== "string" || !apiKey.trim()) {
-      setConnectionError("Enter an API key.");
+      setConnectionError("Enter an API key");
       return;
     }
 
@@ -78,15 +78,15 @@ function ProviderSettings({ provider }: { provider: Provider }) {
           setEditingConnection(false);
           return;
         case ProviderConfigureState.Rejected:
-          setConnectionError(`${provider.name} rejected this API key.`);
+          setConnectionError(`${provider.name} rejected this API key`);
           return;
         case ProviderConfigureState.Unavailable:
-          setConnectionError(`Couldn’t reach ${provider.name}. Try again.`);
+          setConnectionError(`Couldn't reach ${provider.name}. Try again`);
           return;
       }
     } catch (cause) {
       reportError(`provider.${provider.id}.configure`, cause);
-      setConnectionError(`Couldn’t connect to ${provider.name}.`);
+      setConnectionError(`Couldn't connect to ${provider.name}`);
     }
   }
 
@@ -141,7 +141,7 @@ function ProviderSettings({ provider }: { provider: Provider }) {
               description="Removes your saved API key from this device."
               confirmLabel="Disconnect"
               pending={clearProvider.isPending}
-              error={clearProvider.isError ? `Couldn’t disconnect ${provider.name}.` : undefined}
+              error={clearProvider.isError ? `Couldn't disconnect ${provider.name}.` : undefined}
               finalFocus={connectButton}
               onConfirm={() => void disconnect()}
             />
@@ -156,7 +156,7 @@ function ProviderSettings({ provider }: { provider: Provider }) {
       </Item.Root>
 
       {usesApiKey && editingConnection ? (
-        <Item.Root render={<form onSubmit={connect} />} style={styles.form}>
+        <Item.Root render={<form noValidate onSubmit={connect} />} style={styles.form}>
           <Item.Label render={<label htmlFor={inputId} />} style={styles.formLabel}>
             API key
           </Item.Label>

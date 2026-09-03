@@ -3,17 +3,20 @@ import {
   forwardRef,
   useCallback,
   useContext,
-  useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type AriaAttributes,
+  type FocusEventHandler,
   type ReactNode,
+  type Ref,
   type RefObject,
 } from "react";
-import type {
-  MarkdownEditorAccessibleName,
-  MarkdownEditorCommand,
-  MarkdownEditorHandle,
+import {
+  runMarkdownEditorCommand,
+  type MarkdownEditorAccessibleNameProps,
+  type MarkdownEditorCommand,
 } from "./markdown-editor-input";
 
 export type MarkdownEditorMode = "edit" | "preview";
@@ -42,31 +45,37 @@ type MarkdownEditorModeOwnership =
       onModeChange?: (mode: MarkdownEditorMode) => void;
     };
 
-export type MarkdownEditorRootProps = MarkdownEditorAccessibleName &
+export type MarkdownEditorRootProps = MarkdownEditorAccessibleNameProps &
   MarkdownEditorValueOwnership &
   MarkdownEditorModeOwnership & {
     "aria-describedby"?: string;
+    "aria-invalid"?: AriaAttributes["aria-invalid"];
     autoFocus?: boolean;
     children: ReactNode;
     disabled?: boolean;
-    invalid?: boolean;
-    onBlur?: () => void;
-    onFocus?: () => void;
+    id?: string;
+    maxLength?: number;
+    onBlur?: FocusEventHandler<HTMLDivElement>;
+    onFocus?: FocusEventHandler<HTMLDivElement>;
     placeholder?: string;
     readOnly?: boolean;
   };
 
 export type MarkdownEditorConfiguration = Readonly<{
   ariaDescribedBy: string | undefined;
+  ariaInvalid: AriaAttributes["aria-invalid"];
   ariaLabel: string | undefined;
   ariaLabelledBy: string | undefined;
   autoFocus: boolean;
+  controlRef: Ref<HTMLElement>;
   disabled: boolean;
-  inputRef: RefObject<MarkdownEditorHandle | null>;
+  id: string | undefined;
+  inputRef: RefObject<HTMLElement | null>;
   invalid: boolean;
+  maxLength: number | undefined;
   mode: MarkdownEditorMode;
-  onBlur: (() => void) | undefined;
-  onFocus: (() => void) | undefined;
+  onBlur: FocusEventHandler<HTMLDivElement> | undefined;
+  onFocus: FocusEventHandler<HTMLDivElement> | undefined;
   placeholder: string;
   readOnly: boolean;
   setMode: (mode: MarkdownEditorMode) => void;
@@ -79,6 +88,10 @@ export type MarkdownEditorDocument = Readonly<{
 
 const MarkdownEditorConfigurationContext = createContext<MarkdownEditorConfiguration | null>(null);
 const MarkdownEditorDocumentContext = createContext<MarkdownEditorDocument | null>(null);
+
+function isInvalid(value: AriaAttributes["aria-invalid"]) {
+  return value !== undefined && value !== false && value !== "false";
+}
 
 function useControllableState<Value>({
   controlledValue,
@@ -126,23 +139,11 @@ export function useMarkdownEditorDocument(component: string) {
   return document;
 }
 
-export function createMarkdownEditorHandle(
-  inputRef: RefObject<MarkdownEditorHandle | null>,
-): MarkdownEditorHandle {
-  return {
-    focus() {
-      inputRef.current?.focus();
-    },
-    run(command) {
-      return inputRef.current?.run(command) ?? false;
-    },
-  };
-}
-
-export const MarkdownEditorRoot = forwardRef<MarkdownEditorHandle, MarkdownEditorRootProps>(
+export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProps>(
   function MarkdownEditorRoot(
     {
       "aria-describedby": ariaDescribedBy,
+      "aria-invalid": ariaInvalid,
       "aria-label": ariaLabel,
       "aria-labelledby": ariaLabelledBy,
       autoFocus = false,
@@ -150,7 +151,8 @@ export const MarkdownEditorRoot = forwardRef<MarkdownEditorHandle, MarkdownEdito
       defaultMode = "edit",
       defaultValue = "",
       disabled = false,
-      invalid = false,
+      id,
+      maxLength,
       mode: controlledMode,
       onBlur,
       onFocus,
@@ -162,7 +164,8 @@ export const MarkdownEditorRoot = forwardRef<MarkdownEditorHandle, MarkdownEdito
     },
     ref,
   ) {
-    const inputRef = useRef<MarkdownEditorHandle>(null);
+    const inputRef = useRef<HTMLElement>(null);
+    const invalid = isInvalid(ariaInvalid);
     const [mode, setMode] = useControllableState({
       controlledValue: controlledMode,
       defaultValue: defaultMode,
@@ -174,17 +177,25 @@ export const MarkdownEditorRoot = forwardRef<MarkdownEditorHandle, MarkdownEdito
       onChange: onValueChange,
     });
 
-    useImperativeHandle(ref, () => createMarkdownEditorHandle(inputRef), []);
+    useLayoutEffect(() => {
+      if (invalid && mode === "preview") {
+        setMode("edit");
+      }
+    }, [invalid, mode, setMode]);
 
     const configuration = useMemo<MarkdownEditorConfiguration>(
       () => ({
         ariaDescribedBy,
+        ariaInvalid,
         ariaLabel,
         ariaLabelledBy,
         autoFocus,
+        controlRef: ref,
         disabled,
+        id,
         inputRef,
         invalid,
+        maxLength,
         mode,
         onBlur,
         onFocus,
@@ -194,16 +205,20 @@ export const MarkdownEditorRoot = forwardRef<MarkdownEditorHandle, MarkdownEdito
       }),
       [
         ariaDescribedBy,
+        ariaInvalid,
         ariaLabel,
         ariaLabelledBy,
         autoFocus,
         disabled,
+        id,
         invalid,
+        maxLength,
         mode,
         onBlur,
         onFocus,
         placeholder,
         readOnly,
+        ref,
         setMode,
       ],
     );
@@ -244,7 +259,7 @@ export function useMarkdownEditor(): MarkdownEditorState {
       mode: configuration.mode,
       readOnly: configuration.readOnly,
       run: (command: MarkdownEditorCommand) =>
-        configuration.inputRef.current?.run(command) ?? false,
+        runMarkdownEditorCommand(configuration.inputRef.current, command),
       setMode: configuration.setMode,
       setValue: document.setValue,
       value: document.value,

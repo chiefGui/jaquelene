@@ -9,7 +9,7 @@ export type MarkdownDocumentStatistics = Readonly<{
 
 export function countMarkdownDocument(value: string): MarkdownDocumentStatistics {
   let characters = 0;
-  let lines = 1;
+  let lines = value.length === 0 ? 0 : 1;
   let words = 0;
 
   for (const _segment of graphemeSegmenter.segment(value)) {

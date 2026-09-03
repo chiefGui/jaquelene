@@ -1,30 +1,28 @@
-import { parsePromptKey, parsePromptKindKey, parseUpdatePromptInput } from "@jaquelene/domain";
-import type { PromptKindModule } from "./subsystem";
-import type { FactoryPromptDefinition, PromptKind } from "./types";
+import { narratorPromptKindKey, parsePromptContent, parsePromptKey } from "@jaquelene/domain";
+import type { PromptKindModule } from "#backend/prompt/module";
+import type { BuiltInPromptDefinition, PromptKind } from "#backend/prompt/types";
 
 export const narratorPromptKind = Object.freeze({
-  key: parsePromptKindKey("narrator"),
+  key: narratorPromptKindKey,
   name: "Narrator",
-  description: "Controls how the narrator portrays the world and continues the story.",
+  description:
+    "Reusable instructions for how AI models narrate across campaigns, regardless of setting or universe.",
 }) satisfies PromptKind;
 
-const jaqueleneContent = parseUpdatePromptInput({
+const jaqueleneContent = parsePromptContent({
   title: "Jaquelene",
   body: "You are the narrator of an interactive roleplay. Use the provided context to portray the world and its characters, maintain continuity, and continue the story through narration and dialogue.",
 });
 
-export const jaqueleneNarratorPrompt = Object.freeze({
-  key: parsePromptKey("factory.narrator.jaquelene"),
-  kind: narratorPromptKind.key,
-  origin: "factory",
+export const jaqueleneNarratorPromptDefinition = Object.freeze({
+  key: parsePromptKey("builtin.narrator.jaquelene"),
   ...jaqueleneContent,
-  createdAt: 0,
-}) satisfies FactoryPromptDefinition;
+}) satisfies BuiltInPromptDefinition;
 
 export const narratorPromptModule = Object.freeze({
   definition: narratorPromptKind,
-  factoryPrompts: Object.freeze([jaqueleneNarratorPrompt]),
-  fallbackPromptKey: jaqueleneNarratorPrompt.key,
+  builtInPrompts: Object.freeze([jaqueleneNarratorPromptDefinition]),
+  fallbackPromptKey: jaqueleneNarratorPromptDefinition.key,
   createApplication(prompts) {
     return {
       apply({ campaign }) {

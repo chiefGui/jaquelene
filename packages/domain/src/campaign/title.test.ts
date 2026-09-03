@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   CAMPAIGN_TITLE_MAX_LENGTH,
-  InvalidCampaignTitleError,
   campaignTitleInputSchema,
   parseCampaignTitle,
   parseCampaignTitleInput,
-} from "./campaign";
+} from "./title";
 
 describe("campaign title", () => {
   it("normalizes surrounding whitespace", () => {
@@ -19,15 +18,11 @@ describe("campaign title", () => {
   });
 
   it("rejects titles beyond the character limit", () => {
-    expect(() => parseCampaignTitle("x".repeat(CAMPAIGN_TITLE_MAX_LENGTH + 1))).toThrow(
-      expect.objectContaining<Partial<InvalidCampaignTitleError>>({ reason: "too-long" }),
-    );
+    expect(() => parseCampaignTitle("x".repeat(CAMPAIGN_TITLE_MAX_LENGTH + 1))).toThrow(TypeError);
   });
 
   it("rejects titles without text", () => {
-    expect(() => parseCampaignTitle(" \n\t ")).toThrow(
-      expect.objectContaining<Partial<InvalidCampaignTitleError>>({ reason: "empty" }),
-    );
+    expect(() => parseCampaignTitle(" \n\t ")).toThrow("Campaign title is invalid.");
   });
 
   it("keeps title inputs exact", () => {

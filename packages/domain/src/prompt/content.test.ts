@@ -3,41 +3,34 @@ import {
   PROMPT_BODY_MAX_LENGTH,
   PROMPT_TITLE_MAX_LENGTH,
   parseCreatePromptInput,
-  parsePromptKey,
-  parsePromptKindKey,
+  parsePromptContent,
   parseUpdatePromptInput,
-} from "./prompt";
+} from "./content";
 
-describe("prompt input", () => {
-  it("parses opaque prompt keys", () => {
-    expect(parsePromptKey("factory.narrator.jaquelene")).toBe("factory.narrator.jaquelene");
-    expect(() => parsePromptKey("")).toThrow("Prompt key is invalid.");
-  });
-
-  it("parses stable prompt kind keys", () => {
-    expect(parsePromptKindKey("narrator-behavior")).toBe("narrator-behavior");
-    expect(() => parsePromptKindKey("Narrator")).toThrow("Prompt kind key is invalid.");
-  });
-
+describe("prompt content", () => {
   it("normalizes titles and preserves bodies", () => {
     expect(
       parseCreatePromptInput({
-        kind: "narrator",
-        title: "  Tense narrator  ",
-        body: "  Keep the narration tense.\n",
+        kind: "test",
+        title: "  Test prompt  ",
+        body: "  Preserve this spacing.\n",
       }),
     ).toEqual({
-      kind: "narrator",
-      title: "Tense narrator",
-      body: "  Keep the narration tense.\n",
+      kind: "test",
+      title: "Test prompt",
+      body: "  Preserve this spacing.\n",
+    });
+    expect(parsePromptContent({ title: "  Factory prompt  ", body: "Instructions" })).toEqual({
+      title: "Factory prompt",
+      body: "Instructions",
     });
   });
 
   it("requires a valid kind and text in both fields", () => {
-    expect(() =>
-      parseCreatePromptInput({ kind: "Narrator", title: "Title", body: "Body" }),
-    ).toThrow(TypeError);
-    expect(() => parseCreatePromptInput({ kind: "narrator", title: " ", body: "Body" })).toThrow(
+    expect(() => parseCreatePromptInput({ kind: "Invalid", title: "Title", body: "Body" })).toThrow(
+      TypeError,
+    );
+    expect(() => parseCreatePromptInput({ kind: "test", title: " ", body: "Body" })).toThrow(
       TypeError,
     );
     expect(() => parseUpdatePromptInput({ title: "Title", body: " \n\t " })).toThrow(TypeError);

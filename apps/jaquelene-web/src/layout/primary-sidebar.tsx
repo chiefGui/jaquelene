@@ -1,8 +1,10 @@
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
+import Bookshelf01Icon from "@hugeicons/core-free-icons/Bookshelf01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { IconButton, Skeleton } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import {
   Link,
@@ -12,31 +14,28 @@ import {
   useMatchRoute,
   useRouter,
 } from "@tanstack/react-router";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactElement } from "react";
 import type { FileRoutesByTo } from "@/routeTree.gen";
 import { shellChrome } from "./shell-chrome.stylex";
 
 type PrimarySidebarDestination = {
-  [Path in keyof FileRoutesByTo]: ToOptions<RegisteredRouter, string, Path> & { to: Path };
+  [Path in keyof FileRoutesByTo]: ToOptions<RegisteredRouter, string, Path> & {
+    replace?: Exclude<LinkProps["replace"], undefined>;
+    to: Path;
+  };
 }[keyof FileRoutesByTo];
 
 type PrimarySidebarLink = PrimarySidebarDestination & {
+  activeOptions?: LinkProps["activeOptions"];
   icon: IconSvgElement;
   label: string;
   preload?: Exclude<LinkProps["preload"], undefined>;
-  replace?: Exclude<LinkProps["replace"], undefined>;
 };
 
-type PrimarySidebarItem =
-  | (PrimarySidebarLink & { id: string })
-  | {
-      action: "history-back";
-      icon: IconSvgElement;
-      id: string;
-      label: string;
-    };
+type PrimarySidebarItem = PrimarySidebarLink & { id: string };
 
 interface PrimarySidebarNavigation {
+  backDestination?: PrimarySidebarDestination;
   navigationLabel: string;
   items: readonly PrimarySidebarItem[];
   loadingItemCount?: number;
@@ -57,18 +56,15 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
   const matchRoute = useMatchRoute();
   const router = useRouter();
   const settingsActive = Boolean(matchRoute({ to: "/settings", fuzzy: true }));
-  const footerIcon = (
-    <HugeiconsIcon
-      icon={settingsActive ? ArrowLeft01Icon : Settings01Icon}
-      size={16}
-      color="currentColor"
-      strokeWidth={1.5}
-      aria-hidden="true"
-      {...stylex.props(styles.icon)}
-    />
-  );
+  const libraryActive = Boolean(matchRoute({ to: "/library", fuzzy: true }));
+  const utilityAreaActive = settingsActive || libraryActive;
 
-  function returnFromSettings() {
+  function navigateBack() {
+    if (navigation.backDestination) {
+      void router.navigate(navigation.backDestination);
+      return;
+    }
+
     if (router.history.canGoBack()) {
       router.history.back();
       return;
@@ -90,27 +86,13 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
       >
         <ul {...stylex.props(styles.list)}>
           {navigation.items.map((item) => {
-            if ("action" in item) {
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    onClick={returnFromSettings}
-                    {...stylex.props(styles.navigationItem)}
-                  >
-                    <PrimarySidebarItemContent icon={item.icon} label={item.label} />
-                  </button>
-                </li>
-              );
-            }
-
-            const { id, icon, label, ...destination } = item;
+            const { activeOptions = { exact: true }, id, icon, label, ...destination } = item;
 
             return (
               <li key={id}>
                 <Link
                   {...destination}
-                  activeOptions={{ exact: true }}
+                  activeOptions={activeOptions}
                   {...stylex.props(styles.navigationItem)}
                 >
                   <PrimarySidebarItemContent icon={icon} label={label} />
@@ -143,40 +125,79 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
       </nav>
 
       <footer {...stylex.props(styles.footer)}>
-        {settingsActive ? (
-          <IconButton
-            type="button"
-            aria-label="Back"
-            onClick={returnFromSettings}
-            style={styles.footerAction}
-          >
-            {footerIcon}
-          </IconButton>
+        {utilityAreaActive ? (
+          <PrimarySidebarFooterAction
+            label="Back"
+            action={
+              <IconButton
+                type="button"
+                aria-label="Back"
+                onClick={navigateBack}
+                style={styles.footerAction}
+              >
+                <PrimarySidebarIcon icon={ArrowLeft01Icon} />
+              </IconButton>
+            }
+          />
         ) : (
-          <IconButton
-            render={<Link to="/settings/general" preload="render" />}
-            aria-label="Settings"
-            style={styles.footerAction}
-          >
-            {footerIcon}
-          </IconButton>
+          <>
+            <PrimarySidebarFooterAction
+              label="Settings"
+              action={
+                <IconButton
+                  render={<Link to="/settings/general" preload="render" />}
+                  aria-label="Settings"
+                  style={styles.footerAction}
+                >
+                  <PrimarySidebarIcon icon={Settings01Icon} />
+                </IconButton>
+              }
+            />
+            <PrimarySidebarFooterAction
+              label="Library"
+              action={
+                <IconButton
+                  render={<Link to="/library/narrator" preload="render" />}
+                  aria-label="Library"
+                  style={styles.footerAction}
+                >
+                  <PrimarySidebarIcon icon={Bookshelf01Icon} />
+                </IconButton>
+              }
+            />
+          </>
         )}
       </footer>
     </aside>
   );
 }
 
+function PrimarySidebarFooterAction({ action, label }: { action: ReactElement; label: string }) {
+  return (
+    <Tooltip.Root placement="top">
+      <Tooltip.Anchor render={action} />
+      <Tooltip>{label}</Tooltip>
+    </Tooltip.Root>
+  );
+}
+
+function PrimarySidebarIcon({ icon }: { icon: IconSvgElement }) {
+  return (
+    <HugeiconsIcon
+      icon={icon}
+      size={16}
+      color="currentColor"
+      strokeWidth={1.5}
+      aria-hidden="true"
+      {...stylex.props(styles.icon)}
+    />
+  );
+}
+
 function PrimarySidebarItemContent({ icon, label }: { icon: IconSvgElement; label: string }) {
   return (
     <>
-      <HugeiconsIcon
-        icon={icon}
-        size={16}
-        color="currentColor"
-        strokeWidth={1.5}
-        aria-hidden="true"
-        {...stylex.props(styles.icon)}
-      />
+      <PrimarySidebarIcon icon={icon} />
       <span {...stylex.props(styles.label)}>{label}</span>
     </>
   );
@@ -282,7 +303,9 @@ const styles = stylex.create({
     width: "7rem",
   },
   footer: {
+    display: "flex",
     flexShrink: 0,
+    gap: "0.25rem",
     padding: "0.5rem",
   },
   footerAction: {

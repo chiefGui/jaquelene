@@ -115,13 +115,14 @@ CREATE TABLE `prompts` (
 	`origin` text NOT NULL,
 	`title` text NOT NULL,
 	`body` text NOT NULL,
-	`created_at` integer NOT NULL,
+	`created_at` integer,
+	`updated_at` integer,
 	CONSTRAINT `fk_prompts_kind_prompt_kinds_key_fk` FOREIGN KEY (`kind`) REFERENCES `prompt_kinds`(`key`),
 	CONSTRAINT "prompts_key_valid" CHECK(length("key") > 0 AND length("key") <= 128),
-	CONSTRAINT "prompts_origin_valid" CHECK("origin" IN ('factory', 'custom')),
+	CONSTRAINT "prompts_origin_valid" CHECK("origin" IN ('built-in', 'custom')),
 	CONSTRAINT "prompts_title_valid" CHECK("title" = trim("title", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length("title") > 0 AND length("title") <= 120),
 	CONSTRAINT "prompts_body_valid" CHECK(length(trim("body", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0 AND length("body") <= 20000),
-	CONSTRAINT "prompts_created_at_nonnegative" CHECK("created_at" >= 0)
+	CONSTRAINT "prompts_lifecycle_valid" CHECK(("origin" = 'built-in' AND "created_at" IS NULL AND "updated_at" IS NULL) OR ("origin" = 'custom' AND "created_at" IS NOT NULL AND "updated_at" IS NOT NULL AND "created_at" >= 0 AND "updated_at" >= "created_at"))
 );
 --> statement-breakpoint
 CREATE TABLE `thread_messages` (

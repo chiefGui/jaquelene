@@ -1,14 +1,7 @@
 import type { Database } from "#backend/database/database";
-import { createPromptApplicationRegistry, type PromptApplication } from "./application-registry";
-import { createPrompts, type PromptEngine } from "./prompts";
-import type { PromptKindRegistration } from "./types";
-
-export type PromptKindModule = PromptKindRegistration &
-  Readonly<{
-    createApplication: (
-      prompts: Pick<PromptEngine, "resolveCampaignPrompt">,
-    ) => Pick<PromptApplication, "apply">;
-  }>;
+import { createPromptApplicationRegistry } from "./application-registry";
+import type { PromptKindModule } from "./module";
+import { createPrompts } from "./prompts";
 
 export function createPromptSubsystem(
   database: Database,

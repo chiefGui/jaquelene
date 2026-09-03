@@ -1,6 +1,6 @@
 const cursorMaxLength = 512;
 
-export function encodeCursor(parts: readonly (number | string)[]) {
+export function encodeCursor(parts: readonly (number | string | null)[]) {
   return Buffer.from(JSON.stringify(parts)).toString("base64url");
 }
 

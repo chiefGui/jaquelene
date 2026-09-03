@@ -9,6 +9,7 @@ import { ProvidersService, type Models, type Providers } from "#backend/provider
 import type { ResourceCacheFailure } from "#backend/resource-cache/resource-cache";
 import { ResourceCacheService } from "#backend/resource-cache/service";
 import { getCacheStoragePaths } from "#backend/resource-cache/sqlite-cache-store";
+import { narratorPromptModule } from "#backend/narrator/module";
 import { createCacheStorageArea } from "#backend/storage/cache";
 import { createContentStorageArea } from "#backend/storage/content";
 import {
@@ -20,7 +21,6 @@ import {
   type StorageCategory,
 } from "#backend/storage/storage";
 import type { PromptApplicationRegistry } from "#backend/prompt/application-registry";
-import { narratorPromptModule } from "#backend/prompt/narrator";
 import type { PromptEngine } from "#backend/prompt/prompts";
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import type { Prompts } from "#backend/prompt/types";

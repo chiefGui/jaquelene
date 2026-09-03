@@ -13,7 +13,7 @@ import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
-import { narratorPromptModule } from "#backend/prompt/narrator";
+import { narratorPromptModule } from "#backend/narrator/module";
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import { threadTable } from "#backend/thread/schema";
 import {

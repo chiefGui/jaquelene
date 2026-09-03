@@ -1,7 +1,6 @@
 import {
   ids,
   type CampaignPromptSelection,
-  type Prompt,
   type PromptDefault,
   type PromptKind,
   type Prompts,
@@ -10,22 +9,12 @@ import { promptKeySchema, promptKindKeySchema } from "@jaquelene/domain";
 import {
   CampaignPromptSource,
   PromptDefaultSource,
-  PromptOrigin,
   Prompts as PromptsIpc,
   type CampaignPromptSelection as IpcCampaignPromptSelection,
-  type Prompt as IpcPrompt,
   type PromptDefault as IpcPromptDefault,
   type PromptKind as IpcPromptKind,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
-
-function toIpcOrigin(origin: Prompt["origin"]) {
-  return origin === "factory" ? PromptOrigin.Factory : PromptOrigin.Custom;
-}
-
-function toIpcPrompt(prompt: Prompt): IpcPrompt {
-  return { ...prompt, origin: toIpcOrigin(prompt.origin) };
-}
 
 function toIpcKind(kind: PromptKind): IpcPromptKind {
   return { ...kind };
@@ -82,18 +71,18 @@ export function exposePrompts(target: WebFrameMain, prompts: Prompts) {
         ...(cursor ? { cursor } : {}),
       });
       return {
-        prompts: page.prompts.map(toIpcPrompt),
+        prompts: [...page.prompts],
         ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
       };
     },
     get: (key) => {
       const prompt = prompts.get(promptKeySchema.parse(key));
-      return prompt ? toIpcPrompt(prompt) : null;
+      return prompt;
     },
-    create: (input) => toIpcPrompt(prompts.create(input)),
+    create: (input) => prompts.create(input),
     update: ({ key, input }) => {
       const prompt = prompts.update(promptKeySchema.parse(key), input);
-      return prompt ? toIpcPrompt(prompt) : null;
+      return prompt;
     },
     delete: (key) => {
       const deletion = prompts.delete(promptKeySchema.parse(key));
@@ -102,7 +91,10 @@ export function exposePrompts(target: WebFrameMain, prompts: Prompts) {
     getDefault: (kind) => toIpcPromptDefault(prompts.getDefault(promptKindKeySchema.parse(kind))),
     setDefault: ({ kind, promptKey }) =>
       toIpcPromptDefault(
-        prompts.setDefault(promptKindKeySchema.parse(kind), promptKeySchema.parse(promptKey)),
+        prompts.setDefault(
+          promptKindKeySchema.parse(kind),
+          promptKey === undefined ? undefined : promptKeySchema.parse(promptKey),
+        ),
       ),
     getCampaignSelection: ({ campaignId, kind }) => {
       const selection = prompts.getCampaignSelection(

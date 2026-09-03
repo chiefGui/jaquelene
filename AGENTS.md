@@ -21,14 +21,6 @@ Before writing any Effect code, first read `node_modules/effect/AGENTS.md`
 If you need to learn more about particular Effect APIs and concepts that the
 guide doesn't cover, search through the source code in `node_modules/effect/src`.
 
-## Effect
-
-- This repository uses Effect 4. Before writing or reviewing Effect code, read `node_modules/effect/AGENTS.md` completely and follow the relevant links. Search `node_modules/effect/src` when the guide does not cover an API or concept; do not rely on Effect 3 examples or compatibility patterns.
-- Use Effect for backend application and infrastructure concerns that benefit from explicit dependencies, typed operational failures, asynchronous composition, concurrency, cancellation, or managed lifetimes. Prefer focused `Context.Service` and `Layer` definitions, `Effect.fn` for effectful functions, and `Schema.TaggedError` for expected operational failures.
-- Keep deterministic transformations as plain TypeScript. Keep synchronous SQLite transactions on their direct path unless an Effect abstraction adds real composition or lifecycle value.
-- Keep framework boundaries plain: IPC and UI contracts use serializable values, and adapters consume the backend through its TypeScript facade. Run Effects through the shared application runtime at those boundaries; do not scatter `Effect.run*` calls or create catch-all Effect helper modules.
-- `@jaquelene/domain` remains the source of truth for its existing Zod-backed public schemas. Do not duplicate those schemas in Effect Schema as part of unrelated work; changing the domain schema system requires a deliberate repository-wide decision.
-
 ## Frontend
 
 - Do not add `title` attributes to elements.

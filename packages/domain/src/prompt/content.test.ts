@@ -3,6 +3,7 @@ import {
   PROMPT_BODY_MAX_LENGTH,
   PROMPT_TITLE_MAX_LENGTH,
   parseCreatePromptInput,
+  parsePromptContent,
   parseUpdatePromptInput,
 } from "./content";
 
@@ -18,6 +19,10 @@ describe("prompt content", () => {
       kind: "test",
       title: "Test prompt",
       body: "  Preserve this spacing.\n",
+    });
+    expect(parsePromptContent({ title: "  Factory prompt  ", body: "Instructions" })).toEqual({
+      title: "Factory prompt",
+      body: "Instructions",
     });
   });
 

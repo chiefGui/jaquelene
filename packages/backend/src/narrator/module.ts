@@ -1,4 +1,4 @@
-import { narratorPromptKindKey, parsePromptKey, parseUpdatePromptInput } from "@jaquelene/domain";
+import { narratorPromptKindKey, parsePromptContent, parsePromptKey } from "@jaquelene/domain";
 import type { PromptKindModule } from "#backend/prompt/module";
 import type { FactoryPromptDefinition, PromptKind } from "#backend/prompt/types";
 
@@ -9,7 +9,7 @@ export const narratorPromptKind = Object.freeze({
     "Reusable instructions for how AI models narrate across campaigns, regardless of setting or universe. Use them for rules such as second- or third-person narration.",
 }) satisfies PromptKind;
 
-const jaqueleneContent = parseUpdatePromptInput({
+const jaqueleneContent = parsePromptContent({
   title: "Jaquelene",
   body: "You are the narrator of an interactive roleplay. Use the provided context to portray the world and its characters, maintain continuity, and continue the story through narration and dialogue.",
 });

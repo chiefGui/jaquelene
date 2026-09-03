@@ -6,7 +6,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useId } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { promptDefaultQuery, useDeletePrompt, useSetPromptDefault } from "@/feature/prompt/query";
+import { promptDefaultQuery, useSetPromptDefault } from "@/feature/prompt/query";
 import { NarratorPromptDeleteAction } from "./delete-action";
 
 type NarratorPromptManagementProps = {
@@ -17,7 +17,6 @@ type NarratorPromptManagementProps = {
 export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptManagementProps) {
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const setDefault = useSetPromptDefault(narratorPromptKindKey);
-  const deletePrompt = useDeletePrompt(narratorPromptKindKey);
   const defaultLabelId = useId();
   const defaultDescriptionId = useId();
   const defaultErrorId = useId();
@@ -60,7 +59,7 @@ export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptMa
             }
             aria-busy={setDefault.isPending || undefined}
             checked={isDefault}
-            disabled={setDefault.isPending || deletePrompt.isPending}
+            disabled={setDefault.isPending}
             onCheckedChange={changeDefault}
           />
         </Item.Value>
@@ -72,12 +71,7 @@ export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptMa
           <Item.Description>Permanently remove this narrator prompt.</Item.Description>
         </Item.Content>
 
-        <NarratorPromptDeleteAction
-          deletePrompt={deletePrompt}
-          isDefault={isDefault}
-          onDeleted={onDeleted}
-          prompt={prompt}
-        />
+        <NarratorPromptDeleteAction isDefault={isDefault} onDeleted={onDeleted} prompt={prompt} />
       </Item.Root>
     </Item.Group>
   );

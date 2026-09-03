@@ -1,5 +1,6 @@
 import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { narratorPromptKindKey } from "@jaquelene/domain";
 import type { Prompt } from "@jaquelene/ipc/renderer";
 import { IconButton } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
@@ -7,10 +8,9 @@ import { Tooltip } from "@jaquelene/ui/tooltip";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import type { useDeletePrompt } from "@/feature/prompt/query";
+import { useDeletePrompt } from "@/feature/prompt/query";
 
 type NarratorPromptDeleteActionProps = {
-  deletePrompt: ReturnType<typeof useDeletePrompt>;
   isDefault: boolean;
   onDeleted?: () => Promise<void>;
   prompt: Prompt;
@@ -18,12 +18,12 @@ type NarratorPromptDeleteActionProps = {
 };
 
 export function NarratorPromptDeleteAction({
-  deletePrompt,
   isDefault,
   onDeleted,
   prompt,
   style,
 }: NarratorPromptDeleteActionProps) {
+  const deletePrompt = useDeletePrompt(narratorPromptKindKey);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function setDeleteConfirmationOpen(open: boolean) {

@@ -25,6 +25,7 @@ export {
   PROMPT_TITLE_MAX_UTF16_LENGTH,
   createPromptInputSchema,
   parseCreatePromptInput,
+  parsePromptContent,
   parseUpdatePromptInput,
   promptBodySchema,
   promptTitleSchema,

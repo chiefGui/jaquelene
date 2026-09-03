@@ -19,23 +19,26 @@ export const promptBodySchema = z
   )
   .brand<"PromptBody">();
 
+const promptContentShape = {
+  title: promptTitleSchema,
+  body: promptBodySchema,
+};
+
+const promptContentSchema = z.strictObject(promptContentShape);
+
 export const createPromptInputSchema = z.strictObject({
   kind: promptKindKeySchema,
-  title: promptTitleSchema,
-  body: promptBodySchema,
+  ...promptContentShape,
 });
 
-export const updatePromptInputSchema = z.strictObject({
-  title: promptTitleSchema,
-  body: promptBodySchema,
-});
+export const updatePromptInputSchema = promptContentSchema;
 
 export type PromptTitle = z.output<typeof promptTitleSchema>;
 export type PromptBody = z.output<typeof promptBodySchema>;
 export type CreatePromptInput = z.input<typeof createPromptInputSchema>;
 export type UpdatePromptInput = z.input<typeof updatePromptInputSchema>;
 
-function parsePromptContent<Output>(
+function parseWithSchema<Output>(
   schema: z.core.$ZodType<Output>,
   value: unknown,
   message: string,
@@ -50,9 +53,13 @@ function parsePromptContent<Output>(
 }
 
 export function parseCreatePromptInput(value: unknown) {
-  return parsePromptContent(createPromptInputSchema, value, "Prompt creation input is invalid.");
+  return parseWithSchema(createPromptInputSchema, value, "Prompt creation input is invalid.");
+}
+
+export function parsePromptContent(value: unknown) {
+  return parseWithSchema(promptContentSchema, value, "Prompt content is invalid.");
 }
 
 export function parseUpdatePromptInput(value: unknown) {
-  return parsePromptContent(updatePromptInputSchema, value, "Prompt update input is invalid.");
+  return parseWithSchema(updatePromptInputSchema, value, "Prompt update input is invalid.");
 }

@@ -17,13 +17,11 @@ import {
   promptDefaultQuery,
   promptKindsQuery,
   promptPagesQuery,
-  useDeletePrompt,
   useSetPromptDefault,
 } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
-type DeletePromptMutation = ReturnType<typeof useDeletePrompt>;
 type SetPromptDefaultMutation = ReturnType<typeof useSetPromptDefault>;
 
 export const Route = createFileRoute("/library/narrator/")({
@@ -145,12 +143,10 @@ function NarratorPromptDefaultAction({
 
 function NarratorPromptItem({
   defaultPromptKey,
-  deletePrompt,
   prompt,
   setDefault,
 }: {
   defaultPromptKey: string | undefined;
-  deletePrompt: DeletePromptMutation;
   prompt: Prompt;
   setDefault: SetPromptDefaultMutation;
 }) {
@@ -180,7 +176,6 @@ function NarratorPromptItem({
           <div {...stylex.props(styles.promptActions)}>
             <NarratorPromptEditAction prompt={prompt} />
             <NarratorPromptDeleteAction
-              deletePrompt={deletePrompt}
               isDefault={prompt.key === defaultPromptKey}
               prompt={prompt}
               style={styles.promptAction}
@@ -198,7 +193,6 @@ function NarratorSection({ kind }: { kind: PromptKind }) {
   const pages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const setDefault = useSetPromptDefault(narratorPromptKindKey);
-  const deletePrompt = useDeletePrompt(narratorPromptKindKey);
   const prompts = pages.data.pages.flatMap((page) => page.prompts);
   const headingId = `prompt-kind-${kind.key}`;
   const descriptionId = `prompt-kind-description-${kind.key}`;
@@ -221,7 +215,6 @@ function NarratorSection({ kind }: { kind: PromptKind }) {
           <NarratorPromptItem
             key={prompt.key}
             defaultPromptKey={defaultSelection.promptKey}
-            deletePrompt={deletePrompt}
             prompt={prompt}
             setDefault={setDefault}
           />

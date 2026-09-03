@@ -395,8 +395,8 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     fontFamily: "inherit",
-    fontSize: tokens.fontSizeBase,
-    lineHeight: tokens.lineHeightLarge,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
     opacity: {
       default: 1,
       ':is([data-disabled="true"])': 0.5,
@@ -420,9 +420,9 @@ const styles = stylex.create({
   },
   preview: {
     flexGrow: 1,
-    fontSize: tokens.fontSizeBase,
-    lineHeight: tokens.lineHeightBase,
-    maxHeight: "32rem",
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    maxHeight: "24rem",
     minHeight: "8rem",
     overflow: "auto",
     padding: "1rem",

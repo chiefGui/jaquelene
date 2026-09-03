@@ -14,9 +14,9 @@ const editorTheme = EditorView.theme(
     },
     ".cm-scroller": {
       fontFamily: "inherit",
-      fontSize: tokens.fontSizeBase,
-      lineHeight: tokens.lineHeightLarge,
-      maxHeight: "32rem",
+      fontSize: tokens.fontSizeSmall,
+      lineHeight: tokens.lineHeightSmall,
+      maxHeight: "24rem",
       minHeight: "8rem",
       overflow: "auto",
     },
@@ -36,7 +36,7 @@ const editorTheme = EditorView.theme(
       backgroundColor: `${colors.backgroundTextSelection} !important`,
     },
     ".cm-placeholder": {
-      color: colors.foregroundSecondary,
+      color: `color-mix(in oklch, ${colors.foregroundSecondary} 65%, transparent)`,
       fontStyle: "normal",
     },
     ".cm-panels": {

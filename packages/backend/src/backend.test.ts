@@ -105,6 +105,7 @@ describe("backend", () => {
         id: "maker/model",
         name: "Model",
         brandId: "maker",
+        contextWindowTokens: 128_000,
         reasoning: { defaultPreset: "high" as const, supportedPresets: ["high"] as const },
       },
     ]);
@@ -123,6 +124,7 @@ describe("backend", () => {
           id: "maker/model",
           name: "Model",
           brandId: "maker",
+          contextWindowTokens: 128_000,
           reasoning: { defaultPreset: "high", supportedPresets: ["high"] },
         },
       ],
@@ -155,6 +157,7 @@ describe("backend", () => {
           id: "maker/model",
           name: "Model",
           brandId: "maker",
+          contextWindowTokens: 128_000,
           reasoning: { defaultPreset: "high", supportedPresets: ["high"] },
         },
       ],

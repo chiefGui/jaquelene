@@ -40,6 +40,7 @@ export {
 } from "#backend/model/reasoning";
 export {
   generationCostSources,
+  requireContextWindowTokens,
   requireModelReference,
   requireModelSelection,
   type ApiKeyProviderConfiguration,

@@ -25,12 +25,21 @@ export type ProviderModel = Readonly<{
   id: string;
   name: string;
   brandId: string;
+  contextWindowTokens?: number;
   reasoning?: ModelReasoningCapability;
   tokenPricing?: Readonly<{
     inputUsdPerMillion: number;
     outputUsdPerMillion: number;
   }>;
 }>;
+
+export function requireContextWindowTokens(value: unknown, description: string) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw new TypeError(`${description} must be a positive safe integer.`);
+  }
+
+  return value;
+}
 
 export type ModelSelection = ModelReference & Pick<ProviderModel, "brandId" | "name">;
 

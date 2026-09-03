@@ -1,12 +1,13 @@
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { modelsListForUser } from "@openrouter/sdk/funcs/modelsListForUser.js";
-import { type ProviderModelsAdapter } from "@jaquelene/backend";
+import { requireContextWindowTokens, type ProviderModelsAdapter } from "@jaquelene/backend";
 import type { OpenRouterConfiguration } from "./connection";
 import { normalizeOpenRouterReasoning, type OpenRouterReasoningMetadata } from "./reasoning";
 
 type OpenRouterCatalogModel = {
   id: string;
   name: string;
+  contextLength: number | null;
   architecture: {
     inputModalities: readonly string[];
     outputModalities: readonly string[];
@@ -103,7 +104,15 @@ function normalizeTokenPricing(
   return { inputUsdPerMillion, outputUsdPerMillion };
 }
 
-function normalizeModel({ id, name, pricing, reasoning }: OpenRouterCatalogModel) {
+function normalizeContextWindow(id: string, contextLength: number | null) {
+  if (contextLength === null) {
+    return undefined;
+  }
+
+  return requireContextWindowTokens(contextLength, `OpenRouter model "${id}" context window`);
+}
+
+function normalizeModel({ contextLength, id, name, pricing, reasoning }: OpenRouterCatalogModel) {
   const separator = id.indexOf("/");
   const authorId =
     separator > 0 ? id.slice(0, separator).replace(/^~+/, "").trim().toLowerCase() : "";
@@ -133,6 +142,7 @@ function normalizeModel({ id, name, pricing, reasoning }: OpenRouterCatalogModel
     throw new TypeError(`OpenRouter model "${id}" has no name.`);
   }
 
+  const contextWindowTokens = normalizeContextWindow(id, contextLength);
   const tokenPricing = normalizeTokenPricing(id, pricing);
   const normalizedReasoning = normalizeOpenRouterReasoning(id, reasoning);
 
@@ -140,6 +150,7 @@ function normalizeModel({ id, name, pricing, reasoning }: OpenRouterCatalogModel
     brandId,
     id,
     name: displayName,
+    ...(contextWindowTokens === undefined ? {} : { contextWindowTokens }),
     ...(normalizedReasoning ? { reasoning: normalizedReasoning } : {}),
     ...(tokenPricing ? { tokenPricing } : {}),
   };

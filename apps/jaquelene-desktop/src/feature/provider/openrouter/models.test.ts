@@ -15,11 +15,13 @@ describe("OpenRouter model provider", () => {
         return use(apiKey);
       },
     };
+    const contextWindowTokens = 128_000;
     const pricing = { prompt: "0.000002", completion: "0.000006", discount: 0.5 };
     const loadModels = vi.fn(async () => [
       {
         id: "meta-llama/text-model",
         name: "Meta: Text model",
+        contextLength: contextWindowTokens,
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
         reasoning: {
@@ -32,6 +34,7 @@ describe("OpenRouter model provider", () => {
       {
         id: "new-lab/research-model",
         name: "New Lab: Research model",
+        contextLength: contextWindowTokens,
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
         reasoning: { mandatory: true, defaultEffort: null, supportedEfforts: null },
@@ -39,6 +42,7 @@ describe("OpenRouter model provider", () => {
       {
         id: "google/binary-off",
         name: "Google: Binary Off",
+        contextLength: contextWindowTokens,
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
         reasoning: { mandatory: false, defaultEnabled: false },
@@ -46,6 +50,7 @@ describe("OpenRouter model provider", () => {
       {
         id: "openai/provider-managed-effort",
         name: "OpenAI: Provider Managed Effort",
+        contextLength: contextWindowTokens,
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
         reasoning: {
@@ -58,6 +63,7 @@ describe("OpenRouter model provider", () => {
       {
         id: "inclusion/budget-backed",
         name: "Inclusion: Budget Backed",
+        contextLength: contextWindowTokens,
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
         reasoning: { mandatory: false, defaultEnabled: true, supportsMaxTokens: true },
@@ -65,18 +71,21 @@ describe("OpenRouter model provider", () => {
       {
         id: "x-ai/grok-model",
         name: "SpaceXAI: Grok model",
+        contextLength: contextWindowTokens,
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing,
       },
       {
         id: "openrouter/auto-beta",
         name: "OpenRouter: Auto Beta",
+        contextLength: null,
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing: { prompt: "-1", completion: "-1" },
       },
       {
         id: "author/image-model",
         name: "Image model",
+        contextLength: contextWindowTokens,
         architecture: { inputModalities: ["text"], outputModalities: ["image"] },
         pricing,
       },
@@ -90,6 +99,7 @@ describe("OpenRouter model provider", () => {
         id: "meta-llama/text-model",
         name: "Text model",
         brandId: "meta",
+        contextWindowTokens,
         reasoning: {
           defaultPreset: "medium",
           supportedPresets: ["high", "medium", "low", "off"],
@@ -100,6 +110,7 @@ describe("OpenRouter model provider", () => {
         id: "new-lab/research-model",
         name: "Research model",
         brandId: "new-lab",
+        contextWindowTokens,
         reasoning: {
           defaultPreset: "automatic",
           supportedPresets: ["automatic", "max", "xhigh", "high", "medium", "low", "minimal"],
@@ -110,6 +121,7 @@ describe("OpenRouter model provider", () => {
         id: "google/binary-off",
         name: "Binary Off",
         brandId: "google",
+        contextWindowTokens,
         reasoning: { defaultPreset: "off", supportedPresets: ["on", "off"] },
         tokenPricing,
       },
@@ -117,6 +129,7 @@ describe("OpenRouter model provider", () => {
         id: "openai/provider-managed-effort",
         name: "Provider Managed Effort",
         brandId: "openai",
+        contextWindowTokens,
         reasoning: {
           defaultPreset: "automatic",
           supportedPresets: ["automatic", "high", "medium", "low", "off"],
@@ -127,6 +140,7 @@ describe("OpenRouter model provider", () => {
         id: "inclusion/budget-backed",
         name: "Budget Backed",
         brandId: "inclusion",
+        contextWindowTokens,
         reasoning: {
           defaultPreset: "medium",
           supportedPresets: ["max", "high", "medium", "low", "minimal", "off"],
@@ -137,6 +151,7 @@ describe("OpenRouter model provider", () => {
         id: "x-ai/grok-model",
         name: "Grok model",
         brandId: "x-ai",
+        contextWindowTokens,
         tokenPricing,
       },
       { id: "openrouter/auto-beta", name: "Auto Beta", brandId: "openrouter" },
@@ -170,6 +185,7 @@ describe("OpenRouter model provider", () => {
       {
         id: "author/invalid-price",
         name: "Invalid price",
+        contextLength: 128_000,
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing: { prompt: "not-a-price", completion: "0.000001" },
       },
@@ -179,6 +195,30 @@ describe("OpenRouter model provider", () => {
       'OpenRouter model "author/invalid-price" has invalid pricing.',
     );
   });
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    "rejects the invalid context window %s",
+    async (contextLength) => {
+      const connection = {
+        async withApiKey<Result>(use: (value: string) => Promise<Result>) {
+          return use("openrouter-model-key");
+        },
+      };
+      const models = createOpenRouterModels(connection, async () => [
+        {
+          id: "author/invalid-context",
+          name: "Invalid context",
+          contextLength,
+          architecture: { inputModalities: ["text"], outputModalities: ["text"] },
+          pricing: { prompt: "0.000001", completion: "0.000001" },
+        },
+      ]);
+
+      await expect(models.list(operationSignal())).rejects.toThrow(
+        'OpenRouter model "author/invalid-context" context window must be a positive safe integer.',
+      );
+    },
+  );
 
   it.each([
     [
@@ -206,6 +246,7 @@ describe("OpenRouter model provider", () => {
       {
         id: "author/invalid-reasoning",
         name: "Invalid reasoning",
+        contextLength: 128_000,
         architecture: { inputModalities: ["text"], outputModalities: ["text"] },
         pricing: { prompt: "0.000001", completion: "0.000001" },
         reasoning,

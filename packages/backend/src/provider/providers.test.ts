@@ -239,6 +239,56 @@ describe("provider subsystem", () => {
     await inconsistentSubsystem.close();
   });
 
+  it("preserves valid context windows and rejects invalid ones", async () => {
+    const capable = configurationFreeProvider({
+      models: {
+        async list() {
+          return [
+            {
+              id: "context-model",
+              name: "Context model",
+              brandId: "local",
+              contextWindowTokens: 128_000,
+            },
+          ];
+        },
+      },
+    });
+    const capableSubsystem = createProviderSubsystem([capable], await createTestResourceCache());
+
+    await expect(listModels(capableSubsystem, capable.descriptor.id)).resolves.toEqual([
+      {
+        id: "context-model",
+        name: "Context model",
+        brandId: "local",
+        contextWindowTokens: 128_000,
+      },
+    ]);
+    await capableSubsystem.close();
+
+    const invalid = configurationFreeProvider({
+      descriptor: { id: "invalid", name: "Invalid", brandId: "local" },
+      models: {
+        async list() {
+          return [
+            {
+              id: "invalid-context-model",
+              name: "Invalid context model",
+              brandId: "local",
+              contextWindowTokens: 0,
+            },
+          ];
+        },
+      },
+    });
+    const invalidSubsystem = createProviderSubsystem([invalid], await createTestResourceCache());
+
+    await expect(listModels(invalidSubsystem, invalid.descriptor.id)).rejects.toThrow(
+      'Provider "invalid" model "invalid-context-model" context window must be a positive safe integer.',
+    );
+    await invalidSubsystem.close();
+  });
+
   it("configures, exposes, and clears an API-key provider through the subsystem", async () => {
     const adapter = apiKeyProvider();
     const configure = vi.spyOn(adapter.configuration, "configure");

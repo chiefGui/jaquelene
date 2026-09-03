@@ -25,11 +25,7 @@ import type { PromptApplicationRegistry } from "#backend/prompt/application-regi
 import type { PromptEngine } from "#backend/prompt/prompts";
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import type { Prompts } from "#backend/prompt/types";
-import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
-import {
-  createThreadTranscriptReader,
-  type ThreadTranscriptReader,
-} from "#backend/thread/transcript";
+import { createThreadSubsystem, type Threads } from "#backend/thread/subsystem";
 import { createTurns, type Turns } from "#backend/turn/turns";
 import { createUsageHistory, type Usage } from "#backend/usage/history";
 
@@ -69,8 +65,7 @@ type BackendServices = Readonly<{
   usage: Usage;
   prompts: PromptEngine;
   promptApplications: PromptApplicationRegistry;
-  threads: ThreadEngine;
-  transcripts: ThreadTranscriptReader;
+  threads: Threads;
   turns: Turns;
   providers: Providers;
   models: Models;
@@ -96,17 +91,16 @@ function createBackendServiceLayer() {
           const campaigns = createCampaigns(database);
           const campaignUsage = createCampaignUsage(database);
           const usage = createUsageHistory(database);
-          const threads = createThreads(database);
           const modelInputs = createModelInputComposer(campaigns, promptApplications);
-          const transcripts = createThreadTranscriptReader(threads, modelInputs);
+          const { engine: threadEngine, threads } = createThreadSubsystem(database, modelInputs);
           const generationSubsystem = createGenerationSubsystem({
             database,
-            replyPreparer: createReplyPreparer(threads, modelInputs),
+            replyPreparer: createReplyPreparer(threadEngine, modelInputs),
             models: providers.models,
             providers: providers.generations,
             attempts: usage.attempts,
           });
-          const turns = createTurns(database, threads, generationSubsystem.replies);
+          const turns = createTurns(database, threadEngine, generationSubsystem.replies);
 
           return BackendService.of({
             campaigns,
@@ -115,7 +109,6 @@ function createBackendServiceLayer() {
             promptApplications,
             prompts,
             threads,
-            transcripts,
             turns,
             providers: providers.providers,
             models: providers.models,
@@ -367,7 +360,7 @@ export async function createBackend(
       },
       getTranscript(threadId) {
         assertOpen();
-        return services.transcripts.get(threadId);
+        return services.threads.getTranscript(threadId);
       },
     },
     turns: {

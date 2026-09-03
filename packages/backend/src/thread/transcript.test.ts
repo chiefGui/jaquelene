@@ -161,6 +161,10 @@ describe("thread transcripts", () => {
     );
 
     expect(
+      messages.reduce((total, { message }) => total + Buffer.byteLength(message.content), 0),
+    ).toBeGreaterThan(THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET);
+
+    expect(
       threads.listMessages({ threadId: thread.id, direction: "older" }).messages.length,
     ).toBeLessThan(messageCount);
 

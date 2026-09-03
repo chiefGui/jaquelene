@@ -1,11 +1,11 @@
 import type { CampaignEngine } from "#backend/campaign/campaigns";
 import type { MessageId, ThreadId } from "#backend/id";
 import type { PromptApplicationRegistry } from "#backend/prompt/application-registry";
-import { requireModelInput, type ModelInput } from "#backend/model/input";
+import { requireModelInput, type DialogueMessage, type ModelInput } from "#backend/model/input";
 
 export type ModelInputSourceMessage = Readonly<{
   id: MessageId;
-  author: "user" | "assistant";
+  author: DialogueMessage["role"];
   content: string;
 }>;
 

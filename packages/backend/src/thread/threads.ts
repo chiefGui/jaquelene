@@ -1,7 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { ids, type MessageId, type ThreadId, type TurnId } from "#backend/id";
-import type { ThreadTranscript } from "@jaquelene/domain";
 import {
   threadMessageTable,
   threadTable,
@@ -674,7 +673,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       return { turnId: context.turnId, threadId: context.threadId, inputMessageId, messages };
     },
 
-    getActiveContext(threadId: ThreadId) {
+    getActiveMessagePath(threadId: ThreadId) {
       const thread = database
         .select({ activeMessageId: threadTable.activeMessageId })
         .from(threadTable)
@@ -686,7 +685,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       }
 
       if (!thread.activeMessageId) {
-        return { threadId, messages: [] };
+        return [];
       }
 
       const activeMessageId = thread.activeMessageId;
@@ -698,7 +697,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
         throw new Error(`Thread "${threadId}" has an invalid active message ancestry.`);
       }
 
-      return { threadId, messages };
+      return messages;
     },
 
     listMessages({ threadId, direction, cursor }: ListThreadMessagesRequest) {
@@ -763,7 +762,3 @@ export function createThreads(database: Database, now: () => number = Date.now) 
 }
 
 export type ThreadEngine = ReturnType<typeof createThreads>;
-export type Threads = Pick<ThreadEngine, "create" | "get" | "listMessages"> &
-  Readonly<{
-    getTranscript(threadId: ThreadId): ThreadTranscript;
-  }>;

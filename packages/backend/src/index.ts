@@ -124,7 +124,8 @@ export type {
   SetCampaignPromptSelectionInput,
 } from "#backend/prompt/types";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
-export type { ThreadActivity, Threads } from "#backend/thread/threads";
+export type { Threads } from "#backend/thread/subsystem";
+export type { ThreadActivity } from "#backend/thread/threads";
 export type {
   DeleteThreadHistoryRequest,
   RegenerateReplyRequest,

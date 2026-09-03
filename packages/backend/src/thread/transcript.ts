@@ -8,13 +8,13 @@ export type ThreadTranscriptReader = Readonly<{
 }>;
 
 export function createThreadTranscriptReader(
-  threads: Pick<ThreadEngine, "getActiveContext">,
+  threads: Pick<ThreadEngine, "getActiveMessagePath">,
   modelInputs: ModelInputComposer,
 ): ThreadTranscriptReader {
   return {
     get(threadId) {
-      const context = threads.getActiveContext(threadId);
-      const input = modelInputs.compose(context);
+      const messages = threads.getActiveMessagePath(threadId);
+      const input = modelInputs.compose({ threadId, messages });
 
       return {
         threadId,

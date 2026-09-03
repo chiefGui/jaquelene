@@ -61,8 +61,8 @@ const styles = stylex.create({
   },
   error: {
     color: colors.foregroundDanger,
+    display: { default: "block", ":empty": "none" },
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
-    minHeight: tokens.lineHeightXSmall,
   },
 });

@@ -60,6 +60,7 @@ import {
   usePendingFavoriteModels,
   useSetFavoriteModel,
 } from "./favorite-models";
+import { formatContextWindowTokens } from "./format-context-window";
 import { formatTokenPrice } from "./format-token-price";
 
 type ProviderTab = ModelProvider & {
@@ -535,7 +536,7 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
             return null;
           }
 
-          const { favorite, model, modelBrandName, provider, reference } = option;
+          const { favorite, model, provider, reference } = option;
           const active = virtualItem.index === activeIndex;
           const selected = value !== null && sameModel(value, reference);
           const updatingFavorite = pendingFavorites.some((pending) =>
@@ -601,17 +602,17 @@ function ModelPickerList({ options }: { options: ModelOption[] }) {
                         ) : null}
                       </div>
                       <div {...stylex.props(styles.modelMetadata)}>
-                        {activeTab.type === "provider" ? (
+                        {model.contextWindowTokens !== undefined ? (
                           <>
-                            {modelBrandName}
+                            {formatContextWindowTokens(model.contextWindowTokens)} context
                             {" · "}
                           </>
                         ) : null}
                         {model.tokenPricing ? (
                           <>
-                            Input {formatTokenPrice(model.tokenPricing.inputUsdPerMillion)}
+                            In {formatTokenPrice(model.tokenPricing.inputUsdPerMillion)}
                             {" · "}
-                            Output {formatTokenPrice(model.tokenPricing.outputUsdPerMillion)}
+                            Out {formatTokenPrice(model.tokenPricing.outputUsdPerMillion)}
                           </>
                         ) : (
                           "Pricing varies"

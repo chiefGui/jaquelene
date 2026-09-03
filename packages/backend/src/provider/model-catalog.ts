@@ -6,6 +6,7 @@ import type {
 import { ResourceUnavailableError } from "#backend/resource-cache/resource-cache";
 import { requireModelReasoningCapability } from "#backend/model/reasoning";
 import {
+  requireContextWindowTokens,
   requireModelReference,
   type ModelReference,
   type ProviderId,
@@ -82,8 +83,16 @@ function requireModel(providerId: ProviderId, candidate: unknown): ProviderModel
     model.brandId,
     `Provider "${providerId}" model "${id}" brand identity`,
   );
+  let contextWindowTokens: ProviderModel["contextWindowTokens"];
   let reasoning: ProviderModel["reasoning"];
   let tokenPricing: ProviderModel["tokenPricing"];
+
+  if (model.contextWindowTokens !== undefined) {
+    contextWindowTokens = requireContextWindowTokens(
+      model.contextWindowTokens,
+      `Provider "${providerId}" model "${id}" context window`,
+    );
+  }
 
   if (model.reasoning !== undefined) {
     reasoning = requireModelReasoningCapability(
@@ -111,6 +120,7 @@ function requireModel(providerId: ProviderId, candidate: unknown): ProviderModel
     id,
     name,
     brandId,
+    ...(contextWindowTokens === undefined ? {} : { contextWindowTokens }),
     ...(reasoning ? { reasoning } : {}),
     ...(tokenPricing ? { tokenPricing } : {}),
   };
@@ -194,7 +204,7 @@ export function createModelCatalog(
       key: configurationRevision,
     }),
     codec: {
-      version: 3,
+      version: 4,
       encode: (value) => textEncoder.encode(JSON.stringify(value)),
       decode: (payload, input) => {
         const value = decodeValue(payload);

@@ -42,10 +42,16 @@ structure ModelReasoningCapability {
   supportedPresets: ReasoningPreset[]
 }
 
+subtype ModelContextWindowTokens = number(
+  minValue: 1
+  maxValue: 9007199254740991
+)
+
 structure AvailableModel {
   id: string
   name: string
   brandId: string
+  contextWindowTokens?: ModelContextWindowTokens
   reasoning?: ModelReasoningCapability
   tokenPricing?: ModelTokenPricing
 }

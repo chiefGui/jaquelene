@@ -6,16 +6,16 @@ import {
 import { nanoGptProviderDefinition } from "./nanogpt/provider";
 import { openRouterProviderDefinition } from "./openrouter/provider";
 
-const providerDefinitions = [
+const apiKeyProviderDefinitions = [
   openRouterProviderDefinition,
   nanoGptProviderDefinition,
-] satisfies readonly ApiKeyProviderDefinition[];
+] as const satisfies readonly ApiKeyProviderDefinition[];
 
 export function createProviderFactories(
   userDataDirectory: string,
   credentialProtection: ApiKeyCredentialProtection,
 ) {
-  return providerDefinitions.map((definition) =>
+  return apiKeyProviderDefinitions.map((definition) =>
     createApiKeyProviderFactory(userDataDirectory, definition, credentialProtection),
   );
 }

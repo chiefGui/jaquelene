@@ -40,7 +40,7 @@ export type ProviderModel = Readonly<{
   }>;
 }>;
 
-export type ProviderModelInput = Readonly<
+type ProviderModelInput = Readonly<
   Pick<ProviderModel, "brandId" | "id" | "name"> & {
     contextWindowTokens: ProviderModel["contextWindowTokens"];
     reasoning: ProviderModel["reasoning"];
@@ -117,7 +117,7 @@ export type GenerationUsage = Readonly<{
   cost?: GenerationCost;
 }>;
 
-export type GenerationUsageInput = Readonly<{
+type GenerationUsageInput = Readonly<{
   inputTotal: number;
   inputCacheRead: number | undefined;
   inputCacheWrite: number | undefined;
@@ -184,7 +184,7 @@ export type ProviderGenerationResult = Readonly<{
   usage?: GenerationUsage;
 }>;
 
-export type ProviderGenerationResultInput = Readonly<{
+type ProviderGenerationResultInput = Readonly<{
   text: string;
   providerGenerationId: string | undefined;
   resolvedModelId: string | undefined;

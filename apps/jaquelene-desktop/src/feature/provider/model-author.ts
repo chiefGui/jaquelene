@@ -1,4 +1,4 @@
-export type ModelAuthorIdentity = Readonly<{
+type ModelAuthorIdentity = Readonly<{
   brandId: string;
   namePrefixes: readonly string[];
 }>;

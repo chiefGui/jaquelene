@@ -1,11 +1,11 @@
-import { defineApiKeyProvider } from "../api-key-provider";
+import type { ApiKeyProviderDefinition } from "../api-key-provider";
 import { createOpenRouterGeneration } from "./generation";
 import { createOpenRouterModels } from "./models";
 import { verifyOpenRouterApiKey } from "./verification";
 
 export const openRouterProviderId = "openrouter";
 
-export const openRouterProviderDefinition = defineApiKeyProvider({
+export const openRouterProviderDefinition = {
   descriptor: {
     id: openRouterProviderId,
     name: "OpenRouter",
@@ -15,4 +15,4 @@ export const openRouterProviderDefinition = defineApiKeyProvider({
   verifyApiKey: verifyOpenRouterApiKey,
   createModels: createOpenRouterModels,
   createGeneration: createOpenRouterGeneration,
-});
+} as const satisfies ApiKeyProviderDefinition;

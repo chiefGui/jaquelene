@@ -67,6 +67,15 @@ function ProviderRow({
   );
 }
 
+function resolveApiKeyPlaceholder(configuration: ApiKeyProviderConfiguration): string {
+  switch (configuration.state) {
+    case ProviderConfigurationState.Configured:
+      return configuration.keyLabel;
+    case ProviderConfigurationState.Unconfigured:
+      return "Paste API key";
+  }
+}
+
 function ApiKeyProviderSettings({
   provider,
   configuration,
@@ -84,15 +93,11 @@ function ApiKeyProviderSettings({
   const errorId = useId();
   const connected = configuration.state === ProviderConfigurationState.Configured;
   const pending = configureProvider.isPending || clearProvider.isPending;
-  let keyPlaceholder = "Paste API key";
+  const keyPlaceholder = resolveApiKeyPlaceholder(configuration);
   let disconnectError: string | undefined;
   let describedBy: string | undefined;
   let connectLabel = "Connect";
   let disconnectTrigger: ReactElement | null = null;
-
-  if (configuration.state === ProviderConfigurationState.Configured) {
-    keyPlaceholder = configuration.keyLabel;
-  }
 
   if (clearProvider.isError) {
     disconnectError = `Couldn't disconnect ${provider.name}.`;

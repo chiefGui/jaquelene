@@ -25,13 +25,7 @@ export type ApiKeyProviderDefinition = Readonly<{
   createGeneration: (configuration: ApiKeyConfiguration) => ProviderGenerationAdapter;
 }>;
 
-export function defineApiKeyProvider<Definition extends ApiKeyProviderDefinition>(
-  definition: Definition,
-) {
-  return definition;
-}
-
-export function createApiKeyProvider(
+function createApiKeyProvider(
   userDataDirectory: string,
   definition: ApiKeyProviderDefinition,
   credentialProtection: ApiKeyCredentialProtection,

@@ -28,7 +28,7 @@ function replyFailureText(generation: FailedTurnGeneration, retrying: boolean) {
 
   return generation.failureKind === GenerationFailureKind.Interrupted
     ? "Reply interrupted."
-    : "Couldn’t generate a reply.";
+    : "Couldn't generate a reply.";
 }
 
 function MessageRoot({ children, fromUser }: Readonly<{ children: ReactNode; fromUser: boolean }>) {
@@ -116,7 +116,7 @@ function UserMessageToolbar({
           description="This message and everything after it will be deleted."
           confirmLabel="Delete"
           pending={deleteHistory.isPending}
-          error={deleteHistory.isError ? "Couldn’t delete these messages." : undefined}
+          error={deleteHistory.isError ? "Couldn't delete these messages." : undefined}
           onConfirm={() => void deleteFromMessage()}
         />
 
@@ -203,7 +203,7 @@ function AssistantMessageToolbar({
           description="This creates another response using the current settings and may incur provider usage."
           confirmLabel="Regenerate"
           pending={requestPending}
-          error={requestFailed ? "Couldn’t start regeneration." : undefined}
+          error={requestFailed ? "Couldn't start regeneration." : undefined}
           onConfirm={() => void regenerate()}
         />
 
@@ -269,7 +269,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
       ) : regeneration?.status === "failed" ? (
         <div {...stylex.props(styles.replyState, styles.assistantReplyState)}>
           <p role="alert" {...stylex.props(styles.replyStatus, styles.replyFailure)}>
-            Couldn’t regenerate the response.
+            Couldn't regenerate the response.
           </p>
         </div>
       ) : null}
@@ -294,7 +294,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
           ) : null}
           {replyFailure.retryFailed ? (
             <p role="alert" {...stylex.props(styles.retryError)}>
-              Couldn’t retry the reply.
+              Couldn't retry the reply.
             </p>
           ) : null}
         </div>

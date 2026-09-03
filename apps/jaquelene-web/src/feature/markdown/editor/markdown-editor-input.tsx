@@ -84,9 +84,9 @@ function contentAttributes(options: DynamicOptions) {
   const attributes: Record<string, string> = {
     "aria-multiline": "true",
     autocapitalize: "sentences",
-    autocorrect: "on",
+    autocorrect: "off",
     role: "textbox",
-    spellcheck: "true",
+    spellcheck: "false",
     tabindex: options.disabled ? "-1" : "0",
   };
 

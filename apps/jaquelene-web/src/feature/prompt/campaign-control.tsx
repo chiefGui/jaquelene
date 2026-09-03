@@ -85,7 +85,7 @@ export function CampaignNarratorControl({ campaignId }: { campaignId: string }) 
 
       {setSelection.isError ? (
         <Field.Error id={errorId} role="alert" style={styles.error}>
-          Couldn’t save the narrator.
+          Couldn't save the narrator.
         </Field.Error>
       ) : null}
     </Field.Root>

@@ -25,7 +25,6 @@ export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptMa
   const defaultDescriptionId = useId();
   const defaultErrorId = useId();
   const isDefault = defaultSelection.promptKey === prompt.key;
-  const mutationPending = setDefault.isPending || deletePrompt.isPending;
 
   function changeDefault(checked: boolean) {
     setDefault.reset();
@@ -73,7 +72,7 @@ export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptMa
           </Item.Description>
           {setDefault.isError ? (
             <Item.Description id={defaultErrorId} role="alert" style={styles.error}>
-              Couldn’t update the default narrator
+              Couldn't update the default narrator
             </Item.Description>
           ) : null}
         </Item.Content>
@@ -89,7 +88,7 @@ export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptMa
             }
             aria-busy={setDefault.isPending || undefined}
             checked={isDefault}
-            disabled={mutationPending}
+            disabled={setDefault.isPending || deletePrompt.isPending}
             onCheckedChange={changeDefault}
           />
         </Item.Value>
@@ -108,7 +107,10 @@ export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptMa
             trigger={
               <Tooltip.Anchor
                 render={
-                  <IconButton aria-label={`Delete ${prompt.title}`} disabled={mutationPending}>
+                  <IconButton
+                    aria-label={`Delete ${prompt.title}`}
+                    disabled={deletePrompt.isPending}
+                  >
                     <HugeiconsIcon
                       icon={TrashIcon}
                       size={16}
@@ -119,15 +121,15 @@ export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptMa
                 }
               />
             }
-            heading={`Delete “${prompt.title}”?`}
+            heading={`Delete "${prompt.title}"?`}
             description={
               isDefault
-                ? "The built-in narrator will replace it as the default. This can’t be undone."
-                : "Campaigns using this narrator will use the default instead. This can’t be undone."
+                ? "The built-in narrator will replace it as the default. This can't be undone."
+                : "Campaigns using this narrator will use the default instead. This can't be undone."
             }
             confirmLabel="Delete"
             pending={deletePrompt.isPending}
-            error={deletePrompt.isError ? "Couldn’t delete this prompt." : undefined}
+            error={deletePrompt.isError ? "Couldn't delete this prompt." : undefined}
             onConfirm={() => void remove()}
           />
 

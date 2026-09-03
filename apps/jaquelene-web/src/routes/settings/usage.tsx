@@ -274,7 +274,7 @@ function UsageRoute() {
                       description="All recorded usage will be permanently removed."
                       confirmLabel="Clear"
                       pending={clearHistory.isPending}
-                      error={clearHistory.isError ? "Couldn’t clear usage history." : undefined}
+                      error={clearHistory.isError ? "Couldn't clear usage history." : undefined}
                       onConfirm={() => {
                         clearHistory.mutate(undefined, {
                           onSuccess: () => setClearOpen(false),

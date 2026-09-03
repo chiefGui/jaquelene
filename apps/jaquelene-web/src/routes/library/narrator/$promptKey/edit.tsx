@@ -2,6 +2,7 @@ import { promptKeySchema } from "@jaquelene/domain";
 import { PromptOrigin } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
+import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { PromptEditor } from "@/feature/prompt/editor";
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/library/narrator/$promptKey/edit")({
       await context.queryClient.query(promptDefaultQuery(narratorPromptKind));
     }
 
-    return prompt;
+    return prompt.key;
   },
   remountDeps: ({ params }) => params.promptKey,
   component: EditPromptRoute,
@@ -47,7 +48,12 @@ export const Route = createFileRoute("/library/narrator/$promptKey/edit")({
 const pageHeadingId = "edit-prompt-page";
 
 function EditPromptRoute() {
-  const prompt = Route.useLoaderData();
+  const promptKey = Route.useLoaderData();
+  const promptResult = useQuery({
+    ...promptQuery(promptKey ?? ""),
+    enabled: promptKey !== null,
+  });
+  const prompt = promptResult.data;
   const navigate = useNavigate({
     from: "/library/narrator/$promptKey/edit",
   });
@@ -97,18 +103,14 @@ function EditPromptRoute() {
             </EmptyState.Root>
           ) : prompt?.origin === PromptOrigin.Custom ? (
             <div {...stylex.props(styles.editor)}>
-              <PromptEditor
-                aria-labelledby={pageHeadingId}
-                prompt={prompt}
-                onSaved={openNarrator}
-              />
+              <PromptEditor aria-labelledby={pageHeadingId} prompt={prompt} />
               <NarratorPromptManagement prompt={prompt} onDeleted={finishDeletion} />
             </div>
           ) : (
             <EmptyState.Root>
               <EmptyState.Title>{prompt ? "Built-in prompt" : "Prompt not found"}</EmptyState.Title>
               <EmptyState.Description>
-                {prompt ? "Built-in prompts can’t be edited." : "It may have been deleted."}
+                {prompt ? "Built-in prompts can't be edited." : "It may have been deleted."}
               </EmptyState.Description>
               <Button render={<Link to="/library/narrator" replace />} style={styles.returnAction}>
                 Back to narrator

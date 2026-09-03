@@ -81,12 +81,12 @@ function ProviderSettings({ provider }: { provider: Provider }) {
           setConnectionError(`${provider.name} rejected this API key`);
           return;
         case ProviderConfigureState.Unavailable:
-          setConnectionError(`Couldn’t reach ${provider.name}. Try again`);
+          setConnectionError(`Couldn't reach ${provider.name}. Try again`);
           return;
       }
     } catch (cause) {
       reportError(`provider.${provider.id}.configure`, cause);
-      setConnectionError(`Couldn’t connect to ${provider.name}`);
+      setConnectionError(`Couldn't connect to ${provider.name}`);
     }
   }
 
@@ -141,7 +141,7 @@ function ProviderSettings({ provider }: { provider: Provider }) {
               description="Removes your saved API key from this device."
               confirmLabel="Disconnect"
               pending={clearProvider.isPending}
-              error={clearProvider.isError ? `Couldn’t disconnect ${provider.name}.` : undefined}
+              error={clearProvider.isError ? `Couldn't disconnect ${provider.name}.` : undefined}
               finalFocus={connectButton}
               onConfirm={() => void disconnect()}
             />

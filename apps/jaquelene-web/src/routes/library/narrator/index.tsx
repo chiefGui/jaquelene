@@ -104,7 +104,7 @@ function PromptItem({
           )}
           {setDefault.isError && setDefault.variables === prompt.key ? (
             <span role="alert" {...stylex.props(styles.defaultError)}>
-              Couldn’t set default.
+              Couldn't set default.
             </span>
           ) : null}
         </div>

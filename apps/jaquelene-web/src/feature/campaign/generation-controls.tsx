@@ -136,7 +136,7 @@ export function CampaignGenerationControls({
 
       {setPreferences.isError ? (
         <p id={errorId} role="alert" {...stylex.props(styles.error)}>
-          Couldn’t save generation settings.
+          Couldn't save generation settings.
         </p>
       ) : null}
     </div>

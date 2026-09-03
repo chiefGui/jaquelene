@@ -34,7 +34,7 @@ function AdvancedRoute() {
   const writeToDiskDescriptionId = useId();
   const writeToDiskErrorId = useId();
   const openLogsFolderErrorId = useId();
-  const preferenceError = setWriteToDisk.isError ? "Couldn’t save the preference." : null;
+  const preferenceError = setWriteToDisk.isError ? "Couldn't save the preference." : null;
 
   return (
     <>
@@ -102,7 +102,7 @@ function AdvancedRoute() {
 
               {openLogsFolder.isError ? (
                 <Item.Description id={openLogsFolderErrorId} role="alert" style={styles.error}>
-                  Couldn’t open the folder.
+                  Couldn't open the folder.
                 </Item.Description>
               ) : null}
             </Item.Root>

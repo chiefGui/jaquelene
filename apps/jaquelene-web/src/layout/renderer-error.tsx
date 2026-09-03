@@ -38,7 +38,7 @@ function RendererError() {
       <div {...stylex.props(styles.content)}>
         <div role="alert">
           <h1 id="renderer-error-heading" {...stylex.props(styles.heading)}>
-            Jaquelene couldn’t continue
+            Jaquelene couldn't continue
           </h1>
           <p {...stylex.props(styles.description)}>Reload the app to try again.</p>
         </div>

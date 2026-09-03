@@ -1,4 +1,5 @@
 import { Button } from "@jaquelene/ui";
+import type { Prompt } from "@jaquelene/ipc/renderer";
 import * as stylex from "@stylexjs/stylex";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { PromptEditor } from "@/feature/prompt/editor";
@@ -21,8 +22,12 @@ function NewPromptRoute() {
   const kind = Route.useLoaderData();
   const navigate = useNavigate({ from: "/library/narrator/new" });
 
-  function openNarrator() {
-    return navigate({ to: "/library/narrator", replace: true });
+  function openPrompt(prompt: Prompt) {
+    return navigate({
+      to: "/library/narrator/$promptKey/edit",
+      params: { promptKey: prompt.key },
+      replace: true,
+    });
   }
 
   return (
@@ -54,7 +59,7 @@ function NewPromptRoute() {
             <PromptEditor
               aria-labelledby={pageHeadingId}
               kind={narratorPromptKind}
-              onSaved={openNarrator}
+              onSaved={openPrompt}
             />
           ) : (
             <EmptyState.Root>

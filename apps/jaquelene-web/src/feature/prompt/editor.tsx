@@ -21,17 +21,32 @@ import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { useFormStatus } from "@/feature/form/status";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
 import { usePromptFormValidation } from "./form";
 import { useCreatePrompt, useUpdatePrompt } from "./query";
 
 type PromptEditorProps = {
   "aria-labelledby": string;
-  onSaved: (prompt: Prompt) => Promise<void>;
-} & ({ kind: string; prompt?: undefined } | { kind?: undefined; prompt: Prompt });
+} & (
+  | {
+      kind: string;
+      onSaved: (prompt: Prompt) => void | Promise<void>;
+      prompt?: undefined;
+    }
+  | {
+      kind?: undefined;
+      onSaved?: (prompt: Prompt) => void | Promise<void>;
+      prompt: Prompt;
+    }
+);
 
 function getEditorValues(prompt?: Prompt): UpdatePromptInput {
   return { body: prompt?.body ?? "", title: prompt?.title ?? "" };
+}
+
+function promptValuesEqual(left: UpdatePromptInput, right: UpdatePromptInput) {
+  return left.body === right.body && left.title === right.title;
 }
 
 export function PromptEditor(props: PromptEditorProps) {
@@ -40,29 +55,28 @@ export function PromptEditor(props: PromptEditorProps) {
   const updatePrompt = useUpdatePrompt();
   const form = useFormStore({ defaultValues: getEditorValues(prompt) });
   const body = useFormValue<string>(form, form.names.body);
-  const setBody = useCallback((value: string) => form.setValue(form.names.body, value), [form]);
-  const submitting = useStoreState(form, "submitting");
   const hasSubmitted = useStoreState(
     form,
     ["submitFailed", "submitSucceed"],
     (state) => state.submitFailed > 0 || state.submitSucceed > 0,
   );
   const [savedPrompt, setSavedPrompt] = useState<Prompt | null>(null);
-  const [operationError, setOperationError] = useState<string | null>(null);
-  const operationErrorId = useId();
+  const [saving, setSaving] = useState(false);
+  const { clear: clearStatus, showError, showSuccess, status } = useFormStatus();
+  const operationStatusId = useId();
   const active = useRef(true);
+  const savingRef = useRef(false);
   const editing = Boolean(prompt);
-  const saved = Boolean(savedPrompt);
-  const disabled = submitting || saved;
-  const submitLabel = submitting
-    ? saved
-      ? "Opening…"
-      : "Saving…"
-    : saved
-      ? "Open prompts"
-      : editing
-        ? "Save"
-        : "Create";
+  const awaitingCreatedPrompt = !editing && Boolean(savedPrompt);
+  const editorReadOnly = !editing && (saving || awaitingCreatedPrompt);
+  const submitLabel = awaitingCreatedPrompt ? "Open prompt" : editing ? "Save" : "Create";
+  const setBody = useCallback(
+    (value: string) => {
+      clearStatus();
+      form.setValue(form.names.body, value);
+    },
+    [clearStatus, form],
+  );
 
   useEffect(() => {
     active.current = true;
@@ -73,42 +87,64 @@ export function PromptEditor(props: PromptEditorProps) {
 
   usePromptFormValidation(form);
   useFormSubmit(form, async (state) => {
-    setOperationError(null);
-    let result = savedPrompt;
-
-    if (!result) {
-      try {
-        const input = updatePromptInputSchema.parse(state.values);
-        result = props.prompt
-          ? await updatePrompt.mutateAsync({ key: props.prompt.key, input })
-          : await createPrompt.mutateAsync({ kind: props.kind, ...input });
-
-        if (!active.current) {
-          return;
-        }
-
-        setSavedPrompt(result);
-      } catch (cause) {
-        reportError(editing ? "prompt.update" : "prompt.create", cause);
-        if (active.current) {
-          setOperationError(
-            editing ? "Couldn’t save this prompt." : "Couldn’t create this prompt.",
-          );
-        }
-        return;
-      }
-    }
-
-    if (!active.current) {
+    if (savingRef.current) {
       return;
     }
 
+    savingRef.current = true;
+    setSaving(true);
+    clearStatus();
+
     try {
-      await onSaved(result);
-    } catch (cause) {
-      reportError("prompt.open-list", cause);
+      let result = savedPrompt;
+      let submittedValues: UpdatePromptInput | null = null;
+
+      if (!result) {
+        try {
+          const input = updatePromptInputSchema.parse(state.values);
+          submittedValues = input;
+          result = props.prompt
+            ? await updatePrompt.mutateAsync({ key: props.prompt.key, input })
+            : await createPrompt.mutateAsync({ kind: props.kind, ...input });
+
+          if (!active.current) {
+            return;
+          }
+
+          if (!editing) {
+            setSavedPrompt(result);
+          }
+        } catch (cause) {
+          reportError(editing ? "prompt.update" : "prompt.create", cause);
+          if (active.current) {
+            showError(editing ? "Couldn't save this prompt." : "Couldn't create this prompt.");
+          }
+          return;
+        }
+      }
+
+      if (!active.current) {
+        return;
+      }
+
+      try {
+        await onSaved?.(result);
+        if (active.current) {
+          setSavedPrompt(null);
+          if (!submittedValues || promptValuesEqual(form.getState().values, submittedValues)) {
+            showSuccess("Saved");
+          }
+        }
+      } catch (cause) {
+        reportError("prompt.after-save", cause);
+        if (active.current) {
+          showError("The prompt was saved, but its page couldn't be updated.");
+        }
+      }
+    } finally {
+      savingRef.current = false;
       if (active.current) {
-        setOperationError("The prompt was saved, but the prompt list couldn’t be opened.");
+        setSaving(false);
       }
     }
   });
@@ -116,10 +152,10 @@ export function PromptEditor(props: PromptEditorProps) {
   return (
     <AriakitForm
       store={form}
-      aria-busy={submitting || undefined}
-      aria-describedby={operationError ? operationErrorId : undefined}
+      aria-busy={saving || undefined}
+      aria-describedby={status ? operationStatusId : undefined}
       aria-labelledby={ariaLabelledBy}
-      onSubmit={() => setOperationError(null)}
+      onSubmit={clearStatus}
       render={<FormLayout.Root />}
       resetOnSubmit={false}
       validateOnBlur={hasSubmitted}
@@ -136,7 +172,8 @@ export function PromptEditor(props: PromptEditorProps) {
               type="text"
               autoFocus
               maxLength={PROMPT_TITLE_MAX_UTF16_LENGTH}
-              disabled={disabled}
+              onChange={clearStatus}
+              readOnly={editorReadOnly}
               style={styles.titleInput}
             />
           }
@@ -152,7 +189,7 @@ export function PromptEditor(props: PromptEditorProps) {
           name={form.names.body}
           render={<Field.Description style={styles.promptDescription} />}
         >
-          This text is applied according to the prompt’s kind.
+          AI models receive this text. Keep it concise.
         </FormDescription>
         <FormControl
           name={form.names.body}
@@ -161,24 +198,26 @@ export function PromptEditor(props: PromptEditorProps) {
               value={body}
               onValueChange={setBody}
               maxLength={PROMPT_BODY_MAX_UTF16_LENGTH}
-              disabled={disabled}
+              readOnly={editorReadOnly}
             />
           }
         />
         <FormError name={form.names.body} render={<Field.Error style={styles.promptError} />} />
       </Field.Root>
 
-      <FormLayout.Status
-        id={operationErrorId}
-        role={operationError ? "alert" : undefined}
-        tone={operationError ? "danger" : "neutral"}
-      >
-        {operationError}
-      </FormLayout.Status>
+      <div {...stylex.props(styles.actions)}>
+        <FormLayout.Status
+          id={operationStatusId}
+          role={status?.tone === "danger" ? "alert" : status ? "status" : undefined}
+          tone={status?.tone ?? "neutral"}
+        >
+          {status?.message}
+        </FormLayout.Status>
 
-      <Button type="submit" disabled={submitting} style={styles.submit}>
-        {submitLabel}
-      </Button>
+        <Button type="submit" aria-busy={saving || undefined}>
+          {submitLabel}
+        </Button>
+      </div>
     </AriakitForm>
   );
 }
@@ -196,5 +235,10 @@ const styles = stylex.create({
   promptError: {
     marginBlockStart: "0.5rem",
   },
-  submit: { alignSelf: "flex-end" },
+  actions: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.5rem",
+    justifyContent: "flex-end",
+  },
 });

@@ -68,11 +68,11 @@ export function CampaignDeleteControl({
           <Button.Label>Delete Campaign</Button.Label>
         </Button>
       }
-      heading={`Delete “${campaign.title}”?`}
+      heading={`Delete "${campaign.title}"?`}
       description="This permanently deletes the campaign and its conversation. Usage history is kept."
       confirmLabel={deleteCampaign.isPending ? "Deleting…" : "Delete"}
       pending={deleteCampaign.isPending}
-      error={deleteCampaign.isError ? "Couldn’t delete this campaign. Try again." : undefined}
+      error={deleteCampaign.isError ? "Couldn't delete this campaign. Try again." : undefined}
       onConfirm={() => void confirmDeletion()}
     />
   );

@@ -444,8 +444,11 @@ const styles = stylex.create({
   },
   statistics: {
     alignItems: "center",
+    color: colors.foregroundDisabled,
     display: "inline-flex",
+    fontSize: tokens.fontSizeXXSmall,
     gap: "0.375rem",
+    lineHeight: tokens.lineHeightXXSmall,
   },
   previewSkeleton: {
     display: "flex",

@@ -1,4 +1,5 @@
 import { Context, Effect, Layer } from "effect";
+import { providerConfigureResultSchema, providerKeyLabelSchema } from "@jaquelene/domain";
 import type { ResourceCache } from "#backend/resource-cache/resource-cache";
 import { ResourceCacheService } from "#backend/resource-cache/service";
 import { StorageCategory, type StorageArea } from "#backend/storage/storage";
@@ -181,7 +182,7 @@ function requireApiKeyConfiguration(
     throw new TypeError(`Provider "${providerId}" returned an invalid configuration state.`);
   }
 
-  if (typeof configuration.keyLabel !== "string" || !configuration.keyLabel.trim()) {
+  if (!providerKeyLabelSchema.safeParse(configuration.keyLabel).success) {
     throw new TypeError(`Provider "${providerId}" returned an invalid API-key label.`);
   }
 
@@ -192,20 +193,27 @@ function requireApiKeyConfiguration(
   return configuration;
 }
 
-function requireConfigureResult(providerId: ProviderId, result: ProviderConfigureResult) {
-  if (result.state === "rejected" || result.state === "unavailable") {
-    return result;
+function requireConfigureResult(
+  providerId: ProviderId,
+  candidate: unknown,
+): ProviderConfigureResult {
+  const result = providerConfigureResultSchema.safeParse(candidate);
+
+  if (result.success) {
+    return result.data;
   }
 
-  if (result.state !== "configured") {
-    throw new TypeError(`Provider "${providerId}" returned an invalid configuration result.`);
-  }
-
-  if (typeof result.keyLabel !== "string" || !result.keyLabel.trim()) {
+  if (
+    typeof candidate === "object" &&
+    candidate !== null &&
+    "state" in candidate &&
+    candidate.state === "configured" &&
+    (!("keyLabel" in candidate) || !providerKeyLabelSchema.safeParse(candidate.keyLabel).success)
+  ) {
     throw new TypeError(`Provider "${providerId}" returned an invalid API-key label.`);
   }
 
-  return result;
+  throw new TypeError(`Provider "${providerId}" returned an invalid configuration result.`);
 }
 
 function interruption(signal: AbortSignal) {

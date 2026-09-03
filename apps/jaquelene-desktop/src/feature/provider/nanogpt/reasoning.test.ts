@@ -41,6 +41,9 @@ describe("NanoGPT reasoning", () => {
     expect(() => normalizeNanoGptReasoning("maker/model", false, ["high"])).toThrow(
       "contradictory reasoning metadata",
     );
+    expect(() => normalizeNanoGptReasoning("maker/model", undefined, ["high"])).toThrow(
+      "contradictory reasoning metadata",
+    );
     expect(() => encodeNanoGptReasoning({ preset: "on", source: "selection" })).toThrow(
       'does not support the binary reasoning preset "on"',
     );

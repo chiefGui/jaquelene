@@ -1,6 +1,13 @@
+import type { ApiKeyProviderConfiguration, ProviderConfigureResult } from "@jaquelene/domain";
 import type { GenerationId, ThreadId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import type { ModelReasoningCapability, ResolvedReasoning } from "#backend/model/reasoning";
+
+export type {
+  ApiKeyProviderConfiguration,
+  ProviderConfiguration,
+  ProviderConfigureResult,
+} from "@jaquelene/domain";
 
 export type ProviderId = string;
 
@@ -95,22 +102,9 @@ export type ProviderGenerationResult = Readonly<{
   usage?: GenerationUsage;
 }>;
 
-export type ApiKeyProviderConfiguration =
-  | Readonly<{ state: "unconfigured" }>
-  | Readonly<{ state: "configured"; keyLabel: string }>;
-
 export type ApiKeyProviderConfigurationSnapshot =
-  | Readonly<{ state: "unconfigured" }>
-  | Readonly<{ state: "configured"; revision: string; keyLabel: string }>;
-
-export type ProviderConfiguration =
-  | (ApiKeyProviderConfiguration & Readonly<{ kind: "api-key" }>)
-  | Readonly<{ kind: "none"; state: "configured" }>;
-
-export type ProviderConfigureResult =
-  | Readonly<{ state: "configured"; keyLabel: string }>
-  | Readonly<{ state: "rejected" }>
-  | Readonly<{ state: "unavailable" }>;
+  | Extract<ApiKeyProviderConfiguration, { state: "unconfigured" }>
+  | Readonly<Extract<ApiKeyProviderConfiguration, { state: "configured" }> & { revision: string }>;
 
 export type ProviderConfigurationAdapter =
   | Readonly<{

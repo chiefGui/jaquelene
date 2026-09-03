@@ -33,7 +33,7 @@ export function normalizeNanoGptReasoning(
     throw new TypeError(`NanoGPT model "${modelId}" has invalid reasoning efforts.`);
   }
 
-  if (capable === false && reportedEfforts !== undefined) {
+  if (capable !== true && reportedEfforts !== undefined) {
     throw new TypeError(`NanoGPT model "${modelId}" reports contradictory reasoning metadata.`);
   }
 

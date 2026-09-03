@@ -2,8 +2,8 @@ import {
   ProviderConfigurationKind,
   ProviderConfigurationState,
   ProviderConfigureState,
-  type Provider,
-} from "@jaquelene/ipc/renderer";
+} from "@jaquelene/domain";
+import type { Provider } from "@jaquelene/ipc/renderer";
 import { Button, IconFrame, Input, Item, Ping } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -38,13 +38,11 @@ function ProviderSettings({ provider }: { provider: Provider }) {
   const errorId = useId();
   const usesApiKey = provider.configuration.kind === ProviderConfigurationKind.ApiKey;
   const configured = provider.configuration.state === ProviderConfigurationState.Configured;
-  const keyLabel = configured ? provider.configuration.keyLabel : undefined;
-
-  if (configured && !keyLabel?.trim()) {
-    throw new TypeError(`Configured provider "${provider.id}" has no API-key label.`);
-  }
-
-  const keyPlaceholder = configured ? keyLabel : "Paste API key";
+  const keyPlaceholder =
+    provider.configuration.kind === ProviderConfigurationKind.ApiKey &&
+    provider.configuration.state === ProviderConfigurationState.Configured
+      ? provider.configuration.keyLabel
+      : "Paste API key";
   const pending = configureProvider.isPending || clearProvider.isPending;
 
   function startEditingConnection() {

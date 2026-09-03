@@ -25,6 +25,9 @@
     "build": "generate-ipc schema generated/production && tsc -b",
     "build:development": "generate-ipc schema generated/development && tsc -b tsconfig.development.json"
   },
+  "dependencies": {
+    "@jaquelene/domain": "workspace:*"
+  },
   "devDependencies": {
     "@marshallofsound/ipc": "^2.7.1",
     "@types/node": "^26.3.0",

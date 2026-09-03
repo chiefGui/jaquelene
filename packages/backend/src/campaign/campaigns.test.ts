@@ -10,7 +10,7 @@ import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
 import type { ReasoningPreset } from "#backend/model/reasoning";
 import {
-  jaqueleneNarratorPrompt,
+  jaqueleneNarratorPromptDefinition,
   narratorPromptKind,
   narratorPromptModule,
 } from "#backend/narrator/module";
@@ -206,13 +206,15 @@ describe("campaigns", () => {
     });
     const pinned = campaigns.start({
       title: "Pinned",
-      composition: [{ kind: narratorPromptKind.key, promptKey: jaqueleneNarratorPrompt.key }],
+      composition: [
+        { kind: narratorPromptKind.key, promptKey: jaqueleneNarratorPromptDefinition.key },
+      ],
     });
     expect(database.select().from(campaignPromptSelectionTable).all()).toEqual([
       {
         campaignId: pinned.id,
         kind: narratorPromptKind.key,
-        promptKey: jaqueleneNarratorPrompt.key,
+        promptKey: jaqueleneNarratorPromptDefinition.key,
       },
     ]);
   });

@@ -36,6 +36,16 @@ export {
   type UpdatePromptInput,
 } from "./prompt/content";
 export {
+  PromptOrigin,
+  customPromptSchema,
+  parseCustomPrompt,
+  parsePrompt,
+  promptSchema,
+  type BuiltInPrompt,
+  type CustomPrompt,
+  type Prompt,
+} from "./prompt/entity";
+export {
   PROMPT_KEY_MAX_LENGTH,
   PROMPT_KIND_KEY_MAX_LENGTH,
   parsePromptKey,

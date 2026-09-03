@@ -99,7 +99,9 @@ export type {
 } from "#backend/storage/storage";
 export type { Instruction, PromptApplication } from "#backend/prompt/application-registry";
 export type {
+  BuiltInPrompt,
   CampaignPromptSelection,
+  CustomPrompt,
   Prompt,
   PromptCatalog,
   PromptDefault,

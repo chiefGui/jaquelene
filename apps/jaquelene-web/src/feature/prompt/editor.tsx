@@ -16,7 +16,7 @@ import {
   updatePromptInputSchema,
   type UpdatePromptInput,
 } from "@jaquelene/domain";
-import type { Prompt } from "@jaquelene/ipc/renderer";
+import type { CustomPrompt } from "@jaquelene/ipc/renderer";
 import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -32,17 +32,17 @@ type PromptEditorProps = {
 } & (
   | {
       kind: string;
-      onSaved: (prompt: Prompt) => void | Promise<void>;
+      onSaved: (prompt: CustomPrompt) => void | Promise<void>;
       prompt?: undefined;
     }
   | {
       kind?: undefined;
-      onSaved?: (prompt: Prompt) => void | Promise<void>;
-      prompt: Prompt;
+      onSaved?: (prompt: CustomPrompt) => void | Promise<void>;
+      prompt: CustomPrompt;
     }
 );
 
-function getEditorValues(prompt?: Prompt): UpdatePromptInput {
+function getEditorValues(prompt?: CustomPrompt): UpdatePromptInput {
   return { body: prompt?.body ?? "", title: prompt?.title ?? "" };
 }
 
@@ -61,7 +61,7 @@ export function PromptEditor(props: PromptEditorProps) {
     ["submitFailed", "submitSucceed"],
     (state) => state.submitFailed > 0 || state.submitSucceed > 0,
   );
-  const [savedPrompt, setSavedPrompt] = useState<Prompt | null>(null);
+  const [savedPrompt, setSavedPrompt] = useState<CustomPrompt | null>(null);
   const [saving, setSaving] = useState(false);
   const { clear: clearStatus, showError, showSuccess, status } = useFormStatus();
   const operationStatusId = useId();

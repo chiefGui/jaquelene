@@ -1,7 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parsePromptKey, parsePromptKindKey, parseUpdatePromptInput } from "@jaquelene/domain";
+import {
+  PromptOrigin,
+  parsePromptKey,
+  parsePromptKindKey,
+  parseUpdatePromptInput,
+} from "@jaquelene/domain";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
@@ -15,20 +20,22 @@ const testPromptKind = Object.freeze({
   name: "Test",
   description: "Exercises generic prompt behavior.",
 });
-const testFactoryPrompt = Object.freeze({
-  key: parsePromptKey("factory.test.default"),
-  kind: testPromptKind.key,
-  origin: "factory",
+const testBuiltInPromptDefinition = Object.freeze({
+  key: parsePromptKey("builtin.test.default"),
   ...parseUpdatePromptInput({
     title: "Default",
     body: "Default prompt content.",
   }),
-  createdAt: 0,
+});
+const testBuiltInPrompt = Object.freeze({
+  ...testBuiltInPromptDefinition,
+  kind: testPromptKind.key,
+  origin: PromptOrigin.BuiltIn,
 });
 const testPromptModule = Object.freeze({
   definition: testPromptKind,
-  factoryPrompts: Object.freeze([testFactoryPrompt]),
-  fallbackPromptKey: testFactoryPrompt.key,
+  builtInPrompts: Object.freeze([testBuiltInPromptDefinition]),
+  fallbackPromptKey: testBuiltInPromptDefinition.key,
   createApplication(prompts) {
     return {
       apply({ campaign }) {
@@ -92,7 +99,7 @@ describe("prompts", () => {
         name: "Setting",
         description: "Defines the world in which the campaign takes place.",
       },
-      factoryPrompts: [],
+      builtInPrompts: [],
       createApplication: () => ({ apply: () => [] }),
     } satisfies PromptKindModule;
     const { prompts } = createPromptSubsystem(database, [setting, testPromptModule]);
@@ -108,28 +115,73 @@ describe("prompts", () => {
     const first = openEnvironment(path);
 
     expect(first.prompts.listKinds()).toEqual([testPromptKind]);
-    expect(first.prompts.list({ kind: testPromptKind.key }).prompts).toEqual([testFactoryPrompt]);
+    expect(first.prompts.list({ kind: testPromptKind.key }).prompts).toEqual([testBuiltInPrompt]);
     expect(
-      first.prompts.update(testFactoryPrompt.key, {
+      first.prompts.update(testBuiltInPrompt.key, {
         title: "Changed",
         body: "Changed.",
       }),
     ).toBeNull();
-    expect(first.prompts.delete(testFactoryPrompt.key)).toBeNull();
-    const obsoleteFactoryPromptKey = parsePromptKey("factory.test.obsolete");
+    expect(first.prompts.delete(testBuiltInPrompt.key)).toBeNull();
+    const obsoleteBuiltInPromptKey = parsePromptKey("builtin.test.obsolete");
     first.database.$client
       .prepare("UPDATE prompts SET body = 'Corrupted' WHERE key = ?")
-      .run(testFactoryPrompt.key);
+      .run(testBuiltInPrompt.key);
     first.database.$client
-      .prepare(
-        "INSERT INTO prompts (key, kind, origin, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-      )
-      .run(obsoleteFactoryPromptKey, testPromptKind.key, "factory", "Obsolete", "Remove me.", 0);
+      .prepare("INSERT INTO prompts (key, kind, origin, title, body) VALUES (?, ?, ?, ?, ?)")
+      .run(
+        obsoleteBuiltInPromptKey,
+        testPromptKind.key,
+        PromptOrigin.BuiltIn,
+        "Obsolete",
+        "Remove me.",
+      );
     closeDatabase(first.database);
 
     const reopened = openEnvironment(path);
-    expect(reopened.prompts.get(testFactoryPrompt.key)).toEqual(testFactoryPrompt);
-    expect(reopened.prompts.get(obsoleteFactoryPromptKey)).toBeNull();
+    expect(reopened.prompts.get(testBuiltInPrompt.key)).toEqual(testBuiltInPrompt);
+    expect(reopened.prompts.get(obsoleteBuiltInPromptKey)).toBeNull();
+  });
+
+  it("enforces lifecycle metadata at the persistence boundary", () => {
+    const { database } = openEnvironment();
+    const insert = database.$client.prepare(
+      "INSERT INTO prompts (key, kind, origin, title, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    );
+
+    expect(() =>
+      insert.run(
+        "prompt_missing_timestamps",
+        testPromptKind.key,
+        PromptOrigin.Custom,
+        "Missing timestamps",
+        "Invalid custom prompt.",
+        null,
+        null,
+      ),
+    ).toThrow();
+    expect(() =>
+      insert.run(
+        "prompt_reversed_timestamps",
+        testPromptKind.key,
+        PromptOrigin.Custom,
+        "Reversed timestamps",
+        "Invalid custom prompt.",
+        2,
+        1,
+      ),
+    ).toThrow();
+    expect(() =>
+      insert.run(
+        "builtin_test_timestamped",
+        testPromptKind.key,
+        PromptOrigin.BuiltIn,
+        "Timestamped built-in",
+        "Invalid built-in prompt.",
+        1,
+        1,
+      ),
+    ).toThrow();
   });
 
   it("creates, updates, persists, and pages custom prompts", () => {
@@ -146,7 +198,7 @@ describe("prompts", () => {
     const firstPage = first.prompts.list({ kind: testPromptKind.key });
 
     expect(firstPage.prompts).toHaveLength(promptPageSize);
-    expect(firstPage.prompts[0]).toEqual(testFactoryPrompt);
+    expect(firstPage.prompts[0]).toEqual(testBuiltInPrompt);
     expect(firstPage.nextCursor).toEqual(expect.any(String));
     first.prompts.delete(created[created.length - 2]!.key);
     expect(
@@ -156,9 +208,46 @@ describe("prompts", () => {
       title: "  Observer  ",
       body: "Describe only observable facts.",
     });
+    const unchanged = first.prompts.update(created[0]!.key, {
+      title: "Observer",
+      body: "Describe only observable facts.",
+    });
     closeDatabase(first.database);
 
+    expect(created[0]).toMatchObject({ createdAt: 1, updatedAt: 1 });
+    expect(updated).toMatchObject({ createdAt: 1, updatedAt: 51 });
+    expect(unchanged).toEqual(updated);
     expect(openEnvironment(path).prompts.get(created[0]!.key)).toEqual(updated);
+  });
+
+  it("pages from built-in prompts into custom prompts", () => {
+    const database = openDatabase(createDatabasePath());
+    databases.push(database);
+    const definitions = Array.from({ length: promptPageSize }, (_, index) => ({
+      key: parsePromptKey(`builtin.test.${index.toString().padStart(2, "0")}`),
+      ...parseUpdatePromptInput({
+        title: `Built-in ${index}`,
+        body: `Built-in prompt content ${index}.`,
+      }),
+    }));
+    const module = {
+      definition: testPromptKind,
+      builtInPrompts: definitions,
+      createApplication: () => ({ apply: () => [] }),
+    } satisfies PromptKindModule;
+    const { prompts } = createPromptSubsystem(database, [module], () => 1);
+    const custom = prompts.create({
+      kind: testPromptKind.key,
+      title: "Custom",
+      body: "Custom prompt content.",
+    });
+    const firstPage = prompts.list({ kind: testPromptKind.key });
+
+    expect(firstPage.prompts).toHaveLength(promptPageSize);
+    expect(firstPage.prompts.every(({ origin }) => origin === PromptOrigin.BuiltIn)).toBe(true);
+    expect(
+      prompts.list({ kind: testPromptKind.key, cursor: firstPage.nextCursor! }).prompts,
+    ).toEqual([custom]);
   });
 
   it("keeps inherited and explicit campaign selections inspectable", () => {
@@ -172,22 +261,22 @@ describe("prompts", () => {
     });
 
     expect(prompts.getCampaignSelection(inherited.id, testPromptKind.key)).toMatchObject({
-      effectivePromptKey: testFactoryPrompt.key,
+      effectivePromptKey: testBuiltInPrompt.key,
       source: "fallback",
     });
     prompts.setDefault(testPromptKind.key, custom.key);
     prompts.setCampaignSelection({
       campaignId: pinned.id,
       kind: testPromptKind.key,
-      promptKey: testFactoryPrompt.key,
+      promptKey: testBuiltInPrompt.key,
     });
     expect(prompts.getCampaignSelection(inherited.id, testPromptKind.key)).toMatchObject({
       effectivePromptKey: custom.key,
       source: "default",
     });
     expect(prompts.getCampaignSelection(pinned.id, testPromptKind.key)).toMatchObject({
-      selectedPromptKey: testFactoryPrompt.key,
-      effectivePromptKey: testFactoryPrompt.key,
+      selectedPromptKey: testBuiltInPrompt.key,
+      effectivePromptKey: testBuiltInPrompt.key,
       source: "campaign",
     });
   });
@@ -204,7 +293,7 @@ describe("prompts", () => {
 
     expect(prompts.setDefault(testPromptKind.key)).toEqual({
       kind: testPromptKind.key,
-      promptKey: testFactoryPrompt.key,
+      promptKey: testBuiltInPrompt.key,
       source: "fallback",
     });
   });
@@ -252,11 +341,11 @@ describe("prompts", () => {
     });
     expect(prompts.getDefault(testPromptKind.key)).toEqual({
       kind: testPromptKind.key,
-      promptKey: testFactoryPrompt.key,
+      promptKey: testBuiltInPrompt.key,
       source: "fallback",
     });
     expect(prompts.getCampaignSelection(campaign.id, testPromptKind.key)).toMatchObject({
-      effectivePromptKey: testFactoryPrompt.key,
+      effectivePromptKey: testBuiltInPrompt.key,
       source: "fallback",
     });
   });
@@ -268,16 +357,14 @@ describe("prompts", () => {
       .prepare("INSERT INTO prompt_kinds (key, name, description) VALUES (?, ?, ?)")
       .run("setting", "Setting", "Defines the story world.");
     database.$client
-      .prepare(
-        "INSERT INTO prompts (key, kind, origin, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-      )
-      .run("factory.setting.empty", "setting", "factory", "Empty", "No setting.", 0);
+      .prepare("INSERT INTO prompts (key, kind, origin, title, body) VALUES (?, ?, ?, ?, ?)")
+      .run("builtin.setting.empty", "setting", PromptOrigin.BuiltIn, "Empty", "No setting.");
 
     expect(() =>
       prompts.setCampaignSelection({
         campaignId: campaign.id,
         kind: testPromptKind.key,
-        promptKey: parsePromptKey("factory.setting.empty"),
+        promptKey: parsePromptKey("builtin.setting.empty"),
       }),
     ).toThrow(RangeError);
     expect(prompts.getCampaignSelection(ids.campaign.create(), testPromptKind.key)).toBeNull();

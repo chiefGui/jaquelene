@@ -1,5 +1,5 @@
 import { narratorPromptKindKey } from "@jaquelene/domain";
-import type { Prompt } from "@jaquelene/ipc/renderer";
+import type { CustomPrompt } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -23,7 +23,7 @@ function NewPromptRoute() {
   const kind = Route.useLoaderData();
   const navigate = useNavigate({ from: "/library/narrator/new" });
 
-  function openPrompt(prompt: Prompt) {
+  function openPrompt(prompt: CustomPrompt) {
     return navigate({
       to: "/library/narrator/$promptKey/edit",
       params: { promptKey: prompt.key },

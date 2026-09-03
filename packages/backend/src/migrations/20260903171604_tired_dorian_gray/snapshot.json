@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "aa326f1c-1e58-4fd4-b8ad-a98864ddcff4",
+  "id": "9430c5bc-2ece-43f1-8210-59c1b65b2713",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -426,11 +426,21 @@
     },
     {
       "type": "integer",
-      "notNull": true,
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
       "name": "created_at",
+      "entityType": "columns",
+      "table": "prompts"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
       "entityType": "columns",
       "table": "prompts"
     },
@@ -1681,7 +1691,7 @@
       "table": "prompts"
     },
     {
-      "value": "\"origin\" IN ('factory', 'custom')",
+      "value": "\"origin\" IN ('built-in', 'custom')",
       "name": "prompts_origin_valid",
       "entityType": "checks",
       "table": "prompts"
@@ -1699,8 +1709,8 @@
       "table": "prompts"
     },
     {
-      "value": "\"created_at\" >= 0",
-      "name": "prompts_created_at_nonnegative",
+      "value": "(\"origin\" = 'built-in' AND \"created_at\" IS NULL AND \"updated_at\" IS NULL) OR (\"origin\" = 'custom' AND \"created_at\" IS NOT NULL AND \"updated_at\" IS NOT NULL AND \"created_at\" >= 0 AND \"updated_at\" >= \"created_at\")",
+      "name": "prompts_lifecycle_valid",
       "entityType": "checks",
       "table": "prompts"
     },

@@ -3,8 +3,8 @@ import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
 import Bookmark02Icon from "@hugeicons/core-free-icons/Bookmark02Icon";
 import Edit02Icon from "@hugeicons/core-free-icons/Edit02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { narratorPromptKindKey } from "@jaquelene/domain";
-import { PromptOrigin, type Prompt, type PromptKind } from "@jaquelene/ipc/renderer";
+import { PromptOrigin, narratorPromptKindKey } from "@jaquelene/domain";
+import type { CustomPrompt, Prompt, PromptKind } from "@jaquelene/ipc/renderer";
 import { Badge, Button, IconButton, Item } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
@@ -43,7 +43,7 @@ export const Route = createFileRoute("/library/narrator/")({
   component: NarratorRoute,
 });
 
-function NarratorPromptEditAction({ prompt }: { prompt: Prompt }) {
+function NarratorPromptEditAction({ prompt }: { prompt: CustomPrompt }) {
   return (
     <Tooltip.Root>
       <Tooltip.Anchor
@@ -169,7 +169,7 @@ function NarratorPromptItem({
           <Item.Label render={<h3 />} style={styles.promptTitle}>
             {prompt.title}
           </Item.Label>
-          {prompt.origin === PromptOrigin.Factory ? <Badge>Built-in</Badge> : null}
+          {prompt.origin === PromptOrigin.BuiltIn ? <Badge>Built-in</Badge> : null}
         </div>
 
         {custom ? (
@@ -204,7 +204,11 @@ function NarratorSection({ kind }: { kind: PromptKind }) {
           <Item.Heading id={headingId}>{kind.name}</Item.Heading>
           <Item.SectionDescription id={descriptionId}>{kind.description}</Item.SectionDescription>
         </Item.SectionContent>
-        <Button variant="ghost" render={<Link to="/library/narrator/new" replace />}>
+        <Button
+          variant="ghost"
+          render={<Link to="/library/narrator/new" replace />}
+          style={styles.createAction}
+        >
           <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} aria-hidden="true" />
           <Button.Label>Create</Button.Label>
         </Button>
@@ -269,10 +273,10 @@ function NarratorRoute() {
 
 const styles = stylex.create({
   sectionHeader: {
-    alignItems: "flex-end",
     flexDirection: "row",
     justifyContent: "space-between",
   },
+  createAction: { alignSelf: "flex-start" },
   prompt: { display: "block", minHeight: 0 },
   promptContent: {
     alignItems: "center",

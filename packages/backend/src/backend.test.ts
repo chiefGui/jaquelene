@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PromptOrigin } from "@jaquelene/domain";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
@@ -13,7 +14,7 @@ import type {
   ProviderGenerationResult,
 } from "#backend/provider/provider";
 import { StorageCategory } from "#backend/storage/storage";
-import { jaqueleneNarratorPrompt, narratorPromptKind } from "#backend/narrator/module";
+import { jaqueleneNarratorPromptDefinition, narratorPromptKind } from "#backend/narrator/module";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
@@ -204,7 +205,11 @@ describe("backend", () => {
     const first = await createBackend(backendOptions(databasePath, [provider]));
     expect(first.prompts.listKinds()).toEqual([narratorPromptKind]);
     expect(first.prompts.list({ kind: narratorPromptKind.key }).prompts).toEqual([
-      jaqueleneNarratorPrompt,
+      {
+        ...jaqueleneNarratorPromptDefinition,
+        kind: narratorPromptKind.key,
+        origin: PromptOrigin.BuiltIn,
+      },
     ]);
     const campaign = first.campaigns.start({
       title: "Voyage",

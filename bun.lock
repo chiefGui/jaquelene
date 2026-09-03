@@ -122,6 +122,9 @@
     "packages/ipc": {
       "name": "@jaquelene/ipc",
       "version": "0.0.0",
+      "dependencies": {
+        "@jaquelene/domain": "workspace:*",
+      },
       "devDependencies": {
         "@marshallofsound/ipc": "^2.7.1",
         "@types/node": "^26.3.0",

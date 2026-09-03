@@ -1,5 +1,7 @@
 import type {
   CreatePromptInput,
+  CustomPrompt,
+  Prompt,
   PromptBody,
   PromptKey,
   PromptKindKey,
@@ -7,7 +9,8 @@ import type {
   UpdatePromptInput,
 } from "@jaquelene/domain";
 import type { CampaignId } from "#backend/id";
-import type { PromptOrigin } from "./schema";
+
+export type { BuiltInPrompt, CustomPrompt, Prompt } from "@jaquelene/domain";
 
 export type PromptKind = Readonly<{
   key: PromptKindKey;
@@ -15,28 +18,16 @@ export type PromptKind = Readonly<{
   description: string;
 }>;
 
-export type FactoryPromptDefinition = Readonly<{
+export type BuiltInPromptDefinition = Readonly<{
   key: PromptKey;
-  kind: PromptKindKey;
-  origin: "factory";
   title: PromptTitle;
   body: PromptBody;
-  createdAt: number;
 }>;
 
 export type PromptKindRegistration = Readonly<{
   definition: PromptKind;
-  factoryPrompts: readonly FactoryPromptDefinition[];
+  builtInPrompts: readonly BuiltInPromptDefinition[];
   fallbackPromptKey?: PromptKey;
-}>;
-
-export type Prompt = Readonly<{
-  key: PromptKey;
-  kind: PromptKindKey;
-  origin: PromptOrigin;
-  title: PromptTitle;
-  body: PromptBody;
-  createdAt: number;
 }>;
 
 export type PromptPageRequest = Readonly<{
@@ -80,8 +71,8 @@ export type PromptCatalog = Readonly<{
 }>;
 
 export type PromptManagement = Readonly<{
-  create: (input: CreatePromptInput) => Prompt;
-  update: (key: PromptKey, input: UpdatePromptInput) => Prompt | null;
+  create: (input: CreatePromptInput) => CustomPrompt;
+  update: (key: PromptKey, input: UpdatePromptInput) => CustomPrompt | null;
   delete: (key: PromptKey) => PromptDeletion | null;
   getDefault: (kind: PromptKindKey) => PromptDefault;
   setDefault: (kind: PromptKindKey, promptKey?: PromptKey) => PromptDefault;

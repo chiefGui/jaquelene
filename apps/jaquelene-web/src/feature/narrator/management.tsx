@@ -1,5 +1,5 @@
 import { narratorPromptKindKey } from "@jaquelene/domain";
-import type { Prompt } from "@jaquelene/ipc/renderer";
+import type { CustomPrompt } from "@jaquelene/ipc/renderer";
 import { Item, Switch } from "@jaquelene/ui";
 import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
@@ -11,7 +11,7 @@ import { NarratorPromptDeleteAction } from "./delete-action";
 
 type NarratorPromptManagementProps = {
   onDeleted: () => Promise<void>;
-  prompt: Prompt;
+  prompt: CustomPrompt;
 };
 
 export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptManagementProps) {

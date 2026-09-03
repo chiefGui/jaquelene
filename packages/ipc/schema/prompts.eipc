@@ -25,9 +25,16 @@ subtype PromptBodyInput = string(
   maxLength: 40000
 )
 
-enum PromptOrigin {
-  Factory = "factory"
-  Custom = "custom"
+zod_reference Prompt {
+  import = "@jaquelene/domain"
+  type = "Prompt"
+  schema = "promptSchema"
+}
+
+zod_reference CustomPrompt {
+  import = "@jaquelene/domain"
+  type = "CustomPrompt"
+  schema = "customPromptSchema"
 }
 
 enum PromptDefaultSource {
@@ -47,15 +54,6 @@ structure PromptKind {
   key: PromptKindKey
   name: string
   description: string
-}
-
-structure Prompt {
-  key: PromptKey
-  kind: PromptKindKey
-  origin: PromptOrigin
-  title: string
-  body: string
-  createdAt: UnixTimeMilliseconds
 }
 
 structure PromptPageRequest {
@@ -125,8 +123,8 @@ interface Prompts {
   listKinds() -> PromptKind[]
   list(request: PromptPageRequest) -> PromptPage
   get(key: PromptKey) -> Prompt?
-  create(request: CreatePromptRequest) -> Prompt
-  update(request: UpdatePromptRequest) -> Prompt?
+  create(request: CreatePromptRequest) -> CustomPrompt
+  update(request: UpdatePromptRequest) -> CustomPrompt?
   delete(key: PromptKey) -> PromptDeletion?
   getDefault(kind: PromptKindKey) -> PromptDefault
   setDefault(request: SetPromptDefaultRequest) -> PromptDefault

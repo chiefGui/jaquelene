@@ -1,7 +1,7 @@
 import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { narratorPromptKindKey } from "@jaquelene/domain";
-import type { Prompt } from "@jaquelene/ipc/renderer";
+import type { CustomPrompt } from "@jaquelene/ipc/renderer";
 import { IconButton } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { Tooltip } from "@jaquelene/ui/tooltip";
@@ -13,7 +13,7 @@ import { useDeletePrompt } from "@/feature/prompt/query";
 type NarratorPromptDeleteActionProps = {
   isDefault: boolean;
   onDeleted?: () => Promise<void>;
-  prompt: Prompt;
+  prompt: CustomPrompt;
   style?: StyleXStyles;
 };
 

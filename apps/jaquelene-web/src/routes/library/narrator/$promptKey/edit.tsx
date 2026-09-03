@@ -1,5 +1,4 @@
-import { narratorPromptKindKey, promptKeySchema } from "@jaquelene/domain";
-import { PromptOrigin } from "@jaquelene/ipc/renderer";
+import { PromptOrigin, narratorPromptKindKey, promptKeySchema } from "@jaquelene/domain";
 import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
@@ -7,6 +6,7 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { NarratorPromptManagement } from "@/feature/narrator/management";
 import { PromptEditor } from "@/feature/prompt/editor";
+import { PromptMetadata } from "@/feature/prompt/metadata";
 import { promptDefaultQuery, promptKindsQuery, promptQuery } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/library/narrator/$promptKey/edit")({
       await context.queryClient.query(promptDefaultQuery(narratorPromptKindKey));
     }
 
-    return prompt.key;
+    return String(prompt.key);
   },
   remountDeps: ({ params }) => params.promptKey,
   component: EditPromptRoute,
@@ -100,6 +100,7 @@ function EditPromptRoute() {
             <div {...stylex.props(styles.editor)}>
               <PromptEditor aria-labelledby={pageHeadingId} prompt={prompt} />
               <NarratorPromptManagement prompt={prompt} onDeleted={finishDeletion} />
+              <PromptMetadata prompt={prompt} />
             </div>
           ) : (
             <EmptyState.Root>

@@ -1,7 +1,7 @@
 import type {
   CampaignPromptSelection,
   CreatePromptRequest,
-  Prompt,
+  CustomPrompt,
   PromptDefault,
   PromptDeletion,
   UpdatePromptRequest,
@@ -75,7 +75,7 @@ function invalidateKind(queryClient: QueryClient, kind: string) {
 
 export function useCreatePrompt() {
   const queryClient = useQueryClient();
-  return useMutation<Prompt, Error, CreatePromptRequest>({
+  return useMutation<CustomPrompt, Error, CreatePromptRequest>({
     ...ipcMutationOptions,
     mutationFn: promptIpc.create,
     onSuccess(prompt) {
@@ -87,7 +87,7 @@ export function useCreatePrompt() {
 
 export function useUpdatePrompt() {
   const queryClient = useQueryClient();
-  return useMutation<Prompt, Error, UpdatePromptRequest>({
+  return useMutation<CustomPrompt, Error, UpdatePromptRequest>({
     ...ipcMutationOptions,
     async mutationFn(request) {
       const prompt = await promptIpc.update(request);

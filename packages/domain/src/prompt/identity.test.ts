@@ -3,7 +3,7 @@ import { PROMPT_KIND_KEY_MAX_LENGTH, parsePromptKey, parsePromptKindKey } from "
 
 describe("prompt identity", () => {
   it("parses opaque prompt keys", () => {
-    expect(parsePromptKey("factory.test.default")).toBe("factory.test.default");
+    expect(parsePromptKey("builtin.test.default")).toBe("builtin.test.default");
     expect(() => parsePromptKey("")).toThrow("Prompt key is invalid.");
   });
 

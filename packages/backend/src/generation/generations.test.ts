@@ -13,7 +13,7 @@ import type {
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import {
-  jaqueleneNarratorPrompt,
+  jaqueleneNarratorPromptDefinition,
   narratorPromptKind,
   narratorPromptModule,
 } from "#backend/narrator/module";
@@ -302,7 +302,7 @@ describe("generations", () => {
     expect(database.select().from(generationTable).all()).toEqual([]);
   });
 
-  it("includes the factory narrator prompt for campaign replies", async () => {
+  it("includes the built-in narrator prompt for campaign replies", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { campaigns, generations, threads } = openGenerationEnvironment(provider);
     const campaign = campaigns.start({
@@ -324,8 +324,8 @@ describe("generations", () => {
       input: {
         instructions: [
           {
-            sourceKey: jaqueleneNarratorPrompt.key,
-            content: jaqueleneNarratorPrompt.body,
+            sourceKey: jaqueleneNarratorPromptDefinition.key,
+            content: jaqueleneNarratorPromptDefinition.body,
           },
         ],
         dialogue: [{ messageId: started.message.id, role: "user", content: "Begin" }],

@@ -9,7 +9,7 @@ function application(kind: PromptKindKey = primaryPromptKind): PromptApplication
   return {
     kind,
     apply: ({ campaign }) =>
-      campaign ? [{ key: `factory.${kind}.default`, content: `${kind} content` }] : [],
+      campaign ? [{ key: `builtin.${kind}.default`, content: `${kind} content` }] : [],
   };
 }
 
@@ -26,8 +26,8 @@ describe("prompt application registry", () => {
         campaign: { id: ids.campaign.create() },
       }),
     ).toEqual([
-      { sourceKey: "factory.primary.default", content: "primary content" },
-      { sourceKey: "factory.setting.default", content: "setting content" },
+      { sourceKey: "builtin.primary.default", content: "primary content" },
+      { sourceKey: "builtin.setting.default", content: "setting content" },
     ]);
   });
 

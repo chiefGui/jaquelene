@@ -45,6 +45,7 @@ function SettingsSidebar() {
             to: "/settings/providers",
           },
           {
+            activeOptions: { exact: false },
             id: "prompts",
             icon: AiFile01Icon,
             label: "Prompts",

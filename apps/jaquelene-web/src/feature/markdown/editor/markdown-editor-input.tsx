@@ -13,7 +13,14 @@ import {
 } from "@codemirror/view";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from "react";
+import {
+  forwardRef,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  type AriaAttributes,
+  type FocusEventHandler,
+} from "react";
 import {
   markdownEditorCommands,
   type MarkdownEditorCommand as EditorCommand,
@@ -23,29 +30,27 @@ import { markdownEditorTheme } from "./markdown-editor-theme";
 
 export type MarkdownEditorCommand = EditorCommand;
 
-export type MarkdownEditorAccessibleName =
-  | { "aria-label": string; "aria-labelledby"?: never }
-  | { "aria-label"?: never; "aria-labelledby": string };
+export type MarkdownEditorAccessibleNameProps = Pick<
+  AriaAttributes,
+  "aria-label" | "aria-labelledby"
+>;
 
-export type MarkdownEditorInputProps = MarkdownEditorAccessibleName & {
+export type MarkdownEditorInputProps = MarkdownEditorAccessibleNameProps & {
   "aria-describedby"?: string;
+  "aria-invalid"?: AriaAttributes["aria-invalid"];
   autoFocus?: boolean;
   disabled?: boolean;
   hidden?: boolean;
-  invalid?: boolean;
-  onBlur?: () => void;
+  id?: string;
+  maxLength?: number;
+  onBlur?: FocusEventHandler<HTMLDivElement>;
   onChange: (value: string) => void;
-  onFocus?: () => void;
+  onFocus?: FocusEventHandler<HTMLDivElement>;
   placeholder?: string;
   readOnly?: boolean;
   style?: StyleXStyles;
   value: string;
 };
-
-export type MarkdownEditorHandle = Readonly<{
-  focus: () => void;
-  run: (command: EditorCommand) => boolean;
-}>;
 
 type EditorRuntime = Readonly<{
   configuration: Compartment;
@@ -54,17 +59,19 @@ type EditorRuntime = Readonly<{
 
 type DynamicOptions = Readonly<{
   ariaDescribedBy: string | undefined;
+  ariaInvalid: AriaAttributes["aria-invalid"];
   ariaLabel: string | undefined;
   ariaLabelledBy: string | undefined;
   disabled: boolean;
-  invalid: boolean;
-  onBlur: (() => void) | undefined;
-  onFocus: (() => void) | undefined;
+  id: string | undefined;
+  maxLength: number | undefined;
   placeholder: string;
   readOnly: boolean;
 }>;
 
 const externalValue = Annotation.define<boolean>();
+// Keep public refs DOM-native for form libraries while retaining command access internally.
+const editorViews = new WeakMap<HTMLElement, EditorView>();
 
 const formattingKeymap: readonly KeyBinding[] = [
   { key: "Mod-b", preventDefault: true, run: markdownEditorCommands.strong },
@@ -87,6 +94,10 @@ function contentAttributes(options: DynamicOptions) {
     attributes["aria-describedby"] = options.ariaDescribedBy;
   }
 
+  if (options.ariaInvalid !== undefined && options.ariaInvalid !== false) {
+    attributes["aria-invalid"] = String(options.ariaInvalid);
+  }
+
   if (options.ariaLabel) {
     attributes["aria-label"] = options.ariaLabel;
   }
@@ -99,8 +110,8 @@ function contentAttributes(options: DynamicOptions) {
     attributes["aria-disabled"] = "true";
   }
 
-  if (options.invalid) {
-    attributes["aria-invalid"] = "true";
+  if (options.id) {
+    attributes.id = options.id;
   }
 
   if (options.readOnly) {
@@ -119,7 +130,21 @@ function dynamicExtensions(options: DynamicOptions) {
   ];
 }
 
-function runEditorCommand(view: EditorView | undefined, command: EditorCommand) {
+function allowsDocumentChange(
+  startLength: number,
+  nextLength: number,
+  maxLength: number | undefined,
+) {
+  // An oversized external value must remain editable toward validity.
+  return maxLength === undefined || nextLength <= maxLength || nextLength < startLength;
+}
+
+export function runMarkdownEditorCommand(
+  element: HTMLElement | null | undefined,
+  command: EditorCommand,
+) {
+  const view = element ? editorViews.get(element) : undefined;
+
   if (!view) {
     return false;
   }
@@ -133,16 +158,18 @@ function runEditorCommand(view: EditorView | undefined, command: EditorCommand) 
   return handled;
 }
 
-export const MarkdownEditorInput = forwardRef<MarkdownEditorHandle, MarkdownEditorInputProps>(
+export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputProps>(
   function MarkdownEditorInput(
     {
       "aria-describedby": ariaDescribedBy,
+      "aria-invalid": ariaInvalid,
       "aria-label": ariaLabel,
       "aria-labelledby": ariaLabelledBy,
       autoFocus = false,
       disabled = false,
       hidden = false,
-      invalid = false,
+      id,
+      maxLength,
       onBlur,
       onChange,
       onFocus,
@@ -156,45 +183,37 @@ export const MarkdownEditorInput = forwardRef<MarkdownEditorHandle, MarkdownEdit
     const hostRef = useRef<HTMLDivElement>(null);
     const runtimeRef = useRef<EditorRuntime | null>(null);
     const initialValueRef = useRef(value);
+    const documentValueRef = useRef(value);
     const autoFocusRef = useRef(autoFocus && !hidden);
     const onChangeRef = useRef(onChange);
     const dynamicOptionsRef = useRef<DynamicOptions>({
       ariaDescribedBy,
+      ariaInvalid,
       ariaLabel,
       ariaLabelledBy,
       disabled,
-      invalid,
-      onBlur,
-      onFocus,
+      id,
+      maxLength,
       placeholder,
       readOnly,
     });
 
+    if (maxLength !== undefined && (!Number.isSafeInteger(maxLength) || maxLength < 0)) {
+      throw new RangeError("Markdown editor maximum length must be a nonnegative safe integer.");
+    }
+
     onChangeRef.current = onChange;
     dynamicOptionsRef.current = {
       ariaDescribedBy,
+      ariaInvalid,
       ariaLabel,
       ariaLabelledBy,
       disabled,
-      invalid,
-      onBlur,
-      onFocus,
+      id,
+      maxLength,
       placeholder,
       readOnly,
     };
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        focus() {
-          runtimeRef.current?.view.focus();
-        },
-        run(command) {
-          return runEditorCommand(runtimeRef.current?.view, command);
-        },
-      }),
-      [],
-    );
 
     useLayoutEffect(() => {
       const host = hostRef.current;
@@ -211,6 +230,21 @@ export const MarkdownEditorInput = forwardRef<MarkdownEditorHandle, MarkdownEdit
         extensions: [
           configuration.of(dynamicExtensions(options)),
           EditorState.tabSize.of(2),
+          EditorState.changeFilter.of((transaction) => {
+            if (
+              !transaction.docChanged ||
+              transaction.annotation(externalValue) === true ||
+              allowsDocumentChange(
+                transaction.startState.doc.length,
+                transaction.newDoc.length,
+                dynamicOptionsRef.current.maxLength,
+              )
+            ) {
+              return true;
+            }
+
+            return false;
+          }),
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             const synchronizedExternally = update.transactions.some(
@@ -218,16 +252,10 @@ export const MarkdownEditorInput = forwardRef<MarkdownEditorHandle, MarkdownEdit
             );
 
             if (update.docChanged && !synchronizedExternally) {
-              onChangeRef.current(update.state.doc.toString());
+              const nextValue = update.state.doc.toString();
+              documentValueRef.current = nextValue;
+              onChangeRef.current(nextValue);
             }
-          }),
-          EditorView.domEventHandlers({
-            blur: () => {
-              dynamicOptionsRef.current.onBlur?.();
-            },
-            focus: () => {
-              dynamicOptionsRef.current.onFocus?.();
-            },
           }),
           highlightSpecialChars(),
           history(),
@@ -247,6 +275,7 @@ export const MarkdownEditorInput = forwardRef<MarkdownEditorHandle, MarkdownEdit
       });
 
       runtimeRef.current = { configuration, view };
+      editorViews.set(view.contentDOM, view);
 
       if (autoFocusRef.current) {
         view.focus();
@@ -254,9 +283,12 @@ export const MarkdownEditorInput = forwardRef<MarkdownEditorHandle, MarkdownEdit
 
       return () => {
         runtimeRef.current = null;
+        editorViews.delete(view.contentDOM);
         view.destroy();
       };
     }, []);
+
+    useImperativeHandle(ref, () => runtimeRef.current!.view.contentDOM, []);
 
     useLayoutEffect(() => {
       const runtime = runtimeRef.current;
@@ -268,15 +300,25 @@ export const MarkdownEditorInput = forwardRef<MarkdownEditorHandle, MarkdownEdit
       runtime.view.dispatch({
         effects: runtime.configuration.reconfigure(dynamicExtensions(dynamicOptionsRef.current)),
       });
-    }, [ariaDescribedBy, ariaLabel, ariaLabelledBy, disabled, invalid, placeholder, readOnly]);
+    }, [
+      ariaDescribedBy,
+      ariaInvalid,
+      ariaLabel,
+      ariaLabelledBy,
+      disabled,
+      id,
+      placeholder,
+      readOnly,
+    ]);
 
     useLayoutEffect(() => {
       const view = runtimeRef.current?.view;
 
-      if (!view || view.state.doc.toString() === value) {
+      if (!view || documentValueRef.current === value) {
         return;
       }
 
+      documentValueRef.current = value;
       view.dispatch({
         annotations: [externalValue.of(true), Transaction.addToHistory.of(false)],
         changes: { from: 0, to: view.state.doc.length, insert: value },
@@ -289,7 +331,15 @@ export const MarkdownEditorInput = forwardRef<MarkdownEditorHandle, MarkdownEdit
       }
     }, [hidden]);
 
-    return <div ref={hostRef} hidden={hidden} {...stylex.props(styles.root, style)} />;
+    return (
+      <div
+        ref={hostRef}
+        hidden={hidden}
+        onBlur={onBlur}
+        onFocus={onFocus}
+        {...stylex.props(styles.root, style)}
+      />
+    );
   },
 );
 

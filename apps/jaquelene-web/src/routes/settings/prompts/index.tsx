@@ -7,10 +7,9 @@ import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { PromptEditor } from "@/feature/prompt/editor";
 import {
   promptDefaultQuery,
   promptKindsQuery,
@@ -21,13 +20,13 @@ import {
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
-export const Route = createFileRoute("/settings/prompts")({
+export const Route = createFileRoute("/settings/prompts/")({
   loader: async ({ context }) => {
     const kinds = await context.queryClient.query(promptKindsQuery);
     await Promise.all(
       kinds.flatMap((kind) => [
         context.queryClient.query(promptDefaultQuery(kind.key)),
-        context.queryClient.ensureInfiniteQueryData(promptPagesQuery(kind.key)),
+        context.queryClient.infiniteQuery(promptPagesQuery(kind.key)),
       ]),
     );
   },
@@ -100,31 +99,24 @@ function PromptSummary({ prompt }: { prompt: Prompt }) {
 
 function PromptItem({
   defaultPromptKey,
-  kind,
   prompt,
   setDefault,
 }: {
   defaultPromptKey: string | undefined;
-  kind: string;
   prompt: Prompt;
   setDefault: ReturnType<typeof useSetPromptDefault>;
 }) {
   const isDefault = prompt.key === defaultPromptKey;
   const custom = prompt.origin === PromptOrigin.Custom;
   const content = custom ? (
-    <PromptEditor
-      kind={kind}
-      prompt={prompt}
-      trigger={
-        <button
-          type="button"
-          aria-label={`Edit ${prompt.title}`}
-          {...stylex.props(styles.promptEditSurface)}
-        >
-          <PromptSummary prompt={prompt} />
-        </button>
-      }
-    />
+    <Link
+      to="/settings/prompts/$promptKind/$promptKey/edit"
+      params={{ promptKind: prompt.kind, promptKey: prompt.key }}
+      aria-label={`Edit ${prompt.title}`}
+      {...stylex.props(styles.promptEditSurface)}
+    >
+      <PromptSummary prompt={prompt} />
+    </Link>
   ) : (
     <div {...stylex.props(styles.promptContent)}>
       <PromptSummary prompt={prompt} />
@@ -183,15 +175,13 @@ function PromptKindSection({ kind }: { kind: PromptKind }) {
           <Item.Heading id={headingId}>{kind.name}</Item.Heading>
           <Item.SectionDescription id={descriptionId}>{kind.description}</Item.SectionDescription>
         </Item.SectionContent>
-        <PromptEditor
-          kind={kind.key}
-          trigger={
-            <Button type="button" variant="ghost">
-              <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} aria-hidden="true" />
-              <Button.Label>Create</Button.Label>
-            </Button>
-          }
-        />
+        <Button
+          variant="ghost"
+          render={<Link to="/settings/prompts/$promptKind/new" params={{ promptKind: kind.key }} />}
+        >
+          <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} aria-hidden="true" />
+          <Button.Label>Create</Button.Label>
+        </Button>
       </Item.SectionHeader>
 
       <Item.Group variant="separated">
@@ -199,7 +189,6 @@ function PromptKindSection({ kind }: { kind: PromptKind }) {
           <PromptItem
             key={prompt.key}
             defaultPromptKey={defaultSelection.promptKey}
-            kind={kind.key}
             prompt={prompt}
             setDefault={setDefault}
           />
@@ -260,14 +249,15 @@ const styles = stylex.create({
     backgroundColor: {
       default: "transparent",
       ":hover": colors.backgroundInteractive,
-      ":is([data-focus-visible])": colors.backgroundInteractive,
+      ":focus-visible": colors.backgroundInteractive,
     },
     color: colors.foregroundPrimary,
+    display: "block",
     minWidth: 0,
-    outlineColor: { default: null, ":is([data-focus-visible])": colors.focusRing },
-    outlineOffset: { default: null, ":is([data-focus-visible])": -2 },
-    outlineStyle: { default: "none", ":is([data-focus-visible])": "solid" },
-    outlineWidth: { default: null, ":is([data-focus-visible])": 1 },
+    outlineColor: { default: null, ":focus-visible": colors.focusRing },
+    outlineOffset: { default: null, ":focus-visible": -2 },
+    outlineStyle: { default: "none", ":focus-visible": "solid" },
+    outlineWidth: { default: null, ":focus-visible": 1 },
     padding: "1rem",
     textAlign: "start",
     width: "100%",

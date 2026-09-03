@@ -19,10 +19,13 @@ import { Route as SettingsAdvancedRouteImport } from "./routes/settings/advanced
 import { Route as SettingsAppearanceRouteImport } from "./routes/settings/appearance";
 import { Route as SettingsGeneralRouteImport } from "./routes/settings/general";
 import { Route as SettingsMarkdownEditorRouteImport } from "./routes/settings/markdown-editor";
-import { Route as SettingsPromptsRouteImport } from "./routes/settings/prompts";
+import { Route as SettingsPromptsRouteRouteImport } from "./routes/settings/prompts/route";
 import { Route as SettingsProvidersRouteImport } from "./routes/settings/providers";
 import { Route as SettingsStorageRouteImport } from "./routes/settings/storage";
 import { Route as SettingsUsageRouteImport } from "./routes/settings/usage";
+import { Route as SettingsPromptsIndexRouteImport } from "./routes/settings/prompts/index";
+import { Route as SettingsPromptsPromptKindNewRouteImport } from "./routes/settings/prompts/$promptKind/new";
+import { Route as SettingsPromptsPromptKindPromptKeyEditRouteImport } from "./routes/settings/prompts/$promptKind/$promptKey/edit";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -74,7 +77,7 @@ const SettingsMarkdownEditorRoute = SettingsMarkdownEditorRouteImport.update({
   path: "/markdown-editor",
   getParentRoute: () => SettingsRouteRoute,
 } as any);
-const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
+const SettingsPromptsRouteRoute = SettingsPromptsRouteRouteImport.update({
   id: "/prompts",
   path: "/prompts",
   getParentRoute: () => SettingsRouteRoute,
@@ -94,22 +97,42 @@ const SettingsUsageRoute = SettingsUsageRouteImport.update({
   path: "/usage",
   getParentRoute: () => SettingsRouteRoute,
 } as any);
+const SettingsPromptsIndexRoute = SettingsPromptsIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => SettingsPromptsRouteRoute,
+} as any);
+const SettingsPromptsPromptKindNewRoute =
+  SettingsPromptsPromptKindNewRouteImport.update({
+    id: "/$promptKind/new",
+    path: "/$promptKind/new",
+    getParentRoute: () => SettingsPromptsRouteRoute,
+  } as any);
+const SettingsPromptsPromptKindPromptKeyEditRoute =
+  SettingsPromptsPromptKindPromptKeyEditRouteImport.update({
+    id: "/$promptKind/$promptKey/edit",
+    path: "/$promptKind/$promptKey/edit",
+    getParentRoute: () => SettingsPromptsRouteRoute,
+  } as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/campaigns": typeof CampaignsRouteRouteWithChildren;
   "/settings": typeof SettingsRouteRouteWithChildren;
+  "/settings/prompts": typeof SettingsPromptsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/campaigns/new": typeof CampaignsNewRoute;
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/markdown-editor": typeof SettingsMarkdownEditorRoute;
-  "/settings/prompts": typeof SettingsPromptsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/settings/usage": typeof SettingsUsageRoute;
   "/campaigns/": typeof CampaignsIndexRoute;
+  "/settings/prompts/": typeof SettingsPromptsIndexRoute;
+  "/settings/prompts/$promptKind/new": typeof SettingsPromptsPromptKindNewRoute;
+  "/settings/prompts/$promptKind/$promptKey/edit": typeof SettingsPromptsPromptKindPromptKeyEditRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
@@ -120,28 +143,33 @@ export interface FileRoutesByTo {
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/markdown-editor": typeof SettingsMarkdownEditorRoute;
-  "/settings/prompts": typeof SettingsPromptsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/settings/usage": typeof SettingsUsageRoute;
   "/campaigns": typeof CampaignsIndexRoute;
+  "/settings/prompts": typeof SettingsPromptsIndexRoute;
+  "/settings/prompts/$promptKind/new": typeof SettingsPromptsPromptKindNewRoute;
+  "/settings/prompts/$promptKind/$promptKey/edit": typeof SettingsPromptsPromptKindPromptKeyEditRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
   "/campaigns": typeof CampaignsRouteRouteWithChildren;
   "/settings": typeof SettingsRouteRouteWithChildren;
+  "/settings/prompts": typeof SettingsPromptsRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/campaigns/new": typeof CampaignsNewRoute;
   "/settings/advanced": typeof SettingsAdvancedRoute;
   "/settings/appearance": typeof SettingsAppearanceRoute;
   "/settings/general": typeof SettingsGeneralRoute;
   "/settings/markdown-editor": typeof SettingsMarkdownEditorRoute;
-  "/settings/prompts": typeof SettingsPromptsRoute;
   "/settings/providers": typeof SettingsProvidersRoute;
   "/settings/storage": typeof SettingsStorageRoute;
   "/settings/usage": typeof SettingsUsageRoute;
   "/campaigns/": typeof CampaignsIndexRoute;
+  "/settings/prompts/": typeof SettingsPromptsIndexRoute;
+  "/settings/prompts/$promptKind/new": typeof SettingsPromptsPromptKindNewRoute;
+  "/settings/prompts/$promptKind/$promptKey/edit": typeof SettingsPromptsPromptKindPromptKeyEditRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -149,17 +177,20 @@ export interface FileRouteTypes {
     | "/"
     | "/campaigns"
     | "/settings"
+    | "/settings/prompts"
     | "/campaigns/$campaignId"
     | "/campaigns/new"
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
     | "/settings/markdown-editor"
-    | "/settings/prompts"
     | "/settings/providers"
     | "/settings/storage"
     | "/settings/usage"
-    | "/campaigns/";
+    | "/campaigns/"
+    | "/settings/prompts/"
+    | "/settings/prompts/$promptKind/new"
+    | "/settings/prompts/$promptKind/$promptKey/edit";
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
@@ -170,27 +201,32 @@ export interface FileRouteTypes {
     | "/settings/appearance"
     | "/settings/general"
     | "/settings/markdown-editor"
-    | "/settings/prompts"
     | "/settings/providers"
     | "/settings/storage"
     | "/settings/usage"
-    | "/campaigns";
+    | "/campaigns"
+    | "/settings/prompts"
+    | "/settings/prompts/$promptKind/new"
+    | "/settings/prompts/$promptKind/$promptKey/edit";
   id:
     | "__root__"
     | "/"
     | "/campaigns"
     | "/settings"
+    | "/settings/prompts"
     | "/campaigns/$campaignId"
     | "/campaigns/new"
     | "/settings/advanced"
     | "/settings/appearance"
     | "/settings/general"
     | "/settings/markdown-editor"
-    | "/settings/prompts"
     | "/settings/providers"
     | "/settings/storage"
     | "/settings/usage"
-    | "/campaigns/";
+    | "/campaigns/"
+    | "/settings/prompts/"
+    | "/settings/prompts/$promptKind/new"
+    | "/settings/prompts/$promptKind/$promptKey/edit";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -275,7 +311,7 @@ declare module "@tanstack/react-router" {
       id: "/settings/prompts";
       path: "/prompts";
       fullPath: "/settings/prompts";
-      preLoaderRoute: typeof SettingsPromptsRouteImport;
+      preLoaderRoute: typeof SettingsPromptsRouteRouteImport;
       parentRoute: typeof SettingsRouteRoute;
     };
     "/settings/providers": {
@@ -299,6 +335,27 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SettingsUsageRouteImport;
       parentRoute: typeof SettingsRouteRoute;
     };
+    "/settings/prompts/": {
+      id: "/settings/prompts/";
+      path: "/";
+      fullPath: "/settings/prompts/";
+      preLoaderRoute: typeof SettingsPromptsIndexRouteImport;
+      parentRoute: typeof SettingsPromptsRouteRoute;
+    };
+    "/settings/prompts/$promptKind/new": {
+      id: "/settings/prompts/$promptKind/new";
+      path: "/$promptKind/new";
+      fullPath: "/settings/prompts/$promptKind/new";
+      preLoaderRoute: typeof SettingsPromptsPromptKindNewRouteImport;
+      parentRoute: typeof SettingsPromptsRouteRoute;
+    };
+    "/settings/prompts/$promptKind/$promptKey/edit": {
+      id: "/settings/prompts/$promptKind/$promptKey/edit";
+      path: "/$promptKind/$promptKey/edit";
+      fullPath: "/settings/prompts/$promptKind/$promptKey/edit";
+      preLoaderRoute: typeof SettingsPromptsPromptKindPromptKeyEditRouteImport;
+      parentRoute: typeof SettingsPromptsRouteRoute;
+    };
   }
 }
 
@@ -318,23 +375,39 @@ const CampaignsRouteRouteWithChildren = CampaignsRouteRoute._addFileChildren(
   CampaignsRouteRouteChildren,
 );
 
+interface SettingsPromptsRouteRouteChildren {
+  SettingsPromptsIndexRoute: typeof SettingsPromptsIndexRoute;
+  SettingsPromptsPromptKindNewRoute: typeof SettingsPromptsPromptKindNewRoute;
+  SettingsPromptsPromptKindPromptKeyEditRoute: typeof SettingsPromptsPromptKindPromptKeyEditRoute;
+}
+
+const SettingsPromptsRouteRouteChildren: SettingsPromptsRouteRouteChildren = {
+  SettingsPromptsIndexRoute: SettingsPromptsIndexRoute,
+  SettingsPromptsPromptKindNewRoute: SettingsPromptsPromptKindNewRoute,
+  SettingsPromptsPromptKindPromptKeyEditRoute:
+    SettingsPromptsPromptKindPromptKeyEditRoute,
+};
+
+const SettingsPromptsRouteRouteWithChildren =
+  SettingsPromptsRouteRoute._addFileChildren(SettingsPromptsRouteRouteChildren);
+
 interface SettingsRouteRouteChildren {
+  SettingsPromptsRouteRoute: typeof SettingsPromptsRouteRouteWithChildren;
   SettingsAdvancedRoute: typeof SettingsAdvancedRoute;
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute;
   SettingsGeneralRoute: typeof SettingsGeneralRoute;
   SettingsMarkdownEditorRoute: typeof SettingsMarkdownEditorRoute;
-  SettingsPromptsRoute: typeof SettingsPromptsRoute;
   SettingsProvidersRoute: typeof SettingsProvidersRoute;
   SettingsStorageRoute: typeof SettingsStorageRoute;
   SettingsUsageRoute: typeof SettingsUsageRoute;
 }
 
 const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsPromptsRouteRoute: SettingsPromptsRouteRouteWithChildren,
   SettingsAdvancedRoute: SettingsAdvancedRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsMarkdownEditorRoute: SettingsMarkdownEditorRoute,
-  SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProvidersRoute: SettingsProvidersRoute,
   SettingsStorageRoute: SettingsStorageRoute,
   SettingsUsageRoute: SettingsUsageRoute,

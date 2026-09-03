@@ -21,6 +21,7 @@ type PrimarySidebarDestination = {
 }[keyof FileRoutesByTo];
 
 type PrimarySidebarLink = PrimarySidebarDestination & {
+  activeOptions?: LinkProps["activeOptions"];
   icon: IconSvgElement;
   label: string;
   preload?: Exclude<LinkProps["preload"], undefined>;
@@ -104,13 +105,13 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
               );
             }
 
-            const { id, icon, label, ...destination } = item;
+            const { activeOptions = { exact: true }, id, icon, label, ...destination } = item;
 
             return (
               <li key={id}>
                 <Link
                   {...destination}
-                  activeOptions={{ exact: true }}
+                  activeOptions={activeOptions}
                   {...stylex.props(styles.navigationItem)}
                 >
                   <PrimarySidebarItemContent icon={icon} label={label} />

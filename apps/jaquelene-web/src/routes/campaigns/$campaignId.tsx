@@ -2,8 +2,8 @@ import { composeCampaignGenerationConfiguration } from "@jaquelene/domain";
 import PanelRightCloseIcon from "@hugeicons/core-free-icons/PanelRightCloseIcon";
 import PanelRightOpenIcon from "@hugeicons/core-free-icons/PanelRightOpenIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { IconButton } from "@jaquelene/ui";
-import { tokens } from "@jaquelene/ui/tokens.stylex";
+import { IconButton, Skeleton } from "@jaquelene/ui";
+import { radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -26,6 +26,7 @@ import {
 } from "@/feature/prompt/query";
 import { threadMessagesQuery } from "@/feature/thread/query";
 import { ThreadView } from "@/feature/thread/thread-view";
+import { threadLayout } from "@/feature/thread/thread-layout.stylex";
 import { ContentPane } from "@/layout/content-pane";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
 import { Breadcrumb } from "@/primitive/breadcrumb";
@@ -61,8 +62,49 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
     ]);
   },
   remountDeps: ({ params }) => params.campaignId,
+  pendingComponent: CampaignPending,
+  pendingMs: 0,
+  pendingMinMs: 0,
   component: CampaignRoute,
 });
+
+function CampaignPending() {
+  return (
+    <>
+      <ContentPane.Header>
+        <Skeleton style={styles.pendingTitle} />
+      </ContentPane.Header>
+
+      <ContentPane.Viewport style={styles.threadViewport}>
+        <section
+          role="status"
+          aria-label="Loading campaign"
+          aria-busy="true"
+          {...stylex.props(styles.pendingThread)}
+        >
+          <div {...stylex.props(threadLayout.column, threadLayout.gutter, styles.pendingMessages)}>
+            <div {...stylex.props(styles.pendingMessage)}>
+              <Skeleton style={styles.pendingLineLong} />
+              <Skeleton style={styles.pendingLineMedium} />
+            </div>
+            <div {...stylex.props(styles.pendingMessage, styles.pendingUserMessage)}>
+              <Skeleton style={styles.pendingLineMedium} />
+              <Skeleton style={styles.pendingLineShort} />
+            </div>
+            <div {...stylex.props(styles.pendingMessage)}>
+              <Skeleton style={styles.pendingLineLong} />
+              <Skeleton style={styles.pendingLineShort} />
+            </div>
+          </div>
+
+          <div {...stylex.props(threadLayout.column, threadLayout.gutter, styles.pendingControls)}>
+            <Skeleton style={styles.pendingComposer} />
+          </div>
+        </section>
+      </ContentPane.Viewport>
+    </>
+  );
+}
 
 function CampaignRoute() {
   const { campaignId } = Route.useParams();
@@ -160,5 +202,53 @@ const styles = stylex.create({
   threadViewport: {
     display: "flex",
     overflow: "hidden",
+  },
+  pendingTitle: {
+    height: "0.75rem",
+    width: "9rem",
+  },
+  pendingThread: {
+    display: "flex",
+    flex: 1,
+    flexDirection: "column",
+    minHeight: 0,
+  },
+  pendingMessages: {
+    display: "flex",
+    flex: 1,
+    flexDirection: "column",
+    gap: "1.5rem",
+    justifyContent: "flex-end",
+    paddingBlock: "1.5rem",
+  },
+  pendingMessage: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    width: "78%",
+  },
+  pendingUserMessage: {
+    alignSelf: "flex-end",
+    width: "62%",
+  },
+  pendingLineLong: {
+    height: "0.75rem",
+    width: "100%",
+  },
+  pendingLineMedium: {
+    height: "0.75rem",
+    width: "72%",
+  },
+  pendingLineShort: {
+    height: "0.75rem",
+    width: "46%",
+  },
+  pendingControls: {
+    paddingBlockEnd: "1.5rem",
+  },
+  pendingComposer: {
+    borderRadius: radii.control,
+    height: "7rem",
+    width: "100%",
   },
 });

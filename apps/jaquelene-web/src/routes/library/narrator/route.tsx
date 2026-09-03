@@ -1,5 +1,5 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/settings/prompts")({
+export const Route = createFileRoute("/library/narrator")({
   component: Outlet,
 });

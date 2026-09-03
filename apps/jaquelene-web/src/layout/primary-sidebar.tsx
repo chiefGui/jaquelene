@@ -1,4 +1,5 @@
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
+import Bookshelf01Icon from "@hugeicons/core-free-icons/Bookshelf01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { IconButton, Skeleton } from "@jaquelene/ui";
@@ -58,18 +59,9 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
   const matchRoute = useMatchRoute();
   const router = useRouter();
   const settingsActive = Boolean(matchRoute({ to: "/settings", fuzzy: true }));
-  const footerIcon = (
-    <HugeiconsIcon
-      icon={settingsActive ? ArrowLeft01Icon : Settings01Icon}
-      size={16}
-      color="currentColor"
-      strokeWidth={1.5}
-      aria-hidden="true"
-      {...stylex.props(styles.icon)}
-    />
-  );
+  const libraryActive = Boolean(matchRoute({ to: "/library", fuzzy: true }));
 
-  function returnFromSettings() {
+  function returnToWorkspace() {
     if (router.history.canGoBack()) {
       router.history.back();
       return;
@@ -96,7 +88,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
                 <li key={item.id}>
                   <button
                     type="button"
-                    onClick={returnFromSettings}
+                    onClick={returnToWorkspace}
                     {...stylex.props(styles.navigationItem)}
                   >
                     <PrimarySidebarItemContent icon={item.icon} label={item.label} />
@@ -148,10 +140,10 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
           <IconButton
             type="button"
             aria-label="Back"
-            onClick={returnFromSettings}
+            onClick={returnToWorkspace}
             style={styles.footerAction}
           >
-            {footerIcon}
+            <PrimarySidebarIcon icon={ArrowLeft01Icon} />
           </IconButton>
         ) : (
           <IconButton
@@ -159,7 +151,25 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
             aria-label="Settings"
             style={styles.footerAction}
           >
-            {footerIcon}
+            <PrimarySidebarIcon icon={Settings01Icon} />
+          </IconButton>
+        )}
+        {libraryActive ? (
+          <IconButton
+            type="button"
+            aria-label="Back"
+            onClick={returnToWorkspace}
+            style={styles.footerAction}
+          >
+            <PrimarySidebarIcon icon={ArrowLeft01Icon} />
+          </IconButton>
+        ) : (
+          <IconButton
+            render={<Link to="/library/narrator" preload="render" />}
+            aria-label="Library"
+            style={styles.footerAction}
+          >
+            <PrimarySidebarIcon icon={Bookshelf01Icon} />
           </IconButton>
         )}
       </footer>
@@ -167,17 +177,23 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
   );
 }
 
+function PrimarySidebarIcon({ icon }: { icon: IconSvgElement }) {
+  return (
+    <HugeiconsIcon
+      icon={icon}
+      size={16}
+      color="currentColor"
+      strokeWidth={1.5}
+      aria-hidden="true"
+      {...stylex.props(styles.icon)}
+    />
+  );
+}
+
 function PrimarySidebarItemContent({ icon, label }: { icon: IconSvgElement; label: string }) {
   return (
     <>
-      <HugeiconsIcon
-        icon={icon}
-        size={16}
-        color="currentColor"
-        strokeWidth={1.5}
-        aria-hidden="true"
-        {...stylex.props(styles.icon)}
-      />
+      <PrimarySidebarIcon icon={icon} />
       <span {...stylex.props(styles.label)}>{label}</span>
     </>
   );
@@ -283,7 +299,9 @@ const styles = stylex.create({
     width: "7rem",
   },
   footer: {
+    display: "flex",
     flexShrink: 0,
+    gap: "0.25rem",
     padding: "0.5rem",
   },
   footerAction: {

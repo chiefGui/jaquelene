@@ -66,7 +66,7 @@ export function CampaignNarratorControl({ campaignId }: { campaignId: string }) 
         busy={setSelection.isPending || defaultPending}
         footerAction={{
           label: "Manage prompts",
-          render: <Link to="/settings/prompts" preload="render" />,
+          render: <Link to="/library/narrator" preload="render" />,
         }}
         hasMore={promptPages.hasNextPage}
         loadingMore={promptPages.isFetchingNextPage}

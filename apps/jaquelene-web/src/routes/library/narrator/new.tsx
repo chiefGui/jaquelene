@@ -1,25 +1,17 @@
-import { promptKindKeySchema } from "@jaquelene/domain";
 import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { PromptEditor } from "@/feature/prompt/editor";
-import { promptKindsQuery } from "@/feature/prompt/query";
+import { narratorPromptKind, promptKindsQuery } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EmptyState } from "@/primitive/empty-state";
 
-export const Route = createFileRoute("/settings/prompts/$promptKind/new")({
-  loader: async ({ context, params }) => {
-    const promptKind = promptKindKeySchema.safeParse(params.promptKind);
-
-    if (!promptKind.success) {
-      return null;
-    }
-
+export const Route = createFileRoute("/library/narrator/new")({
+  loader: async ({ context }) => {
     const kinds = await context.queryClient.query(promptKindsQuery);
-    return kinds.find((kind) => kind.key === promptKind.data) ?? null;
+    return kinds.find((kind) => kind.key === narratorPromptKind) ?? null;
   },
-  remountDeps: ({ params }) => params.promptKind,
   component: NewPromptRoute,
 });
 
@@ -27,10 +19,10 @@ const pageHeadingId = "new-prompt-page";
 
 function NewPromptRoute() {
   const kind = Route.useLoaderData();
-  const navigate = useNavigate({ from: "/settings/prompts/$promptKind/new" });
+  const navigate = useNavigate({ from: "/library/narrator/new" });
 
-  function openPrompts() {
-    return navigate({ to: "/settings/prompts", replace: true });
+  function openNarrator() {
+    return navigate({ to: "/library/narrator", replace: true });
   }
 
   return (
@@ -38,13 +30,12 @@ function NewPromptRoute() {
       <ContentPane.Header>
         <Breadcrumb.Root>
           <Breadcrumb.List>
-            <Breadcrumb.Item>Settings</Breadcrumb.Item>
+            <Breadcrumb.Item>Library</Breadcrumb.Item>
             <Breadcrumb.Item>
-              <Breadcrumb.Link render={<Link to="/settings/prompts" replace />}>
-                Prompts
+              <Breadcrumb.Link render={<Link to="/library/narrator" replace />}>
+                Narrator
               </Breadcrumb.Link>
             </Breadcrumb.Item>
-            <Breadcrumb.Item>{kind?.name ?? "Prompt kind"}</Breadcrumb.Item>
             <Breadcrumb.Item>
               <Breadcrumb.Page
                 id={pageHeadingId}
@@ -62,18 +53,18 @@ function NewPromptRoute() {
           {kind ? (
             <PromptEditor
               aria-labelledby={pageHeadingId}
-              kind={kind.key}
-              onCancel={() => void openPrompts()}
-              onSaved={openPrompts}
+              kind={narratorPromptKind}
+              onCancel={() => void openNarrator()}
+              onSaved={openNarrator}
             />
           ) : (
             <EmptyState.Root>
-              <EmptyState.Title>Prompt kind unavailable</EmptyState.Title>
+              <EmptyState.Title>Narrator unavailable</EmptyState.Title>
               <EmptyState.Description>
-                Return to prompts and choose an available kind.
+                Narrator prompts aren't available right now.
               </EmptyState.Description>
-              <Button render={<Link to="/settings/prompts" replace />} style={styles.returnAction}>
-                Back to prompts
+              <Button render={<Link to="/library/narrator" replace />} style={styles.returnAction}>
+                Back to narrator
               </Button>
             </EmptyState.Root>
           )}

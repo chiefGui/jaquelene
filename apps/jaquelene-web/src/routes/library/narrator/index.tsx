@@ -11,6 +11,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import {
+  narratorPromptKind,
   promptDefaultQuery,
   promptKindsQuery,
   promptPagesQuery,
@@ -20,17 +21,23 @@ import {
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
-export const Route = createFileRoute("/settings/prompts/")({
+export const Route = createFileRoute("/library/narrator/")({
   loader: async ({ context }) => {
     const kinds = await context.queryClient.query(promptKindsQuery);
-    await Promise.all(
-      kinds.flatMap((kind) => [
-        context.queryClient.query(promptDefaultQuery(kind.key)),
-        context.queryClient.infiniteQuery(promptPagesQuery(kind.key)),
-      ]),
-    );
+    const kind = kinds.find(({ key }) => key === narratorPromptKind) ?? null;
+
+    if (!kind) {
+      return null;
+    }
+
+    await Promise.all([
+      context.queryClient.query(promptDefaultQuery(narratorPromptKind)),
+      context.queryClient.infiniteQuery(promptPagesQuery(narratorPromptKind)),
+    ]);
+
+    return kind;
   },
-  component: PromptsRoute,
+  component: NarratorRoute,
 });
 
 function DeletePrompt({ prompt, isDefault }: { prompt: Prompt; isDefault: boolean }) {
@@ -110,8 +117,8 @@ function PromptItem({
   const custom = prompt.origin === PromptOrigin.Custom;
   const content = custom ? (
     <Link
-      to="/settings/prompts/$promptKind/$promptKey/edit"
-      params={{ promptKind: prompt.kind, promptKey: prompt.key }}
+      to="/library/narrator/$promptKey/edit"
+      params={{ promptKey: prompt.key }}
       aria-label={`Edit ${prompt.title}`}
       {...stylex.props(styles.promptEditSurface)}
     >
@@ -175,10 +182,7 @@ function PromptKindSection({ kind }: { kind: PromptKind }) {
           <Item.Heading id={headingId}>{kind.name}</Item.Heading>
           <Item.SectionDescription id={descriptionId}>{kind.description}</Item.SectionDescription>
         </Item.SectionContent>
-        <Button
-          variant="ghost"
-          render={<Link to="/settings/prompts/$promptKind/new" params={{ promptKind: kind.key }} />}
-        >
+        <Button variant="ghost" render={<Link to="/library/narrator/new" />}>
           <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} aria-hidden="true" />
           <Button.Label>Create</Button.Label>
         </Button>
@@ -210,17 +214,17 @@ function PromptKindSection({ kind }: { kind: PromptKind }) {
   );
 }
 
-function PromptsRoute() {
-  const { data: kinds } = useSuspenseQuery(promptKindsQuery);
+function NarratorRoute() {
+  const kind = Route.useLoaderData();
 
   return (
     <>
       <ContentPane.Header>
         <Breadcrumb.Root>
           <Breadcrumb.List>
-            <Breadcrumb.Item>Settings</Breadcrumb.Item>
+            <Breadcrumb.Item>Library</Breadcrumb.Item>
             <Breadcrumb.Item>
-              <Breadcrumb.Page>Prompts</Breadcrumb.Page>
+              <Breadcrumb.Page>Narrator</Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
         </Breadcrumb.Root>
@@ -228,9 +232,13 @@ function PromptsRoute() {
 
       <ContentPane.Viewport>
         <ContentPane.Body>
-          {kinds.map((kind) => (
-            <PromptKindSection key={kind.key} kind={kind} />
-          ))}
+          {kind ? (
+            <PromptKindSection kind={kind} />
+          ) : (
+            <div role="status" {...stylex.props(styles.unavailable)}>
+              Narrator prompts aren't available right now.
+            </div>
+          )}
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>
@@ -293,4 +301,9 @@ const styles = stylex.create({
     WebkitLineClamp: 3,
   },
   loadMore: { marginBlockStart: "0.75rem" },
+  unavailable: {
+    color: colors.foregroundSecondary,
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+  },
 });

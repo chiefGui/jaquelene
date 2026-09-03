@@ -1,4 +1,3 @@
-import AiFile01Icon from "@hugeicons/core-free-icons/AiFile01Icon";
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import ConnectIcon from "@hugeicons/core-free-icons/ConnectIcon";
 import ChartHistogramIcon from "@hugeicons/core-free-icons/ChartHistogramIcon";
@@ -43,14 +42,6 @@ function SettingsSidebar() {
             preload: "render",
             replace: true,
             to: "/settings/providers",
-          },
-          {
-            activeOptions: { exact: false },
-            id: "prompts",
-            icon: AiFile01Icon,
-            label: "Prompts",
-            replace: true,
-            to: "/settings/prompts",
           },
           {
             id: "markdown-editor",

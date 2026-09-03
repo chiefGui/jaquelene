@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 const managedRuntime = vi.hoisted(() => ({
-  context: vi.fn(),
+  runPromise: vi.fn(),
   dispose: vi.fn(),
 }));
 
@@ -27,7 +27,7 @@ describe("backend startup failure", () => {
     const directory = mkdtempSync(join(tmpdir(), "jaquelene-backend-failure-"));
     const startupFailure = new Error("Startup failed.");
     const cleanupFailure = new Error("Cleanup failed.");
-    managedRuntime.context.mockRejectedValue(startupFailure);
+    managedRuntime.runPromise.mockRejectedValue(startupFailure);
     managedRuntime.dispose.mockRejectedValue(cleanupFailure);
 
     let failure: unknown;

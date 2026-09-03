@@ -1,10 +1,10 @@
-import { Cause, Context, Effect, Exit, Layer, ManagedRuntime } from "effect";
-import { createCampaigns, type CampaignEngine, type Campaigns } from "#backend/campaign/campaigns";
-import { createCampaignUsage, type CampaignUsageReader } from "#backend/campaign/usage";
+import { Cause, Effect, Exit, Layer, ManagedRuntime } from "effect";
+import type { Campaigns } from "#backend/campaign/campaigns";
+import { CampaignService } from "#backend/campaign/subsystem";
+import type { CampaignUsageReader } from "#backend/campaign/usage";
 import { DatabaseService, getDatabaseStoragePaths } from "#backend/database/database";
-import { createReplyPreparer } from "#backend/generation/reply-preparation";
-import { createGenerationSubsystem } from "#backend/generation/subsystem";
-import { createModelInputComposer } from "#backend/model/input-composer";
+import { GenerationService } from "#backend/generation/subsystem";
+import { ModelInputService } from "#backend/model/input-composer";
 import type { ProviderFactory } from "#backend/provider/provider";
 import { ProvidersService, type Models, type Providers } from "#backend/provider/providers";
 import type { ResourceCacheFailure } from "#backend/resource-cache/resource-cache";
@@ -21,13 +21,13 @@ import {
   type StorageAreaId,
   type StorageCategory,
 } from "#backend/storage/storage";
-import type { PromptApplicationRegistry } from "#backend/prompt/application-registry";
-import type { PromptEngine } from "#backend/prompt/prompts";
-import { createPromptSubsystem } from "#backend/prompt/subsystem";
+import { PromptService } from "#backend/prompt/subsystem";
 import type { Prompts } from "#backend/prompt/types";
-import { createThreadSubsystem, type Threads } from "#backend/thread/subsystem";
-import { createTurns, type Turns } from "#backend/turn/turns";
-import { createUsageHistory, type Usage } from "#backend/usage/history";
+import { ThreadService, type Threads } from "#backend/thread/subsystem";
+import { TurnService } from "#backend/turn/subsystem";
+import type { Turns } from "#backend/turn/turns";
+import type { Usage } from "#backend/usage/history";
+import { UsageService } from "#backend/usage/subsystem";
 
 export type BackendOptions = Readonly<{
   databasePath: string;
@@ -59,67 +59,36 @@ export type Backend = Readonly<{
   [Symbol.asyncDispose]: () => Promise<void>;
 }>;
 
-type BackendServices = Readonly<{
-  campaigns: CampaignEngine;
+type BackendCapabilities = Readonly<{
+  campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
   usage: Usage;
-  prompts: PromptEngine;
-  promptApplications: PromptApplicationRegistry;
+  prompts: Prompts;
   threads: Threads;
   turns: Turns;
   providers: Providers;
   models: Models;
-  close: () => Promise<void>;
 }>;
 
-class BackendService extends Context.Service<BackendService, BackendServices>()(
-  "@jaquelene/backend/Services",
-) {}
+const readBackendCapabilities = Effect.gen(function* () {
+  const campaigns = yield* CampaignService;
+  const prompts = yield* PromptService;
+  const providers = yield* ProvidersService;
+  const threads = yield* ThreadService;
+  const turns = yield* TurnService;
+  const usage = yield* UsageService;
 
-function createBackendServiceLayer() {
-  return Layer.effect(
-    BackendService,
-    Effect.gen(function* () {
-      const database = yield* DatabaseService;
-      const providers = yield* ProvidersService;
-
-      return yield* Effect.acquireRelease(
-        Effect.sync(() => {
-          const { applications: promptApplications, prompts } = createPromptSubsystem(database, [
-            narratorPromptModule,
-          ]);
-          const campaigns = createCampaigns(database);
-          const campaignUsage = createCampaignUsage(database);
-          const usage = createUsageHistory(database);
-          const modelInputs = createModelInputComposer(campaigns, promptApplications);
-          const { engine: threadEngine, threads } = createThreadSubsystem(database, modelInputs);
-          const generationSubsystem = createGenerationSubsystem({
-            database,
-            replyPreparer: createReplyPreparer(threadEngine, modelInputs),
-            models: providers.models,
-            providers: providers.generations,
-            attempts: usage.attempts,
-          });
-          const turns = createTurns(database, threadEngine, generationSubsystem.replies);
-
-          return BackendService.of({
-            campaigns,
-            campaignUsage,
-            usage,
-            promptApplications,
-            prompts,
-            threads,
-            turns,
-            providers: providers.providers,
-            models: providers.models,
-            close: generationSubsystem.close,
-          });
-        }),
-        (application) => Effect.promise(() => application.close()),
-      );
-    }),
-  );
-}
+  return {
+    campaigns: campaigns.campaigns,
+    campaignUsage: campaigns.usage,
+    prompts: prompts.prompts,
+    providers: providers.providers,
+    models: providers.models,
+    threads: threads.threads,
+    turns,
+    usage,
+  } satisfies BackendCapabilities;
+});
 
 function createStorageLayer(
   databasePath: string,
@@ -186,6 +155,49 @@ function waitForAbort<Value>(result: Promise<Value>, signal?: AbortSignal) {
   return Promise.race([result, interrupted]).finally(removeListener);
 }
 
+function createBackendLayer({
+  databasePath,
+  cache: cacheOptions,
+  providers,
+  storageAreas,
+}: BackendOptions) {
+  const databaseLayer = DatabaseService.layer(databasePath);
+  const resourceCacheLayer = ResourceCacheService.layer(cacheOptions);
+  const campaignsLayer = CampaignService.layer().pipe(Layer.provide(databaseLayer));
+  const promptsLayer = PromptService.layer([narratorPromptModule]).pipe(
+    Layer.provide(databaseLayer),
+  );
+  const usageLayer = UsageService.layer.pipe(Layer.provide(databaseLayer));
+  const providersLayer = ProvidersService.layer(providers).pipe(Layer.provide(resourceCacheLayer));
+  const modelInputsLayer = ModelInputService.layer.pipe(
+    Layer.provide(Layer.merge(campaignsLayer, promptsLayer)),
+  );
+  const threadsLayer = ThreadService.layer().pipe(
+    Layer.provide(Layer.merge(databaseLayer, modelInputsLayer)),
+  );
+  const generationsLayer = GenerationService.layer.pipe(
+    Layer.provide(
+      Layer.mergeAll(databaseLayer, modelInputsLayer, providersLayer, threadsLayer, usageLayer),
+    ),
+  );
+  const turnsLayer = TurnService.layer.pipe(
+    Layer.provide(Layer.mergeAll(databaseLayer, generationsLayer, threadsLayer)),
+  );
+  const storageLayer = createStorageLayer(databasePath, cacheOptions.path, storageAreas).pipe(
+    Layer.provide(Layer.mergeAll(databaseLayer, providersLayer, resourceCacheLayer)),
+  );
+
+  return Layer.mergeAll(
+    campaignsLayer,
+    promptsLayer,
+    providersLayer,
+    storageLayer,
+    threadsLayer,
+    turnsLayer,
+    usageLayer,
+  );
+}
+
 export async function createBackend(
   { databasePath, cache: cacheOptions, providers, storageAreas }: BackendOptions,
   signal?: AbortSignal,
@@ -200,22 +212,13 @@ export async function createBackend(
     })),
     ...storageAreas.map(({ id, paths }) => ({ id, paths })),
   ]);
-  const databaseLayer = DatabaseService.layer(databasePath);
-  const resourceCacheLayer = ResourceCacheService.layer(cacheOptions);
-  const infrastructureLayer = Layer.merge(databaseLayer, resourceCacheLayer);
-  const dependenciesLayer = ProvidersService.layer([...providers]).pipe(
-    Layer.provideMerge(infrastructureLayer),
-  );
   const runtime = ManagedRuntime.make(
-    Layer.mergeAll(
-      createBackendServiceLayer(),
-      createStorageLayer(databasePath, cacheOptions.path, [...storageAreas]),
-    ).pipe(Layer.provide(dependenciesLayer)),
+    createBackendLayer({ databasePath, cache: cacheOptions, providers, storageAreas }),
   );
-  let services: BackendServices;
+  let services: BackendCapabilities;
 
   try {
-    services = Context.get(await waitForAbort(runtime.context(), signal), BackendService);
+    services = await waitForAbort(runtime.runPromise(readBackendCapabilities), signal);
   } catch (cause) {
     const cleanupFailures: unknown[] = [cause];
 

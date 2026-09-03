@@ -1,6 +1,7 @@
-import type { Database } from "#backend/database/database";
+import { Context, Effect, Layer } from "effect";
+import { DatabaseService, type Database } from "#backend/database/database";
 import type { ThreadId } from "#backend/id";
-import type { ModelInputComposer } from "#backend/model/input-composer";
+import { ModelInputService, type ModelInputComposer } from "#backend/model/input-composer";
 import type { ThreadTranscript } from "@jaquelene/domain";
 import { createThreads, type ThreadEngine } from "./threads";
 import { createThreadTranscriptReader } from "./transcript";
@@ -25,4 +26,20 @@ export function createThreadSubsystem(
   };
 
   return { engine, threads };
+}
+
+export type ThreadSubsystem = ReturnType<typeof createThreadSubsystem>;
+
+export class ThreadService extends Context.Service<ThreadService, ThreadSubsystem>()(
+  "@jaquelene/backend/Threads",
+) {
+  static readonly layer = (now: () => number = Date.now) =>
+    Layer.effect(
+      this,
+      Effect.gen(function* () {
+        const database = yield* DatabaseService;
+        const modelInputs = yield* ModelInputService;
+        return createThreadSubsystem(database, modelInputs, now);
+      }),
+    );
 }

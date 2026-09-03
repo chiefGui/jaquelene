@@ -4,6 +4,7 @@ import { createCampaignUsage, type CampaignUsageReader } from "#backend/campaign
 import { DatabaseService, getDatabaseStoragePaths } from "#backend/database/database";
 import { createReplyPreparer } from "#backend/generation/reply-preparation";
 import { createGenerationSubsystem } from "#backend/generation/subsystem";
+import { createModelInputComposer } from "#backend/model/input-composer";
 import type { ProviderFactory } from "#backend/provider/provider";
 import { ProvidersService, type Models, type Providers } from "#backend/provider/providers";
 import type { ResourceCacheFailure } from "#backend/resource-cache/resource-cache";
@@ -91,9 +92,10 @@ function createBackendServiceLayer() {
           const campaignUsage = createCampaignUsage(database);
           const usage = createUsageHistory(database);
           const threads = createThreads(database);
+          const modelInputs = createModelInputComposer(campaigns, promptApplications);
           const generationSubsystem = createGenerationSubsystem({
             database,
-            replyPreparer: createReplyPreparer(threads, campaigns, promptApplications),
+            replyPreparer: createReplyPreparer(threads, modelInputs),
             models: providers.models,
             providers: providers.generations,
             attempts: usage.attempts,

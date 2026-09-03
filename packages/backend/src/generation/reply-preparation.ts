@@ -1,7 +1,6 @@
-import type { CampaignEngine } from "#backend/campaign/campaigns";
 import type { MessageId, ThreadId, TurnId } from "#backend/id";
 import { requireModelInput, type ModelInput } from "#backend/model/input";
-import type { PromptApplicationRegistry } from "#backend/prompt/application-registry";
+import type { ModelInputComposer } from "#backend/model/input-composer";
 import type { ThreadEngine } from "#backend/thread/threads";
 
 export type ReplyAnchor = Readonly<{
@@ -27,8 +26,7 @@ export function requireReplyInput(prepared: ModelInput, anchor: ReplyAnchor): Mo
 
 export function createReplyPreparer(
   threads: Pick<ThreadEngine, "getTurnContext">,
-  campaigns: Pick<CampaignEngine, "getContextForThread">,
-  promptApplications: Pick<PromptApplicationRegistry, "resolve">,
+  modelInputs: ModelInputComposer,
 ): ReplyPreparer {
   return {
     prepare(anchor) {
@@ -41,19 +39,10 @@ export function createReplyPreparer(
         throw new Error(`The accepted input for turn "${anchor.turnId}" has changed.`);
       }
 
-      const campaign = campaigns.getContextForThread(anchor.threadId);
-
-      return {
-        instructions: promptApplications.resolve({
-          threadId: anchor.threadId,
-          campaign,
-        }),
-        dialogue: context.messages.map(({ id: messageId, author: role, content }) => ({
-          messageId,
-          role,
-          content,
-        })),
-      };
+      return modelInputs.compose({
+        threadId: anchor.threadId,
+        messages: context.messages,
+      });
     },
   };
 }

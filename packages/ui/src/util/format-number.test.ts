@@ -4,6 +4,7 @@ import {
   formatCompactCurrencyNanos,
   formatCount,
   formatCurrencyNanos,
+  formatPluralizedCount,
   formatUsd,
   formatUsdNanos,
 } from "./format-number";
@@ -20,6 +21,21 @@ describe("formatCount", () => {
 
   it.each([-1, 1.5, Number.MAX_SAFE_INTEGER + 1])("rejects the invalid count %s", (value) => {
     expect(() => formatCount(value)).toThrow(RangeError);
+  });
+});
+
+describe("formatPluralizedCount", () => {
+  it.each([
+    [0, "entry", "entries", "0 entries"],
+    [1, "entry", "entries", "1 entry"],
+    [1_083, "entry", "entries", "1,083 entries"],
+    [2, "person", "people", "2 people"],
+  ])("formats %i with the appropriate noun", (value, singular, plural, expected) => {
+    expect(formatPluralizedCount(value, singular, plural)).toBe(expected);
+  });
+
+  it.each([-1, 1.5, Number.MAX_SAFE_INTEGER + 1])("rejects the invalid count %s", (value) => {
+    expect(() => formatPluralizedCount(value, "entry", "entries")).toThrow(RangeError);
   });
 });
 

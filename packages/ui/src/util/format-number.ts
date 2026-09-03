@@ -41,6 +41,10 @@ export function formatCount(value: number) {
   return countFormatter.format(normalizeNegativeZero(value));
 }
 
+export function formatPluralizedCount(value: number, singular: string, plural: string) {
+  return `${formatCount(value)} ${value === 1 ? singular : plural}`;
+}
+
 export function formatCompactCount(value: number) {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new RangeError("Count must be a non-negative safe integer.");

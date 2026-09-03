@@ -5,7 +5,7 @@ import * as stylex from "@stylexjs/stylex";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { PromptEditor } from "@/feature/prompt/editor";
-import { PromptManagement } from "@/feature/prompt/management";
+import { NarratorPromptManagement } from "@/feature/prompt/narrator-management";
 import {
   narratorPromptKind,
   promptDefaultQuery,
@@ -100,10 +100,9 @@ function EditPromptRoute() {
               <PromptEditor
                 aria-labelledby={pageHeadingId}
                 prompt={prompt}
-                onCancel={() => void openNarrator()}
                 onSaved={openNarrator}
               />
-              <PromptManagement prompt={prompt} onDeleted={finishDeletion} />
+              <NarratorPromptManagement prompt={prompt} onDeleted={finishDeletion} />
             </div>
           ) : (
             <EmptyState.Root>

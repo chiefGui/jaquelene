@@ -1,19 +1,22 @@
+import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type { Prompt } from "@jaquelene/ipc/renderer";
-import { Button, Item, Switch } from "@jaquelene/ui";
+import { IconButton, Item, Switch } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { colors } from "@jaquelene/ui/tokens.stylex";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { promptDefaultQuery, useDeletePrompt, useSetPromptDefault } from "@/feature/prompt/query";
+import { promptDefaultQuery, useDeletePrompt, useSetPromptDefault } from "./query";
 
-type PromptManagementProps = {
+type NarratorPromptManagementProps = {
   onDeleted: () => Promise<void>;
   prompt: Prompt;
 };
 
-export function PromptManagement({ onDeleted, prompt }: PromptManagementProps) {
+export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptManagementProps) {
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(prompt.kind));
   const setDefault = useSetPromptDefault(prompt.kind);
   const deletePrompt = useDeletePrompt();
@@ -59,14 +62,14 @@ export function PromptManagement({ onDeleted, prompt }: PromptManagementProps) {
   }
 
   return (
-    <Item.Group aria-label="Prompt management">
+    <Item.Group aria-label="Narrator prompt management">
       <Item.Root>
         <Item.Content>
           <Item.Label id={defaultLabelId} render={<label htmlFor={`${defaultLabelId}-control`} />}>
-            Set as default
+            Default narrator
           </Item.Label>
           <Item.Description id={defaultDescriptionId}>
-            Use this narrator when a campaign doesn’t choose one.
+            The narrator selected by default for new campaigns.
           </Item.Description>
           {setDefault.isError ? (
             <Item.Description id={defaultErrorId} role="alert" style={styles.error}>
@@ -98,25 +101,38 @@ export function PromptManagement({ onDeleted, prompt }: PromptManagementProps) {
           <Item.Description>Permanently remove this narrator prompt.</Item.Description>
         </Item.Content>
 
-        <ConfirmDialog
-          open={confirmingDelete}
-          setOpen={setDeleteConfirmationOpen}
-          trigger={
-            <Button type="button" variant="ghost" tone="danger" disabled={mutationPending}>
-              Delete
-            </Button>
-          }
-          heading={`Delete “${prompt.title}”?`}
-          description={
-            isDefault
-              ? "The built-in narrator will become the default, and campaigns using this prompt will return to it. This can’t be undone."
-              : "Campaigns using this prompt will return to their default. This can’t be undone."
-          }
-          confirmLabel="Delete"
-          pending={deletePrompt.isPending}
-          error={deletePrompt.isError ? "Couldn’t delete this prompt." : undefined}
-          onConfirm={() => void remove()}
-        />
+        <Tooltip.Root>
+          <ConfirmDialog
+            open={confirmingDelete}
+            setOpen={setDeleteConfirmationOpen}
+            trigger={
+              <Tooltip.Anchor
+                render={
+                  <IconButton aria-label={`Delete ${prompt.title}`} disabled={mutationPending}>
+                    <HugeiconsIcon
+                      icon={TrashIcon}
+                      size={16}
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                    />
+                  </IconButton>
+                }
+              />
+            }
+            heading={`Delete “${prompt.title}”?`}
+            description={
+              isDefault
+                ? "The built-in narrator will replace it as the default. This can’t be undone."
+                : "Campaigns using this narrator will use the default instead. This can’t be undone."
+            }
+            confirmLabel="Delete"
+            pending={deletePrompt.isPending}
+            error={deletePrompt.isError ? "Couldn’t delete this prompt." : undefined}
+            onConfirm={() => void remove()}
+          />
+
+          <Tooltip>Delete</Tooltip>
+        </Tooltip.Root>
       </Item.Root>
     </Item.Group>
   );

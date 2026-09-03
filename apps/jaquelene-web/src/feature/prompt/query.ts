@@ -130,7 +130,11 @@ export function setPromptDefaultMutationOptions(queryClient: QueryClient, kind: 
     ...ipcMutationOptions,
     mutationKey: [...promptDefaultMutationKey, kind],
     scope: { id: `prompt-default:${kind}` },
-    mutationFn: (promptKey) => promptIpc.setDefault({ kind, ...(promptKey ? { promptKey } : {}) }),
+    mutationFn: (promptKey) =>
+      promptIpc.setDefault({
+        kind,
+        ...(promptKey === undefined ? {} : { promptKey }),
+      }),
     onSuccess(selection) {
       queryClient.setQueryData(promptDefaultQuery(kind).queryKey, selection);
       return queryClient.invalidateQueries({ queryKey: campaignPromptSelectionQueryKey });

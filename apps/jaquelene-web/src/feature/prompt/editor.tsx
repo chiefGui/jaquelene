@@ -27,7 +27,6 @@ import { useCreatePrompt, useUpdatePrompt } from "./query";
 
 type PromptEditorProps = {
   "aria-labelledby": string;
-  onCancel: () => void;
   onSaved: (prompt: Prompt) => Promise<void>;
 } & ({ kind: string; prompt?: undefined } | { kind?: undefined; prompt: Prompt });
 
@@ -36,7 +35,7 @@ function getEditorValues(prompt?: Prompt): UpdatePromptInput {
 }
 
 export function PromptEditor(props: PromptEditorProps) {
-  const { "aria-labelledby": ariaLabelledBy, onCancel, onSaved, prompt } = props;
+  const { "aria-labelledby": ariaLabelledBy, onSaved, prompt } = props;
   const createPrompt = useCreatePrompt();
   const updatePrompt = useUpdatePrompt();
   const form = useFormStore({ defaultValues: getEditorValues(prompt) });
@@ -177,14 +176,9 @@ export function PromptEditor(props: PromptEditorProps) {
         {operationError}
       </FormLayout.Status>
 
-      <div {...stylex.props(styles.actions)}>
-        <Button type="button" variant="ghost" disabled={disabled} onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitLabel}
-        </Button>
-      </div>
+      <Button type="submit" disabled={submitting} style={styles.submit}>
+        {submitLabel}
+      </Button>
     </AriakitForm>
   );
 }
@@ -202,9 +196,5 @@ const styles = stylex.create({
   promptError: {
     marginBlockStart: "0.5rem",
   },
-  actions: {
-    display: "flex",
-    gap: "0.5rem",
-    justifyContent: "flex-end",
-  },
+  submit: { alignSelf: "flex-end" },
 });

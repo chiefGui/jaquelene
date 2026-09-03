@@ -54,7 +54,6 @@ function NewPromptRoute() {
             <PromptEditor
               aria-labelledby={pageHeadingId}
               kind={narratorPromptKind}
-              onCancel={() => void openNarrator()}
               onSaved={openNarrator}
             />
           ) : (

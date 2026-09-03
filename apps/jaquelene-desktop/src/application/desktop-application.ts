@@ -159,6 +159,7 @@ export function launchDesktopApplication({
             campaigns: backend.campaigns,
             campaignUsage: backend.campaignUsage,
             prompts: backend.prompts,
+            threads: backend.threads,
             turns: backend.turns,
             modelCatalog: backend.models,
             favoriteModels,

@@ -1,5 +1,12 @@
 export { createBackend } from "#backend/backend";
 export type { Backend, BackendInspection, BackendOptions } from "#backend/backend";
+export {
+  ThreadTranscriptEntryKind,
+  type ThreadTranscript,
+  type ThreadTranscriptEntry,
+  type ThreadTranscriptInstruction,
+  type ThreadTranscriptMessage,
+} from "@jaquelene/domain";
 export { getDatabaseStoragePaths } from "#backend/database/database";
 export type {
   ResourceCacheFailure,

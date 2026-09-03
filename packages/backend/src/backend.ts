@@ -26,6 +26,10 @@ import type { PromptEngine } from "#backend/prompt/prompts";
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import type { Prompts } from "#backend/prompt/types";
 import { createThreads, type ThreadEngine, type Threads } from "#backend/thread/threads";
+import {
+  createThreadTranscriptReader,
+  type ThreadTranscriptReader,
+} from "#backend/thread/transcript";
 import { createTurns, type Turns } from "#backend/turn/turns";
 import { createUsageHistory, type Usage } from "#backend/usage/history";
 
@@ -66,6 +70,7 @@ type BackendServices = Readonly<{
   prompts: PromptEngine;
   promptApplications: PromptApplicationRegistry;
   threads: ThreadEngine;
+  transcripts: ThreadTranscriptReader;
   turns: Turns;
   providers: Providers;
   models: Models;
@@ -93,6 +98,7 @@ function createBackendServiceLayer() {
           const usage = createUsageHistory(database);
           const threads = createThreads(database);
           const modelInputs = createModelInputComposer(campaigns, promptApplications);
+          const transcripts = createThreadTranscriptReader(threads, modelInputs);
           const generationSubsystem = createGenerationSubsystem({
             database,
             replyPreparer: createReplyPreparer(threads, modelInputs),
@@ -109,6 +115,7 @@ function createBackendServiceLayer() {
             promptApplications,
             prompts,
             threads,
+            transcripts,
             turns,
             providers: providers.providers,
             models: providers.models,
@@ -357,6 +364,10 @@ export async function createBackend(
       listMessages(request) {
         assertOpen();
         return services.threads.listMessages(request);
+      },
+      getTranscript(threadId) {
+        assertOpen();
+        return services.transcripts.get(threadId);
       },
     },
     turns: {

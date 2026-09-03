@@ -4,6 +4,7 @@ import type {
   ThreadActivity,
   ThreadHistoryDeletion,
   ThreadMessage,
+  Threads,
   Turns,
   TurnAcceptance,
   TurnSettlement,
@@ -31,6 +32,7 @@ type ThreadMessagingTurns = Pick<
   Turns,
   "deleteFrom" | "listForThread" | "regenerate" | "retry" | "submit"
 >;
+type ThreadMessagingThreads = Pick<Threads, "getTranscript">;
 type TurnGenerationOperation =
   | "thread.reply.regenerate"
   | "thread.turn.retry"
@@ -197,7 +199,11 @@ function reportUnexpectedFailure(
   });
 }
 
-export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: ErrorReporter) {
+export function createThreadMessaging(
+  threads: ThreadMessagingThreads,
+  turns: ThreadMessagingTurns,
+  diagnostics: ErrorReporter,
+) {
   const destinations = new Map<WebFrameMain, ITurnsDispatcher>();
 
   function publishThreadChange(
@@ -278,6 +284,9 @@ export function createThreadMessaging(turns: ThreadMessagingTurns, diagnostics: 
   return {
     expose(target: WebFrameMain) {
       ThreadsIpc.for(target).setImplementation({
+        getTranscript(threadId) {
+          return threads.getTranscript(ids.thread.parse(threadId));
+        },
         listMessages(request) {
           const page = turns.listForThread({
             threadId: ids.thread.parse(request.threadId),

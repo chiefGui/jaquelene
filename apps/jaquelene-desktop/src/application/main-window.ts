@@ -4,6 +4,7 @@ import type {
   Prompts,
   Providers,
   Storage,
+  Threads,
   Turns,
   Usage,
 } from "@jaquelene/backend";
@@ -103,6 +104,7 @@ export function createMainWindowManager({
   campaigns,
   campaignUsage,
   prompts,
+  threads,
   turns,
   modelCatalog,
   favoriteModels,
@@ -117,6 +119,7 @@ export function createMainWindowManager({
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
   prompts: Prompts;
+  threads: Threads;
   turns: Turns;
   modelCatalog: ModelCatalog;
   favoriteModels: FavoriteModels;
@@ -125,7 +128,7 @@ export function createMainWindowManager({
   storage: Storage;
   usage: Usage;
 }): MainWindowManager {
-  const threadMessaging = createThreadMessaging(turns, diagnostics);
+  const threadMessaging = createThreadMessaging(threads, turns, diagnostics);
   let state: "open" | "closing" | "closed" = "open";
   let windowState: WindowState = "absent";
   let currentWindow: OpenWindow | undefined;

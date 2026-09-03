@@ -86,14 +86,16 @@ vi.mock("@jaquelene/ipc/main", () => ({
 
 import { createThreadMessaging } from "./ipc";
 
-type ThreadMessagingTurns = Parameters<typeof createThreadMessaging>[0];
+type ThreadMessagingThreads = Parameters<typeof createThreadMessaging>[0];
+type ThreadMessagingTurns = Parameters<typeof createThreadMessaging>[1];
 
 function exposeSingleRenderer(
   target: WebFrameMain,
   turns: ThreadMessagingTurns,
   diagnostics: ErrorReporter,
+  threads: ThreadMessagingThreads = createBackendThreadsStub(),
 ) {
-  return createThreadMessaging(turns, diagnostics).expose(target);
+  return createThreadMessaging(threads, turns, diagnostics).expose(target);
 }
 
 function requireImplementations() {
@@ -208,6 +210,15 @@ function createBackendTurnsStub(
   };
 }
 
+function createBackendThreadsStub(
+  overrides: Partial<ThreadMessagingThreads> = {},
+): ThreadMessagingThreads {
+  return {
+    getTranscript: vi.fn(),
+    ...overrides,
+  };
+}
+
 function activeTarget() {
   return {
     detached: false,
@@ -225,6 +236,38 @@ beforeEach(() => {
 });
 
 describe("thread IPC", () => {
+  it("returns the current transcript from the thread capability", async () => {
+    const threadId = ids.thread.create();
+    const transcript = {
+      threadId,
+      entries: [
+        {
+          kind: "instruction" as const,
+          sourceKey: "narrator",
+          content: "Narrate clearly.",
+        },
+        {
+          kind: "message" as const,
+          messageId: ids.message.create(),
+          author: "user" as const,
+          content: "Hello",
+        },
+      ],
+    };
+    const getTranscript = vi.fn<ThreadMessagingThreads["getTranscript"]>(() => transcript);
+    const backendThreads = createBackendThreadsStub({ getTranscript });
+
+    exposeSingleRenderer(
+      activeTarget(),
+      createBackendTurnsStub(),
+      { report: vi.fn() },
+      backendThreads,
+    );
+
+    expect(await requireImplementations().threads.getTranscript(threadId)).toEqual(transcript);
+    expect(getTranscript).toHaveBeenCalledWith(threadId);
+  });
+
   it("maps forward history navigation into the backend contract", async () => {
     const threadId = ids.thread.create();
     const cursor = ids.message.create();
@@ -599,7 +642,7 @@ describe("thread IPC", () => {
       submit: vi.fn(async () => ({ acceptance, settlement })),
     });
     const report = vi.fn<ErrorReporter["report"]>();
-    const messaging = createThreadMessaging(backendTurns, { report });
+    const messaging = createThreadMessaging(createBackendThreadsStub(), backendTurns, { report });
     const stopSubmittingRenderer = messaging.expose(activeTarget());
 
     await requireImplementations().turns.submit({

@@ -329,6 +329,17 @@ describe("backend", () => {
       [{ sourceKey: prompt.key, content: "Use a hopeful tone." }],
       [{ sourceKey: prompt.key, content: "Use an ominous tone." }],
     ]);
+    expect(
+      backend.threads
+        .getTranscript(campaign.threadId)
+        .entries.map(({ kind, content }) => ({ kind, content })),
+    ).toEqual([
+      { kind: "instruction", content: "Use an ominous tone." },
+      { kind: "message", content: "Begin" },
+      { kind: "message", content: "Reply 1" },
+      { kind: "message", content: "Continue" },
+      { kind: "message", content: "Reply 2" },
+    ]);
     expect(JSON.stringify(inputs)).not.toContain("Private");
   });
 

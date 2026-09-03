@@ -67,3 +67,14 @@ export {
   type ProviderConfiguration,
   type ProviderConfigureResult,
 } from "./provider/configuration";
+export {
+  ThreadTranscriptEntryKind,
+  threadTranscriptEntrySchema,
+  threadTranscriptInstructionSchema,
+  threadTranscriptMessageSchema,
+  threadTranscriptSchema,
+  type ThreadTranscript,
+  type ThreadTranscriptEntry,
+  type ThreadTranscriptInstruction,
+  type ThreadTranscriptMessage,
+} from "./thread/transcript";

@@ -5,7 +5,7 @@ import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import TextBoldIcon from "@hugeicons/core-free-icons/TextBoldIcon";
 import TextItalicIcon from "@hugeicons/core-free-icons/TextItalicIcon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { formatCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
+import { formatPluralizedCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
@@ -315,10 +315,6 @@ type MarkdownEditorStatisticsProps = Omit<ComponentProps<"span">, "className" | 
   style?: StyleXStyles;
 };
 
-function formatUnit(value: number, singular: string) {
-  return `${formatCount(value)} ${singular}${value === 1 ? "" : "s"}`;
-}
-
 function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsProps) {
   const { value } = useMarkdownEditorDocument("Statistics");
   const deferredValue = useDeferredValue(value);
@@ -326,11 +322,13 @@ function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsP
 
   return (
     <span {...props} {...stylex.props(styles.statistics, style, stylex.defaultMarker())}>
-      <span>{formatUnit(statistics.lines, "line")}</span>
+      <span>{formatPluralizedCount(statistics.lines, "line", "lines")}</span>
       <span aria-hidden="true">·</span>
-      <span>{formatUnit(statistics.words, "word")}</span>
+      <span>{formatPluralizedCount(statistics.words, "word", "words")}</span>
       <span aria-hidden="true">·</span>
-      <span>{formatUnit(statistics.characters, "character")}</span>
+      <span>{formatPluralizedCount(statistics.characters, "character", "characters")}</span>
+      <span aria-hidden="true">·</span>
+      <span>≈ {formatPluralizedCount(statistics.estimatedTokens, "token", "tokens")}</span>
     </span>
   );
 }

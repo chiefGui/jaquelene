@@ -1,8 +1,11 @@
+import { estimateTokenCount } from "tokenx";
+
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const wordSegmenter = new Intl.Segmenter(undefined, { granularity: "word" });
 
 export type MarkdownDocumentStatistics = Readonly<{
   characters: number;
+  estimatedTokens: number;
   lines: number;
   words: number;
 }>;
@@ -28,5 +31,5 @@ export function countMarkdownDocument(value: string): MarkdownDocumentStatistics
     }
   }
 
-  return { characters, lines, words };
+  return { characters, estimatedTokens: estimateTokenCount(value), lines, words };
 }

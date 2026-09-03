@@ -12,7 +12,7 @@ Prompt applications are the extension boundary between the generic catalog and m
 
 A storage area is the canonical ownership and measurement unit. Usage remains attributable to individual owners, categories are projections over those areas, and both area and category deletion route through owner-defined lifecycle operations. Successful deletion returns fresh usage for only the affected areas, avoiding unrelated filesystem scans.
 
-Electron, IPC, windows, secure credential storage, and provider SDK details remain outside this package. Effect is an internal resource-management tool: it acquires backend resources once and releases them in dependency order, while synchronous SQLite operations stay on the direct hot path.
+Electron, IPC, windows, secure credential storage, and provider SDK details remain outside this package. Effect 4 is the backend application and infrastructure runtime for dependency composition, typed operational failures, asynchronous workflows, concurrency, cancellation, and resource lifetimes. Pure transformations and synchronous SQLite transactions stay on the direct TypeScript hot path, and platform adapters execute backend Effects through the shared runtime rather than owning additional runtimes.
 
 Bundlers consume `@jaquelene/backend/build` to copy required runtime directories without depending on this package's source layout.
 

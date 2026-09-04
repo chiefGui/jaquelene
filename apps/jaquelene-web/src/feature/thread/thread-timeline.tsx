@@ -64,7 +64,7 @@ type ThreadTimelineProps = Readonly<{
   messageMaxCodeUnits: number;
   beginEdit: (message: ThreadMessageView["message"]) => void;
   cancelEdit: () => void;
-  saveEdit: (content: string) => Promise<boolean>;
+  saveEdit: (messageId: string, content: string) => Promise<void>;
   loadOlder: () => Promise<void>;
   regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
   retryReply: (turnId: string) => Promise<void>;
@@ -171,6 +171,8 @@ export const ThreadTimeline = memo(function ThreadTimeline({
       return;
     }
 
+    // The default synchronous measurement path reuses its cached size. Refresh
+    // from layout so the lazy editor's first frame is included before scrolling.
     virtualizer.resizeItem(activeEditorIndex, item.offsetHeight);
     virtualizer.scrollToIndex(activeEditorIndex, { align: "auto" });
   }, [activeEditorIndex, virtualizer]);
@@ -365,7 +367,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                 pending: editPending,
                 onCancel: cancelEdit,
                 onReady: revealActiveEditor,
-                onSave: saveEdit,
+                onSave: (content) => saveEdit(message.id, content),
               };
             }
 

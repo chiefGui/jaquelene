@@ -304,7 +304,6 @@ function ThreadViewInstance({
   const [editSession, setEditSession] = useState<ThreadMessageEditSession | null>(null);
   const acceptingRetry = useRef(false);
   const acceptingRegeneration = useRef(false);
-  const acceptingMessageEdit = useRef(false);
   const historyNavigation = useRef<"older" | "newer" | "latest" | null>(null);
   const threadOperationPending = useIsThreadOperationPending(threadId);
   const pendingSubmission = usePendingTurnSubmission(threadId);
@@ -352,7 +351,7 @@ function ThreadViewInstance({
   );
 
   const cancelEdit = useCallback(() => {
-    if (acceptingMessageEdit.current || editMessageMutation.isPending) {
+    if (editMessageMutation.isPending) {
       return;
     }
 
@@ -360,40 +359,22 @@ function ThreadViewInstance({
   }, [editMessageMutation.isPending]);
 
   const saveEdit = useCallback(
-    async (content: string) => {
-      const session = editSession;
-
-      if (
-        !session ||
-        acceptingMessageEdit.current ||
-        editMessageMutation.isPending ||
-        operationPending ||
-        !content.trim() ||
-        content === session.originalContent
-      ) {
-        return false;
-      }
-
-      acceptingMessageEdit.current = true;
-
+    async (messageId: string, content: string) => {
       try {
-        await editMessage({ messageId: session.messageId, content });
+        await editMessage({ messageId, content });
         setEditSession((current) => {
-          if (current?.messageId !== session.messageId) {
+          if (current?.messageId !== messageId) {
             return current;
           }
 
           return null;
         });
-        return true;
       } catch (cause) {
         reportError("thread.message.edit", cause);
-        return false;
-      } finally {
-        acceptingMessageEdit.current = false;
+        throw cause;
       }
     },
-    [editMessage, editMessageMutation.isPending, editSession, operationPending],
+    [editMessage],
   );
 
   const retryReply = useCallback(

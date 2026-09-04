@@ -15,7 +15,7 @@ export type ThreadMessageEditorProps = Readonly<{
   pending: boolean;
   onCancel: () => void;
   onReady: () => void;
-  onSave: (content: string) => Promise<boolean>;
+  onSave: (content: string) => Promise<void>;
 }>;
 
 function EditorError({ error, id }: Readonly<{ error: string | null; id: string }>) {
@@ -74,10 +74,8 @@ export default function ThreadMessageEditor({
     saveRequestPending.current = true;
 
     try {
-      if (await onSave(draft)) {
-        return;
-      }
-
+      await onSave(draft);
+    } catch {
       setError("Could not save this message.");
     } finally {
       saveRequestPending.current = false;

@@ -100,17 +100,15 @@ function CampaignRoute() {
         {campaign ? (
           <SecondarySidebar.Trigger
             render={
-              <IconButton
+              <IconButton.Root
                 aria-label={detailsOpen ? "Close campaign details" : "Open campaign details"}
               >
-                <HugeiconsIcon
-                  icon={detailsOpen ? PanelRightCloseIcon : PanelRightOpenIcon}
-                  size={16}
-                  color="currentColor"
-                  strokeWidth={1.5}
-                  aria-hidden="true"
+                <IconButton.Icon
+                  render={
+                    <HugeiconsIcon icon={detailsOpen ? PanelRightCloseIcon : PanelRightOpenIcon} />
+                  }
                 />
-              </IconButton>
+              </IconButton.Root>
             }
           />
         ) : null}

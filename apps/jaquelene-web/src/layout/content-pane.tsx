@@ -48,15 +48,9 @@ function ContentPaneBack({
   ...props
 }: ContentPaneBackProps) {
   return (
-    <IconButton {...props} aria-label={ariaLabel} size="small" style={[styles.back, style]}>
-      <HugeiconsIcon
-        icon={ArrowLeft01Icon}
-        size={14}
-        color="currentColor"
-        strokeWidth={1.5}
-        aria-hidden="true"
-      />
-    </IconButton>
+    <IconButton.Root {...props} aria-label={ariaLabel} size="small" style={[styles.back, style]}>
+      <IconButton.Icon render={<HugeiconsIcon icon={ArrowLeft01Icon} />} />
+    </IconButton.Root>
   );
 }
 
@@ -81,7 +75,7 @@ const styles = stylex.create({
   },
   back: {
     marginInlineEnd: "0.5rem",
-    marginInlineStart: "-0.25rem",
+    marginInlineStart: "-0.125rem",
   },
   viewport: {
     flex: 1,

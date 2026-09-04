@@ -22,12 +22,12 @@ function TranscriptAction({ campaignId }: { campaignId: string }) {
     <Tooltip.Root>
       <Tooltip.Anchor
         render={
-          <IconButton
+          <IconButton.Root
             render={<Link to="/campaigns/$campaignId/transcript" params={{ campaignId }} />}
             aria-label="Open campaign transcript"
           >
-            <HugeiconsIcon icon={FileTextIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
-          </IconButton>
+            <IconButton.Icon render={<HugeiconsIcon icon={FileTextIcon} />} />
+          </IconButton.Root>
         }
       />
 
@@ -90,13 +90,13 @@ function DeleteAction({ campaign, replyActive }: { campaign: Campaign; replyActi
         trigger={
           <Tooltip.Anchor
             render={
-              <IconButton
+              <IconButton.Root
                 type="button"
                 aria-label={`Delete ${campaign.title}`}
                 disabled={unavailable}
               >
-                <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
-              </IconButton>
+                <IconButton.Icon render={<HugeiconsIcon icon={TrashIcon} />} />
+              </IconButton.Root>
             }
           />
         }

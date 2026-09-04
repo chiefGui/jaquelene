@@ -5,7 +5,11 @@ export { ControlIcon, type ControlIconProps } from "./primitive/control-icon";
 export { Field } from "./primitive/field";
 export { Form } from "./primitive/form";
 export { IconFrame, type IconFrameProps } from "./primitive/icon-frame";
-export { IconButton, type IconButtonProps } from "./primitive/icon-button";
+export {
+  IconButton,
+  type IconButtonIconProps,
+  type IconButtonProps,
+} from "./primitive/icon-button";
 export { Input, type InputProps } from "./primitive/input";
 export { Item } from "./primitive/item";
 export { Ping, type PingProps } from "./primitive/ping";

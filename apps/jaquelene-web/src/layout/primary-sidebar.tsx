@@ -129,14 +129,14 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
           <PrimarySidebarFooterAction
             label="Back"
             action={
-              <IconButton
+              <IconButton.Root
                 type="button"
                 aria-label="Back"
                 onClick={navigateBack}
                 style={styles.footerAction}
               >
-                <PrimarySidebarIcon icon={ArrowLeft01Icon} />
-              </IconButton>
+                <IconButton.Icon render={<HugeiconsIcon icon={ArrowLeft01Icon} />} />
+              </IconButton.Root>
             }
           />
         ) : (
@@ -144,25 +144,25 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
             <PrimarySidebarFooterAction
               label="Settings"
               action={
-                <IconButton
+                <IconButton.Root
                   render={<Link to="/settings/general" preload="render" />}
                   aria-label="Settings"
                   style={styles.footerAction}
                 >
-                  <PrimarySidebarIcon icon={Settings01Icon} />
-                </IconButton>
+                  <IconButton.Icon render={<HugeiconsIcon icon={Settings01Icon} />} />
+                </IconButton.Root>
               }
             />
             <PrimarySidebarFooterAction
               label="Library"
               action={
-                <IconButton
+                <IconButton.Root
                   render={<Link to="/library/narrator" preload="render" />}
                   aria-label="Library"
                   style={styles.footerAction}
                 >
-                  <PrimarySidebarIcon icon={Bookshelf01Icon} />
-                </IconButton>
+                  <IconButton.Icon render={<HugeiconsIcon icon={Bookshelf01Icon} />} />
+                </IconButton.Root>
               }
             />
           </>

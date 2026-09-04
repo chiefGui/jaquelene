@@ -92,7 +92,6 @@ function DeleteAction({ campaign, replyActive }: { campaign: Campaign; replyActi
             render={
               <IconButton
                 type="button"
-                tone="danger"
                 aria-label={`Delete ${campaign.title}`}
                 disabled={unavailable}
               >

@@ -12,7 +12,7 @@ type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
 };
 
-export type ContentPaneBackProps = Omit<IconButtonProps, "aria-label" | "children"> & {
+export type ContentPaneBackProps = Omit<IconButtonProps, "aria-label" | "children" | "size"> & {
   "aria-label"?: string;
 };
 
@@ -48,10 +48,10 @@ function ContentPaneBack({
   ...props
 }: ContentPaneBackProps) {
   return (
-    <IconButton {...props} aria-label={ariaLabel} style={[styles.back, style]}>
+    <IconButton {...props} aria-label={ariaLabel} size="small" style={[styles.back, style]}>
       <HugeiconsIcon
         icon={ArrowLeft01Icon}
-        size={16}
+        size={14}
         color="currentColor"
         strokeWidth={1.5}
         aria-hidden="true"
@@ -80,7 +80,8 @@ const styles = stylex.create({
     paddingInlineStart: "0.75rem",
   },
   back: {
-    marginInlineEnd: "0.25rem",
+    marginInlineEnd: "0.5rem",
+    marginInlineStart: "-0.25rem",
   },
   viewport: {
     flex: 1,

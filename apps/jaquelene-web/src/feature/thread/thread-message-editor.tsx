@@ -3,6 +3,7 @@ import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId, useLayoutEffect, useRef, useState, type SubmitEvent } from "react";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
+import { ThreadMessageDeleteConfirmation } from "./thread-message-delete-confirmation";
 
 export type ThreadMessageEditSession = Readonly<{
   messageId: string;
@@ -13,7 +14,9 @@ export type ThreadMessageEditorProps = Readonly<{
   session: ThreadMessageEditSession;
   maxLength: number;
   pending: boolean;
+  fromAssistant: boolean;
   onCancel: () => void;
+  onDelete: () => Promise<void>;
   onReady: () => void;
   onSave: (content: string) => Promise<void>;
 }>;
@@ -42,15 +45,19 @@ export default function ThreadMessageEditor({
   session,
   maxLength,
   pending,
+  fromAssistant,
   onCancel,
+  onDelete,
   onReady,
   onSave,
 }: ThreadMessageEditorProps) {
   const [draft, setDraft] = useState(session.originalContent);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const saveRequestPending = useRef(false);
   const errorId = useId();
-  const saveDisabled = pending || !draft.trim() || draft === session.originalContent;
+  const empty = !draft.trim();
+  const saveDisabled = pending || draft === session.originalContent;
   const errorDescription: { "aria-describedby"?: string } = {};
 
   if (error) {
@@ -85,11 +92,40 @@ export default function ThreadMessageEditor({
   function submitEdit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (saveDisabled) {
+    if (saveDisabled || empty) {
       return;
     }
 
     void saveDraft();
+  }
+
+  let primaryAction = (
+    <Button
+      type="submit"
+      shape="squircle"
+      size="small"
+      disabled={saveDisabled}
+      aria-busy={pending || undefined}
+    >
+      {saveLabel(pending)}
+    </Button>
+  );
+
+  if (empty) {
+    primaryAction = (
+      <ThreadMessageDeleteConfirmation
+        fromAssistant={fromAssistant}
+        open={deleteConfirmationOpen}
+        pending={pending}
+        setOpen={setDeleteConfirmationOpen}
+        onDelete={onDelete}
+        trigger={
+          <Button type="button" shape="squircle" size="small" disabled={saveDisabled}>
+            Save
+          </Button>
+        }
+      />
+    );
   }
 
   return (
@@ -124,15 +160,7 @@ export default function ThreadMessageEditor({
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                shape="squircle"
-                size="small"
-                disabled={saveDisabled}
-                aria-busy={pending || undefined}
-              >
-                {saveLabel(pending)}
-              </Button>
+              {primaryAction}
             </div>
           </div>
         </MarkdownEditor.Frame>

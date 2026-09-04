@@ -153,7 +153,7 @@ function toIpcSubmission(acceptance: TurnAcceptance) {
 function toIpcHistoryDeletion(deletion: ThreadHistoryDeletion) {
   return {
     threadId: deletion.threadId,
-    userMessageId: deletion.userMessageId,
+    messageId: deletion.messageId,
     ...(deletion.activeMessageId === null ? {} : { activeMessageId: deletion.activeMessageId }),
     deletedTurnCount: deletion.deletedTurnCount,
     threadActivity: toIpcThreadActivity(deletion.threadActivity),
@@ -322,7 +322,7 @@ export function createThreadMessaging(
           const deletion = toIpcHistoryDeletion(
             turns.deleteFrom({
               threadId: ids.thread.parse(request.threadId),
-              userMessageId: ids.message.parse(request.userMessageId),
+              messageId: ids.message.parse(request.messageId),
             }),
           );
           publishThreadChange("thread.history.delete", (destination) =>

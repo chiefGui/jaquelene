@@ -25,6 +25,7 @@ import {
   retainLoadedThreadMessages,
   threadMessagesQuery,
   useIsThreadOperationPending,
+  useDeleteThreadHistoryFromMessage,
   useEditThreadMessage,
   usePendingTurnSubmission,
   useRegenerateReply,
@@ -301,6 +302,8 @@ function ThreadViewInstance({
   const editMessageMutation = useEditThreadMessage(threadId);
   const editMessage = editMessageMutation.mutateAsync;
   const resetMessageEdit = editMessageMutation.reset;
+  const deleteHistoryMutation = useDeleteThreadHistoryFromMessage(threadId);
+  const deleteHistory = deleteHistoryMutation.mutateAsync;
   const [editSession, setEditSession] = useState<ThreadMessageEditSession | null>(null);
   const acceptingRetry = useRef(false);
   const acceptingRegeneration = useRef(false);
@@ -351,12 +354,12 @@ function ThreadViewInstance({
   );
 
   const cancelEdit = useCallback(() => {
-    if (editMessageMutation.isPending) {
+    if (editMessageMutation.isPending || deleteHistoryMutation.isPending) {
       return;
     }
 
     setEditSession(null);
-  }, [editMessageMutation.isPending]);
+  }, [deleteHistoryMutation.isPending, editMessageMutation.isPending]);
 
   const saveEdit = useCallback(
     async (messageId: string, content: string) => {
@@ -375,6 +378,19 @@ function ThreadViewInstance({
       }
     },
     [editMessage],
+  );
+
+  const deleteFromMessage = useCallback(
+    async (messageId: string) => {
+      try {
+        await deleteHistory(messageId);
+        setEditSession(null);
+      } catch (cause) {
+        reportError("thread.history.delete", cause);
+        throw cause;
+      }
+    },
+    [deleteHistory],
   );
 
   const retryReply = useCallback(
@@ -555,10 +571,12 @@ function ThreadViewInstance({
           }
           editSession={editSession}
           editPending={editMessageMutation.isPending}
+          deletePending={deleteHistoryMutation.isPending}
           messageMaxCodeUnits={threadView.messageMaxCodeUnits}
           beginEdit={beginEdit}
           cancelEdit={cancelEdit}
           saveEdit={saveEdit}
+          deleteFromMessage={deleteFromMessage}
           loadOlder={loadOlder}
           regenerateResponse={regenerateResponse}
           retryReply={retryReply}

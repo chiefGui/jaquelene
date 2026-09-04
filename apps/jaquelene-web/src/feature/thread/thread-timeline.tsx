@@ -61,10 +61,12 @@ type ThreadTimelineProps = Readonly<{
   responseActionsDisabled: boolean;
   editSession: ThreadMessageEditSession | null;
   editPending: boolean;
+  deletePending: boolean;
   messageMaxCodeUnits: number;
   beginEdit: (message: ThreadMessageView["message"]) => void;
   cancelEdit: () => void;
   saveEdit: (messageId: string, content: string) => Promise<void>;
+  deleteFromMessage: (messageId: string) => Promise<void>;
   loadOlder: () => Promise<void>;
   regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
   retryReply: (turnId: string) => Promise<void>;
@@ -86,10 +88,12 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   responseActionsDisabled,
   editSession,
   editPending,
+  deletePending,
   messageMaxCodeUnits,
   beginEdit,
   cancelEdit,
   saveEdit,
+  deleteFromMessage,
   loadOlder,
   regenerateResponse,
   retryReply,
@@ -364,8 +368,10 @@ export const ThreadTimeline = memo(function ThreadTimeline({
               editor = {
                 session: editSession,
                 maxLength: messageMaxCodeUnits,
-                pending: editPending,
+                pending: editPending || deletePending,
+                fromAssistant: message.author === "assistant",
                 onCancel: cancelEdit,
+                onDelete: () => deleteFromMessage(message.id),
                 onReady: revealActiveEditor,
                 onSave: (content) => saveEdit(message.id, content),
               };
@@ -399,6 +405,8 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                   retryReply={retryReply}
                   editor={editor}
                   beginEdit={beginEdit}
+                  deletePending={deletePending}
+                  deleteFromMessage={deleteFromMessage}
                   hasFollowingItem={virtualItem.index + 1 < items.length}
                 />
               </li>

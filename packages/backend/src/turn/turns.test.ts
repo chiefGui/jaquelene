@@ -528,7 +528,7 @@ describe("turns", () => {
     expect(() =>
       turns.deleteFrom({
         threadId: thread.id,
-        userMessageId: first.acceptance.userMessage.id,
+        messageId: first.acceptance.userMessage.id,
       }),
     ).toThrow(`Thread "${thread.id}" already has an active operation.`);
     expect(() =>
@@ -607,18 +607,23 @@ describe("turns", () => {
       content: "Delete this turn",
       configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
     });
-    await operation.settlement;
+    const settlement = await operation.settlement;
+
+    if (settlement.outcome !== "completed") {
+      throw new Error("Expected the reply to complete.");
+    }
+
     const attemptsBeforeDeletion = database.select().from(providerAttemptTable).all();
 
     expect(attemptsBeforeDeletion).toHaveLength(1);
     expect(
       turns.deleteFrom({
         threadId: thread.id,
-        userMessageId: operation.acceptance.userMessage.id,
+        messageId: settlement.assistantMessage.id,
       }),
     ).toEqual({
       threadId: thread.id,
-      userMessageId: operation.acceptance.userMessage.id,
+      messageId: settlement.assistantMessage.id,
       activeMessageId: null,
       deletedTurnCount: 1,
       threadActivity: {

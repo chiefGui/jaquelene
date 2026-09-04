@@ -392,7 +392,7 @@ export function useDeleteThreadHistoryFromMessage(threadId: string) {
   return useMutation({
     ...ipcMutationOptions,
     mutationKey: [...threadOperationMutationKey(threadId), "delete-history-from-message"],
-    mutationFn: (userMessageId: string) => deleteThreadHistory({ threadId, userMessageId }),
+    mutationFn: (messageId: string) => deleteThreadHistory({ threadId, messageId }),
   });
 }
 

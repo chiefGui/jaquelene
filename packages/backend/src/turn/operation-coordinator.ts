@@ -7,7 +7,7 @@ export type ThreadOperationInspection =
   | Readonly<{ state: "retrying"; turnId: TurnId }>
   | Readonly<{ state: "regenerating"; assistantMessageId: MessageId }>
   | Readonly<{ state: "editing"; messageId: MessageId }>
-  | Readonly<{ state: "truncating"; userMessageId: MessageId }>
+  | Readonly<{ state: "truncating"; messageId: MessageId }>
   | Readonly<{
       state: "generating";
       intent: GenerationIntent;

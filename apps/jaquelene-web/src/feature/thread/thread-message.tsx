@@ -11,10 +11,10 @@ import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import { lazy, memo, Suspense, useState, type ReactNode } from "react";
-import { reportError } from "@/feature/diagnostics/diagnostics";
 import { EditIcon, RegenerateIcon } from "@/primitive/icons";
 import { Markdown } from "../markdown/markdown";
-import { useDeleteThreadHistoryFromMessage, type SubmitTurnVariables } from "./query";
+import type { SubmitTurnVariables } from "./query";
+import { ThreadMessageDeleteConfirmation } from "./thread-message-delete-confirmation";
 import type { ThreadMessageEditorProps } from "./thread-message-editor";
 import type { ThreadViewState } from "./thread-view-state";
 
@@ -131,49 +131,34 @@ function MessageEditAction({
 function UserMessageToolbar({
   createdAt,
   disabled,
+  deletePending,
+  deleteFromMessage,
   onEdit,
-  threadId,
-  userMessageId,
+  messageId,
 }: Readonly<{
   createdAt: number;
   disabled: boolean;
+  deletePending: boolean;
+  deleteFromMessage: (messageId: string) => Promise<void>;
   onEdit: () => void;
-  threadId: string;
-  userMessageId: string;
+  messageId: string;
 }>) {
-  const deleteHistory = useDeleteThreadHistoryFromMessage(threadId);
-  const [open, setOpen] = useState(false);
-
-  function setConfirmationOpen(nextOpen: boolean) {
-    if (nextOpen) {
-      deleteHistory.reset();
-    }
-
-    if (!deleteHistory.isPending) {
-      setOpen(nextOpen);
-    }
-  }
-
-  async function deleteFromMessage() {
-    try {
-      await deleteHistory.mutateAsync(userMessageId);
-      setOpen(false);
-    } catch (cause) {
-      reportError("thread.history.delete", cause);
-    }
-  }
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
 
   return (
     <MessageToolbar
-      active={open}
+      active={deleteConfirmationOpen}
       createdAt={createdAt}
-      editDisabled={disabled || deleteHistory.isPending}
+      editDisabled={disabled || deletePending}
       onEdit={onEdit}
     >
       <Tooltip.Root>
-        <ConfirmDialog
-          open={open}
-          setOpen={setConfirmationOpen}
+        <ThreadMessageDeleteConfirmation
+          fromAssistant={false}
+          open={deleteConfirmationOpen}
+          pending={deletePending}
+          setOpen={setDeleteConfirmationOpen}
+          onDelete={() => deleteFromMessage(messageId)}
           trigger={
             <Tooltip.Anchor
               render={
@@ -181,19 +166,13 @@ function UserMessageToolbar({
                   type="button"
                   size="small"
                   aria-label="Delete this and subsequent messages"
-                  disabled={disabled || deleteHistory.isPending}
+                  disabled={disabled || deletePending}
                 >
                   <IconButton.Icon render={<HugeiconsIcon icon={TrashIcon} />} />
                 </IconButton.Root>
               }
             />
           }
-          heading="Delete from here?"
-          description="This message and everything after it will be deleted."
-          confirmLabel="Delete"
-          pending={deleteHistory.isPending}
-          error={deleteHistory.isError ? "Couldn't delete these messages." : undefined}
-          onConfirm={() => void deleteFromMessage()}
         />
 
         <Tooltip>Delete from here</Tooltip>
@@ -429,6 +408,8 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   retryReply,
   editor,
   beginEdit,
+  deletePending,
+  deleteFromMessage,
   hasFollowingItem,
 }: Readonly<{
   message: ThreadMessage;
@@ -443,6 +424,8 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   retryReply: (turnId: string) => Promise<void>;
   editor: ThreadMessageEditorProps | null;
   beginEdit: (message: ThreadMessage) => void;
+  deletePending: boolean;
+  deleteFromMessage: (messageId: string) => Promise<void>;
   hasFollowingItem: boolean;
 }>) {
   const fromUser = message.author === ThreadMessageAuthor.User;
@@ -454,9 +437,10 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
         <UserMessageToolbar
           createdAt={message.createdAt}
           disabled={actionsDisabled}
+          deletePending={deletePending}
+          deleteFromMessage={deleteFromMessage}
           onEdit={() => beginEdit(message)}
-          threadId={message.threadId}
-          userMessageId={message.id}
+          messageId={message.id}
         />
       );
     } else {

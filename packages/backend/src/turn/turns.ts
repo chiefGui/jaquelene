@@ -1,5 +1,5 @@
 import type { Database } from "#backend/database/database";
-import type { GenerationConfiguration } from "#backend/model/configuration";
+import type { RequestedModelConfiguration } from "#backend/model/configuration";
 import type {
   AcceptedReplyGeneration,
   GenerationEngine,
@@ -48,19 +48,19 @@ export type ThreadActivityPage = ReturnType<TurnThreads["listMessages"]> & {
 export type SubmitTurnRequest = {
   threadId: ThreadId;
   content: string;
-  configuration: GenerationConfiguration;
+  configuration: RequestedModelConfiguration;
   signal?: AbortSignal;
 };
 
 export type RetryTurnRequest = {
   turnId: TurnId;
-  configuration: GenerationConfiguration;
+  configuration: RequestedModelConfiguration;
   signal?: AbortSignal;
 };
 
 export type RegenerateReplyRequest = {
   assistantMessageId: MessageId;
-  configuration: GenerationConfiguration;
+  configuration: RequestedModelConfiguration;
   signal?: AbortSignal;
 };
 
@@ -86,23 +86,33 @@ export type TurnOperation = {
   settlement: Promise<TurnSettlement>;
 };
 
-function copyConfiguration(configuration: GenerationConfiguration): GenerationConfiguration {
-  return {
+function copyRequestedModelConfiguration(
+  configuration: RequestedModelConfiguration,
+): RequestedModelConfiguration {
+  const copy: {
+    model: RequestedModelConfiguration["model"];
+    reasoningPreset?: NonNullable<RequestedModelConfiguration["reasoningPreset"]>;
+  } = {
     model: {
       providerId: configuration.model.providerId,
       modelId: configuration.model.modelId,
     },
-    ...(configuration.reasoningPreset === undefined
-      ? {}
-      : { reasoningPreset: configuration.reasoningPreset }),
   };
+
+  if (configuration.reasoningPreset !== undefined) {
+    copy.reasoningPreset = configuration.reasoningPreset;
+  }
+
+  return copy;
 }
 
 function assertNotAborted(signal: AbortSignal | undefined) {
   if (signal?.aborted) {
-    throw signal.reason instanceof Error
-      ? signal.reason
-      : new Error("Turn operation was interrupted.", { cause: signal.reason });
+    if (signal.reason instanceof Error) {
+      throw signal.reason;
+    }
+
+    throw new Error("Turn operation was interrupted.", { cause: signal.reason });
   }
 }
 
@@ -205,7 +215,7 @@ export function createTurns(
       configuration: requestedConfiguration,
       signal,
     }: SubmitTurnRequest): Promise<TurnOperation> {
-      const configuration = copyConfiguration(requestedConfiguration);
+      const configuration = copyRequestedModelConfiguration(requestedConfiguration);
       requireThreadMessageContent(content);
       assertNotAborted(signal);
 
@@ -245,7 +255,7 @@ export function createTurns(
       configuration: requestedConfiguration,
       signal,
     }: RetryTurnRequest): Promise<TurnOperation> {
-      const configuration = copyConfiguration(requestedConfiguration);
+      const configuration = copyRequestedModelConfiguration(requestedConfiguration);
       assertNotAborted(signal);
       const input = threads.getTurnInput(turnId);
 
@@ -283,7 +293,7 @@ export function createTurns(
       configuration: requestedConfiguration,
       signal,
     }: RegenerateReplyRequest): Promise<TurnOperation> {
-      const configuration = copyConfiguration(requestedConfiguration);
+      const configuration = copyRequestedModelConfiguration(requestedConfiguration);
       assertNotAborted(signal);
       const assistantMessage = threads.getMessage(assistantMessageId);
 

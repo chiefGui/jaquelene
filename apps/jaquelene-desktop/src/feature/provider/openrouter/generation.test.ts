@@ -31,8 +31,8 @@ function chatResult(overrides: Partial<ChatResult> = {}): ChatResult {
 
 function generationRequest(): ProviderGenerationRequest {
   return {
-    operationId: ids.generation.create(),
-    conversationId: ids.thread.create(),
+    executionId: ids.generation.create(),
+    groupId: ids.thread.create(),
     modelId: "maker/requested-model",
     input: {
       instructions: [{ sourceKey: "test.instruction", content: "Instruction" }],
@@ -109,19 +109,19 @@ describe("OpenRouter generation provider", () => {
           { role: "assistant", content: "Earlier reply" },
           { role: "user", content: "Hello" },
         ],
-        metadata: { jaquelene_operation_id: request.operationId },
-        session_id: request.conversationId,
+        metadata: { jaquelene_execution_id: request.executionId },
+        session_id: request.groupId,
         stream: false,
       },
       signal,
     );
   });
 
-  it("does not invent a conversation for an independent operation", async () => {
+  it("does not invent a group for an independent execution", async () => {
     const signal = operationSignal();
     const request = generationRequest();
     const independentRequest: ProviderGenerationRequest = {
-      operationId: request.operationId,
+      executionId: request.executionId,
       modelId: request.modelId,
       input: request.input,
     };

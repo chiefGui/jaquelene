@@ -10,6 +10,7 @@ import type { ModelInput } from "#backend/model/input";
 import {
   createModelExecutionRunner,
   createModelExecutor,
+  ModelProviderError,
   type ModelExecutionRunner,
 } from "#backend/model/execution";
 import { createModelInputResolver } from "#backend/model/input-resolver";
@@ -183,8 +184,8 @@ describe("generations", () => {
     });
 
     expect(generate).toHaveBeenCalledWith({
-      operationId: result.generation.id,
-      conversationId: thread.id,
+      executionId: result.generation.id,
+      groupId: thread.id,
       modelId: "maker/requested-model",
       input: {
         instructions: [],
@@ -332,8 +333,8 @@ describe("generations", () => {
     });
 
     expect(provider.generate).toHaveBeenCalledWith({
-      operationId: expect.stringMatching(/^generation_/),
-      conversationId: campaign.threadId,
+      executionId: expect.stringMatching(/^generation_/),
+      groupId: campaign.threadId,
       modelId: "maker/model",
       input: {
         instructions: [
@@ -657,13 +658,16 @@ describe("generations", () => {
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
 
-    await expect(
-      generations.generateReply({
-        intent: "reply",
-        turnId: started.turn.id,
-        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
-      }),
-    ).rejects.toBe(failure);
+    const providerFailure = generations.generateReply({
+      intent: "reply",
+      turnId: started.turn.id,
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
+    });
+
+    await expect(providerFailure).rejects.toBeInstanceOf(ModelProviderError);
+    await expect(providerFailure).rejects.toEqual(
+      expect.objectContaining({ cause: failure, message: failure.message }),
+    );
     await expect(
       generations.generateReply({
         intent: "retry",
@@ -995,7 +999,7 @@ describe("generations", () => {
           model: { providerId: "missing-provider", modelId: "maker/model" },
         },
       }),
-    ).rejects.toThrow('Unknown generation provider "missing-provider".');
+    ).rejects.toThrow('Unknown model provider "missing-provider".');
     expect(provider.generate).not.toHaveBeenCalled();
     expect(database.select().from(generationTable).all()).toEqual([]);
   });

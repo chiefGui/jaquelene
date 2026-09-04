@@ -160,12 +160,12 @@ export function createOpenRouterGeneration(
         const chatRequest: OpenRouterChatRequest = {
           model: request.modelId,
           messages: toOpenRouterMessages(request.input),
-          metadata: { jaquelene_operation_id: request.operationId },
+          metadata: { jaquelene_execution_id: request.executionId },
           stream: false,
         };
 
-        if (request.conversationId !== undefined) {
-          chatRequest.session_id = request.conversationId;
+        if (request.groupId !== undefined) {
+          chatRequest.session_id = request.groupId;
         }
 
         if (reasoning !== undefined) {

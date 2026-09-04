@@ -13,6 +13,7 @@ import { ids } from "#backend/id";
 import {
   createModelExecutionRunner,
   createModelExecutor,
+  ModelProviderError,
   type ModelExecutionRunner,
 } from "#backend/model/execution";
 import { createModelInputResolver } from "#backend/model/input-resolver";
@@ -267,7 +268,10 @@ describe("turns", () => {
     expect(failed.generation).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "provider" }),
     );
-    expect(failed.failure).toEqual({ cause: providerFailure });
+    expect(failed.failure.cause).toBeInstanceOf(ModelProviderError);
+    expect(failed.failure.cause).toEqual(
+      expect.objectContaining({ cause: providerFailure, message: providerFailure.message }),
+    );
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
 
     const pendingRetry = turns.retry({
@@ -427,13 +431,23 @@ describe("turns", () => {
     });
     const failed = await failedAttempt.settlement;
 
+    if (failed.outcome !== "failed") {
+      throw new Error("Expected regeneration to fail.");
+    }
+
     expect(failed).toEqual(
       expect.objectContaining({
         outcome: "failed",
-        failure: { cause: regenerationFailure },
+        failure: {
+          cause: expect.objectContaining({
+            cause: regenerationFailure,
+            message: regenerationFailure.message,
+          }),
+        },
         threadActivity: original.threadActivity,
       }),
     );
+    expect(failed.failure.cause).toBeInstanceOf(ModelProviderError);
     expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toEqual([
       submission.acceptance.userMessage,
       original.assistantMessage,
@@ -679,7 +693,7 @@ describe("turns", () => {
           model: { providerId: "missing-provider", modelId: "maker/model" },
         },
       }),
-    ).rejects.toThrow('Unknown generation provider "missing-provider".');
+    ).rejects.toThrow('Unknown model provider "missing-provider".');
     await expect(
       turns.submit({ threadId: thread.id, content: "  ", configuration }),
     ).rejects.toThrow(TypeError);

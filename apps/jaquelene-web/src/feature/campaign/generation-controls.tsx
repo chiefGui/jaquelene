@@ -5,7 +5,7 @@ import {
 import type {
   AvailableModel,
   CampaignGenerationPreferences,
-  GenerationConfigurationSelection,
+  ModelConfigurationSelection,
   ModelSelection,
   ModelReasoningCapability,
   ReasoningPreset,
@@ -29,7 +29,7 @@ function ModelReasoningControl({
   onValueChange,
 }: {
   busy: boolean;
-  configuration: GenerationConfigurationSelection;
+  configuration: ModelConfigurationSelection;
   disabled: boolean;
   onValueChange: (
     value: ReasoningPreset | null,
@@ -62,7 +62,7 @@ export function CampaignGenerationControls({
   preferences,
 }: {
   campaignId: string;
-  configuration: GenerationConfigurationSelection | null;
+  configuration: ModelConfigurationSelection | null;
   defaultModel: ModelSelection | null;
   disabled: boolean;
   preferences: CampaignGenerationPreferences | undefined;

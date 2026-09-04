@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "#backend/database/database";
-import type { GenerationConfiguration } from "#backend/model/configuration";
+import type { RequestedModelConfiguration } from "#backend/model/configuration";
 import {
   appendAssistantMessageInTransaction,
   requireThreadMessageContent,
@@ -16,7 +16,9 @@ import {
 import { ids, type MessageId, type TurnId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import {
+  requireModelExecutionRequest,
   requireResolvedModelConfiguration,
+  type ModelExecutionRequest,
   type ModelExecutionRunner,
   type ModelExecutionResult,
   type ResolvedModelConfiguration,
@@ -41,7 +43,7 @@ import {
 export type GenerateReplyRequest = {
   turnId: TurnId;
   intent: GenerationIntent;
-  configuration: GenerationConfiguration;
+  configuration: RequestedModelConfiguration;
   signal?: AbortSignal;
 };
 
@@ -66,17 +68,17 @@ export type AcceptedReplyGeneration = Readonly<{
 
 function modelConfigurationFromGeneration(
   generation: Pick<Generation, "modelId" | "providerId" | "reasoning">,
-) {
+): ResolvedModelConfiguration {
   const model = {
     providerId: generation.providerId,
     modelId: generation.modelId,
   };
 
   if (generation.reasoning === undefined) {
-    return requireResolvedModelConfiguration({ model });
+    return { model };
   }
 
-  return requireResolvedModelConfiguration({ model, reasoning: generation.reasoning });
+  return { model, reasoning: generation.reasoning };
 }
 
 function interruptionCause(signal: AbortSignal) {
@@ -446,6 +448,19 @@ export function createGenerations(
       return recordFailure(generation, failureKind, cause);
     }
 
+    let executionRequest: ModelExecutionRequest;
+
+    try {
+      executionRequest = requireModelExecutionRequest({
+        executionId: generation.id,
+        groupId: anchor.threadId,
+        configuration: modelConfigurationFromGeneration(generation),
+        input,
+      });
+    } catch (cause) {
+      return recordFailure(generation, "preparation", cause);
+    }
+
     let attempt: ProviderAttempt;
 
     try {
@@ -460,20 +475,10 @@ export function createGenerations(
       return recordFailure(generation, "storage", cause);
     }
 
-    const executionConfiguration = modelConfigurationFromGeneration(generation);
-
     let modelExecution: ModelExecutionResult;
 
     try {
-      modelExecution = await modelExecutor.execute(
-        {
-          operationId: generation.id,
-          conversationId: anchor.threadId,
-          configuration: executionConfiguration,
-          input,
-        },
-        signal,
-      );
+      modelExecution = await modelExecutor.execute(executionRequest, signal);
     } catch (cause) {
       let failureKind: GenerationFailureKind = "provider";
 
@@ -567,7 +572,7 @@ export function createGenerations(
   }
 
   async function resolveConfiguration(
-    requestedConfiguration: GenerationConfiguration,
+    requestedConfiguration: RequestedModelConfiguration,
     signal?: AbortSignal,
   ): Promise<ResolvedModelConfiguration> {
     return modelExecutor.resolveConfiguration(requestedConfiguration, signal);

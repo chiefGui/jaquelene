@@ -13,10 +13,12 @@ export {
   setCampaignGenerationModel,
   setCampaignGenerationReasoningPreset,
   type CampaignGenerationPreferences,
-  type GenerationConfiguration,
-  type ModelIdentity,
-  type ModelReasoningOptions,
 } from "./campaign/generation-configuration";
+export type {
+  ModelIdentity,
+  ModelReasoningOptions,
+  RequestedModelConfiguration,
+} from "./model/configuration";
 export { narratorPromptKindKey } from "./narrator/prompt-kind";
 export {
   PROMPT_BODY_MAX_LENGTH,

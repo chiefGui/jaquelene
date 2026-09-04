@@ -167,8 +167,8 @@ export function createGenerationUsage(input: GenerationUsageInput): GenerationUs
 }
 
 export type ProviderGenerationRequest = Readonly<{
-  operationId: string;
-  conversationId?: string;
+  executionId: string;
+  groupId?: string;
   modelId: string;
   input: ModelInput;
   reasoning?: ResolvedReasoning;

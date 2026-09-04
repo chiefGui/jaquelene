@@ -1,4 +1,5 @@
 import { StorageCategory, type StorageArea } from "@jaquelene/backend";
+import { Context, Layer } from "effect";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import { deleteStoreFile } from "@/storage/delete-store-file";
@@ -92,3 +93,9 @@ export function createPreferences(userDataDirectory: string) {
 }
 
 export type Preferences = ReturnType<typeof createPreferences>;
+
+export class PreferencesService extends Context.Service<PreferencesService, Preferences>()(
+  "@jaquelene/desktop/preferences/Preferences",
+) {
+  static readonly layer = (preferences: Preferences) => Layer.succeed(this, this.of(preferences));
+}

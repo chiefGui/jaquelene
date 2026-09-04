@@ -5,6 +5,7 @@ import {
   type ErrorReport,
   type ErrorReporter,
 } from "@jaquelene/diagnostics";
+import { Context, Layer } from "effect";
 import { appendFile, mkdir, rename, rm, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
@@ -26,6 +27,14 @@ export type ApplicationDiagnostics = ErrorReporter &
     close: () => Promise<void>;
     [Symbol.asyncDispose]: () => Promise<void>;
   }>;
+
+export class ApplicationDiagnosticsService extends Context.Service<
+  ApplicationDiagnosticsService,
+  ApplicationDiagnostics
+>()("@jaquelene/desktop/diagnostics/ApplicationDiagnostics") {
+  static readonly layer = (diagnostics: ApplicationDiagnostics) =>
+    Layer.succeed(this, this.of(diagnostics));
+}
 
 function isMissing(error: unknown) {
   return error instanceof Error && (error as NodeJS.ErrnoException).code === "ENOENT";

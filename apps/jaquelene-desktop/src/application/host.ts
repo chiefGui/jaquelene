@@ -20,7 +20,11 @@ export type DesktopHost = Readonly<{
 function exitError(cause: Cause.Cause<Error>, message: string) {
   const errors = Cause.prettyErrors(cause);
 
-  return errors.length === 1 ? errors[0]! : new AggregateError(errors, message);
+  if (errors.length === 1) {
+    return errors[0]!;
+  }
+
+  return new AggregateError(errors, message);
 }
 
 export function createDesktopHost({
@@ -101,14 +105,15 @@ export function createDesktopHost({
       return;
     }
 
-    report(
-      unexpectedExitPhase === "starting"
-        ? "application.start"
-        : unexpectedExitPhase === "running"
-          ? "application.run"
-          : "application.close",
-      exitError(exit.cause, "Multiple application resources failed."),
-    );
+    let operation = "application.close";
+
+    if (unexpectedExitPhase === "starting") {
+      operation = "application.start";
+    } else if (unexpectedExitPhase === "running") {
+      operation = "application.run";
+    }
+
+    report(operation, exitError(exit.cause, "Multiple application resources failed."));
   }
 
   function finishShutdown() {
@@ -233,8 +238,14 @@ export function createDesktopHost({
       unexpectedExitPhase = state;
 
       if (Exit.isSuccess(exit)) {
+        let operation: "application.start" | "application.run" = "application.run";
+
+        if (state === "starting") {
+          operation = "application.start";
+        }
+
         hostFailure = {
-          operation: state === "starting" ? "application.start" : "application.run",
+          operation,
           error: new Error("Desktop application stopped unexpectedly."),
         };
       }
@@ -247,11 +258,13 @@ export function createDesktopHost({
   }
 
   return {
-    inspect: () => ({
-      state,
-      showPending,
-      ...(desktop ? { application: desktop.inspect() } : {}),
-    }),
+    inspect: () => {
+      if (desktop) {
+        return { state, showPending, application: desktop.inspect() };
+      }
+
+      return { state, showPending };
+    },
     quit: () => application.quit(),
   };
 }

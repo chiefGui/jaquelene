@@ -1,9 +1,12 @@
 import { StorageCategory, type StorageArea } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
+import { Context, Effect, Layer, Schema } from "effect";
 import { renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Rectangle } from "electron";
-import Store, { type Schema } from "electron-store";
+import Store, { type Schema as StoreSchema } from "electron-store";
+import { DesktopConfigurationService } from "@/application/configuration";
+import { ApplicationDiagnosticsService } from "@/diagnostics/diagnostics";
 import { deleteStoreFile } from "@/storage/delete-store-file";
 
 export type MainWindowState = {
@@ -37,7 +40,7 @@ const schema = {
     },
     required: ["bounds", "maximized"],
   },
-} satisfies Schema<LocalStateData>;
+} satisfies StoreSchema<LocalStateData>;
 
 function openStore(userDataDirectory: string) {
   return new Store<LocalStateData>({
@@ -119,10 +122,16 @@ export function createLocalState(userDataDirectory: string, diagnostics: ErrorRe
     },
     loadMainWindowState: (workAreas: readonly Rectangle[]) => {
       const mainWindow = store.get("mainWindow");
-      return mainWindow &&
-        workAreas.some((workArea) => rectanglesIntersect(mainWindow.bounds, workArea))
-        ? mainWindow
-        : undefined;
+
+      if (!mainWindow) {
+        return undefined;
+      }
+
+      if (!workAreas.some((workArea) => rectanglesIntersect(mainWindow.bounds, workArea))) {
+        return undefined;
+      }
+
+      return mainWindow;
     },
     saveMainWindowState: (mainWindow: MainWindowState) => {
       if (skipNextSave) {
@@ -136,3 +145,32 @@ export function createLocalState(userDataDirectory: string, diagnostics: ErrorRe
 }
 
 export type LocalState = ReturnType<typeof createLocalState>;
+
+export class LocalStateInitializationError extends Schema.TaggedError<LocalStateInitializationError>()(
+  "LocalStateInitializationError",
+  {
+    message: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+
+export class LocalStateService extends Context.Service<LocalStateService, LocalState>()(
+  "@jaquelene/desktop/LocalState",
+) {
+  static readonly layer = Layer.effect(
+    this,
+    Effect.gen(function* () {
+      const configuration = yield* DesktopConfigurationService;
+      const diagnostics = yield* ApplicationDiagnosticsService;
+      return yield* Effect.try({
+        try: () =>
+          LocalStateService.of(createLocalState(configuration.userDataDirectory, diagnostics)),
+        catch: (cause) =>
+          new LocalStateInitializationError({
+            message: "Could not initialize local state.",
+            cause,
+          }),
+      });
+    }),
+  );
+}

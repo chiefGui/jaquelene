@@ -17,6 +17,7 @@ import {
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import {
   remeasureStorageUsage,
   storageUsageQuery,
@@ -24,7 +25,6 @@ import {
   useDeleteStorageCategory,
 } from "@/feature/storage/query";
 import { ContentPane } from "@/layout/content-pane";
-import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/storage")({
   loader: {
@@ -81,21 +81,6 @@ async function remeasureStorage(operation: string, queryClient: QueryClient) {
   }
 }
 
-function StorageHeader() {
-  return (
-    <ContentPane.Header>
-      <Breadcrumb.Root>
-        <Breadcrumb.List>
-          <Breadcrumb.Item>Settings</Breadcrumb.Item>
-          <Breadcrumb.Item>
-            <Breadcrumb.Page>Storage</Breadcrumb.Page>
-          </Breadcrumb.Item>
-        </Breadcrumb.List>
-      </Breadcrumb.Root>
-    </ContentPane.Header>
-  );
-}
-
 function StorageUsageBreakdown({ categories }: { categories: readonly StorageCategoryView[] }) {
   const visibleCategories = categories.filter(({ bytes }) => bytes > 0);
 
@@ -149,9 +134,9 @@ function StorageClearAction({
         trigger={
           <Tooltip.Anchor
             render={
-              <IconButton aria-label={accessibleLabel} disabled={disabled}>
-                <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
-              </IconButton>
+              <IconButton.Root aria-label={accessibleLabel} disabled={disabled}>
+                <IconButton.Icon render={<HugeiconsIcon icon={TrashIcon} />} />
+              </IconButton.Root>
             }
           />
         }
@@ -209,7 +194,7 @@ function LogsStorage({ area }: { area: StorageAreaUsage }) {
             description="Removes saved logs from this device. New logs may be created later."
             confirmLabel="Clear"
             pending={deleteStorageArea.isPending}
-            error={deleteStorageArea.isError ? "Couldn’t clear logs." : undefined}
+            error={deleteStorageArea.isError ? "Couldn't clear logs." : undefined}
             onConfirm={() => void clearLogs()}
           />
         </div>
@@ -224,7 +209,7 @@ function StorageRouteError() {
 
   return (
     <>
-      <StorageHeader />
+      <SettingsSubpageHeader page="Storage" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>
@@ -233,7 +218,7 @@ function StorageRouteError() {
 
             <Item.Group>
               <Item.Root>
-                <Item.Label>Couldn’t measure storage</Item.Label>
+                <Item.Label>Couldn't measure storage</Item.Label>
                 <Button onClick={() => void router.invalidate()}>Retry</Button>
               </Item.Root>
             </Item.Group>
@@ -280,7 +265,7 @@ function StorageRoute() {
 
   return (
     <>
-      <StorageHeader />
+      <SettingsSubpageHeader page="Storage" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>
@@ -441,7 +426,7 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
       heading: "Clear content?",
       description:
         "This permanently deletes your chats and other content you created in Jaquelene.",
-      error: "Couldn’t finish clearing content.",
+      error: "Couldn't finish clearing content.",
     },
   },
   [StorageCategory.Cache]: {
@@ -451,7 +436,7 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
     confirmation: {
       heading: "Delete cache?",
       description: "Remote data will be fetched again when needed.",
-      error: "Couldn’t finish deleting the cache.",
+      error: "Couldn't finish deleting the cache.",
     },
   },
   [StorageCategory.AppData]: {
@@ -462,7 +447,7 @@ const storageCategoryPresentations: Record<StorageCategory, StorageCategoryPrese
       heading: "Clear app data?",
       description:
         "This deletes your preferences, saved connections, and other app data. Your content is kept.",
-      error: "Some app data couldn’t be cleared.",
+      error: "Some app data couldn't be cleared.",
     },
   },
 };

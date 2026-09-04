@@ -1,7 +1,9 @@
 import {
   PROMPT_BODY_MAX_LENGTH,
   PROMPT_KEY_MAX_LENGTH,
+  PROMPT_KIND_KEY_MAX_LENGTH,
   PROMPT_TITLE_MAX_LENGTH,
+  PromptOrigin,
   type PromptBody,
   type PromptKindKey,
   type PromptKey,
@@ -25,9 +27,11 @@ import type { CampaignId } from "#backend/id";
 const promptTitleMaxLengthSql = sql.raw(String(PROMPT_TITLE_MAX_LENGTH));
 const promptBodyMaxLengthSql = sql.raw(String(PROMPT_BODY_MAX_LENGTH));
 const promptKeyMaxLengthSql = sql.raw(String(PROMPT_KEY_MAX_LENGTH));
+const promptKindKeyMaxLengthSql = sql.raw(String(PROMPT_KIND_KEY_MAX_LENGTH));
 
-export const promptOrigins = ["factory", "custom"] as const;
-export type PromptOrigin = (typeof promptOrigins)[number];
+const promptOrigins = [PromptOrigin.BuiltIn, PromptOrigin.Custom] as const;
+const builtInPromptOriginSql = sql.raw(`'${PromptOrigin.BuiltIn}'`);
+const customPromptOriginSql = sql.raw(`'${PromptOrigin.Custom}'`);
 
 export const promptKindTable = sqliteTable(
   "prompt_kinds",
@@ -40,7 +44,7 @@ export const promptKindTable = sqliteTable(
     primaryKey({ columns: [kind.key] }),
     check(
       "prompt_kinds_key_valid",
-      sql`length(${kind.key}) > 0 AND length(${kind.key}) <= 64 AND ${kind.key} NOT GLOB '*[^a-z0-9-]*' AND ${kind.key} GLOB '[a-z]*'`,
+      sql`length(${kind.key}) > 0 AND length(${kind.key}) <= ${promptKindKeyMaxLengthSql} AND ${kind.key} NOT GLOB '*[^a-z0-9-]*' AND ${kind.key} GLOB '[a-z]*'`,
     ),
     check(
       "prompt_kinds_name_valid",
@@ -64,7 +68,8 @@ export const promptTable = sqliteTable(
     origin: text({ enum: promptOrigins }).notNull(),
     title: text().$type<PromptTitle>().notNull(),
     body: text().$type<PromptBody>().notNull(),
-    createdAt: integer("created_at").notNull(),
+    createdAt: integer("created_at"),
+    updatedAt: integer("updated_at"),
   },
   (prompt) => [
     primaryKey({ columns: [prompt.key] }),
@@ -74,7 +79,10 @@ export const promptTable = sqliteTable(
       "prompts_key_valid",
       sql`length(${prompt.key}) > 0 AND length(${prompt.key}) <= ${promptKeyMaxLengthSql}`,
     ),
-    check("prompts_origin_valid", sql`${prompt.origin} IN ('factory', 'custom')`),
+    check(
+      "prompts_origin_valid",
+      sql`${prompt.origin} IN (${builtInPromptOriginSql}, ${customPromptOriginSql})`,
+    ),
     check(
       "prompts_title_valid",
       sql`${prompt.title} = trim(${prompt.title}, ${sqliteWhitespaceCharacters}) AND length(${prompt.title}) > 0 AND length(${prompt.title}) <= ${promptTitleMaxLengthSql}`,
@@ -83,7 +91,10 @@ export const promptTable = sqliteTable(
       "prompts_body_valid",
       sql`length(trim(${prompt.body}, ${sqliteWhitespaceCharacters})) > 0 AND length(${prompt.body}) <= ${promptBodyMaxLengthSql}`,
     ),
-    check("prompts_created_at_nonnegative", sql`${prompt.createdAt} >= 0`),
+    check(
+      "prompts_lifecycle_valid",
+      sql`(${prompt.origin} = ${builtInPromptOriginSql} AND ${prompt.createdAt} IS NULL AND ${prompt.updatedAt} IS NULL) OR (${prompt.origin} = ${customPromptOriginSql} AND ${prompt.createdAt} IS NOT NULL AND ${prompt.updatedAt} IS NOT NULL AND ${prompt.createdAt} >= 0 AND ${prompt.updatedAt} >= ${prompt.createdAt})`,
+    ),
   ],
 );
 

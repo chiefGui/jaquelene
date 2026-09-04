@@ -19,8 +19,8 @@ import {
 import { interfaceScales } from "@/feature/appearance/user-interface/scale";
 import { ThemeSwatch } from "@/feature/appearance/user-interface/theme-swatch";
 import { uiThemes } from "@/feature/appearance/user-interface/theme";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import { ContentPane } from "@/layout/content-pane";
-import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/appearance")({
   loader: ({ context }) => context.queryClient.query(userInterfacePreferencesQuery),
@@ -188,16 +188,7 @@ function AppearanceRoute() {
 
   return (
     <>
-      <ContentPane.Header>
-        <Breadcrumb.Root>
-          <Breadcrumb.List>
-            <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Item>
-              <Breadcrumb.Page>Appearance</Breadcrumb.Page>
-            </Breadcrumb.Item>
-          </Breadcrumb.List>
-        </Breadcrumb.Root>
-      </ContentPane.Header>
+      <SettingsSubpageHeader page="Appearance" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

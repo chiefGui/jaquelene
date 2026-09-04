@@ -1,8 +1,14 @@
+import { Layer, ManagedRuntime } from "effect";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import { DesktopConfigurationService } from "@/application/configuration";
 import { createFavoriteModels } from "./favorite-models";
+import {
+  FavoriteModelsInitializationError,
+  FavoriteModelsService,
+} from "./favorite-models-service";
 import {
   createFavoriteModelsStorage,
   getFavoriteModelsStoragePaths,
@@ -23,6 +29,24 @@ afterEach(() => {
 });
 
 describe("favorite model storage", () => {
+  it("reports initialization failures through the typed Effect channel", async () => {
+    const configurationLayer = DesktopConfigurationService.layer({
+      userDataDirectory: "\0",
+      developmentServerUrl: undefined,
+    });
+    const runtime = ManagedRuntime.make(
+      FavoriteModelsService.layer.pipe(Layer.provide(configurationLayer)),
+    );
+
+    try {
+      await expect(runtime.runPromise(FavoriteModelsService)).rejects.toBeInstanceOf(
+        FavoriteModelsInitializationError,
+      );
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it("persists favorite models independently", () => {
     const directory = createUserDataDirectory();
     const reference = { providerId: "provider-a", modelId: "model-a" };

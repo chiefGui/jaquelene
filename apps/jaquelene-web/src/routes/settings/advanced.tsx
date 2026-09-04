@@ -11,9 +11,9 @@ import {
   diagnosticsPreferencesQuery,
   useSetDiagnosticsWriteToDisk,
 } from "@/feature/diagnostics/preferences";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import { ipcMutationOptions } from "@/ipc";
 import { ContentPane } from "@/layout/content-pane";
-import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/advanced")({
   loader: ({ context }) => context.queryClient.query(diagnosticsPreferencesQuery),
@@ -34,20 +34,11 @@ function AdvancedRoute() {
   const writeToDiskDescriptionId = useId();
   const writeToDiskErrorId = useId();
   const openLogsFolderErrorId = useId();
-  const preferenceError = setWriteToDisk.isError ? "Couldn’t save the preference." : null;
+  const preferenceError = setWriteToDisk.isError ? "Couldn't save the preference." : null;
 
   return (
     <>
-      <ContentPane.Header>
-        <Breadcrumb.Root>
-          <Breadcrumb.List>
-            <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Item>
-              <Breadcrumb.Page>Advanced</Breadcrumb.Page>
-            </Breadcrumb.Item>
-          </Breadcrumb.List>
-        </Breadcrumb.Root>
-      </ContentPane.Header>
+      <SettingsSubpageHeader page="Advanced" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>
@@ -102,7 +93,7 @@ function AdvancedRoute() {
 
               {openLogsFolder.isError ? (
                 <Item.Description id={openLogsFolderErrorId} role="alert" style={styles.error}>
-                  Couldn’t open the folder.
+                  Couldn't open the folder.
                 </Item.Description>
               ) : null}
             </Item.Root>

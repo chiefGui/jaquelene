@@ -1,11 +1,11 @@
-import type { ProviderConfigureResult } from "@jaquelene/backend";
+import type { ApiKeyVerificationResult } from "../api-key-configuration";
 
 const currentKeyEndpoint = "https://openrouter.ai/api/v1/key";
 
 export async function verifyOpenRouterApiKey(
   apiKey: string,
   signal: AbortSignal,
-): Promise<ProviderConfigureResult> {
+): Promise<ApiKeyVerificationResult> {
   let response: Response;
 
   try {

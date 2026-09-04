@@ -1,19 +1,9 @@
 module jaquelene
 
-enum ProviderConfigurationKind {
-  ApiKey = "api-key"
-  None = "none"
-}
-
-enum ProviderConfigurationState {
-  Unconfigured = "unconfigured"
-  Configured = "configured"
-}
-
-structure ProviderConfiguration {
-  kind: ProviderConfigurationKind
-  state: ProviderConfigurationState
-  keyLabel?: string
+zod_reference ProviderConfiguration {
+  import = "@jaquelene/domain"
+  type = "ProviderConfiguration"
+  schema = "providerConfigurationSchema"
 }
 
 structure Provider {
@@ -23,15 +13,10 @@ structure Provider {
   configuration: ProviderConfiguration
 }
 
-enum ProviderConfigureState {
-  Configured = "configured"
-  Rejected = "rejected"
-  Unavailable = "unavailable"
-}
-
-structure ProviderConfigureResult {
-  state: ProviderConfigureState
-  keyLabel?: string
+zod_reference ProviderConfigureResult {
+  import = "@jaquelene/domain"
+  type = "ProviderConfigureResult"
+  schema = "providerConfigureResultSchema"
 }
 
 [RendererAPI]

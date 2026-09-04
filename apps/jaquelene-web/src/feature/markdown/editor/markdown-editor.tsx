@@ -5,7 +5,7 @@ import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import TextBoldIcon from "@hugeicons/core-free-icons/TextBoldIcon";
 import TextItalicIcon from "@hugeicons/core-free-icons/TextItalicIcon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { formatCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
+import { formatPluralizedCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
@@ -15,20 +15,20 @@ import {
   lazy,
   memo,
   Suspense,
+  useCallback,
   useDeferredValue,
-  useImperativeHandle,
   useMemo,
   type ComponentProps,
   type ReactNode,
+  type Ref,
 } from "react";
 import {
   MarkdownEditorInput,
-  type MarkdownEditorAccessibleName,
+  runMarkdownEditorCommand,
+  type MarkdownEditorAccessibleNameProps,
   type MarkdownEditorCommand,
-  type MarkdownEditorHandle,
 } from "./markdown-editor-input";
 import {
-  createMarkdownEditorHandle,
   MarkdownEditorRoot,
   useMarkdownEditorConfiguration,
   useMarkdownEditorDocument,
@@ -40,7 +40,6 @@ import { countMarkdownDocument } from "./markdown-editor-statistics";
 export {
   MarkdownEditorInput,
   type MarkdownEditorCommand,
-  type MarkdownEditorHandle,
   type MarkdownEditorInputProps,
 } from "./markdown-editor-input";
 export {
@@ -70,9 +69,9 @@ const formattingActions = {
 
 const defaultFormattingCommands: readonly MarkdownEditorCommand[] = ["strong", "emphasis"];
 
-function getAccessibleName(
+function getAccessibleNameProps(
   configuration: MarkdownEditorConfiguration,
-): MarkdownEditorAccessibleName {
+): MarkdownEditorAccessibleNameProps {
   if (configuration.ariaLabel !== undefined) {
     return { "aria-label": configuration.ariaLabel };
   }
@@ -81,7 +80,10 @@ function getAccessibleName(
     return { "aria-labelledby": configuration.ariaLabelledBy };
   }
 
-  throw new Error("MarkdownEditor.Root requires an accessible name.");
+  // Form libraries may add the label relationship after their field items
+  // register. The editor accepts that transient state and applies the name as
+  // soon as the composed control receives it.
+  return {};
 }
 
 type StyleableDivProps = Omit<ComponentProps<"div">, "className" | "style"> & {
@@ -123,9 +125,9 @@ function MarkdownEditorAction({ icon, label, ...props }: MarkdownEditorActionPro
     <Tooltip.Root>
       <Tooltip.Anchor
         render={
-          <IconButton {...props} type="button" aria-label={label}>
-            <HugeiconsIcon icon={icon} size={15} strokeWidth={1.5} aria-hidden="true" />
-          </IconButton>
+          <IconButton.Root {...props} type="button" aria-label={label}>
+            <IconButton.Icon render={<HugeiconsIcon icon={icon} />} />
+          </IconButton.Root>
         }
       />
       <Tooltip>{label}</Tooltip>
@@ -158,7 +160,7 @@ function MarkdownEditorFormatAction({
       icon={icon ?? action.icon}
       disabled={disabled || readOnly || mode === "preview"}
       onMouseDown={(event) => event.preventDefault()}
-      onClick={() => inputRef.current?.run(command)}
+      onClick={() => runMarkdownEditorCommand(inputRef.current, command)}
     />
   );
 }
@@ -197,27 +199,46 @@ type MarkdownEditorInputPartProps = Readonly<{
   style?: StyleXStyles;
 }>;
 
-const MarkdownEditorInputPart = forwardRef<MarkdownEditorHandle, MarkdownEditorInputPartProps>(
+function setRef<Value>(ref: Ref<Value> | undefined, value: Value | null) {
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+
+  if (ref) {
+    ref.current = value;
+  }
+}
+
+const MarkdownEditorInputPart = forwardRef<HTMLElement, MarkdownEditorInputPartProps>(
   function MarkdownEditorInputPart({ hidden = false, style }, ref) {
     const configuration = useMarkdownEditorConfiguration("Input");
     const document = useMarkdownEditorDocument("Input");
-    const accessibleName = getAccessibleName(configuration);
-
-    useImperativeHandle(ref, () => createMarkdownEditorHandle(configuration.inputRef), [
-      configuration.inputRef,
-    ]);
+    const accessibleName = getAccessibleNameProps(configuration);
+    const setInputRef = useCallback(
+      (element: HTMLElement | null) => {
+        configuration.inputRef.current = element;
+        setRef(configuration.controlRef, element);
+        setRef(ref, element);
+      },
+      [configuration.controlRef, configuration.inputRef, ref],
+    );
 
     return (
       <MarkdownEditorInput
-        ref={configuration.inputRef}
+        ref={setInputRef}
         {...accessibleName}
         {...(configuration.ariaDescribedBy === undefined
           ? {}
           : { "aria-describedby": configuration.ariaDescribedBy })}
+        {...(configuration.ariaInvalid === undefined
+          ? {}
+          : { "aria-invalid": configuration.ariaInvalid })}
         autoFocus={configuration.autoFocus && !hidden}
         disabled={configuration.disabled}
         hidden={hidden}
-        invalid={configuration.invalid}
+        {...(configuration.id === undefined ? {} : { id: configuration.id })}
+        {...(configuration.maxLength === undefined ? {} : { maxLength: configuration.maxLength })}
         {...(configuration.onBlur === undefined ? {} : { onBlur: configuration.onBlur })}
         onChange={document.setValue}
         {...(configuration.onFocus === undefined ? {} : { onFocus: configuration.onFocus })}
@@ -294,10 +315,6 @@ type MarkdownEditorStatisticsProps = Omit<ComponentProps<"span">, "className" | 
   style?: StyleXStyles;
 };
 
-function formatUnit(value: number, singular: string) {
-  return `${formatCount(value)} ${singular}${value === 1 ? "" : "s"}`;
-}
-
 function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsProps) {
   const { value } = useMarkdownEditorDocument("Statistics");
   const deferredValue = useDeferredValue(value);
@@ -305,11 +322,13 @@ function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsP
 
   return (
     <span {...props} {...stylex.props(styles.statistics, style, stylex.defaultMarker())}>
-      <span>{formatUnit(statistics.lines, "line")}</span>
+      <span>{formatPluralizedCount(statistics.lines, "line", "lines")}</span>
       <span aria-hidden="true">·</span>
-      <span>{formatUnit(statistics.words, "word")}</span>
+      <span>{formatPluralizedCount(statistics.words, "word", "words")}</span>
       <span aria-hidden="true">·</span>
-      <span>{formatUnit(statistics.characters, "character")}</span>
+      <span>{formatPluralizedCount(statistics.characters, "character", "characters")}</span>
+      <span aria-hidden="true">·</span>
+      <span>≈ {formatPluralizedCount(statistics.estimatedTokens, "token", "tokens")}</span>
     </span>
   );
 }
@@ -333,7 +352,7 @@ const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent(
   );
 });
 
-const MarkdownEditorDefault = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
+const MarkdownEditorDefault = forwardRef<HTMLElement, MarkdownEditorProps>(
   function MarkdownEditorDefault({ style, ...props }, ref) {
     return (
       <MarkdownEditorRoot {...props} ref={ref}>
@@ -374,9 +393,8 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     fontFamily: "inherit",
-    fontSize: tokens.fontSizeBase,
-    lineHeight: tokens.lineHeightLarge,
-    minHeight: "24rem",
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
     opacity: {
       default: 1,
       ':is([data-disabled="true"])': 0.5,
@@ -400,9 +418,10 @@ const styles = stylex.create({
   },
   preview: {
     flexGrow: 1,
-    fontSize: tokens.fontSizeBase,
-    lineHeight: tokens.lineHeightBase,
-    minHeight: "20rem",
+    fontSize: tokens.fontSizeSmall,
+    lineHeight: tokens.lineHeightSmall,
+    maxHeight: "24rem",
+    minHeight: "8rem",
     overflow: "auto",
     padding: "1rem",
   },
@@ -423,8 +442,11 @@ const styles = stylex.create({
   },
   statistics: {
     alignItems: "center",
+    color: colors.foregroundDisabled,
     display: "inline-flex",
+    fontSize: tokens.fontSizeXXSmall,
     gap: "0.375rem",
+    lineHeight: tokens.lineHeightXXSmall,
   },
   previewSkeleton: {
     display: "flex",

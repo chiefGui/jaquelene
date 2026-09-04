@@ -2,9 +2,8 @@ import {
   ProviderConfigurationKind,
   ProviderConfigurationState,
   ProviderConfigureState,
-  Providers,
-  type Provider,
-} from "@jaquelene/ipc/renderer";
+} from "@jaquelene/domain";
+import { Providers, type Provider } from "@jaquelene/ipc/renderer";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { resetModelProvider } from "@/feature/model/catalog-query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
@@ -25,7 +24,13 @@ function updateProvider(
   providerId: string,
   update: (provider: Provider) => Provider,
 ) {
-  return providers?.map((provider) => (provider.id === providerId ? update(provider) : provider));
+  return providers?.map((provider) => {
+    if (provider.id === providerId) {
+      return update(provider);
+    }
+
+    return provider;
+  });
 }
 
 export function useConfigureProviderApiKey(providerId: string) {
@@ -42,7 +47,7 @@ export function useConfigureProviderApiKey(providerId: string) {
             configuration: {
               kind: ProviderConfigurationKind.ApiKey,
               state: ProviderConfigurationState.Configured,
-              ...(result.keyLabel ? { keyLabel: result.keyLabel } : {}),
+              keyLabel: result.keyLabel,
             },
           })),
         );

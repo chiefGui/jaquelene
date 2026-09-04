@@ -7,7 +7,7 @@ import { campaignTable } from "#backend/campaign/schema";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
-import { narratorPromptKind, narratorPromptModule } from "#backend/prompt/narrator";
+import { narratorPromptKind, narratorPromptModule } from "#backend/narrator/module";
 import { createPrompts } from "#backend/prompt/prompts";
 import { promptTable } from "#backend/prompt/schema";
 import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";

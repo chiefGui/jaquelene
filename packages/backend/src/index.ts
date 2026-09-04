@@ -1,5 +1,12 @@
-export { createBackend } from "#backend/backend";
-export type { Backend, BackendInspection, BackendOptions } from "#backend/backend";
+export { BackendService } from "#backend/backend";
+export type { Backend, BackendOptions } from "#backend/backend";
+export {
+  ThreadTranscriptEntryKind,
+  type ThreadTranscript,
+  type ThreadTranscriptEntry,
+  type ThreadTranscriptInstruction,
+  type ThreadTranscriptMessage,
+} from "@jaquelene/domain";
 export { getDatabaseStoragePaths } from "#backend/database/database";
 export type {
   ResourceCacheFailure,
@@ -18,11 +25,11 @@ export type {
 } from "#backend/campaign/campaigns";
 export type { CampaignUsage, CampaignUsageReader } from "#backend/campaign/usage";
 export {
-  requireGenerationConfiguration,
-  requireGenerationConfigurationSelection,
-  type GenerationConfiguration,
-  type GenerationConfigurationSelection,
-} from "#backend/generation/configuration";
+  requireModelConfigurationSelection,
+  requireRequestedModelConfiguration,
+  type ModelConfigurationSelection,
+  type RequestedModelConfiguration,
+} from "#backend/model/configuration";
 export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
 export {
   reasoningEfforts,
@@ -40,6 +47,9 @@ export {
 } from "#backend/model/reasoning";
 export {
   generationCostSources,
+  createGenerationUsage,
+  createProviderGenerationResult,
+  createProviderModel,
   requireContextWindowTokens,
   requireModelReference,
   requireModelSelection,
@@ -90,7 +100,6 @@ export {
 } from "#backend/id";
 export { assertStoragePathsAreDisjoint, StorageCategory } from "#backend/storage/storage";
 export type {
-  Storage,
   StorageArea,
   StorageAreaId,
   StorageAreaUsage,
@@ -99,7 +108,9 @@ export type {
 } from "#backend/storage/storage";
 export type { Instruction, PromptApplication } from "#backend/prompt/application-registry";
 export type {
+  BuiltInPrompt,
   CampaignPromptSelection,
+  CustomPrompt,
   Prompt,
   PromptCatalog,
   PromptDefault,
@@ -112,7 +123,8 @@ export type {
   SetCampaignPromptSelectionInput,
 } from "#backend/prompt/types";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
-export type { ThreadActivity, Threads } from "#backend/thread/threads";
+export type { Threads } from "#backend/thread/subsystem";
+export type { ThreadActivity } from "#backend/thread/threads";
 export type {
   DeleteThreadHistoryRequest,
   RegenerateReplyRequest,

@@ -1,8 +1,8 @@
 import {
-  requireGenerationConfigurationSelection,
+  requireModelConfigurationSelection,
   requireModelReference,
   requireModelSelection,
-  type GenerationConfigurationSelection,
+  type ModelConfigurationSelection,
   type ModelProvider,
   type ModelReference,
   type ModelSelection,
@@ -11,10 +11,10 @@ import {
 } from "@jaquelene/backend";
 
 export {
-  requireGenerationConfigurationSelection,
+  requireModelConfigurationSelection,
   requireModelReference,
   requireModelSelection,
-  type GenerationConfigurationSelection,
+  type ModelConfigurationSelection,
   type ModelProvider,
   type ModelReference,
   type ModelSelection,

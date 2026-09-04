@@ -41,7 +41,7 @@ export function CampaignTitleControl({ campaign }: { campaign: Campaign }) {
       form.setValue(form.names.title, renamed.title);
     } catch (cause) {
       reportError("campaign.rename", cause);
-      setError("Couldn’t rename this campaign.");
+      setError("Couldn't rename this campaign.");
     }
   });
 

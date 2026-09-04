@@ -40,9 +40,9 @@ const styles = stylex.create({
   },
   status: {
     color: colors.foregroundSecondary,
+    display: { default: "block", ":empty": "none" },
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
-    minHeight: tokens.lineHeightXSmall,
   },
   statusDanger: {
     color: colors.foregroundDanger,

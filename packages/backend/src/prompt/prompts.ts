@@ -1,11 +1,14 @@
 import {
+  PromptOrigin,
   parseCreatePromptInput,
+  parseCustomPrompt,
+  parsePrompt,
   parsePromptKey,
   parseUpdatePromptInput,
   type PromptKey,
   type PromptKindKey,
 } from "@jaquelene/domain";
-import { and, asc, eq, gt, notInArray, or } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, isNull, notInArray, or } from "drizzle-orm";
 import { campaignTable } from "#backend/campaign/schema";
 import type { Database } from "#backend/database/database";
 import { ids, type CampaignId } from "#backend/id";
@@ -19,6 +22,7 @@ import {
 } from "./schema";
 import type {
   CampaignPromptSelection,
+  CustomPrompt,
   Prompt,
   PromptDefault,
   PromptKind,
@@ -33,7 +37,29 @@ export const promptPageSize = 50;
 const promptKindRegistrationLimit = 32;
 
 function toPrompt(prompt: typeof promptTable.$inferSelect): Prompt {
-  return { ...prompt };
+  const common = {
+    key: prompt.key,
+    kind: prompt.kind,
+    origin: prompt.origin,
+    title: prompt.title,
+    body: prompt.body,
+  };
+
+  return parsePrompt(
+    prompt.origin === PromptOrigin.BuiltIn
+      ? common
+      : { ...common, createdAt: prompt.createdAt, updatedAt: prompt.updatedAt },
+  );
+}
+
+function toCustomPrompt(prompt: typeof promptTable.$inferSelect): CustomPrompt {
+  const parsed = toPrompt(prompt);
+
+  if (parsed.origin !== PromptOrigin.Custom) {
+    throw new TypeError(`Prompt "${parsed.key}" is not custom.`);
+  }
+
+  return parsed;
 }
 
 function validateRegistrations(registrations: readonly PromptKindRegistration[]) {
@@ -45,7 +71,7 @@ function validateRegistrations(registrations: readonly PromptKindRegistration[])
   const prompts = new Set<string>();
 
   for (const registration of registrations) {
-    const { definition, factoryPrompts, fallbackPromptKey } = registration;
+    const { definition, builtInPrompts, fallbackPromptKey } = registration;
 
     if (kinds.has(definition.key)) {
       throw new TypeError(`Prompt kind "${definition.key}" is registered twice.`);
@@ -54,13 +80,9 @@ function validateRegistrations(registrations: readonly PromptKindRegistration[])
     kinds.add(definition.key);
     const kindPrompts = new Set<string>();
 
-    for (const prompt of factoryPrompts) {
-      if (prompt.kind !== definition.key || prompt.origin !== "factory") {
-        throw new TypeError(`Factory prompt "${prompt.key}" has an invalid registration.`);
-      }
-
+    for (const prompt of builtInPrompts) {
       if (prompts.has(prompt.key)) {
-        throw new TypeError(`Factory prompt "${prompt.key}" is registered twice.`);
+        throw new TypeError(`Built-in prompt "${prompt.key}" is registered twice.`);
       }
 
       prompts.add(prompt.key);
@@ -75,11 +97,14 @@ function validateRegistrations(registrations: readonly PromptKindRegistration[])
   }
 }
 
-function installPromptKinds(database: Database, registrations: readonly PromptKindRegistration[]) {
+function installPromptCatalog(
+  database: Database,
+  registrations: readonly PromptKindRegistration[],
+) {
   validateRegistrations(registrations);
 
   database.transaction((transaction) => {
-    for (const { definition, factoryPrompts, fallbackPromptKey } of registrations) {
+    for (const { definition, builtInPrompts, fallbackPromptKey } of registrations) {
       transaction
         .insert(promptKindTable)
         .values(definition)
@@ -89,18 +114,25 @@ function installPromptKinds(database: Database, registrations: readonly PromptKi
         })
         .run();
 
-      for (const prompt of factoryPrompts) {
+      for (const prompt of builtInPrompts) {
         transaction
           .insert(promptTable)
-          .values(prompt)
+          .values({
+            ...prompt,
+            kind: definition.key,
+            origin: PromptOrigin.BuiltIn,
+            createdAt: null,
+            updatedAt: null,
+          })
           .onConflictDoUpdate({
             target: promptTable.key,
             set: {
-              kind: prompt.kind,
-              origin: prompt.origin,
+              kind: definition.key,
+              origin: PromptOrigin.BuiltIn,
               title: prompt.title,
               body: prompt.body,
-              createdAt: prompt.createdAt,
+              createdAt: null,
+              updatedAt: null,
             },
           })
           .run();
@@ -122,13 +154,13 @@ function installPromptKinds(database: Database, registrations: readonly PromptKi
           .run();
       }
 
-      const factoryPromptKeys = factoryPrompts.map(({ key }) => key);
-      const obsoleteFactoryPrompt = and(
+      const builtInPromptKeys = builtInPrompts.map(({ key }) => key);
+      const obsoleteBuiltInPrompt = and(
         eq(promptTable.kind, definition.key),
-        eq(promptTable.origin, "factory"),
-        factoryPromptKeys.length === 0 ? undefined : notInArray(promptTable.key, factoryPromptKeys),
+        eq(promptTable.origin, PromptOrigin.BuiltIn),
+        builtInPromptKeys.length === 0 ? undefined : notInArray(promptTable.key, builtInPromptKeys),
       );
-      transaction.delete(promptTable).where(obsoleteFactoryPrompt).run();
+      transaction.delete(promptTable).where(obsoleteBuiltInPrompt).run();
     }
   });
 }
@@ -156,18 +188,21 @@ function requirePromptForKind(database: DatabaseReader, kind: PromptKindKey, pro
 function parsePromptCursor(cursor: string, kind: PromptKindKey) {
   const [cursorKind, createdAt, key] = decodeCursor(cursor, 3);
 
-  if (
-    cursorKind !== kind ||
-    typeof createdAt !== "number" ||
-    !Number.isSafeInteger(createdAt) ||
-    createdAt < 0 ||
-    typeof key !== "string" ||
-    key.length === 0
-  ) {
+  if (cursorKind !== kind || typeof key !== "string" || key.length === 0) {
     throw new TypeError("Prompt cursor is invalid.");
   }
 
-  return { createdAt, key: parsePromptKey(key) };
+  const promptKey = parsePromptKey(key);
+
+  if (createdAt === null) {
+    return { createdAt, key: promptKey } as const;
+  }
+
+  if (typeof createdAt !== "number" || !Number.isSafeInteger(createdAt) || createdAt < 0) {
+    throw new TypeError("Prompt cursor is invalid.");
+  }
+
+  return { createdAt, key: promptKey } as const;
 }
 
 function readDefault(database: DatabaseReader, kind: PromptKindKey): PromptDefault {
@@ -262,7 +297,7 @@ export function createPrompts(
   registrations: readonly PromptKindRegistration[],
   now: () => number = Date.now,
 ) {
-  installPromptKinds(database, registrations);
+  installPromptCatalog(database, registrations);
   const registeredKinds = registrations.map(({ definition }) => definition);
   const registeredKindKeys = new Set(registeredKinds.map(({ key }) => key));
 
@@ -282,13 +317,18 @@ export function createPrompts(
       const cursorPrompt = cursor === undefined ? undefined : parsePromptCursor(cursor, kind);
 
       const afterCursor = cursorPrompt
-        ? or(
-            gt(promptTable.createdAt, cursorPrompt.createdAt),
-            and(
-              eq(promptTable.createdAt, cursorPrompt.createdAt),
-              gt(promptTable.key, cursorPrompt.key),
-            ),
-          )
+        ? cursorPrompt.createdAt === null
+          ? or(
+              and(isNull(promptTable.createdAt), gt(promptTable.key, cursorPrompt.key)),
+              isNotNull(promptTable.createdAt),
+            )
+          : or(
+              gt(promptTable.createdAt, cursorPrompt.createdAt),
+              and(
+                eq(promptTable.createdAt, cursorPrompt.createdAt),
+                gt(promptTable.key, cursorPrompt.key),
+              ),
+            )
         : undefined;
       const rows = database
         .select()
@@ -299,13 +339,18 @@ export function createPrompts(
         .all();
       const hasNextPage = rows.length > promptPageSize;
       const pageRows = hasNextPage ? rows.slice(0, promptPageSize) : rows;
-      const lastPrompt = hasNextPage ? pageRows.at(-1) : undefined;
+      const prompts = pageRows.map(toPrompt);
+      const lastPrompt = hasNextPage ? prompts.at(-1) : undefined;
       const nextCursor = lastPrompt
-        ? encodeCursor([kind, lastPrompt.createdAt, lastPrompt.key])
+        ? encodeCursor([
+            kind,
+            lastPrompt.origin === PromptOrigin.Custom ? lastPrompt.createdAt : null,
+            lastPrompt.key,
+          ])
         : undefined;
 
       return {
-        prompts: pageRows.map(toPrompt),
+        prompts,
         ...(nextCursor ? { nextCursor } : {}),
       };
     },
@@ -318,34 +363,56 @@ export function createPrompts(
     create(input: unknown) {
       const { kind, title, body } = parseCreatePromptInput(input);
       requireKind(kind);
-      const prompt = {
+      const timestamp = now();
+      const prompt = parseCustomPrompt({
         key: parsePromptKey(ids.prompt.create()),
         kind,
-        origin: "custom" as const,
+        origin: PromptOrigin.Custom,
         title,
         body,
-        createdAt: now(),
-      };
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+
       database.insert(promptTable).values(prompt).run();
-      return toPrompt(prompt);
+      return prompt;
     },
 
     update(key: PromptKey, input: unknown) {
       const { title, body } = parseUpdatePromptInput(input);
-      const prompt = database
-        .update(promptTable)
-        .set({ title, body })
-        .where(and(eq(promptTable.key, key), eq(promptTable.origin, "custom")))
-        .returning()
-        .get();
-      return prompt ? toPrompt(prompt) : null;
+      return database.transaction((transaction) => {
+        const currentRow = transaction
+          .select()
+          .from(promptTable)
+          .where(and(eq(promptTable.key, key), eq(promptTable.origin, PromptOrigin.Custom)))
+          .get();
+
+        if (!currentRow) {
+          return null;
+        }
+
+        const current = toCustomPrompt(currentRow);
+
+        if (current.title === title && current.body === body) {
+          return current;
+        }
+
+        const prompt = transaction
+          .update(promptTable)
+          .set({ title, body, updatedAt: Math.max(current.updatedAt, now()) })
+          .where(eq(promptTable.key, key))
+          .returning()
+          .get();
+
+        return toCustomPrompt(prompt);
+      });
     },
 
     delete(key: PromptKey) {
       return (
         database
           .delete(promptTable)
-          .where(and(eq(promptTable.key, key), eq(promptTable.origin, "custom")))
+          .where(and(eq(promptTable.key, key), eq(promptTable.origin, PromptOrigin.Custom)))
           .returning({ kind: promptTable.kind })
           .get() ?? null
       );
@@ -356,8 +423,17 @@ export function createPrompts(
       return readDefault(database, kind);
     },
 
-    setDefault(kind: PromptKindKey, promptKey: PromptKey) {
+    setDefault(kind: PromptKindKey, promptKey?: PromptKey) {
       requireKind(kind);
+
+      if (promptKey === undefined) {
+        database
+          .delete(promptDefaultOverrideTable)
+          .where(eq(promptDefaultOverrideTable.kind, kind))
+          .run();
+        return readDefault(database, kind);
+      }
+
       requirePromptForKind(database, kind, promptKey);
       const fallback = database
         .select({ promptKey: promptKindFallbackTable.promptKey })

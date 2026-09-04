@@ -75,6 +75,12 @@ enum GenerationFailureKind {
   Storage = "storage"
 }
 
+zod_reference ThreadTranscript {
+  import = "@jaquelene/domain"
+  type = "ThreadTranscript"
+  schema = "threadTranscriptSchema"
+}
+
 structure ThreadMessage {
   id: string
   threadId: string
@@ -125,17 +131,17 @@ structure ThreadMessagePage {
 structure SubmitTurnRequest {
   threadId: string
   content: ThreadMessageContent
-  configuration: GenerationConfiguration
+  configuration: RequestedModelConfiguration
 }
 
 structure RetryTurnRequest {
   turnId: string
-  configuration: GenerationConfiguration
+  configuration: RequestedModelConfiguration
 }
 
 structure RegenerateReplyRequest {
   assistantMessageId: string
-  configuration: GenerationConfiguration
+  configuration: RequestedModelConfiguration
 }
 
 structure DeleteThreadHistoryRequest {
@@ -179,6 +185,7 @@ structure SupersededReply {
 [ContextBridge]
 interface Threads {
   listMessages(request: ThreadMessagePageRequest) -> ThreadMessagePage
+  getTranscript(threadId: string) -> ThreadTranscript
 }
 
 [RendererAPI]

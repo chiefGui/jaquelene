@@ -1,4 +1,4 @@
-import { composeCampaignGenerationConfiguration } from "@jaquelene/domain";
+import { composeCampaignGenerationConfiguration, narratorPromptKindKey } from "@jaquelene/domain";
 import PanelRightCloseIcon from "@hugeicons/core-free-icons/PanelRightCloseIcon";
 import PanelRightOpenIcon from "@hugeicons/core-free-icons/PanelRightOpenIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -19,7 +19,6 @@ import { CampaignDetailsSidebar } from "@/feature/campaign/details-sidebar";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import {
   campaignPromptSelectionQuery,
-  narratorPromptKind,
   promptDefaultQuery,
   promptPagesQuery,
   promptQuery,
@@ -38,7 +37,7 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
       staleTime: "static",
     });
     const narratorSelectionPromise = context.queryClient.query(
-      campaignPromptSelectionQuery(params.campaignId, narratorPromptKind),
+      campaignPromptSelectionQuery(params.campaignId, narratorPromptKindKey),
     );
 
     await Promise.all([
@@ -46,8 +45,11 @@ export const Route = createFileRoute("/campaigns/$campaignId")({
       context.queryClient.query(campaignUsageQuery(params.campaignId)),
       context.queryClient.query(defaultCampaignModelQuery),
       context.queryClient.query(modelProvidersQuery),
-      context.queryClient.query(promptDefaultQuery(narratorPromptKind)),
-      context.queryClient.ensureInfiniteQueryData(promptPagesQuery(narratorPromptKind)),
+      context.queryClient.query(promptDefaultQuery(narratorPromptKindKey)),
+      context.queryClient.infiniteQuery({
+        ...promptPagesQuery(narratorPromptKindKey),
+        staleTime: "static",
+      }),
       narratorSelectionPromise,
       narratorSelectionPromise.then((selection) =>
         selection?.effectivePromptKey
@@ -128,8 +130,10 @@ function CampaignRoute() {
 
   return (
     <SecondarySidebar.Root open={detailsOpen} setOpen={setDetailsOpen}>
-      <ContentPane.Header style={styles.header}>
-        <Breadcrumb.Root>
+      <ContentPane.Header>
+        <ContentPane.HistoryBack />
+
+        <Breadcrumb.Root style={styles.breadcrumb}>
           <Breadcrumb.List>
             <Breadcrumb.Item>
               <Breadcrumb.Page>{campaign?.title ?? "Campaign"}</Breadcrumb.Page>
@@ -140,17 +144,15 @@ function CampaignRoute() {
         {campaign ? (
           <SecondarySidebar.Trigger
             render={
-              <IconButton
+              <IconButton.Root
                 aria-label={detailsOpen ? "Close campaign details" : "Open campaign details"}
               >
-                <HugeiconsIcon
-                  icon={detailsOpen ? PanelRightCloseIcon : PanelRightOpenIcon}
-                  size={16}
-                  color="currentColor"
-                  strokeWidth={1.5}
-                  aria-hidden="true"
+                <IconButton.Icon
+                  render={
+                    <HugeiconsIcon icon={detailsOpen ? PanelRightCloseIcon : PanelRightOpenIcon} />
+                  }
                 />
-              </IconButton>
+              </IconButton.Root>
             }
           />
         ) : null}
@@ -189,9 +191,9 @@ function CampaignRoute() {
 }
 
 const styles = stylex.create({
-  header: {
-    gap: "0.5rem",
-    justifyContent: "space-between",
+  breadcrumb: {
+    flexGrow: 1,
+    marginInlineEnd: "0.5rem",
   },
   title: {
     fontSize: tokens.fontSizeLarge,

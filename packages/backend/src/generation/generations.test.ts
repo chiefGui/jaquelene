@@ -2,10 +2,18 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { Effect } from "effect";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
+import {
+  createModelExecutionRunner,
+  createModelExecutor,
+  ModelProviderError,
+  type ModelExecutionRunner,
+} from "#backend/model/execution";
+import { createModelInputResolver } from "#backend/model/input-resolver";
 import type { ModelReasoningCapability } from "#backend/model/reasoning";
 import type {
   ProviderGenerationRequest,
@@ -13,10 +21,10 @@ import type {
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import {
-  jaqueleneNarratorPrompt,
+  jaqueleneNarratorPromptDefinition,
   narratorPromptKind,
   narratorPromptModule,
-} from "#backend/prompt/narrator";
+} from "#backend/narrator/module";
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import { threadMessageTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
@@ -88,6 +96,13 @@ function generationRouter(provider?: TestGenerationProvider): ProviderGeneration
   };
 }
 
+function modelExecutionRunner(provider?: TestGenerationProvider): ModelExecutionRunner {
+  const executor = createModelExecutor(modelResolver(provider), generationRouter(provider));
+  return createModelExecutionRunner(executor, (effect, options) =>
+    Effect.runPromise(effect, options),
+  );
+}
+
 function openGenerationEnvironment(provider: TestGenerationProvider, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
   const { applications: promptApplications, prompts } = createPromptSubsystem(database, [
@@ -97,9 +112,8 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   const threads = createThreads(database, now);
   const generations = createGenerations(
     database,
-    createReplyPreparer(threads, campaigns, promptApplications),
-    modelResolver(provider),
-    generationRouter(provider),
+    createReplyPreparer(threads, createModelInputResolver(campaigns, promptApplications)),
+    modelExecutionRunner(provider),
     now,
   );
   databases.push(database);
@@ -170,14 +184,15 @@ describe("generations", () => {
     });
 
     expect(generate).toHaveBeenCalledWith({
-      generationId: result.generation.id,
-      threadId: thread.id,
+      executionId: result.generation.id,
+      groupId: thread.id,
       modelId: "maker/requested-model",
       input: {
         instructions: [],
         dialogue: [{ messageId: started.message.id, role: "user", content: "Hello" }],
       },
       reasoning: { preset: "high", source: "selection" },
+      signal: expect.any(AbortSignal),
     });
     expect(result).toEqual({
       threadActivity: { threadId: thread.id, lastActivityAt: 104, turnCount: 1 },
@@ -302,7 +317,7 @@ describe("generations", () => {
     expect(database.select().from(generationTable).all()).toEqual([]);
   });
 
-  it("includes the factory narrator prompt for campaign replies", async () => {
+  it("includes the built-in narrator prompt for campaign replies", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { campaigns, generations, threads } = openGenerationEnvironment(provider);
     const campaign = campaigns.start({
@@ -318,18 +333,19 @@ describe("generations", () => {
     });
 
     expect(provider.generate).toHaveBeenCalledWith({
-      generationId: expect.stringMatching(/^generation_/),
-      threadId: campaign.threadId,
+      executionId: expect.stringMatching(/^generation_/),
+      groupId: campaign.threadId,
       modelId: "maker/model",
       input: {
         instructions: [
           {
-            sourceKey: jaqueleneNarratorPrompt.key,
-            content: jaqueleneNarratorPrompt.body,
+            sourceKey: jaqueleneNarratorPromptDefinition.key,
+            content: jaqueleneNarratorPromptDefinition.body,
           },
         ],
         dialogue: [{ messageId: started.message.id, role: "user", content: "Begin" }],
       },
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -502,8 +518,7 @@ describe("generations", () => {
           return preparedInput.promise;
         },
       },
-      modelResolver(provider),
-      generationRouter(provider),
+      modelExecutionRunner(provider),
     );
     const thread = threads.create();
     const first = threads.startTurn(thread.id, "First user message");
@@ -643,13 +658,16 @@ describe("generations", () => {
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
 
-    await expect(
-      generations.generateReply({
-        intent: "reply",
-        turnId: started.turn.id,
-        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
-      }),
-    ).rejects.toBe(failure);
+    const providerFailure = generations.generateReply({
+      intent: "reply",
+      turnId: started.turn.id,
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
+    });
+
+    await expect(providerFailure).rejects.toBeInstanceOf(ModelProviderError);
+    await expect(providerFailure).rejects.toEqual(
+      expect.objectContaining({ cause: failure, message: failure.message }),
+    );
     await expect(
       generations.generateReply({
         intent: "retry",
@@ -967,9 +985,12 @@ describe("generations", () => {
       openGenerationEnvironment(provider);
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
-    const preparer = createReplyPreparer(threads, campaigns, promptApplications);
+    const preparer = createReplyPreparer(
+      threads,
+      createModelInputResolver(campaigns, promptApplications),
+    );
 
-    const generations = createGenerations(database, preparer, modelResolver(), generationRouter());
+    const generations = createGenerations(database, preparer, modelExecutionRunner());
     await expect(
       generations.generateReply({
         intent: "reply",
@@ -978,7 +999,7 @@ describe("generations", () => {
           model: { providerId: "missing-provider", modelId: "maker/model" },
         },
       }),
-    ).rejects.toThrow('Unknown generation provider "missing-provider".');
+    ).rejects.toThrow('Unknown model provider "missing-provider".');
     expect(provider.generate).not.toHaveBeenCalled();
     expect(database.select().from(generationTable).all()).toEqual([]);
   });
@@ -989,12 +1010,7 @@ describe("generations", () => {
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
     const prepare = vi.fn(() => new Promise<never>(() => {}));
-    const generations = createGenerations(
-      database,
-      { prepare },
-      modelResolver(provider),
-      generationRouter(provider),
-    );
+    const generations = createGenerations(database, { prepare }, modelExecutionRunner(provider));
     const controller = new AbortController();
     const interruption = new Error("Reply preparation interrupted by test.");
     const pending = generations.generateReply({
@@ -1050,8 +1066,7 @@ describe("generations", () => {
           dialogue: [{ messageId: ids.message.create(), role: "user", content: "Hello" }],
         }),
       },
-      modelResolver(provider),
-      generationRouter(provider),
+      modelExecutionRunner(provider),
     );
 
     await expect(

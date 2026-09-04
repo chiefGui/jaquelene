@@ -13,14 +13,14 @@ function formatPromptIssue(issue: FormValidationIssue) {
 
   if (field === "title") {
     return issue.code === "too_big"
-      ? `Use ${formatCount(PROMPT_TITLE_MAX_LENGTH)} characters or fewer.`
-      : "Enter a title.";
+      ? `Use ${formatCount(PROMPT_TITLE_MAX_LENGTH)} characters or fewer`
+      : "Enter a title";
   }
 
   if (field === "body") {
     return issue.code === "too_big"
-      ? `Use ${formatCount(PROMPT_BODY_MAX_LENGTH)} characters or fewer.`
-      : "Enter prompt text.";
+      ? `Use ${formatCount(PROMPT_BODY_MAX_LENGTH)} characters or fewer`
+      : "Enter prompt text";
   }
 
   return issue.message;

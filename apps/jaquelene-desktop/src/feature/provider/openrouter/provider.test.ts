@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { createOpenRouterProvider, openRouterProviderId } from "./provider";
+import { createApiKeyProviderFactory } from "../api-key-provider";
+import { openRouterProviderDefinition, openRouterProviderId } from "./provider";
 
 describe("OpenRouter provider", () => {
   it("composes every capability under one provider identity", async () => {
@@ -13,11 +14,15 @@ describe("OpenRouter provider", () => {
     }));
 
     try {
-      const provider = createOpenRouterProvider(userDataDirectory, {
-        encrypt: async (value) => Buffer.from(value),
-        decrypt: async (value) => value.toString(),
-        verify,
-      });
+      const factory = createApiKeyProviderFactory(
+        userDataDirectory,
+        { ...openRouterProviderDefinition, verifyApiKey: verify },
+        {
+          encrypt: async (value) => Buffer.from(value),
+          decrypt: async (value) => value.toString(),
+        },
+      );
+      const provider = await factory.create(new AbortController().signal);
 
       expect(provider.descriptor).toEqual({
         id: openRouterProviderId,
@@ -39,6 +44,7 @@ describe("OpenRouter provider", () => {
       expect(provider.configuration.storagePaths).toEqual([
         join(userDataDirectory, `${openRouterProviderId}.json`),
       ]);
+      expect(factory.storagePaths).toEqual(provider.configuration.storagePaths);
       await provider.configuration.configure("openrouter-key", new AbortController().signal);
       expect(verify).toHaveBeenCalledWith("openrouter-key", expect.any(AbortSignal));
     } finally {

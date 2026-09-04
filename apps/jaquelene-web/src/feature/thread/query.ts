@@ -2,7 +2,7 @@ import {
   ThreadMessagePageDirection,
   Threads,
   Turns,
-  type GenerationConfiguration,
+  type RequestedModelConfiguration,
   type ThreadMessagePageRequest,
 } from "@jaquelene/ipc/renderer";
 import {
@@ -32,6 +32,7 @@ import {
 } from "./thread-query-cache";
 
 const listThreadMessages = requireIpcMethod(Threads?.listMessages);
+const getThreadTranscript = requireIpcMethod(Threads?.getTranscript);
 const submitTurn = requireIpcMethod(Turns?.submit);
 const retryTurn = requireIpcMethod(Turns?.retry);
 const regenerateReply = requireIpcMethod(Turns?.regenerate);
@@ -46,7 +47,7 @@ export type SubmitTurnVariables = {
   clientId: string;
   content: string;
   submittedAt: number;
-  configuration: GenerationConfiguration;
+  configuration: RequestedModelConfiguration;
 };
 
 function toThreadMessagePageRequest(
@@ -86,6 +87,10 @@ export function threadMessagesQuery(threadId: string) {
   });
 }
 
+export function loadThreadTranscript(threadId: string) {
+  return getThreadTranscript(threadId);
+}
+
 function turnMutationScope(threadId: string) {
   return { id: `thread:${threadId}:generation` };
 }
@@ -94,18 +99,24 @@ function turnMutationKey(threadId: string) {
   return [...threadQueryKey, threadId, "turn"] as const;
 }
 
-function copyGenerationConfiguration(
-  configuration: GenerationConfiguration,
-): GenerationConfiguration {
-  return {
+function copyRequestedModelConfiguration(
+  configuration: RequestedModelConfiguration,
+): RequestedModelConfiguration {
+  const copy: {
+    model: RequestedModelConfiguration["model"];
+    reasoningPreset?: NonNullable<RequestedModelConfiguration["reasoningPreset"]>;
+  } = {
     model: {
       providerId: configuration.model.providerId,
       modelId: configuration.model.modelId,
     },
-    ...(configuration.reasoningPreset === undefined
-      ? {}
-      : { reasoningPreset: configuration.reasoningPreset }),
   };
+
+  if (configuration.reasoningPreset !== undefined) {
+    copy.reasoningPreset = configuration.reasoningPreset;
+  }
+
+  return copy;
 }
 
 function reconcileTurn(queryClient: QueryClient, threadId: string, update: ThreadTurnUpdate) {
@@ -264,7 +275,7 @@ export function useSubmitTurn(threadId: string) {
       submitTurn({
         threadId,
         content,
-        configuration: copyGenerationConfiguration(configuration),
+        configuration: copyRequestedModelConfiguration(configuration),
       }),
     onSuccess(submission) {
       refreshCampaignUsage(queryClient);
@@ -294,8 +305,8 @@ export function useRetryTurn(threadId: string) {
       configuration,
     }: {
       turnId: string;
-      configuration: GenerationConfiguration;
-    }) => retryTurn({ turnId, configuration: copyGenerationConfiguration(configuration) }),
+      configuration: RequestedModelConfiguration;
+    }) => retryTurn({ turnId, configuration: copyRequestedModelConfiguration(configuration) }),
     onSuccess(generation) {
       refreshCampaignUsage(queryClient);
       return reconcileTurn(queryClient, threadId, { type: "retry-accepted", generation });
@@ -318,11 +329,11 @@ export function useRegenerateReply(threadId: string) {
       configuration,
     }: {
       assistantMessageId: string;
-      configuration: GenerationConfiguration;
+      configuration: RequestedModelConfiguration;
     }) =>
       regenerateReply({
         assistantMessageId,
-        configuration: copyGenerationConfiguration(configuration),
+        configuration: copyRequestedModelConfiguration(configuration),
       }),
     onSuccess(generation, { assistantMessageId }) {
       refreshCampaignUsage(queryClient);

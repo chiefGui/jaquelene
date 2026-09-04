@@ -1,12 +1,17 @@
 import {
   StorageCategory as BackendStorageCategory,
-  type Storage,
+  type Backend,
   type StorageCategory,
   type StorageDeletion,
   type StorageUsage,
 } from "@jaquelene/backend";
 import { Storage as StorageIpc, StorageCategory as IpcStorageCategory } from "@jaquelene/ipc/main";
+import type * as Effect from "effect/Effect";
 import type { WebFrameMain } from "electron";
+
+type StorageEffectRunner = <Success, Failure>(
+  effect: Effect.Effect<Success, Failure>,
+) => Promise<Success>;
 
 function toIpcCategory(category: StorageCategory) {
   switch (category) {
@@ -40,16 +45,20 @@ function toIpcAreas(value: StorageUsage | StorageDeletion) {
   };
 }
 
-export function exposeStorage(target: WebFrameMain, storage: Storage) {
+export function exposeStorage(
+  target: WebFrameMain,
+  storage: Backend["storage"],
+  runEffect: StorageEffectRunner,
+) {
   StorageIpc.for(target).setImplementation({
     async measureUsage() {
-      return toIpcAreas(await storage.measureUsage());
+      return toIpcAreas(await runEffect(storage.measureUsage()));
     },
     async deleteArea(id) {
-      return toIpcAreas(await storage.deleteArea(id));
+      return toIpcAreas(await runEffect(storage.deleteArea(id)));
     },
     async deleteCategory(id) {
-      return toIpcAreas(await storage.deleteCategory(fromIpcCategory(id)));
+      return toIpcAreas(await runEffect(storage.deleteCategory(fromIpcCategory(id))));
     },
   });
 }

@@ -1,6 +1,6 @@
 import type {
-  GenerationConfiguration,
-  GenerationConfigurationSelection,
+  ModelConfigurationSelection,
+  RequestedModelConfiguration,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -37,18 +37,24 @@ import { deriveThreadViewState } from "./thread-view-state";
 
 type RetryStatus = "pending" | "failed" | null;
 
-function toGenerationConfiguration(
-  configuration: GenerationConfigurationSelection,
-): GenerationConfiguration {
-  return {
+function toRequestedModelConfiguration(
+  configuration: ModelConfigurationSelection,
+): RequestedModelConfiguration {
+  const requested: {
+    model: RequestedModelConfiguration["model"];
+    reasoningPreset?: NonNullable<RequestedModelConfiguration["reasoningPreset"]>;
+  } = {
     model: {
       providerId: configuration.model.providerId,
       modelId: configuration.model.modelId,
     },
-    ...(configuration.reasoningPreset === undefined
-      ? {}
-      : { reasoningPreset: configuration.reasoningPreset }),
   };
+
+  if (configuration.reasoningPreset !== undefined) {
+    requested.reasoningPreset = configuration.reasoningPreset;
+  }
+
+  return requested;
 }
 
 function scrollToEnd(viewport: HTMLElement) {
@@ -159,7 +165,7 @@ const ThreadHistoryControls = memo(function ThreadHistoryControls({
 
 type ThreadComposerProps = Readonly<{
   threadId: string;
-  configuration: GenerationConfigurationSelection | null;
+  configuration: ModelConfigurationSelection | null;
   configurationPending: boolean;
   operationPending: boolean;
   messageMaxCodeUnits: number;
@@ -206,7 +212,7 @@ const ThreadComposer = memo(function ThreadComposer({
         clientId: crypto.randomUUID(),
         content,
         submittedAt: Date.now(),
-        configuration: toGenerationConfiguration(configuration),
+        configuration: toRequestedModelConfiguration(configuration),
       });
     } catch (cause) {
       setDraft((currentDraft) =>
@@ -266,7 +272,7 @@ export function ThreadView({
   composerControls,
 }: {
   threadId: string;
-  configuration: GenerationConfigurationSelection | null;
+  configuration: ModelConfigurationSelection | null;
   configurationPending: boolean;
   composerControls: ReactNode;
 }) {
@@ -326,7 +332,7 @@ export function ThreadView({
       try {
         await retryTurn({
           turnId,
-          configuration: toGenerationConfiguration(configuration),
+          configuration: toRequestedModelConfiguration(configuration),
         });
       } catch (cause) {
         reportError("thread.turn.retry", cause);
@@ -355,7 +361,7 @@ export function ThreadView({
       try {
         await regenerateReply({
           assistantMessageId,
-          configuration: toGenerationConfiguration(configuration),
+          configuration: toRequestedModelConfiguration(configuration),
         });
         return true;
       } catch (cause) {

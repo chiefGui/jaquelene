@@ -1,18 +1,28 @@
 import { chatResultFromJSON, type ChatMessages, type ChatResult } from "@openrouter/sdk/models";
-import type { DialogueMessage, ModelInput, ProviderGenerationAdapter } from "@jaquelene/backend";
-import type { OpenRouterConfiguration } from "./connection";
+import {
+  createGenerationUsage,
+  createProviderGenerationResult,
+  type DialogueMessage,
+  type GenerationCost,
+  type GenerationUsage,
+  type ModelInput,
+  type ProviderGenerationAdapter,
+} from "@jaquelene/backend";
+import type { ApiKeyConfiguration } from "../api-key-configuration";
 import { encodeOpenRouterReasoning, type OpenRouterReasoningRequest } from "./reasoning";
+
+type OpenRouterChatRequest = {
+  model: string;
+  messages: ChatMessages[];
+  metadata: Record<string, string>;
+  reasoning?: OpenRouterReasoningRequest;
+  session_id?: string;
+  stream: false;
+};
 
 type SendOpenRouterChat = (
   apiKey: string,
-  request: {
-    model: string;
-    messages: ChatMessages[];
-    metadata: Record<string, string>;
-    reasoning?: OpenRouterReasoningRequest;
-    session_id: string;
-    stream: false;
-  },
+  request: OpenRouterChatRequest,
   signal: AbortSignal,
 ) => Promise<ChatResult>;
 
@@ -90,7 +100,13 @@ function getResponseText(result: ChatResult) {
 
   if (Array.isArray(content)) {
     const text = content
-      .flatMap((part) => (part.type === "text" && "text" in part ? [part.text] : []))
+      .flatMap((part) => {
+        if (part.type === "text" && "text" in part) {
+          return [part.text];
+        }
+
+        return [];
+      })
       .join("");
 
     if (text.trim()) {
@@ -118,7 +134,11 @@ function usdToNanos(amount: number) {
 }
 
 function optionalCount(value: number | null | undefined) {
-  return value === null || value === undefined ? undefined : value;
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  return value;
 }
 
 function successfulUpstreamProvider(result: ChatResult) {
@@ -130,25 +150,29 @@ function successfulUpstreamProvider(result: ChatResult) {
 }
 
 export function createOpenRouterGeneration(
-  configuration: Pick<OpenRouterConfiguration, "withApiKey">,
+  configuration: Pick<ApiKeyConfiguration, "withApiKey">,
   send: SendOpenRouterChat = sendOpenRouterChat,
 ): ProviderGenerationAdapter {
   return {
     generate: (request, signal) =>
       configuration.withApiKey(async (apiKey) => {
         const reasoning = encodeOpenRouterReasoning(request.reasoning);
-        const result = await send(
-          apiKey,
-          {
-            model: request.modelId,
-            messages: toOpenRouterMessages(request.input),
-            metadata: { jaquelene_generation_id: request.generationId },
-            ...(reasoning ? { reasoning } : {}),
-            session_id: request.threadId,
-            stream: false,
-          },
-          signal,
-        );
+        const chatRequest: OpenRouterChatRequest = {
+          model: request.modelId,
+          messages: toOpenRouterMessages(request.input),
+          metadata: { jaquelene_execution_id: request.executionId },
+          stream: false,
+        };
+
+        if (request.groupId !== undefined) {
+          chatRequest.session_id = request.groupId;
+        }
+
+        if (reasoning !== undefined) {
+          chatRequest.reasoning = reasoning;
+        }
+
+        const result = await send(apiKey, chatRequest, signal);
         const { choice, text } = getResponseText(result);
         const upstreamProviderId = successfulUpstreamProvider(result);
         const cacheRead = optionalCount(result.usage?.promptTokensDetails?.cachedTokens);
@@ -156,41 +180,43 @@ export function createOpenRouterGeneration(
         const reasoningTokens = optionalCount(
           result.usage?.completionTokensDetails?.reasoningTokens,
         );
+        let finishReason: string | undefined;
+        let usage: GenerationUsage | undefined;
 
-        return {
+        if (choice.finishReason) {
+          finishReason = choice.finishReason;
+        }
+
+        if (result.usage) {
+          let cost: GenerationCost | undefined;
+
+          if (result.usage.cost !== null && result.usage.cost !== undefined) {
+            cost = {
+              currency: "USD",
+              amountNanos: usdToNanos(result.usage.cost),
+              source: "provider-reported",
+            };
+          }
+
+          usage = createGenerationUsage({
+            inputTotal: result.usage.promptTokens,
+            inputCacheRead: cacheRead,
+            inputCacheWrite: cacheWrite,
+            outputTotal: result.usage.completionTokens,
+            outputReasoning: reasoningTokens,
+            total: result.usage.totalTokens,
+            cost,
+          });
+        }
+
+        return createProviderGenerationResult({
           text,
           providerGenerationId: result.id,
           resolvedModelId: result.model,
-          ...(upstreamProviderId ? { upstreamProviderId } : {}),
-          ...(choice.finishReason ? { finishReason: choice.finishReason } : {}),
-          ...(result.usage
-            ? {
-                usage: {
-                  tokens: {
-                    input: {
-                      total: result.usage.promptTokens,
-                      ...(cacheRead === undefined ? {} : { cacheRead }),
-                      ...(cacheWrite === undefined ? {} : { cacheWrite }),
-                    },
-                    output: {
-                      total: result.usage.completionTokens,
-                      ...(reasoningTokens === undefined ? {} : { reasoning: reasoningTokens }),
-                    },
-                    total: result.usage.totalTokens,
-                  },
-                  ...(result.usage.cost === null || result.usage.cost === undefined
-                    ? {}
-                    : {
-                        cost: {
-                          currency: "USD" as const,
-                          amountNanos: usdToNanos(result.usage.cost),
-                          source: "provider-reported" as const,
-                        },
-                      }),
-                },
-              }
-            : {}),
-        };
+          upstreamProviderId,
+          finishReason,
+          usage,
+        });
       }),
   };
 }

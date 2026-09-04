@@ -1,7 +1,12 @@
 import { OpenRouterCore } from "@openrouter/sdk/core.js";
 import { modelsListForUser } from "@openrouter/sdk/funcs/modelsListForUser.js";
-import { requireContextWindowTokens, type ProviderModelsAdapter } from "@jaquelene/backend";
-import type { OpenRouterConfiguration } from "./connection";
+import {
+  createProviderModel,
+  requireContextWindowTokens,
+  type ProviderModelsAdapter,
+} from "@jaquelene/backend";
+import type { ApiKeyConfiguration } from "../api-key-configuration";
+import { removeKnownAuthorPrefix, resolveModelAuthor } from "../model-author";
 import { normalizeOpenRouterReasoning, type OpenRouterReasoningMetadata } from "./reasoning";
 
 type OpenRouterCatalogModel = {
@@ -25,21 +30,6 @@ type LoadOpenRouterModels = (
   signal: AbortSignal,
 ) => Promise<readonly OpenRouterCatalogModel[]>;
 
-type AuthorIdentity = {
-  brandId: string;
-  namePrefixes?: readonly string[];
-};
-
-const authorIdentities: ReadonlyMap<string, AuthorIdentity> = new Map([
-  ["arcee-ai", { brandId: "arcee" }],
-  ["bytedance-seed", { brandId: "bytedance" }],
-  ["ibm-granite", { brandId: "ibm" }],
-  ["meta-llama", { brandId: "meta" }],
-  ["mistralai", { brandId: "mistral" }],
-  ["moonshotai", { brandId: "moonshot" }],
-  ["x-ai", { brandId: "x-ai", namePrefixes: ["SpaceXAI"] }],
-]);
-
 const client = new OpenRouterCore({
   appTitle: "Jaquelene",
   retryConfig: { strategy: "none" },
@@ -59,10 +49,6 @@ async function loadOpenRouterModels(apiKey: string, signal: AbortSignal) {
   }
 
   return models;
-}
-
-function normalizeIdentity(value: string) {
-  return value.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
 }
 
 function normalizeTokenPricing(
@@ -114,29 +100,25 @@ function normalizeContextWindow(id: string, contextLength: number | null) {
 
 function normalizeModel({ contextLength, id, name, pricing, reasoning }: OpenRouterCatalogModel) {
   const separator = id.indexOf("/");
-  const authorId =
-    separator > 0 ? id.slice(0, separator).replace(/^~+/, "").trim().toLowerCase() : "";
+  let authorId = "";
+
+  if (separator > 0) {
+    authorId = id.slice(0, separator).replace(/^~+/, "").trim().toLowerCase();
+  }
 
   if (!authorId || !id.slice(separator + 1).trim()) {
     throw new TypeError(`OpenRouter returned an invalid model identity "${id}".`);
   }
 
-  const authorIdentity = authorIdentities.get(authorId);
-  const brandId = authorIdentity?.brandId ?? authorId;
+  const authorIdentity = resolveModelAuthor(authorId);
+  const brandId = authorIdentity.brandId;
   const trimmedName = name.trim();
 
   if (!trimmedName) {
     throw new TypeError(`OpenRouter model "${id}" has no name.`);
   }
 
-  const nameSeparator = trimmedName.indexOf(":");
-  const prefix = normalizeIdentity(trimmedName.slice(0, nameSeparator));
-  const knownPrefixes = [authorId, brandId, ...(authorIdentity?.namePrefixes ?? [])].map(
-    normalizeIdentity,
-  );
-  const hasBrandPrefix =
-    nameSeparator > 0 && knownPrefixes.some((knownPrefix) => prefix === knownPrefix);
-  const displayName = hasBrandPrefix ? trimmedName.slice(nameSeparator + 1).trim() : trimmedName;
+  const displayName = removeKnownAuthorPrefix(trimmedName, authorId, authorIdentity);
 
   if (!displayName) {
     throw new TypeError(`OpenRouter model "${id}" has no name.`);
@@ -145,19 +127,18 @@ function normalizeModel({ contextLength, id, name, pricing, reasoning }: OpenRou
   const contextWindowTokens = normalizeContextWindow(id, contextLength);
   const tokenPricing = normalizeTokenPricing(id, pricing);
   const normalizedReasoning = normalizeOpenRouterReasoning(id, reasoning);
-
-  return {
+  return createProviderModel({
     brandId,
     id,
     name: displayName,
-    ...(contextWindowTokens === undefined ? {} : { contextWindowTokens }),
-    ...(normalizedReasoning ? { reasoning: normalizedReasoning } : {}),
-    ...(tokenPricing ? { tokenPricing } : {}),
-  };
+    contextWindowTokens,
+    reasoning: normalizedReasoning,
+    tokenPricing,
+  });
 }
 
 export function createOpenRouterModels(
-  configuration: Pick<OpenRouterConfiguration, "withApiKey">,
+  configuration: Pick<ApiKeyConfiguration, "withApiKey">,
   loadModels: LoadOpenRouterModels = loadOpenRouterModels,
 ): ProviderModelsAdapter {
   return {

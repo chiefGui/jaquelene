@@ -1,17 +1,22 @@
-import type {
-  Campaigns,
-  CampaignUsageReader,
-  Prompts,
-  Providers,
-  Storage,
-  Turns,
-  Usage,
+import {
+  BackendService,
+  type Backend,
+  type Campaigns,
+  type CampaignUsageReader,
+  type Prompts,
+  type Providers,
+  type Threads,
+  type Turns,
+  type Usage,
 } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
-import { Effect, Exit, Scope } from "effect";
+import { Context, Effect, Exit, FiberSet, Layer, Schema, Scope } from "effect";
 import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
-import type { ApplicationDiagnostics } from "../diagnostics/diagnostics";
+import {
+  ApplicationDiagnosticsService,
+  type ApplicationDiagnostics,
+} from "../diagnostics/diagnostics";
 import { exposeDiagnostics, exposeDiagnosticsPreferences } from "../diagnostics/ipc";
 import { exposeUserInterfacePreferences } from "../feature/appearance/user-interface/ipc";
 import { createInterfaceScaleWebPreferences } from "../feature/appearance/user-interface/zoom";
@@ -23,18 +28,22 @@ import {
 import type { ModelCatalog } from "../feature/model/catalog";
 import { exposeModelCatalog } from "../feature/model/catalog-ipc";
 import type { FavoriteModels } from "../feature/model/favorite-models";
+import { FavoriteModelsService } from "../feature/model/favorite-models-service";
 import { exposeFavoriteModels } from "../feature/model/favorite-models-ipc";
 import { exposeProviders } from "../feature/provider/ipc";
 import { exposePrompts } from "../feature/prompt/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
 import { exposeUsage } from "../feature/usage/ipc";
-import type { LocalState } from "../local-state";
-import type { Preferences } from "../preferences/preferences";
+import { LocalStateService, type LocalState } from "../local-state";
+import { PreferencesService, type Preferences } from "../preferences/preferences";
 import { exposeStorage } from "../storage/ipc";
+import { RendererService } from "./renderer";
 
 const preloadPath = join(import.meta.dirname, "../preload/preload.cjs");
 
 type WindowState = "absent" | "opening" | "open" | "closing";
+
+type EffectRunner = <Success, Failure>(effect: Effect.Effect<Success, Failure>) => Promise<Success>;
 
 type OpenWindow = {
   browserWindow: BrowserWindow;
@@ -50,12 +59,76 @@ export type MainWindowInspection = Readonly<{
   window: WindowState;
 }>;
 
-export type MainWindowManager = Readonly<{
+type MainWindowManager = Readonly<{
   show: (signal?: AbortSignal) => Promise<void>;
   inspect: () => MainWindowInspection;
-  close: () => Promise<void>;
   [Symbol.asyncDispose]: () => Promise<void>;
 }>;
+
+export class MainWindowShowError extends Schema.TaggedError<MainWindowShowError>()(
+  "MainWindowShowError",
+  {
+    message: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+
+export type MainWindow = Readonly<{
+  show: Effect.Effect<void, MainWindowShowError>;
+  inspect: () => MainWindowInspection;
+}>;
+
+export class MainWindowService extends Context.Service<MainWindowService, MainWindow>()(
+  "@jaquelene/desktop/application/MainWindow",
+) {
+  static readonly layer = Layer.effect(
+    this,
+    Effect.gen(function* () {
+      const backend = yield* BackendService;
+      const diagnostics = yield* ApplicationDiagnosticsService;
+      const favoriteModels = yield* FavoriteModelsService;
+      const localState = yield* LocalStateService;
+      const preferences = yield* PreferencesService;
+      const renderer = yield* RendererService;
+      const runEffect = yield* FiberSet.makeRuntimePromise();
+
+      const manager = yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          createMainWindowManager({
+            rendererUrl: renderer.url,
+            diagnostics,
+            localState,
+            campaigns: backend.campaigns,
+            campaignUsage: backend.campaignUsage,
+            prompts: backend.prompts,
+            threads: backend.threads,
+            turns: backend.turns,
+            modelCatalog: backend.models,
+            favoriteModels,
+            preferences,
+            providers: backend.providers,
+            storage: backend.storage,
+            runEffect,
+            usage: backend.usage,
+          }),
+        ),
+        (windowManager) => Effect.promise(() => windowManager[Symbol.asyncDispose]()),
+      );
+
+      return MainWindowService.of({
+        show: Effect.tryPromise({
+          try: (signal) => manager.show(signal),
+          catch: (cause) =>
+            new MainWindowShowError({
+              message: "Could not show the main window.",
+              cause,
+            }),
+        }),
+        inspect: manager.inspect,
+      });
+    }),
+  );
+}
 
 function isSafeExternalUrl(rawUrl: string) {
   try {
@@ -66,14 +139,12 @@ function isSafeExternalUrl(rawUrl: string) {
   }
 }
 
-function addFinalizer(scope: Scope.Closeable, finalize: () => void) {
-  Effect.runSync(Scope.addFinalizer(scope, Effect.sync(finalize)));
-}
-
 function interrupted(signal: AbortSignal) {
-  return signal.reason instanceof Error
-    ? signal.reason
-    : new Error("Window operation was interrupted.", { cause: signal.reason });
+  if (signal.reason instanceof Error) {
+    return signal.reason;
+  }
+
+  return new Error("Window operation was interrupted.", { cause: signal.reason });
 }
 
 function waitForSignal<Result>(result: Promise<Result>, signal?: AbortSignal) {
@@ -96,19 +167,21 @@ function waitForSignal<Result>(result: Promise<Result>, signal?: AbortSignal) {
   return Promise.race([result, interruption]).finally(removeListener);
 }
 
-export function createMainWindowManager({
+function createMainWindowManager({
   rendererUrl,
   diagnostics,
   localState,
   campaigns,
   campaignUsage,
   prompts,
+  threads,
   turns,
   modelCatalog,
   favoriteModels,
   preferences,
   providers,
   storage,
+  runEffect,
   usage,
 }: {
   rendererUrl: string;
@@ -117,20 +190,26 @@ export function createMainWindowManager({
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
   prompts: Prompts;
+  threads: Threads;
   turns: Turns;
   modelCatalog: ModelCatalog;
   favoriteModels: FavoriteModels;
   preferences: Preferences;
   providers: Providers;
-  storage: Storage;
+  storage: Backend["storage"];
+  runEffect: EffectRunner;
   usage: Usage;
 }): MainWindowManager {
-  const threadMessaging = createThreadMessaging(turns, diagnostics);
+  const threadMessaging = createThreadMessaging(threads, turns, diagnostics);
   let state: "open" | "closing" | "closed" = "open";
   let windowState: WindowState = "absent";
   let currentWindow: OpenWindow | undefined;
   let opening: Promise<OpenWindow> | undefined;
   let closePromise: Promise<void> | undefined;
+
+  function addFinalizer(scope: Scope.Closeable, finalize: () => void) {
+    return runEffect(Scope.addFinalizer(scope, Effect.sync(finalize)));
+  }
 
   function requireOpen() {
     if (state !== "open") {
@@ -141,7 +220,7 @@ export function createMainWindowManager({
   function closeWindow(opened: OpenWindow) {
     if (!opened.closePromise) {
       windowState = "closing";
-      const closing = Effect.runPromise(Scope.close(opened.scope, Exit.void));
+      const closing = runEffect(Scope.close(opened.scope, Exit.void));
       opened.closePromise = closing.finally(() => {
         if (currentWindow === opened) {
           currentWindow = undefined;
@@ -154,66 +233,69 @@ export function createMainWindowManager({
   }
 
   async function openWindow() {
-    const mainWindowState = localState.loadMainWindowState(
-      screen.getAllDisplays().map(({ workArea }) => workArea),
-    );
-    const browserWindow = new BrowserWindow({
-      ...(mainWindowState?.bounds ?? { width: 1180, height: 780 }),
-      minWidth: 860,
-      minHeight: 620,
-      // Electron's native window background parser does not support OKLCH.
-      backgroundColor: "rgb(7, 8, 12)",
-      show: false,
-      title: app.name,
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        preload: preloadPath,
-        sandbox: true,
-        webSecurity: true,
-        ...createInterfaceScaleWebPreferences(preferences.appearance.userInterface.get().scale),
-      },
-    });
-    const scope = Scope.makeUnsafe("sequential");
-    addFinalizer(scope, () => {
-      if (!browserWindow.isDestroyed()) {
-        browserWindow.destroy();
-      }
-    });
-
-    const opened: OpenWindow = {
-      browserWindow,
-      scope,
-      loaded: Promise.resolve(),
-      restoreMaximized: mainWindowState?.maximized ?? false,
-      maximizedRestored: false,
-    };
-    currentWindow = opened;
-    windowState = "opening";
-
-    const onClosed = () => {
-      void closeWindow(opened).catch((error: unknown) => {
-        diagnostics.report({
-          severity: ErrorSeverity.Error,
-          operation: "window.release",
-          error,
-        });
-      });
-    };
-    browserWindow.once("closed", onClosed);
-    addFinalizer(scope, () => browserWindow.off("closed", onClosed));
+    const scope = await runEffect(Scope.make("sequential"));
+    let opened: OpenWindow | undefined;
 
     try {
+      const mainWindowState = localState.loadMainWindowState(
+        screen.getAllDisplays().map(({ workArea }) => workArea),
+      );
+      const browserWindow = new BrowserWindow({
+        ...(mainWindowState?.bounds ?? { width: 1180, height: 780 }),
+        minWidth: 860,
+        minHeight: 620,
+        // Electron's native window background parser does not support OKLCH.
+        backgroundColor: "rgb(7, 8, 12)",
+        show: false,
+        title: app.name,
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          preload: preloadPath,
+          sandbox: true,
+          webSecurity: true,
+          ...createInterfaceScaleWebPreferences(preferences.appearance.userInterface.get().scale),
+        },
+      });
+      await addFinalizer(scope, () => {
+        if (!browserWindow.isDestroyed()) {
+          browserWindow.destroy();
+        }
+      });
+
+      const openedWindow: OpenWindow = {
+        browserWindow,
+        scope,
+        loaded: Promise.resolve(),
+        restoreMaximized: mainWindowState?.maximized ?? false,
+        maximizedRestored: false,
+      };
+      opened = openedWindow;
+      currentWindow = openedWindow;
+      windowState = "opening";
+
+      const onClosed = () => {
+        void closeWindow(openedWindow).catch((error: unknown) => {
+          diagnostics.report({
+            severity: ErrorSeverity.Error,
+            operation: "window.release",
+            error,
+          });
+        });
+      };
+      browserWindow.once("closed", onClosed);
+      await addFinalizer(scope, () => browserWindow.off("closed", onClosed));
+
       exposePrompts(browserWindow.webContents.mainFrame, prompts);
       exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
       exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
       exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);
       exposeCampaignUsage(browserWindow.webContents.mainFrame, campaignUsage);
-      addFinalizer(scope, threadMessaging.expose(browserWindow.webContents.mainFrame));
+      await addFinalizer(scope, threadMessaging.expose(browserWindow.webContents.mainFrame));
       exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);
-      addFinalizer(scope, exposeModelCatalog(browserWindow.webContents, modelCatalog));
+      await addFinalizer(scope, exposeModelCatalog(browserWindow.webContents, modelCatalog));
       exposeFavoriteModels(browserWindow.webContents.mainFrame, favoriteModels);
-      addFinalizer(
+      await addFinalizer(
         scope,
         exposeUserInterfacePreferences(
           browserWindow.webContents,
@@ -221,8 +303,8 @@ export function createMainWindowManager({
         ),
       );
       exposeProviders(browserWindow.webContents.mainFrame, providers);
-      exposeStorage(browserWindow.webContents.mainFrame, storage);
-      addFinalizer(scope, exposeUsage(browserWindow.webContents, usage));
+      exposeStorage(browserWindow.webContents.mainFrame, storage, runEffect);
+      await addFinalizer(scope, exposeUsage(browserWindow.webContents, usage));
 
       const saveWindowState = () => {
         localState.saveMainWindowState({
@@ -231,7 +313,7 @@ export function createMainWindowManager({
         });
       };
       browserWindow.on("close", saveWindowState);
-      addFinalizer(scope, () => browserWindow.off("close", saveWindowState));
+      await addFinalizer(scope, () => browserWindow.off("close", saveWindowState));
       browserWindow.removeMenu();
 
       browserWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -254,15 +336,19 @@ export function createMainWindowManager({
         }
       };
       browserWindow.webContents.on("will-navigate", preventExternalNavigation);
-      addFinalizer(scope, () =>
+      await addFinalizer(scope, () =>
         browserWindow.webContents.off("will-navigate", preventExternalNavigation),
       );
 
-      opened.loaded = browserWindow.loadURL(rendererUrl);
-      return opened;
+      openedWindow.loaded = browserWindow.loadURL(rendererUrl);
+      return openedWindow;
     } catch (error) {
       try {
-        await closeWindow(opened);
+        if (opened) {
+          await closeWindow(opened);
+        } else {
+          await runEffect(Scope.close(scope, Exit.void));
+        }
       } catch (closeError) {
         throw new AggregateError(
           [error, closeError],
@@ -328,7 +414,6 @@ export function createMainWindowManager({
   return {
     show,
     inspect: () => ({ state, window: windowState }),
-    close,
     [Symbol.asyncDispose]: close,
   };
 }

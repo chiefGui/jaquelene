@@ -10,6 +10,7 @@ import { useStoreState } from "@ariakit/react/store";
 import {
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,
   campaignTitleInputSchema,
+  narratorPromptKindKey,
   type CampaignTitleInput,
 } from "@jaquelene/domain";
 import type { Campaign } from "@jaquelene/ipc/renderer";
@@ -21,12 +22,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useCampaignTitleFormValidation } from "@/feature/campaign/form";
 import { useStartCampaign } from "@/feature/campaign/query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import {
-  narratorPromptKind,
-  promptDefaultQuery,
-  promptPagesQuery,
-  promptQuery,
-} from "@/feature/prompt/query";
+import { promptDefaultQuery, promptPagesQuery, promptQuery } from "@/feature/prompt/query";
 import { PromptSelect, type PromptSelectOption } from "@/feature/prompt/select";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
@@ -34,10 +30,13 @@ import { Breadcrumb } from "@/primitive/breadcrumb";
 export const Route = createFileRoute("/campaigns/new")({
   loader: async ({ context }) => {
     const defaultSelection = await context.queryClient.query(
-      promptDefaultQuery(narratorPromptKind),
+      promptDefaultQuery(narratorPromptKindKey),
     );
     await Promise.all([
-      context.queryClient.ensureInfiniteQueryData(promptPagesQuery(narratorPromptKind)),
+      context.queryClient.infiniteQuery({
+        ...promptPagesQuery(narratorPromptKindKey),
+        staleTime: "static",
+      }),
       defaultSelection.promptKey
         ? context.queryClient.query(promptQuery(defaultSelection.promptKey))
         : undefined,
@@ -47,8 +46,8 @@ export const Route = createFileRoute("/campaigns/new")({
 });
 
 function NewCampaignRoute() {
-  const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKind));
-  const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKind));
+  const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
+  const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const defaultPromptKey = defaultSelection.promptKey;
   const { data: defaultPrompt } = useSuspenseQuery(
     promptQuery(defaultPromptKey ?? "missing-narrator-prompt"),
@@ -100,6 +99,7 @@ function NewCampaignRoute() {
       await navigate({
         to: "/campaigns/$campaignId",
         params: { campaignId: campaign.id },
+        replace: true,
       });
     } catch (cause) {
       if (!active.current) {
@@ -121,7 +121,7 @@ function NewCampaignRoute() {
           title,
           composition: [
             {
-              kind: narratorPromptKind,
+              kind: narratorPromptKindKey,
               ...(narratorPromptKey === defaultPromptKey ? {} : { promptKey: narratorPromptKey }),
             },
           ],
@@ -156,6 +156,8 @@ function NewCampaignRoute() {
   return (
     <>
       <ContentPane.Header>
+        <ContentPane.HistoryBack />
+
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>

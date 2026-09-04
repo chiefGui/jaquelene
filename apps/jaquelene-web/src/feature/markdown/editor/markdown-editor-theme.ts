@@ -8,21 +8,22 @@ const editorTheme = EditorView.theme(
     "&": {
       backgroundColor: "transparent",
       color: colors.foregroundPrimary,
-      height: "100%",
-      minHeight: "inherit",
     },
     "&.cm-focused": {
       outline: "none",
     },
     ".cm-scroller": {
       fontFamily: "inherit",
-      fontSize: tokens.fontSizeBase,
-      lineHeight: tokens.lineHeightLarge,
+      fontSize: tokens.fontSizeSmall,
+      lineHeight: tokens.lineHeightSmall,
+      maxHeight: "24rem",
+      minHeight: "8rem",
       overflow: "auto",
     },
     ".cm-content": {
       caretColor: colors.foregroundAccent,
-      minHeight: "inherit",
+      cursor: "text",
+      minHeight: "8rem",
       paddingBlock: "1rem",
     },
     ".cm-line": {
@@ -35,7 +36,7 @@ const editorTheme = EditorView.theme(
       backgroundColor: `${colors.backgroundTextSelection} !important`,
     },
     ".cm-placeholder": {
-      color: colors.foregroundSecondary,
+      color: `color-mix(in oklch, ${colors.foregroundSecondary} 65%, transparent)`,
       fontStyle: "normal",
     },
     ".cm-panels": {

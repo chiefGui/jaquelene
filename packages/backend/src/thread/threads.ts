@@ -25,6 +25,11 @@ export type DeleteThreadHistoryRequest = Readonly<{
   userMessageId: MessageId;
 }>;
 
+export type EditThreadMessageRequest = Readonly<{
+  messageId: MessageId;
+  content: string;
+}>;
+
 export type ThreadActivity = Readonly<{
   threadId: ThreadId;
   lastActivityAt: number;
@@ -622,6 +627,22 @@ export function createThreads(database: Database, now: () => number = Date.now) 
           .where(eq(threadMessageTable.id, id))
           .get() ?? null
       );
+    },
+
+    editMessage({ messageId, content: value }: EditThreadMessageRequest) {
+      const content = requireThreadMessageContent(value);
+      const message = database
+        .update(threadMessageTable)
+        .set({ content })
+        .where(eq(threadMessageTable.id, messageId))
+        .returning(threadMessageSelection)
+        .get();
+
+      if (!message) {
+        throw new RangeError(`Message "${messageId}" does not exist.`);
+      }
+
+      return message;
     },
 
     startTurn(threadId: ThreadId, value: string) {

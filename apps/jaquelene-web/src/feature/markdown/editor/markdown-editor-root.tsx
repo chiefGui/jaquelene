@@ -17,6 +17,7 @@ import {
   runMarkdownEditorCommand,
   type MarkdownEditorAccessibleNameProps,
   type MarkdownEditorCommand,
+  type MarkdownEditorInitialSelection,
 } from "./markdown-editor-input";
 
 export type MarkdownEditorMode = "edit" | "preview";
@@ -54,6 +55,7 @@ export type MarkdownEditorRootProps = MarkdownEditorAccessibleNameProps &
     children: ReactNode;
     disabled?: boolean;
     id?: string;
+    initialSelection?: MarkdownEditorInitialSelection;
     maxLength?: number;
     onBlur?: FocusEventHandler<HTMLDivElement>;
     onFocus?: FocusEventHandler<HTMLDivElement>;
@@ -70,6 +72,7 @@ export type MarkdownEditorConfiguration = Readonly<{
   controlRef: Ref<HTMLElement>;
   disabled: boolean;
   id: string | undefined;
+  initialSelection: MarkdownEditorInitialSelection;
   inputRef: RefObject<HTMLElement | null>;
   invalid: boolean;
   maxLength: number | undefined;
@@ -152,6 +155,7 @@ export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProp
       defaultValue = "",
       disabled = false,
       id,
+      initialSelection = "start",
       maxLength,
       mode: controlledMode,
       onBlur,
@@ -193,6 +197,7 @@ export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProp
         controlRef: ref,
         disabled,
         id,
+        initialSelection,
         inputRef,
         invalid,
         maxLength,
@@ -211,6 +216,7 @@ export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProp
         autoFocus,
         disabled,
         id,
+        initialSelection,
         invalid,
         maxLength,
         mode,

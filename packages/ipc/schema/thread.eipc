@@ -144,6 +144,11 @@ structure RegenerateReplyRequest {
   configuration: RequestedModelConfiguration
 }
 
+structure EditThreadMessageRequest {
+  messageId: string
+  content: ThreadMessageContent
+}
+
 structure DeleteThreadHistoryRequest {
   threadId: string
   userMessageId: string
@@ -195,7 +200,11 @@ interface Turns {
   submit(request: SubmitTurnRequest) -> TurnSubmission
   retry(request: RetryTurnRequest) -> TurnGeneration
   regenerate(request: RegenerateReplyRequest) -> TurnGeneration
+  editMessage(request: EditThreadMessageRequest) -> ThreadMessage
   deleteFrom(request: DeleteThreadHistoryRequest) -> ThreadHistoryDeletion
+
+  [Event]
+  messageEdited(message: ThreadMessage)
 
   [Event]
   historyDeleted(deletion: ThreadHistoryDeletion)

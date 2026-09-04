@@ -1,9 +1,6 @@
 import CodeIcon from "@hugeicons/core-free-icons/CodeIcon";
-import Edit02Icon from "@hugeicons/core-free-icons/Edit02Icon";
 import EyeIcon from "@hugeicons/core-free-icons/EyeIcon";
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
-import TextBoldIcon from "@hugeicons/core-free-icons/TextBoldIcon";
-import TextItalicIcon from "@hugeicons/core-free-icons/TextItalicIcon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { formatPluralizedCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -22,6 +19,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
+import { BoldIcon, EditIcon, ItalicIcon } from "@/primitive/icons";
 import {
   MarkdownEditorInput,
   runMarkdownEditorCommand,
@@ -40,6 +38,7 @@ import { countMarkdownDocument } from "./markdown-editor-statistics";
 export {
   MarkdownEditorInput,
   type MarkdownEditorCommand,
+  type MarkdownEditorInitialSelection,
   type MarkdownEditorInputProps,
 } from "./markdown-editor-input";
 export {
@@ -62,9 +61,9 @@ const MarkdownPreview = lazy(async () => {
 
 const formattingActions = {
   code: { icon: CodeIcon, label: "Inline code" },
-  emphasis: { icon: TextItalicIcon, label: "Italic" },
+  emphasis: { icon: ItalicIcon, label: "Italic" },
   link: { icon: Link01Icon, label: "Link" },
-  strong: { icon: TextBoldIcon, label: "Bold" },
+  strong: { icon: BoldIcon, label: "Bold" },
 } satisfies Record<MarkdownEditorCommand, Readonly<{ icon: IconSvgElement; label: string }>>;
 
 const defaultFormattingCommands: readonly MarkdownEditorCommand[] = ["strong", "emphasis"];
@@ -115,7 +114,10 @@ function MarkdownEditorToolbar({ "aria-label": ariaLabel, style, ...props }: Sty
   );
 }
 
-type MarkdownEditorActionProps = Omit<IconButtonProps, "aria-label" | "children" | "type"> & {
+type MarkdownEditorActionProps = Omit<
+  IconButtonProps,
+  "aria-label" | "children" | "shape" | "size" | "type"
+> & {
   icon: IconSvgElement;
   label: string;
 };
@@ -125,7 +127,13 @@ function MarkdownEditorAction({ icon, label, ...props }: MarkdownEditorActionPro
     <Tooltip.Root>
       <Tooltip.Anchor
         render={
-          <IconButton.Root {...props} type="button" aria-label={label}>
+          <IconButton.Root
+            {...props}
+            type="button"
+            aria-label={label}
+            shape="squircle"
+            size="small"
+          >
             <IconButton.Icon render={<HugeiconsIcon icon={icon} />} />
           </IconButton.Root>
         }
@@ -180,16 +188,24 @@ type MarkdownEditorPreviewToggleProps = Omit<
 
 function MarkdownEditorPreviewToggle({ style, ...props }: MarkdownEditorPreviewToggleProps) {
   const { disabled, mode, setMode } = useMarkdownEditorConfiguration("PreviewToggle");
-  const previewing = mode === "preview";
+  let icon = EyeIcon;
+  let label = "Preview";
+  let nextMode: "edit" | "preview" = "preview";
+
+  if (mode === "preview") {
+    icon = EditIcon;
+    label = "Edit";
+    nextMode = "edit";
+  }
 
   return (
     <MarkdownEditorAction
       {...props}
       style={style}
-      label={previewing ? "Edit" : "Preview"}
-      icon={previewing ? Edit02Icon : EyeIcon}
+      label={label}
+      icon={icon}
       disabled={disabled}
-      onClick={() => setMode(previewing ? "edit" : "preview")}
+      onClick={() => setMode(nextMode)}
     />
   );
 }
@@ -238,6 +254,7 @@ const MarkdownEditorInputPart = forwardRef<HTMLElement, MarkdownEditorInputPartP
         disabled={configuration.disabled}
         hidden={hidden}
         {...(configuration.id === undefined ? {} : { id: configuration.id })}
+        initialSelection={configuration.initialSelection}
         {...(configuration.maxLength === undefined ? {} : { maxLength: configuration.maxLength })}
         {...(configuration.onBlur === undefined ? {} : { onBlur: configuration.onBlur })}
         onChange={document.setValue}
@@ -381,7 +398,7 @@ const styles = stylex.create({
   frame: {
     backgroundColor: colors.backgroundNeutralSubtlest,
     borderColor: {
-      default: colors.borderDefault,
+      default: colors.borderSubtle,
       ":focus-within": colors.borderFocus,
       ':is([data-invalid="true"])': colors.borderDanger,
       ':is([data-invalid="true"]):focus-within': colors.borderDangerFocus,
@@ -410,8 +427,7 @@ const styles = stylex.create({
     display: "flex",
     flexShrink: 0,
     gap: "0.125rem",
-    paddingBlock: "0.25rem",
-    paddingInline: "0.375rem",
+    padding: "0.25rem",
   },
   previewTogglePlacement: {
     marginLeft: "auto",

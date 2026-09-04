@@ -10,8 +10,10 @@ import { colors, radii, tokens } from "../tokens.stylex";
 type ButtonVariant = "ghost" | "soft" | "solid";
 type ButtonTone = "danger" | "neutral";
 type ButtonSize = "medium" | "small";
+type ButtonShape = "rounded" | "squircle";
 
 export type ButtonProps = Omit<AriakitButtonProps, "className" | "style"> & {
+  shape?: ButtonShape;
   size?: ButtonSize;
   style?: StyleXStyles;
   tone?: ButtonTone;
@@ -28,6 +30,7 @@ function ButtonLabel({ style, ...props }: ButtonLabelProps) {
 
 function ButtonRoot({
   children,
+  shape = "rounded",
   size = "medium",
   style,
   tone = "neutral",
@@ -37,7 +40,13 @@ function ButtonRoot({
   return (
     <AriakitButton
       {...props}
-      {...stylex.props(styles.root, sizeStyles[size], variantStyles[tone][variant], style)}
+      {...stylex.props(
+        styles.root,
+        shapeStyles[shape],
+        sizeStyles[size],
+        variantStyles[tone][variant],
+        style,
+      )}
     >
       {typeof children === "string" || typeof children === "number" ? (
         <ButtonLabel>{children}</ButtonLabel>
@@ -53,7 +62,6 @@ export const Button = Object.assign(ButtonRoot, { Label: ButtonLabel });
 const styles = stylex.create({
   root: {
     alignItems: "center",
-    borderRadius: radii.control,
     display: "inline-flex",
     flexShrink: 0,
     fontWeight: 500,
@@ -80,6 +88,12 @@ const styles = stylex.create({
       default: null,
       ":is([data-focus-visible])": 1,
     },
+  },
+  rounded: {
+    borderRadius: radii.control,
+  },
+  squircle: {
+    borderRadius: radii.compact,
   },
   medium: {
     fontSize: tokens.fontSizeSmall,
@@ -168,6 +182,11 @@ const sizeStyles = {
   medium: styles.medium,
   small: styles.small,
 } satisfies Record<ButtonSize, StyleXStyles>;
+
+const shapeStyles = {
+  rounded: styles.rounded,
+  squircle: styles.squircle,
+} satisfies Record<ButtonShape, StyleXStyles>;
 
 const variantStyles = {
   neutral: {

@@ -530,10 +530,16 @@ describe("turns", () => {
         threadId: thread.id,
         userMessageId: first.acceptance.userMessage.id,
       }),
-    ).toThrow(`Thread "${thread.id}" already has an active turn operation.`);
+    ).toThrow(`Thread "${thread.id}" already has an active operation.`);
+    expect(() =>
+      turns.editMessage({
+        messageId: first.acceptance.userMessage.id,
+        content: "Edited while generating",
+      }),
+    ).toThrow(`Thread "${thread.id}" already has an active operation.`);
     await expect(
       turns.submit({ threadId: thread.id, content: "Too soon", configuration }),
-    ).rejects.toThrow(`Thread "${thread.id}" already has an active turn operation.`);
+    ).rejects.toThrow(`Thread "${thread.id}" already has an active operation.`);
     const independent = await turns.submit({
       threadId: independentThread.id,
       content: "Independent",
@@ -552,6 +558,44 @@ describe("turns", () => {
     expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toHaveLength(
       4,
     );
+  });
+
+  it("uses edited user and assistant content in subsequent model input", async () => {
+    const generate = vi.fn<TestGenerate>(async () => ({ text: "Reply" }));
+    const { threads, turns } = openTurnEnvironment(generate);
+    const thread = threads.create();
+    const configuration = {
+      model: { providerId: "provider-a", modelId: "maker/model" },
+    };
+    const first = await turns.submit({ threadId: thread.id, content: "Original", configuration });
+    const firstSettlement = await first.settlement;
+
+    if (firstSettlement.outcome !== "completed") {
+      throw new Error("Expected the first reply to complete.");
+    }
+
+    expect(
+      turns.editMessage({
+        messageId: first.acceptance.userMessage.id,
+        content: "Edited user message",
+      }),
+    ).toEqual({ ...first.acceptance.userMessage, content: "Edited user message" });
+    expect(
+      turns.editMessage({
+        messageId: firstSettlement.assistantMessage.id,
+        content: "Edited assistant message",
+      }),
+    ).toEqual({ ...firstSettlement.assistantMessage, content: "Edited assistant message" });
+
+    const second = await turns.submit({ threadId: thread.id, content: "Continue", configuration });
+    await second.settlement;
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[1]?.[0].input.dialogue).toEqual([
+      expect.objectContaining({ role: "user", content: "Edited user message" }),
+      expect.objectContaining({ role: "assistant", content: "Edited assistant message" }),
+      expect.objectContaining({ role: "user", content: "Continue" }),
+    ]);
   });
 
   it("deletes durable conversation state while retaining provider usage history", async () => {

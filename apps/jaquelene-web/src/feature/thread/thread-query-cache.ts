@@ -58,6 +58,12 @@ type ThreadPageContract = Readonly<{
   contentByteBudget: number;
 }>;
 
+type ThreadPageWindow = Readonly<{
+  latest: boolean;
+  newestCursor: string | undefined;
+  oldestCursor: string | undefined;
+}>;
+
 function messageContentBytes(message: ThreadMessage) {
   const measurement = contentByteMeasurements.get(message);
 
@@ -237,46 +243,69 @@ function rebuildPages(
   messages: readonly ThreadMessage[],
   generations: readonly TurnGeneration[],
   contract: ThreadPageContract,
-  oldestCursor: string | undefined,
+  window: ThreadPageWindow,
 ): ThreadQueryData {
   const partitions = partitionMessages(messages, contract);
   const pages = partitions.map(({ messages: pageMessages, contentBytes }, index) => {
     const newerPartition = partitions[index - 1];
     const olderPartition = partitions[index + 1];
-    const newerCursor = newerPartition?.messages[0]?.id;
-    const olderCursor = olderPartition?.messages.at(-1)?.id ?? oldestCursor;
+    const newerCursor = newerPartition?.messages[0]?.id ?? window.newestCursor;
+    const olderCursor = olderPartition?.messages.at(-1)?.id ?? window.oldestCursor;
 
-    return {
+    const page: ThreadMessagePage = {
       messages: pageMessages,
       generations: selectGenerations(pageMessages, generations),
       ...contract,
       contentBytes,
-      ...(olderCursor ? { olderCursor } : {}),
-      ...(newerCursor ? { newerCursor } : {}),
-    } satisfies ThreadMessagePage;
+    };
+
+    if (olderCursor) {
+      page.olderCursor = olderCursor;
+    }
+
+    if (newerCursor) {
+      page.newerCursor = newerCursor;
+    }
+
+    return page;
   });
 
   if (pages.length === 0) {
-    pages.push({
+    const emptyPage: ThreadMessagePage = {
       messages: [],
       generations: [],
       ...contract,
       contentBytes: 0,
-      ...(oldestCursor ? { olderCursor: oldestCursor } : {}),
-    });
+    };
+
+    if (window.oldestCursor) {
+      emptyPage.olderCursor = window.oldestCursor;
+    }
+
+    if (window.newestCursor) {
+      emptyPage.newerCursor = window.newestCursor;
+    }
+
+    pages.push(emptyPage);
   }
+
+  const pageParams = pages.map((page, index): ThreadHistoryPageParam => {
+    if (index === 0 && window.latest) {
+      return latestThreadHistoryPageParam;
+    }
+
+    const cursor = page.messages.at(-1)?.id;
+
+    if (!cursor) {
+      throw new Error("A historical thread page must contain a message.");
+    }
+
+    return { kind: "cursor", direction: "older", cursor };
+  });
 
   return {
     pages,
-    pageParams: pages.map((page, index): ThreadHistoryPageParam =>
-      index === 0
-        ? latestThreadHistoryPageParam
-        : {
-            kind: "cursor",
-            direction: "older",
-            cursor: page.messages.at(-1)!.id,
-          },
-    ),
+    pageParams,
   };
 }
 
@@ -333,6 +362,149 @@ export function retainThreadHistory(
   return {
     pages: data.pages.slice(start, end),
     pageParams: data.pageParams.slice(start, end),
+  };
+}
+
+function retainThreadHistoryAroundMessage(data: ThreadQueryData, messageId: string) {
+  const targetIndex = data.pages.findIndex((page) =>
+    page.messages.some((message) => message.id === messageId),
+  );
+
+  if (targetIndex === -1) {
+    throw new Error(`Edited message "${messageId}" is missing from rebuilt history.`);
+  }
+
+  let start = targetIndex;
+  let end = targetIndex + 1;
+  let retainedContentBytes = data.pages[targetIndex]!.contentBytes;
+  let preferNewer = true;
+
+  while (end - start < THREAD_HISTORY_RETAINED_PAGE_LIMIT) {
+    const candidates: number[] = [];
+
+    if (preferNewer) {
+      if (start > 0) {
+        candidates.push(start - 1);
+      }
+      if (end < data.pages.length) {
+        candidates.push(end);
+      }
+    } else {
+      if (end < data.pages.length) {
+        candidates.push(end);
+      }
+      if (start > 0) {
+        candidates.push(start - 1);
+      }
+    }
+
+    let retainedCandidate = false;
+
+    for (const candidateIndex of candidates) {
+      const candidate = data.pages[candidateIndex]!;
+
+      if (
+        retainedContentBytes + candidate.contentBytes >
+        THREAD_HISTORY_RETAINED_CONTENT_BYTE_BUDGET
+      ) {
+        continue;
+      }
+
+      retainedContentBytes += candidate.contentBytes;
+
+      if (candidateIndex < start) {
+        start = candidateIndex;
+      } else {
+        end = candidateIndex + 1;
+      }
+
+      preferNewer = candidateIndex >= targetIndex;
+      retainedCandidate = true;
+      break;
+    }
+
+    if (!retainedCandidate) {
+      break;
+    }
+  }
+
+  if (start === 0 && end === data.pages.length) {
+    return data;
+  }
+
+  return {
+    pages: data.pages.slice(start, end),
+    pageParams: data.pageParams.slice(start, end),
+  };
+}
+
+function sameMessageIdentity(left: ThreadMessage, right: ThreadMessage) {
+  return (
+    left.id === right.id &&
+    left.threadId === right.threadId &&
+    left.turnId === right.turnId &&
+    left.sequence === right.sequence &&
+    left.author === right.author &&
+    left.createdAt === right.createdAt
+  );
+}
+
+export function reconcileThreadMessageEdit(
+  data: ThreadQueryData,
+  editedMessage: ThreadMessage,
+): ThreadCacheReconciliation {
+  const firstPage = data.pages[0];
+
+  if (!firstPage) {
+    return RELOAD;
+  }
+
+  const contract: ThreadPageContract = {
+    messageCountLimit: firstPage.messageCountLimit,
+    messageMaxCodeUnits: firstPage.messageMaxCodeUnits,
+    contentByteBudget: firstPage.contentByteBudget,
+  };
+  const loaded = loadedMessages(data, editedMessage.threadId, contract);
+
+  if (!loaded) {
+    return RELOAD;
+  }
+
+  const messageIndex = loaded.messageIndexById.get(editedMessage.id);
+
+  if (messageIndex === undefined) {
+    return CURRENT;
+  }
+
+  const currentMessage = loaded.messages[messageIndex]!;
+
+  if (!sameMessageIdentity(currentMessage, editedMessage)) {
+    return RELOAD;
+  }
+
+  if (currentMessage.content === editedMessage.content) {
+    return CURRENT;
+  }
+
+  if (
+    editedMessage.content.length > contract.messageMaxCodeUnits ||
+    !editedMessage.content.trim()
+  ) {
+    return RELOAD;
+  }
+
+  const messages = [...loaded.messages];
+  messages[messageIndex] = editedMessage;
+  const generations = data.pages.flatMap((page) => page.generations);
+  const rebuilt = rebuildPages(messages, generations, contract, {
+    latest: isLatestThreadHistory(data),
+    newestCursor: data.pages[0]?.newerCursor,
+    oldestCursor: data.pages.at(-1)?.olderCursor,
+  });
+
+  return {
+    outcome: "updated",
+    data: retainThreadHistoryAroundMessage(rebuilt, editedMessage.id),
   };
 }
 
@@ -475,12 +647,11 @@ export function reconcileThreadTurn(
     return {
       outcome: "updated",
       data: retainThreadHistory(
-        rebuildPages(
-          messages,
-          [...generationByTurn.values()],
-          contract,
-          data.pages.at(-1)?.olderCursor,
-        ),
+        rebuildPages(messages, [...generationByTurn.values()], contract, {
+          latest: true,
+          newestCursor: undefined,
+          oldestCursor: data.pages.at(-1)?.olderCursor,
+        }),
         "newest",
       ),
     };
@@ -551,12 +722,11 @@ export function reconcileThreadTurn(
   return {
     outcome: "updated",
     data: retainThreadHistory(
-      rebuildPages(
-        messages,
-        [...generationByTurn.values()],
-        contract,
-        data.pages.at(-1)?.olderCursor,
-      ),
+      rebuildPages(messages, [...generationByTurn.values()], contract, {
+        latest: true,
+        newestCursor: undefined,
+        oldestCursor: data.pages.at(-1)?.olderCursor,
+      }),
       "newest",
     ),
   };

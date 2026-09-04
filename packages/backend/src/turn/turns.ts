@@ -11,16 +11,21 @@ import type { ThreadMessage } from "#backend/thread/schema";
 import {
   requireThreadMessageContent,
   type DeleteThreadHistoryRequest,
+  type EditThreadMessageRequest,
   type ThreadActivity,
   type ThreadEngine,
   type ThreadHistoryDeletion,
 } from "#backend/thread/threads";
 import {
-  createTurnOperationCoordinator,
+  createThreadOperationCoordinator,
   type StartingTurnOperation,
 } from "./operation-coordinator";
-export type { TurnOperationInspection } from "./operation-coordinator";
-export type { DeleteThreadHistoryRequest, ThreadHistoryDeletion } from "#backend/thread/threads";
+export type { ThreadOperationInspection } from "./operation-coordinator";
+export type {
+  DeleteThreadHistoryRequest,
+  EditThreadMessageRequest,
+  ThreadHistoryDeletion,
+} from "#backend/thread/threads";
 
 type TurnGenerationEngine = Pick<
   GenerationEngine,
@@ -36,7 +41,12 @@ type TurnGenerationEngine = Pick<
 };
 type TurnThreads = Pick<
   ThreadEngine,
-  "deleteFrom" | "getMessage" | "getTurnInput" | "listMessages" | "startTurnInTransaction"
+  | "deleteFrom"
+  | "editMessage"
+  | "getMessage"
+  | "getTurnInput"
+  | "listMessages"
+  | "startTurnInTransaction"
 >;
 
 type ListThreadRequest = Parameters<TurnThreads["listMessages"]>[0];
@@ -144,7 +154,7 @@ export function createTurns(
   threads: TurnThreads,
   generations: TurnGenerationEngine,
 ) {
-  const operationCoordinator = createTurnOperationCoordinator();
+  const operationCoordinator = createThreadOperationCoordinator();
 
   async function startExclusive(
     threadId: ThreadId,
@@ -204,6 +214,26 @@ export function createTurns(
 
       try {
         return threads.deleteFrom(request);
+      } finally {
+        lease.release();
+      }
+    },
+
+    editMessage(request: EditThreadMessageRequest): ThreadMessage {
+      requireThreadMessageContent(request.content);
+      const message = threads.getMessage(request.messageId);
+
+      if (!message) {
+        throw new RangeError(`Message "${request.messageId}" does not exist.`);
+      }
+
+      const lease = operationCoordinator.acquire(message.threadId, {
+        state: "editing",
+        messageId: request.messageId,
+      });
+
+      try {
+        return threads.editMessage(request);
       } finally {
         lease.release();
       }

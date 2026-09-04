@@ -29,6 +29,7 @@ import { markdownEditorLanguage } from "./markdown-editor-language";
 import { markdownEditorTheme } from "./markdown-editor-theme";
 
 export type MarkdownEditorCommand = EditorCommand;
+export type MarkdownEditorInitialSelection = "start" | "end";
 
 export type MarkdownEditorAccessibleNameProps = Pick<
   AriaAttributes,
@@ -42,6 +43,7 @@ export type MarkdownEditorInputProps = MarkdownEditorAccessibleNameProps & {
   disabled?: boolean;
   hidden?: boolean;
   id?: string;
+  initialSelection?: MarkdownEditorInitialSelection;
   maxLength?: number;
   onBlur?: FocusEventHandler<HTMLDivElement>;
   onChange: (value: string) => void;
@@ -169,6 +171,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
       disabled = false,
       hidden = false,
       id,
+      initialSelection = "start",
       maxLength,
       onBlur,
       onChange,
@@ -183,6 +186,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
     const hostRef = useRef<HTMLDivElement>(null);
     const runtimeRef = useRef<EditorRuntime | null>(null);
     const initialValueRef = useRef(value);
+    const initialSelectionRef = useRef(initialSelection);
     const documentValueRef = useRef(value);
     const autoFocusRef = useRef(autoFocus && !hidden);
     const onChangeRef = useRef(onChange);
@@ -224,8 +228,16 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
 
       const configuration = new Compartment();
       const options = dynamicOptionsRef.current;
+      const initialDocument = initialValueRef.current;
+      let initialSelectionAnchor = 0;
+
+      if (initialSelectionRef.current === "end") {
+        initialSelectionAnchor = initialDocument.length;
+      }
+
       const view = new EditorView({
-        doc: initialValueRef.current,
+        doc: initialDocument,
+        selection: { anchor: initialSelectionAnchor },
         parent: host,
         extensions: [
           configuration.of(dynamicExtensions(options)),

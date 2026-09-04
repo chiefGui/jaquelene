@@ -1,11 +1,12 @@
 import type { GenerationIntent } from "#backend/generation/schema";
 import type { GenerationId, MessageId, ThreadId, TurnId } from "#backend/id";
 
-export type TurnOperationInspection =
+export type ThreadOperationInspection =
   | Readonly<{ state: "idle" }>
   | Readonly<{ state: "submitting" }>
   | Readonly<{ state: "retrying"; turnId: TurnId }>
   | Readonly<{ state: "regenerating"; assistantMessageId: MessageId }>
+  | Readonly<{ state: "editing"; messageId: MessageId }>
   | Readonly<{ state: "truncating"; userMessageId: MessageId }>
   | Readonly<{
       state: "generating";
@@ -15,42 +16,45 @@ export type TurnOperationInspection =
     }>;
 
 export type StartingTurnOperation = Extract<
-  TurnOperationInspection,
+  ThreadOperationInspection,
   { state: "submitting" | "retrying" | "regenerating" }
 >;
-type TruncatingTurnOperation = Extract<TurnOperationInspection, { state: "truncating" }>;
-type AcquiredTurnOperation = StartingTurnOperation | TruncatingTurnOperation;
-type ActiveTurnOperation = Exclude<TurnOperationInspection, { state: "idle" }>;
+type SynchronousThreadOperation = Extract<
+  ThreadOperationInspection,
+  { state: "editing" | "truncating" }
+>;
+type AcquiredThreadOperation = StartingTurnOperation | SynchronousThreadOperation;
+type ActiveThreadOperation = Exclude<ThreadOperationInspection, { state: "idle" }>;
 
-type TurnOperationLease = Readonly<{ release: () => void }>;
-type GeneratingTurnOperationLease = TurnOperationLease &
+type ThreadOperationLease = Readonly<{ release: () => void }>;
+type GeneratingThreadOperationLease = ThreadOperationLease &
   Readonly<{
     generating: (turnId: TurnId, generationId: GenerationId, intent: GenerationIntent) => void;
   }>;
 
 type OperationEntry = Readonly<{
   owner: symbol;
-  operation: ActiveTurnOperation;
+  operation: ActiveThreadOperation;
 }>;
 
-function copyInspection(operation: ActiveTurnOperation): TurnOperationInspection {
+function copyInspection(operation: ActiveThreadOperation): ThreadOperationInspection {
   return { ...operation };
 }
 
-export function createTurnOperationCoordinator() {
+export function createThreadOperationCoordinator() {
   const operations = new Map<ThreadId, OperationEntry>();
 
   function acquire(
     threadId: ThreadId,
     starting: StartingTurnOperation,
-  ): GeneratingTurnOperationLease;
-  function acquire(threadId: ThreadId, starting: TruncatingTurnOperation): TurnOperationLease;
+  ): GeneratingThreadOperationLease;
+  function acquire(threadId: ThreadId, starting: SynchronousThreadOperation): ThreadOperationLease;
   function acquire(
     threadId: ThreadId,
-    starting: AcquiredTurnOperation,
-  ): GeneratingTurnOperationLease | TurnOperationLease {
+    starting: AcquiredThreadOperation,
+  ): GeneratingThreadOperationLease | ThreadOperationLease {
     if (operations.has(threadId)) {
-      throw new RangeError(`Thread "${threadId}" already has an active turn operation.`);
+      throw new RangeError(`Thread "${threadId}" already has an active operation.`);
     }
 
     const owner = Symbol(threadId);
@@ -65,7 +69,7 @@ export function createTurnOperationCoordinator() {
       released = true;
     }
 
-    if (starting.state === "truncating") {
+    if (starting.state === "editing" || starting.state === "truncating") {
       return { release };
     }
 
@@ -98,7 +102,7 @@ export function createTurnOperationCoordinator() {
   return {
     acquire,
 
-    inspect(threadId: ThreadId): TurnOperationInspection {
+    inspect(threadId: ThreadId): ThreadOperationInspection {
       const active = operations.get(threadId);
       return active ? copyInspection(active.operation) : { state: "idle" };
     },

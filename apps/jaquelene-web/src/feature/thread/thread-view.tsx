@@ -1,6 +1,7 @@
 import type {
   ModelConfigurationSelection,
   RequestedModelConfiguration,
+  ThreadMessage,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -23,7 +24,9 @@ import { Composer } from "@/feature/composer/composer";
 import {
   retainLoadedThreadMessages,
   threadMessagesQuery,
-  useIsTurnOperationPending,
+  useIsThreadOperationPending,
+  useDeleteThreadHistoryFromMessage,
+  useEditThreadMessage,
   usePendingTurnSubmission,
   useRegenerateReply,
   useReturnToLatestThreadMessages,
@@ -33,6 +36,7 @@ import {
 import { isLatestThreadHistory } from "./thread-query-cache";
 import { threadLayout } from "./thread-layout.stylex";
 import { ThreadTimeline } from "./thread-timeline";
+import type { ThreadMessageEditSession } from "./thread-message-editor";
 import { deriveThreadViewState } from "./thread-view-state";
 
 type RetryStatus = "pending" | "failed" | null;
@@ -167,7 +171,9 @@ type ThreadComposerProps = Readonly<{
   threadId: string;
   configuration: ModelConfigurationSelection | null;
   configurationPending: boolean;
+  generationPending: boolean;
   operationPending: boolean;
+  interactionDisabled: boolean;
   messageMaxCodeUnits: number;
   composerControls: ReactNode;
 }>;
@@ -176,7 +182,9 @@ const ThreadComposer = memo(function ThreadComposer({
   threadId,
   configuration,
   configurationPending,
+  generationPending,
   operationPending,
+  interactionDisabled,
   messageMaxCodeUnits,
   composerControls,
 }: ThreadComposerProps) {
@@ -187,7 +195,7 @@ const ThreadComposer = memo(function ThreadComposer({
   const draftRevision = useRef(0);
   const composerInputId = useId();
   const sendErrorId = useId();
-  const submissionBlocked = operationPending || configurationPending;
+  const submissionBlocked = operationPending || configurationPending || interactionDisabled;
 
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -233,13 +241,14 @@ const ThreadComposer = memo(function ThreadComposer({
   }
 
   return (
-    <Composer pending={operationPending} onSubmit={sendMessage}>
+    <Composer pending={generationPending} onSubmit={sendMessage}>
       <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
       <Composer.Input
         id={composerInputId}
         value={draft}
         maxLength={messageMaxCodeUnits}
         aria-describedby={sendError ? sendErrorId : undefined}
+        readOnly={interactionDisabled}
         onChange={(event) => {
           draftRevision.current += 1;
           setDraft(event.currentTarget.value);
@@ -257,25 +266,37 @@ const ThreadComposer = memo(function ThreadComposer({
           ) : null}
         </Composer.Controls>
         <Composer.Submit
-          pending={operationPending}
-          disabled={configurationPending || !configuration || !draft.trim()}
+          pending={generationPending}
+          disabled={
+            operationPending ||
+            configurationPending ||
+            interactionDisabled ||
+            !configuration ||
+            !draft.trim()
+          }
         />
       </Composer.Footer>
     </Composer>
   );
 });
 
-export function ThreadView({
-  threadId,
-  configuration,
-  configurationPending,
-  composerControls,
-}: {
+type ThreadViewProps = Readonly<{
   threadId: string;
   configuration: ModelConfigurationSelection | null;
   configurationPending: boolean;
   composerControls: ReactNode;
-}) {
+}>;
+
+export function ThreadView(props: ThreadViewProps) {
+  return <ThreadViewInstance key={props.threadId} {...props} />;
+}
+
+function ThreadViewInstance({
+  threadId,
+  configuration,
+  configurationPending,
+  composerControls,
+}: ThreadViewProps) {
   const queryClient = useQueryClient();
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
   const returnToLatestMutation = useReturnToLatestThreadMessages(threadId);
@@ -286,10 +307,16 @@ export function ThreadView({
   const regenerateReplyMutation = useRegenerateReply(threadId);
   const regenerateReply = regenerateReplyMutation.mutateAsync;
   const resetRegeneration = regenerateReplyMutation.reset;
+  const editMessageMutation = useEditThreadMessage(threadId);
+  const editMessage = editMessageMutation.mutateAsync;
+  const resetMessageEdit = editMessageMutation.reset;
+  const deleteHistoryMutation = useDeleteThreadHistoryFromMessage(threadId);
+  const deleteHistory = deleteHistoryMutation.mutateAsync;
+  const [editSession, setEditSession] = useState<ThreadMessageEditSession | null>(null);
   const acceptingRetry = useRef(false);
   const acceptingRegeneration = useRef(false);
   const historyNavigation = useRef<"older" | "newer" | "latest" | null>(null);
-  const turnOperationPending = useIsTurnOperationPending(threadId);
+  const threadOperationPending = useIsThreadOperationPending(threadId);
   const pendingSubmission = usePendingTurnSubmission(threadId);
   const viewport = useRef<HTMLDivElement>(null);
   const pinnedToEnd = useRef(true);
@@ -312,13 +339,93 @@ export function ThreadView({
       }),
     [configuration, historical, messagesQuery.data.pages, retryStatus, retryTurnId],
   );
-  const operationPending = turnOperationPending || (!historical && threadView.replyPending);
+  const operationPending = threadOperationPending || (!historical && threadView.replyPending);
+  const generationPending =
+    pendingSubmission !== null ||
+    retryTurnMutation.isPending ||
+    regenerateReplyMutation.isPending ||
+    (!historical && threadView.replyPending);
+  const messageEditActive = editSession !== null;
+  const historyRequestPending =
+    messagesQuery.isFetchingNextPage ||
+    messagesQuery.isFetchingPreviousPage ||
+    returnToLatestMutation.isPending;
+
+  useLayoutEffect(() => {
+    if (!editSession) {
+      return;
+    }
+
+    const sourceAvailable = threadView.messages.some(
+      ({ message }) => message.id === editSession.messageId,
+    );
+
+    if (!sourceAvailable) {
+      setEditSession(null);
+    }
+  }, [editSession, threadView.messages]);
+
+  const beginEdit = useCallback(
+    (message: ThreadMessage) => {
+      if (operationPending || messageEditActive || historyRequestPending) {
+        return;
+      }
+
+      resetMessageEdit();
+      setEditSession({
+        messageId: message.id,
+        originalContent: message.content,
+      });
+    },
+    [historyRequestPending, messageEditActive, operationPending, resetMessageEdit],
+  );
+
+  const cancelEdit = useCallback(() => {
+    if (editMessageMutation.isPending || deleteHistoryMutation.isPending) {
+      return;
+    }
+
+    setEditSession(null);
+  }, [deleteHistoryMutation.isPending, editMessageMutation.isPending]);
+
+  const saveEdit = useCallback(
+    async (messageId: string, content: string) => {
+      try {
+        await editMessage({ messageId, content });
+        setEditSession((current) => {
+          if (current?.messageId !== messageId) {
+            return current;
+          }
+
+          return null;
+        });
+      } catch (cause) {
+        reportError("thread.message.edit", cause);
+        throw cause;
+      }
+    },
+    [editMessage],
+  );
+
+  const deleteFromUserMessage = useCallback(
+    async (userMessageId: string) => {
+      try {
+        await deleteHistory(userMessageId);
+        setEditSession(null);
+      } catch (cause) {
+        reportError("thread.history.delete", cause);
+        throw cause;
+      }
+    },
+    [deleteHistory],
+  );
 
   const retryReply = useCallback(
     async (turnId: string) => {
       if (
         historical ||
         operationPending ||
+        messageEditActive ||
         !configuration ||
         configurationPending ||
         acceptingRetry.current
@@ -340,7 +447,15 @@ export function ThreadView({
         acceptingRetry.current = false;
       }
     },
-    [configuration, configurationPending, historical, operationPending, resetRetry, retryTurn],
+    [
+      configuration,
+      configurationPending,
+      historical,
+      messageEditActive,
+      operationPending,
+      resetRetry,
+      retryTurn,
+    ],
   );
 
   const regenerateResponse = useCallback(
@@ -348,6 +463,7 @@ export function ThreadView({
       if (
         historical ||
         operationPending ||
+        messageEditActive ||
         !configuration ||
         configurationPending ||
         acceptingRegeneration.current
@@ -375,6 +491,7 @@ export function ThreadView({
       configuration,
       configurationPending,
       historical,
+      messageEditActive,
       operationPending,
       regenerateReply,
       resetRegeneration,
@@ -382,7 +499,7 @@ export function ThreadView({
   );
 
   const loadOlder = useCallback(async () => {
-    if (historyNavigation.current || operationPending) {
+    if (historyNavigation.current || operationPending || messageEditActive) {
       return;
     }
 
@@ -402,9 +519,9 @@ export function ThreadView({
     } finally {
       historyNavigation.current = null;
     }
-  }, [messagesQuery.fetchNextPage, operationPending, queryClient, threadId]);
+  }, [messageEditActive, messagesQuery.fetchNextPage, operationPending, queryClient, threadId]);
   const loadNewer = useCallback(async () => {
-    if (historyNavigation.current || operationPending) {
+    if (historyNavigation.current || operationPending || messageEditActive) {
       return;
     }
 
@@ -424,9 +541,9 @@ export function ThreadView({
     } finally {
       historyNavigation.current = null;
     }
-  }, [messagesQuery.fetchPreviousPage, operationPending, queryClient, threadId]);
+  }, [messageEditActive, messagesQuery.fetchPreviousPage, operationPending, queryClient, threadId]);
   const returnToLatest = useCallback(async () => {
-    if (historyNavigation.current || operationPending) {
+    if (historyNavigation.current || operationPending || messageEditActive) {
       return;
     }
 
@@ -442,12 +559,8 @@ export function ThreadView({
     } finally {
       historyNavigation.current = null;
     }
-  }, [operationPending, returnToLatestMessages]);
-  const historyNavigationPending =
-    operationPending ||
-    messagesQuery.isFetchingNextPage ||
-    messagesQuery.isFetchingPreviousPage ||
-    returnToLatestMutation.isPending;
+  }, [messageEditActive, operationPending, returnToLatestMessages]);
+  const historyNavigationPending = operationPending || messageEditActive || historyRequestPending;
   const retryPending = operationPending || configurationPending || historyNavigationPending;
 
   useLayoutEffect(() => {
@@ -468,7 +581,6 @@ export function ThreadView({
         {...stylex.props(styles.viewport)}
       >
         <ThreadTimeline
-          key={`timeline:${threadId}`}
           view={threadView}
           pendingSubmission={historical ? null : pendingSubmission}
           bottomInset={timelineBottomInset}
@@ -484,6 +596,14 @@ export function ThreadView({
           responseActionsDisabled={
             operationPending || configurationPending || historyNavigationPending
           }
+          editSession={editSession}
+          editPending={editMessageMutation.isPending}
+          deletePending={deleteHistoryMutation.isPending}
+          messageMaxCodeUnits={threadView.messageMaxCodeUnits}
+          beginEdit={beginEdit}
+          cancelEdit={cancelEdit}
+          saveEdit={saveEdit}
+          deleteFromUserMessage={deleteFromUserMessage}
           loadOlder={loadOlder}
           regenerateResponse={regenerateResponse}
           retryReply={retryReply}
@@ -502,11 +622,12 @@ export function ThreadView({
             />
           ) : (
             <ThreadComposer
-              key={`composer:${threadId}`}
               threadId={threadId}
               configuration={configuration}
               configurationPending={configurationPending}
+              generationPending={generationPending}
               operationPending={operationPending}
+              interactionDisabled={messageEditActive}
               messageMaxCodeUnits={threadView.messageMaxCodeUnits}
               composerControls={composerControls}
             />

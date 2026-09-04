@@ -14,6 +14,7 @@ import {
 import type { SubmitTurnVariables } from "./query";
 import { threadLayout } from "./thread-layout.stylex";
 import { PendingThreadMessageRow, ThreadMessageRow } from "./thread-message";
+import type { ThreadMessageEditSession, ThreadMessageEditorProps } from "./thread-message-editor";
 import { estimateThreadTimelineItemSize } from "./thread-timeline-estimate";
 import type { ThreadViewState } from "./thread-view-state";
 
@@ -58,6 +59,14 @@ type ThreadTimelineProps = Readonly<{
   retryPending: boolean;
   regenerationRequestPending: boolean;
   responseActionsDisabled: boolean;
+  editSession: ThreadMessageEditSession | null;
+  editPending: boolean;
+  deletePending: boolean;
+  messageMaxCodeUnits: number;
+  beginEdit: (message: ThreadMessageView["message"]) => void;
+  cancelEdit: () => void;
+  saveEdit: (messageId: string, content: string) => Promise<void>;
+  deleteFromUserMessage: (userMessageId: string) => Promise<void>;
   loadOlder: () => Promise<void>;
   regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
   retryReply: (turnId: string) => Promise<void>;
@@ -77,12 +86,21 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   retryPending,
   regenerationRequestPending,
   responseActionsDisabled,
+  editSession,
+  editPending,
+  deletePending,
+  messageMaxCodeUnits,
+  beginEdit,
+  cancelEdit,
+  saveEdit,
+  deleteFromUserMessage,
   loadOlder,
   regenerateResponse,
   retryReply,
 }: ThreadTimelineProps) {
   const historyControls = useRef<HTMLDivElement>(null);
   const messageList = useRef<HTMLOListElement>(null);
+  const activeEditorItem = useRef<HTMLLIElement>(null);
   const timelineSnapshot = useRef<ThreadTimelineSnapshot | null>(null);
   const itemOrigin = useRef<number | null>(null);
   const [scrollMargin, setScrollMargin] = useState<number | null>(null);
@@ -127,9 +145,41 @@ export const ThreadTimeline = memo(function ThreadTimeline({
     overscan: 2,
     paddingEnd: timelinePadding + bottomInset,
     paddingStart,
+    scrollPaddingEnd: timelinePadding + bottomInset,
+    scrollPaddingStart: timelinePadding,
     scrollMargin: scrollMargin ?? 0,
     useFlushSync: false,
   });
+  let activeEditorIndex: number | null = null;
+
+  if (editSession) {
+    const editItemKey = `message:${editSession.messageId}`;
+    const editItemIndex = items.findIndex((item) => item.key === editItemKey);
+
+    if (editItemIndex >= 0) {
+      activeEditorIndex = editItemIndex;
+    }
+  }
+
+  const setActiveEditorItem = useCallback(
+    (node: HTMLLIElement | null) => {
+      activeEditorItem.current = node;
+      virtualizer.measureElement(node);
+    },
+    [virtualizer],
+  );
+  const revealActiveEditor = useCallback(() => {
+    const item = activeEditorItem.current;
+
+    if (!item || activeEditorIndex === null) {
+      return;
+    }
+
+    // The default synchronous measurement path reuses its cached size. Refresh
+    // from layout so the lazy editor's first frame is included before scrolling.
+    virtualizer.resizeItem(activeEditorIndex, item.offsetHeight);
+    virtualizer.scrollToIndex(activeEditorIndex, { align: "auto" });
+  }, [activeEditorIndex, virtualizer]);
   const setMessageList = useCallback(
     (node: HTMLOListElement | null) => {
       messageList.current = node;
@@ -312,11 +362,36 @@ export const ThreadTimeline = memo(function ThreadTimeline({
             }
 
             const { message, regeneration, replyFailure } = item.value;
+            let editor: ThreadMessageEditorProps | null = null;
+
+            if (editSession?.messageId === message.id) {
+              let onDelete: ThreadMessageEditorProps["onDelete"] = null;
+
+              if (message.author === "user") {
+                onDelete = () => deleteFromUserMessage(message.id);
+              }
+
+              editor = {
+                session: editSession,
+                maxLength: messageMaxCodeUnits,
+                pending: editPending || deletePending,
+                onCancel: cancelEdit,
+                onDelete,
+                onReady: revealActiveEditor,
+                onSave: (content) => saveEdit(message.id, content),
+              };
+            }
+
+            let itemRef = virtualizer.measureElement;
+
+            if (editor) {
+              itemRef = setActiveEditorItem;
+            }
 
             return (
               <li
                 key={virtualItem.key}
-                ref={virtualizer.measureElement}
+                ref={itemRef}
                 data-index={virtualItem.index}
                 aria-posinset={virtualItem.index + 1}
                 aria-setsize={items.length}
@@ -333,6 +408,11 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                   regenerateResponse={regenerateResponse}
                   retryPending={retryPending}
                   retryReply={retryReply}
+                  editor={editor}
+                  beginEdit={beginEdit}
+                  deletePending={deletePending}
+                  deleteFromUserMessage={deleteFromUserMessage}
+                  hasFollowingItem={virtualItem.index + 1 < items.length}
                 />
               </li>
             );

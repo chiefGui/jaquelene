@@ -17,14 +17,14 @@ import { summarizeCosts } from "@/feature/usage/presentation";
 import { useDeleteCampaign, useIsCampaignMutationPending } from "./query";
 import { CampaignTitleControl } from "./title-control";
 
-function TranscriptAction({ threadId }: { threadId: string }) {
+function TranscriptAction({ campaignId }: { campaignId: string }) {
   return (
     <Tooltip.Root>
       <Tooltip.Anchor
         render={
           <IconButton
-            render={<Link to="/threads/$threadId/transcript" params={{ threadId }} />}
-            aria-label="Open thread transcript"
+            render={<Link to="/campaigns/$campaignId/transcript" params={{ campaignId }} />}
+            aria-label="Open campaign transcript"
           >
             <HugeiconsIcon icon={FileTextIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
           </IconButton>
@@ -183,7 +183,7 @@ export function CampaignDetailsSidebar({
       </SecondarySidebar.Viewport>
 
       <SecondarySidebar.Footer style={styles.footer}>
-        <TranscriptAction threadId={campaign.threadId} />
+        <TranscriptAction campaignId={campaign.id} />
         <DeleteAction campaign={campaign} replyActive={activeAttempts > 0} />
       </SecondarySidebar.Footer>
     </SecondarySidebar.Content>

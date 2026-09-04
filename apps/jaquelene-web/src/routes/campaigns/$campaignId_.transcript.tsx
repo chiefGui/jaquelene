@@ -2,30 +2,63 @@ import { ThreadTranscriptEntryKind, type ThreadTranscriptEntry } from "@jaquelen
 import { Button } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { campaignQuery } from "@/feature/campaign/query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { loadThreadTranscript } from "@/feature/thread/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EmptyState } from "@/primitive/empty-state";
 
-export const Route = createFileRoute("/threads/$threadId/transcript")({
+export const Route = createFileRoute("/campaigns/$campaignId_/transcript")({
   preload: false,
   staleTime: 0,
   loader: {
-    handler: ({ params }) => loadThreadTranscript(params.threadId),
+    async handler({ context, params }) {
+      const campaign = await context.queryClient.query({
+        ...campaignQuery(params.campaignId),
+        staleTime: "static",
+      });
+
+      if (!campaign) {
+        return null;
+      }
+
+      const transcript = await loadThreadTranscript(campaign.threadId);
+      return { campaign, transcript };
+    },
     staleReloadMode: "blocking",
   },
-  onError: (error) => reportError("thread.transcript.load", error),
+  onError: (error) => reportError("campaign.transcript.load", error),
   errorComponent: TranscriptRouteError,
   component: TranscriptRoute,
 });
 
-function TranscriptHeader() {
+function TranscriptHeader({
+  campaignId,
+  campaignTitle,
+}: {
+  campaignId: string;
+  campaignTitle: string;
+}) {
+  const destination = {
+    to: "/campaigns/$campaignId",
+    params: { campaignId },
+    replace: true,
+  } as const;
+
   return (
     <ContentPane.Header>
+      <ContentPane.Back
+        render={<Link {...destination} />}
+        aria-label={`Back to ${campaignTitle}`}
+      />
+
       <Breadcrumb.Root>
         <Breadcrumb.List>
+          <Breadcrumb.Item>
+            <Breadcrumb.Link render={<Link {...destination} />}>{campaignTitle}</Breadcrumb.Link>
+          </Breadcrumb.Item>
           <Breadcrumb.Item>
             <Breadcrumb.Page>Transcript</Breadcrumb.Page>
           </Breadcrumb.Item>
@@ -57,10 +90,11 @@ function entryRole(entry: ThreadTranscriptEntry) {
 
 function TranscriptRouteError() {
   const router = useRouter();
+  const { campaignId } = Route.useParams();
 
   return (
     <>
-      <TranscriptHeader />
+      <TranscriptHeader campaignId={campaignId} campaignTitle="Campaign" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>
@@ -80,7 +114,7 @@ function TranscriptEntries({ entries }: { entries: readonly ThreadTranscriptEntr
     return (
       <EmptyState.Root>
         <EmptyState.Title>Empty transcript</EmptyState.Title>
-        <EmptyState.Description>This thread has no model input yet.</EmptyState.Description>
+        <EmptyState.Description>This campaign has no model input yet.</EmptyState.Description>
       </EmptyState.Root>
     );
   }
@@ -97,16 +131,50 @@ function TranscriptEntries({ entries }: { entries: readonly ThreadTranscriptEntr
   );
 }
 
-function TranscriptRoute() {
-  const transcript = Route.useLoaderData();
-
+function MissingCampaignRoute() {
   return (
     <>
-      <TranscriptHeader />
+      <ContentPane.Header>
+        <ContentPane.Back
+          render={<Link to="/campaigns/new" replace />}
+          aria-label="Back to campaigns"
+        />
+
+        <Breadcrumb.Root>
+          <Breadcrumb.List>
+            <Breadcrumb.Item>
+              <Breadcrumb.Page>Transcript</Breadcrumb.Page>
+            </Breadcrumb.Item>
+          </Breadcrumb.List>
+        </Breadcrumb.Root>
+      </ContentPane.Header>
 
       <ContentPane.Viewport>
         <ContentPane.Body>
-          <TranscriptEntries entries={transcript.entries} />
+          <EmptyState.Root>
+            <EmptyState.Title>Campaign not found</EmptyState.Title>
+            <EmptyState.Description>It may have been deleted.</EmptyState.Description>
+          </EmptyState.Root>
+        </ContentPane.Body>
+      </ContentPane.Viewport>
+    </>
+  );
+}
+
+function TranscriptRoute() {
+  const data = Route.useLoaderData();
+
+  if (!data) {
+    return <MissingCampaignRoute />;
+  }
+
+  return (
+    <>
+      <TranscriptHeader campaignId={data.campaign.id} campaignTitle={data.campaign.title} />
+
+      <ContentPane.Viewport>
+        <ContentPane.Body>
+          <TranscriptEntries entries={data.transcript.entries} />
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>

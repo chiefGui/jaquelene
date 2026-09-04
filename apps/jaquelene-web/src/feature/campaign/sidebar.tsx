@@ -39,6 +39,7 @@ export function CampaignSidebar() {
             label: campaign.title,
             to: "/campaigns/$campaignId" as const,
             params: { campaignId: campaign.id },
+            activeOptions: { exact: false },
           })),
         ],
         ...(pages.isPending ? { loadingItemCount: 3 } : {}),

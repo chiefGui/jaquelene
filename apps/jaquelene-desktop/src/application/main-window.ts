@@ -59,10 +59,9 @@ export type MainWindowInspection = Readonly<{
   window: WindowState;
 }>;
 
-export type MainWindowManager = Readonly<{
+type MainWindowManager = Readonly<{
   show: (signal?: AbortSignal) => Promise<void>;
   inspect: () => MainWindowInspection;
-  close: () => Promise<void>;
   [Symbol.asyncDispose]: () => Promise<void>;
 }>;
 
@@ -168,7 +167,7 @@ function waitForSignal<Result>(result: Promise<Result>, signal?: AbortSignal) {
   return Promise.race([result, interruption]).finally(removeListener);
 }
 
-export function createMainWindowManager({
+function createMainWindowManager({
   rendererUrl,
   diagnostics,
   localState,
@@ -415,7 +414,6 @@ export function createMainWindowManager({
   return {
     show,
     inspect: () => ({ state, window: windowState }),
-    close,
     [Symbol.asyncDispose]: close,
   };
 }

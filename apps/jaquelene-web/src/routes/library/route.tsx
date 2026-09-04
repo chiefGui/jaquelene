@@ -2,7 +2,7 @@ import Idea01Icon from "@hugeicons/core-free-icons/Idea01Icon";
 import { Outlet, createFileRoute, useMatchRoute } from "@tanstack/react-router";
 import { PrimarySidebar } from "@/layout/primary-sidebar";
 
-const narratorParentDestination = { to: "/library/narrator", replace: true } as const;
+const narratorParentDestination = { to: "/library/narrator" } as const;
 
 function LibrarySidebar() {
   const matchRoute = useMatchRoute();

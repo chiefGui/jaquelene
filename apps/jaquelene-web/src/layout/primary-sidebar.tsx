@@ -6,36 +6,23 @@ import { IconButton, Skeleton } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
-import {
-  Link,
-  type LinkProps,
-  type RegisteredRouter,
-  type ToOptions,
-  useMatchRoute,
-  useRouter,
-} from "@tanstack/react-router";
+import { Link, type LinkProps, useMatchRoute, useRouter } from "@tanstack/react-router";
 import type { ComponentType, ReactElement } from "react";
-import type { FileRoutesByTo } from "@/routeTree.gen";
+import { navigateBack, type NavigationDestination } from "@/application/navigation";
 import { shellChrome } from "./shell-chrome.stylex";
 
-type PrimarySidebarDestination = {
-  [Path in keyof FileRoutesByTo]: ToOptions<RegisteredRouter, string, Path> & {
-    replace?: Exclude<LinkProps["replace"], undefined>;
-    to: Path;
-  };
-}[keyof FileRoutesByTo];
-
-type PrimarySidebarLink = PrimarySidebarDestination & {
+type PrimarySidebarLink = NavigationDestination & {
   activeOptions?: LinkProps["activeOptions"];
   icon: IconSvgElement;
   label: string;
   preload?: Exclude<LinkProps["preload"], undefined>;
+  replace?: Exclude<LinkProps["replace"], undefined>;
 };
 
 type PrimarySidebarItem = PrimarySidebarLink & { id: string };
 
 interface PrimarySidebarNavigation {
-  backDestination?: PrimarySidebarDestination;
+  backDestination?: NavigationDestination;
   navigationLabel: string;
   items: readonly PrimarySidebarItem[];
   loadingItemCount?: number;
@@ -59,18 +46,13 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
   const libraryActive = Boolean(matchRoute({ to: "/library", fuzzy: true }));
   const utilityAreaActive = settingsActive || libraryActive;
 
-  function navigateBack() {
+  function handleBack() {
     if (navigation.backDestination) {
-      void router.navigate(navigation.backDestination);
+      void router.navigate({ ...navigation.backDestination, replace: true });
       return;
     }
 
-    if (router.history.canGoBack()) {
-      router.history.back();
-      return;
-    }
-
-    void router.navigate({ to: "/" });
+    navigateBack(router);
   }
 
   return (
@@ -132,7 +114,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
               <IconButton.Root
                 type="button"
                 aria-label="Back"
-                onClick={navigateBack}
+                onClick={handleBack}
                 style={styles.footerAction}
               >
                 <IconButton.Icon render={<HugeiconsIcon icon={ArrowLeft01Icon} />} />

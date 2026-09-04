@@ -1,8 +1,9 @@
-import type { NavigateOptions, RegisteredRouter } from "@tanstack/react-router";
+import type { RegisteredRouter, ToOptions } from "@tanstack/react-router";
 import type { FileRoutesByTo } from "@/routeTree.gen";
 
 export type NavigationDestination = {
-  [Path in keyof FileRoutesByTo]: NavigateOptions<RegisteredRouter, string, Path> & {
+  [Path in keyof FileRoutesByTo]: ToOptions<RegisteredRouter, string, Path> & {
+    replace?: boolean;
     to: Path;
   };
 }[keyof FileRoutesByTo];

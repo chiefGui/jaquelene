@@ -17,7 +17,7 @@ import {
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { SettingsHeader } from "@/feature/settings/header";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import {
   remeasureStorageUsage,
   storageUsageQuery,
@@ -209,7 +209,7 @@ function StorageRouteError() {
 
   return (
     <>
-      <SettingsHeader page="Storage" />
+      <SettingsSubpageHeader page="Storage" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>
@@ -265,7 +265,7 @@ function StorageRoute() {
 
   return (
     <>
-      <SettingsHeader page="Storage" />
+      <SettingsSubpageHeader page="Storage" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

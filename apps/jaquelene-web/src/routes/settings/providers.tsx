@@ -27,7 +27,7 @@ import {
   useClearProviderConfiguration,
   useConfigureProviderApiKey,
 } from "@/feature/provider/query";
-import { SettingsHeader } from "@/feature/settings/header";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import { ContentPane } from "@/layout/content-pane";
 
 export const Route = createFileRoute("/settings/providers")({
@@ -271,7 +271,7 @@ function ProvidersRoute() {
 
   return (
     <>
-      <SettingsHeader page="Providers" />
+      <SettingsSubpageHeader page="Providers" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

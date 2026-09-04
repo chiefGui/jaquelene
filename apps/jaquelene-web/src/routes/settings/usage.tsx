@@ -13,7 +13,7 @@ import * as stylex from "@stylexjs/stylex";
 import { keepPreviousData, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useId, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import { SettingsHeader } from "@/feature/settings/header";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import { summarizeCosts } from "@/feature/usage/presentation";
 import { usageOverviewQuery, useClearUsageHistory } from "@/feature/usage/query";
 import { UsageChart, type UsageMetric } from "@/feature/usage/usage-chart";
@@ -166,7 +166,7 @@ function UsageRoute() {
 
   return (
     <>
-      <SettingsHeader page="Usage" />
+      <SettingsSubpageHeader page="Usage" />
 
       <ContentPane.Viewport>
         <ContentPane.Body style={[styles.body, !overview.hasHistory && styles.emptyBody]}>

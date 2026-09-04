@@ -3,7 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 import { createFileRoute } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
-import { SettingsHeader } from "@/feature/settings/header";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import { ContentPane } from "@/layout/content-pane";
 
 const initialMarkdown = `# Narrative direction
@@ -31,7 +31,7 @@ function MarkdownEditorRoute() {
 
   return (
     <>
-      <SettingsHeader page="Markdown editor lab" />
+      <SettingsSubpageHeader page="Markdown editor lab" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

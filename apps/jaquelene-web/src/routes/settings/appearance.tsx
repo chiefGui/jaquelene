@@ -19,7 +19,7 @@ import {
 import { interfaceScales } from "@/feature/appearance/user-interface/scale";
 import { ThemeSwatch } from "@/feature/appearance/user-interface/theme-swatch";
 import { uiThemes } from "@/feature/appearance/user-interface/theme";
-import { SettingsHeader } from "@/feature/settings/header";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import { ContentPane } from "@/layout/content-pane";
 
 export const Route = createFileRoute("/settings/appearance")({
@@ -188,7 +188,7 @@ function AppearanceRoute() {
 
   return (
     <>
-      <SettingsHeader page="Appearance" />
+      <SettingsSubpageHeader page="Appearance" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

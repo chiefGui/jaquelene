@@ -11,7 +11,7 @@ import {
   diagnosticsPreferencesQuery,
   useSetDiagnosticsWriteToDisk,
 } from "@/feature/diagnostics/preferences";
-import { SettingsHeader } from "@/feature/settings/header";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import { ipcMutationOptions } from "@/ipc";
 import { ContentPane } from "@/layout/content-pane";
 
@@ -38,7 +38,7 @@ function AdvancedRoute() {
 
   return (
     <>
-      <SettingsHeader page="Advanced" />
+      <SettingsSubpageHeader page="Advanced" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

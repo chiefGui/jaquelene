@@ -1,9 +1,20 @@
 import type { ErrorReporter } from "@jaquelene/diagnostics";
+import { Layer, ManagedRuntime } from "effect";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { createLocalState, type MainWindowState } from "./local-state";
+import { DesktopConfigurationService } from "./application/configuration";
+import {
+  ApplicationDiagnosticsService,
+  type ApplicationDiagnostics,
+} from "./diagnostics/diagnostics";
+import {
+  createLocalState,
+  LocalStateInitializationError,
+  LocalStateService,
+  type MainWindowState,
+} from "./local-state";
 
 const workArea = { x: 0, y: 0, width: 1920, height: 1080 };
 const directories: string[] = [];
@@ -28,6 +39,35 @@ afterEach(() => {
 });
 
 describe("local state", () => {
+  it("reports initialization failures through the typed Effect channel", async () => {
+    const close = async () => undefined;
+    const diagnostics = {
+      report() {},
+      recordRendererReport() {},
+      deleteAll: async () => undefined,
+      openDirectory: async () => undefined,
+      inspect: () => ({ state: "open" as const }),
+      close,
+      [Symbol.asyncDispose]: close,
+    } satisfies ApplicationDiagnostics;
+    const dependencies = Layer.merge(
+      DesktopConfigurationService.layer({
+        userDataDirectory: "\0",
+        developmentServerUrl: undefined,
+      }),
+      ApplicationDiagnosticsService.layer(diagnostics),
+    );
+    const runtime = ManagedRuntime.make(LocalStateService.layer.pipe(Layer.provide(dependencies)));
+
+    try {
+      await expect(runtime.runPromise(LocalStateService)).rejects.toBeInstanceOf(
+        LocalStateInitializationError,
+      );
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it("returns no main-window state when none has been saved", () => {
     const localState = createTestLocalState(createUserDataDirectory());
 

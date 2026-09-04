@@ -1,16 +1,19 @@
 import { BackendService } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
-import { Cause, Effect, Exit, Fiber, FiberSet } from "effect";
+import { Cause, Effect, Exit, Fiber, FiberSet, Layer } from "effect";
 import { app, safeStorage } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme } from "../app-protocol";
-import type { ApplicationDiagnostics } from "../diagnostics/diagnostics";
-import { createFavoriteModels } from "../feature/model/favorite-models";
-import { createFavoriteModelsStorage } from "../feature/model/favorite-models-store";
+import {
+  ApplicationDiagnosticsService,
+  type ApplicationDiagnostics,
+} from "../diagnostics/diagnostics";
+import { FavoriteModelsService } from "../feature/model/favorite-models-service";
 import { createProviderFactories } from "../feature/provider/registry";
-import { createLocalState } from "../local-state";
-import type { Preferences } from "../preferences/preferences";
+import { LocalStateService } from "../local-state";
+import { PreferencesService, type Preferences } from "../preferences/preferences";
 import { createStorageAreas } from "../storage/areas";
+import { DesktopConfigurationService, type DesktopConfiguration } from "./configuration";
 import { getApplicationDatabasePaths } from "./database-paths";
 import { createMainWindowManager, type MainWindowInspection } from "./main-window";
 
@@ -67,6 +70,34 @@ async function requireSecureStorage() {
   }
 }
 
+type DesktopEnvironmentOptions = Readonly<{
+  configuration: DesktopConfiguration;
+  diagnostics: ApplicationDiagnostics;
+  preferences: Preferences;
+}>;
+
+function createDesktopEnvironmentLayer({
+  configuration,
+  diagnostics,
+  preferences,
+}: DesktopEnvironmentOptions) {
+  const configurationLayer = DesktopConfigurationService.layer(configuration);
+  const diagnosticsLayer = ApplicationDiagnosticsService.layer(diagnostics);
+  const preferencesLayer = PreferencesService.layer(preferences);
+  const localStateLayer = LocalStateService.layer.pipe(
+    Layer.provide(Layer.merge(configurationLayer, diagnosticsLayer)),
+  );
+  const favoriteModelsLayer = FavoriteModelsService.layer.pipe(Layer.provide(configurationLayer));
+
+  return Layer.mergeAll(
+    configurationLayer,
+    diagnosticsLayer,
+    preferencesLayer,
+    localStateLayer,
+    favoriteModelsLayer,
+  );
+}
+
 export function launchDesktopApplication({
   diagnostics,
   preferences,
@@ -83,7 +114,92 @@ export function launchDesktopApplication({
   let state: DesktopApplicationInspection["state"] = "starting";
   let mainWindowInspection: (() => MainWindowInspection) | undefined;
   let showMainWindow: (() => Promise<void>) | undefined;
+  const environmentLayer = createDesktopEnvironmentLayer({
+    configuration: { userDataDirectory, developmentServerUrl },
+    diagnostics,
+    preferences,
+  });
 
+  const applicationProgram = Effect.gen(function* () {
+    const configuration = yield* DesktopConfigurationService;
+    const diagnostics = yield* ApplicationDiagnosticsService;
+    const preferences = yield* PreferencesService;
+    const localState = yield* LocalStateService;
+    const favoriteModels = yield* FavoriteModelsService;
+    const { userDataDirectory, developmentServerUrl } = configuration;
+
+    const { databasePath, cachePath } = getApplicationDatabasePaths(userDataDirectory);
+    const credentialProtection = {
+      async encrypt(apiKey: string) {
+        await requireSecureStorage();
+        return safeStorage.encryptStringAsync(apiKey);
+      },
+      async decrypt(encryptedApiKey: Buffer) {
+        await requireSecureStorage();
+        const { result } = await safeStorage.decryptStringAsync(encryptedApiKey);
+        return result;
+      },
+    };
+    const providers = createProviderFactories(userDataDirectory, credentialProtection);
+    const backendLayer = BackendService.layer({
+      databasePath,
+      cache: {
+        path: cachePath,
+        reportFailure: (failure) =>
+          diagnostics.report({
+            severity: ErrorSeverity.Warning,
+            operation: `cache.${failure.operation}`,
+            error: failure.error,
+          }),
+      },
+      providers,
+      storageAreas: createStorageAreas({
+        diagnostics,
+        favoriteModels,
+        localState,
+        preferences,
+        userDataDirectory,
+      }),
+    });
+
+    yield* Effect.gen(function* () {
+      const backend = yield* BackendService;
+      const runBackendEffect = yield* FiberSet.makeRuntimePromise();
+      const mainWindow = yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          createMainWindowManager({
+            rendererUrl: developmentServerUrl ?? appUrl,
+            diagnostics,
+            localState,
+            campaigns: backend.campaigns,
+            campaignUsage: backend.campaignUsage,
+            prompts: backend.prompts,
+            threads: backend.threads,
+            turns: backend.turns,
+            modelCatalog: backend.models,
+            favoriteModels,
+            preferences,
+            providers: backend.providers,
+            storage: backend.storage,
+            runBackendEffect,
+            usage: backend.usage,
+          }),
+        ),
+        (windowManager) => Effect.promise(() => windowManager[Symbol.asyncDispose]()),
+      );
+      mainWindowInspection = mainWindow.inspect;
+      showMainWindow = () => mainWindow.show();
+      yield* Effect.tryPromise({
+        try: (signal) => mainWindow.show(signal),
+        catch: (error) => asError(error, "Could not show the main window."),
+      });
+
+      state = "running";
+      readySettled = true;
+      ready.resolve();
+      yield* Effect.never;
+    }).pipe(Effect.provide(backendLayer));
+  });
   const program = Effect.scoped(
     Effect.gen(function* () {
       yield* Effect.tryPromise({
@@ -104,79 +220,7 @@ export function launchDesktopApplication({
         );
       }
 
-      const { databasePath, cachePath } = getApplicationDatabasePaths(userDataDirectory);
-      const localState = createLocalState(userDataDirectory, diagnostics);
-      const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
-      const credentialProtection = {
-        async encrypt(apiKey: string) {
-          await requireSecureStorage();
-          return safeStorage.encryptStringAsync(apiKey);
-        },
-        async decrypt(encryptedApiKey: Buffer) {
-          await requireSecureStorage();
-          const { result } = await safeStorage.decryptStringAsync(encryptedApiKey);
-          return result;
-        },
-      };
-      const providers = createProviderFactories(userDataDirectory, credentialProtection);
-      const backendLayer = BackendService.layer({
-        databasePath,
-        cache: {
-          path: cachePath,
-          reportFailure: (failure) =>
-            diagnostics.report({
-              severity: ErrorSeverity.Warning,
-              operation: `cache.${failure.operation}`,
-              error: failure.error,
-            }),
-        },
-        providers,
-        storageAreas: createStorageAreas({
-          diagnostics,
-          favoriteModels,
-          localState,
-          preferences,
-          userDataDirectory,
-        }),
-      });
-
-      yield* Effect.gen(function* () {
-        const backend = yield* BackendService;
-        const runBackendEffect = yield* FiberSet.makeRuntimePromise();
-        const mainWindow = yield* Effect.acquireRelease(
-          Effect.sync(() =>
-            createMainWindowManager({
-              rendererUrl: developmentServerUrl ?? appUrl,
-              diagnostics,
-              localState,
-              campaigns: backend.campaigns,
-              campaignUsage: backend.campaignUsage,
-              prompts: backend.prompts,
-              threads: backend.threads,
-              turns: backend.turns,
-              modelCatalog: backend.models,
-              favoriteModels,
-              preferences,
-              providers: backend.providers,
-              storage: backend.storage,
-              runBackendEffect,
-              usage: backend.usage,
-            }),
-          ),
-          (windowManager) => Effect.promise(() => windowManager[Symbol.asyncDispose]()),
-        );
-        mainWindowInspection = mainWindow.inspect;
-        showMainWindow = () => mainWindow.show();
-        yield* Effect.tryPromise({
-          try: (signal) => mainWindow.show(signal),
-          catch: (error) => asError(error, "Could not show the main window."),
-        });
-
-        state = "running";
-        readySettled = true;
-        ready.resolve();
-        yield* Effect.never;
-      }).pipe(Effect.provide(backendLayer));
+      yield* applicationProgram.pipe(Effect.provide(environmentLayer));
     }),
   );
   const fiber = Effect.runFork(program);

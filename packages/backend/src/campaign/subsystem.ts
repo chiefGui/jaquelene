@@ -3,7 +3,7 @@ import { DatabaseService } from "#backend/database/database";
 import { createCampaigns, type CampaignEngine } from "./campaigns";
 import { createCampaignUsage, type CampaignUsageReader } from "./usage";
 
-export type CampaignSubsystem = Readonly<{
+type CampaignSubsystem = Readonly<{
   campaigns: CampaignEngine;
   usage: CampaignUsageReader;
 }>;

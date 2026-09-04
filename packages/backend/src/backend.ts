@@ -135,26 +135,6 @@ async function unwrapExit<A, E>(exitPromise: Promise<Exit.Exit<A, E>>) {
   throw causeError(exit.cause, "Backend operation failed.");
 }
 
-function waitForAbort<Value>(result: Promise<Value>, signal?: AbortSignal) {
-  if (!signal) {
-    return result;
-  }
-
-  if (signal.aborted) {
-    result.catch(() => undefined);
-    return Promise.reject(signal.reason);
-  }
-
-  let removeListener: (() => void) | undefined;
-  const interrupted = new Promise<never>((_resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    signal.addEventListener("abort", onAbort, { once: true });
-    removeListener = () => signal.removeEventListener("abort", onAbort);
-  });
-
-  return Promise.race([result, interrupted]).finally(removeListener);
-}
-
 function createBackendLayer({
   databasePath,
   cache: cacheOptions,
@@ -218,9 +198,15 @@ export async function createBackend(
   let services: BackendCapabilities;
 
   try {
-    services = await waitForAbort(runtime.runPromise(readBackendCapabilities), signal);
+    services = await runtime.runPromise(readBackendCapabilities, { signal });
   } catch (cause) {
-    const cleanupFailures: unknown[] = [cause];
+    let startupFailure = cause;
+
+    if (signal?.aborted) {
+      startupFailure = signal.reason;
+    }
+
+    const cleanupFailures: unknown[] = [startupFailure];
 
     try {
       await runtime.dispose();
@@ -235,7 +221,7 @@ export async function createBackend(
       );
     }
 
-    throw asError(cause, "Could not start the backend.");
+    throw asError(startupFailure, "Could not start the backend.");
   }
 
   const measureStorageUsage = StorageService.use((storage) => storage.measureUsage());

@@ -8,7 +8,7 @@ export class UsageService extends Context.Service<UsageService, UsageHistory>()(
   static readonly layer = Layer.effect(
     this,
     Effect.gen(function* () {
-      return createUsageHistory(yield* DatabaseService);
+      return UsageService.of(createUsageHistory(yield* DatabaseService));
     }),
   );
 }

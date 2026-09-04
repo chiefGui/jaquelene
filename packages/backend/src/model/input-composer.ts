@@ -50,7 +50,9 @@ export class ModelInputService extends Context.Service<ModelInputService, ModelI
     Effect.gen(function* () {
       const campaigns = yield* CampaignService;
       const prompts = yield* PromptService;
-      return createModelInputComposer(campaigns.campaigns, prompts.applications);
+      return ModelInputService.of(
+        createModelInputComposer(campaigns.campaigns, prompts.applications),
+      );
     }),
   );
 }

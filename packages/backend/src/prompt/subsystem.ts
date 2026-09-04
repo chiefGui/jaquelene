@@ -20,7 +20,7 @@ export function createPromptSubsystem(
   return { applications, prompts };
 }
 
-export type PromptSubsystem = ReturnType<typeof createPromptSubsystem>;
+type PromptSubsystem = ReturnType<typeof createPromptSubsystem>;
 
 export class PromptService extends Context.Service<PromptService, PromptSubsystem>()(
   "@jaquelene/backend/Prompts",
@@ -29,7 +29,7 @@ export class PromptService extends Context.Service<PromptService, PromptSubsyste
     Layer.effect(
       this,
       Effect.gen(function* () {
-        return createPromptSubsystem(yield* DatabaseService, modules, now);
+        return PromptService.of(createPromptSubsystem(yield* DatabaseService, modules, now));
       }),
     );
 }

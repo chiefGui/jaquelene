@@ -11,7 +11,7 @@ export type Threads = Pick<ThreadEngine, "create" | "get" | "listMessages"> &
     getTranscript(threadId: ThreadId): ThreadTranscript;
   }>;
 
-export function createThreadSubsystem(
+function createThreadSubsystem(
   database: Database,
   modelInputs: ModelInputComposer,
   now: () => number = Date.now,
@@ -28,7 +28,7 @@ export function createThreadSubsystem(
   return { engine, threads };
 }
 
-export type ThreadSubsystem = ReturnType<typeof createThreadSubsystem>;
+type ThreadSubsystem = ReturnType<typeof createThreadSubsystem>;
 
 export class ThreadService extends Context.Service<ThreadService, ThreadSubsystem>()(
   "@jaquelene/backend/Threads",
@@ -39,7 +39,7 @@ export class ThreadService extends Context.Service<ThreadService, ThreadSubsyste
       Effect.gen(function* () {
         const database = yield* DatabaseService;
         const modelInputs = yield* ModelInputService;
-        return createThreadSubsystem(database, modelInputs, now);
+        return ThreadService.of(createThreadSubsystem(database, modelInputs, now));
       }),
     );
 }

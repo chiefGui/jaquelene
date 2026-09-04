@@ -11,7 +11,7 @@ export class TurnService extends Context.Service<TurnService, Turns>()("@jaquele
       const database = yield* DatabaseService;
       const generations = yield* GenerationService;
       const threads = yield* ThreadService;
-      return createTurns(database, threads.engine, generations.replies);
+      return TurnService.of(createTurns(database, threads.engine, generations.replies));
     }),
   );
 }

@@ -32,7 +32,7 @@ type GenerationSubsystemOptions = Readonly<{
   attempts: ProviderAttempts;
 }>;
 
-export function createGenerationSubsystem({
+function createGenerationSubsystem({
   database,
   replyPreparer,
   models,

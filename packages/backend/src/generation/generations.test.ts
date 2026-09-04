@@ -6,6 +6,7 @@ import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
+import { createModelInputComposer } from "#backend/model/input-composer";
 import type { ModelReasoningCapability } from "#backend/model/reasoning";
 import type {
   ProviderGenerationRequest,
@@ -97,7 +98,7 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   const threads = createThreads(database, now);
   const generations = createGenerations(
     database,
-    createReplyPreparer(threads, campaigns, promptApplications),
+    createReplyPreparer(threads, createModelInputComposer(campaigns, promptApplications)),
     modelResolver(provider),
     generationRouter(provider),
     now,
@@ -967,7 +968,10 @@ describe("generations", () => {
       openGenerationEnvironment(provider);
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
-    const preparer = createReplyPreparer(threads, campaigns, promptApplications);
+    const preparer = createReplyPreparer(
+      threads,
+      createModelInputComposer(campaigns, promptApplications),
+    );
 
     const generations = createGenerations(database, preparer, modelResolver(), generationRouter());
     await expect(

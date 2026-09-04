@@ -25,6 +25,7 @@ import { Route as SettingsMarkdownEditorRouteImport } from "./routes/settings/ma
 import { Route as SettingsProvidersRouteImport } from "./routes/settings/providers";
 import { Route as SettingsStorageRouteImport } from "./routes/settings/storage";
 import { Route as SettingsUsageRouteImport } from "./routes/settings/usage";
+import { Route as CampaignsCampaignIdTranscriptRouteImport } from "./routes/campaigns/$campaignId_.transcript";
 import { Route as LibraryNarratorIndexRouteImport } from "./routes/library/narrator/index";
 import { Route as LibraryNarratorNewRouteImport } from "./routes/library/narrator/new";
 import { Route as LibraryNarratorPromptKeyEditRouteImport } from "./routes/library/narrator/$promptKey/edit";
@@ -109,6 +110,12 @@ const SettingsUsageRoute = SettingsUsageRouteImport.update({
   path: "/usage",
   getParentRoute: () => SettingsRouteRoute,
 } as any);
+const CampaignsCampaignIdTranscriptRoute =
+  CampaignsCampaignIdTranscriptRouteImport.update({
+    id: "/$campaignId_/transcript",
+    path: "/$campaignId/transcript",
+    getParentRoute: () => CampaignsRouteRoute,
+  } as any);
 const LibraryNarratorIndexRoute = LibraryNarratorIndexRouteImport.update({
   id: "/",
   path: "/",
@@ -143,6 +150,7 @@ export interface FileRoutesByFullPath {
   "/settings/usage": typeof SettingsUsageRoute;
   "/campaigns/": typeof CampaignsIndexRoute;
   "/library/": typeof LibraryIndexRoute;
+  "/campaigns/$campaignId/transcript": typeof CampaignsCampaignIdTranscriptRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
   "/library/narrator/": typeof LibraryNarratorIndexRoute;
   "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
@@ -161,6 +169,7 @@ export interface FileRoutesByTo {
   "/settings/usage": typeof SettingsUsageRoute;
   "/campaigns": typeof CampaignsIndexRoute;
   "/library": typeof LibraryIndexRoute;
+  "/campaigns/$campaignId/transcript": typeof CampaignsCampaignIdTranscriptRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
   "/library/narrator": typeof LibraryNarratorIndexRoute;
   "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
@@ -183,6 +192,7 @@ export interface FileRoutesById {
   "/settings/usage": typeof SettingsUsageRoute;
   "/campaigns/": typeof CampaignsIndexRoute;
   "/library/": typeof LibraryIndexRoute;
+  "/campaigns/$campaignId_/transcript": typeof CampaignsCampaignIdTranscriptRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
   "/library/narrator/": typeof LibraryNarratorIndexRoute;
   "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | "/settings/usage"
     | "/campaigns/"
     | "/library/"
+    | "/campaigns/$campaignId/transcript"
     | "/library/narrator/new"
     | "/library/narrator/"
     | "/library/narrator/$promptKey/edit";
@@ -224,6 +235,7 @@ export interface FileRouteTypes {
     | "/settings/usage"
     | "/campaigns"
     | "/library"
+    | "/campaigns/$campaignId/transcript"
     | "/library/narrator/new"
     | "/library/narrator"
     | "/library/narrator/$promptKey/edit";
@@ -245,6 +257,7 @@ export interface FileRouteTypes {
     | "/settings/usage"
     | "/campaigns/"
     | "/library/"
+    | "/campaigns/$campaignId_/transcript"
     | "/library/narrator/new"
     | "/library/narrator/"
     | "/library/narrator/$promptKey/edit";
@@ -371,6 +384,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SettingsUsageRouteImport;
       parentRoute: typeof SettingsRouteRoute;
     };
+    "/campaigns/$campaignId_/transcript": {
+      id: "/campaigns/$campaignId_/transcript";
+      path: "/$campaignId/transcript";
+      fullPath: "/campaigns/$campaignId/transcript";
+      preLoaderRoute: typeof CampaignsCampaignIdTranscriptRouteImport;
+      parentRoute: typeof CampaignsRouteRoute;
+    };
     "/library/narrator/": {
       id: "/library/narrator/";
       path: "/";
@@ -399,12 +419,14 @@ interface CampaignsRouteRouteChildren {
   CampaignsCampaignIdRoute: typeof CampaignsCampaignIdRoute;
   CampaignsNewRoute: typeof CampaignsNewRoute;
   CampaignsIndexRoute: typeof CampaignsIndexRoute;
+  CampaignsCampaignIdTranscriptRoute: typeof CampaignsCampaignIdTranscriptRoute;
 }
 
 const CampaignsRouteRouteChildren: CampaignsRouteRouteChildren = {
   CampaignsCampaignIdRoute: CampaignsCampaignIdRoute,
   CampaignsNewRoute: CampaignsNewRoute,
   CampaignsIndexRoute: CampaignsIndexRoute,
+  CampaignsCampaignIdTranscriptRoute: CampaignsCampaignIdTranscriptRoute,
 };
 
 const CampaignsRouteRouteWithChildren = CampaignsRouteRoute._addFileChildren(

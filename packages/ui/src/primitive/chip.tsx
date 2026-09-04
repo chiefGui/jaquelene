@@ -4,7 +4,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { colors, radii, shadows, tokens } from "../tokens.stylex";
 import { Button, type ButtonProps } from "./button";
 
-export type ChipActionProps = Omit<ButtonProps, "style" | "tone" | "variant"> & {
+export type ChipActionProps = Omit<ButtonProps, "size" | "style" | "tone" | "variant"> & {
   style?: StyleXStyles;
 };
 
@@ -60,7 +60,7 @@ const styles = stylex.create({
     flexShrink: 1,
     fontSize: tokens.fontSizeSmall,
     fontWeight: 400,
-    height: "1.375rem",
+    height: tokens.controlHeightSmall,
     justifyContent: "center",
     lineHeight: tokens.lineHeightSmall,
     maxWidth: "100%",

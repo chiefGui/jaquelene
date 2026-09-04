@@ -1,5 +1,12 @@
-export { createBackend } from "#backend/backend";
-export type { Backend, BackendInspection, BackendOptions } from "#backend/backend";
+export { BackendService } from "#backend/backend";
+export type { Backend, BackendOptions } from "#backend/backend";
+export {
+  ThreadTranscriptEntryKind,
+  type ThreadTranscript,
+  type ThreadTranscriptEntry,
+  type ThreadTranscriptInstruction,
+  type ThreadTranscriptMessage,
+} from "@jaquelene/domain";
 export { getDatabaseStoragePaths } from "#backend/database/database";
 export type {
   ResourceCacheFailure,
@@ -93,7 +100,6 @@ export {
 } from "#backend/id";
 export { assertStoragePathsAreDisjoint, StorageCategory } from "#backend/storage/storage";
 export type {
-  Storage,
   StorageArea,
   StorageAreaId,
   StorageAreaUsage,
@@ -117,7 +123,8 @@ export type {
   SetCampaignPromptSelectionInput,
 } from "#backend/prompt/types";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
-export type { ThreadActivity, Threads } from "#backend/thread/threads";
+export type { Threads } from "#backend/thread/subsystem";
+export type { ThreadActivity } from "#backend/thread/threads";
 export type {
   DeleteThreadHistoryRequest,
   RegenerateReplyRequest,

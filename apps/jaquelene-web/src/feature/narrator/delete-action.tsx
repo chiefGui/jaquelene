@@ -63,13 +63,13 @@ export function NarratorPromptDeleteAction({
         trigger={
           <Tooltip.Anchor
             render={
-              <IconButton
+              <IconButton.Root
                 aria-label={`Delete ${prompt.title}`}
                 disabled={deletePrompt.isPending}
                 style={style}
               >
-                <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
-              </IconButton>
+                <IconButton.Icon render={<HugeiconsIcon icon={TrashIcon} />} />
+              </IconButton.Root>
             }
           />
         }

@@ -125,9 +125,9 @@ function MarkdownEditorAction({ icon, label, ...props }: MarkdownEditorActionPro
     <Tooltip.Root>
       <Tooltip.Anchor
         render={
-          <IconButton {...props} type="button" aria-label={label}>
-            <HugeiconsIcon icon={icon} size={15} strokeWidth={1.5} aria-hidden="true" />
-          </IconButton>
+          <IconButton.Root {...props} type="button" aria-label={label}>
+            <IconButton.Icon render={<HugeiconsIcon icon={icon} />} />
+          </IconButton.Root>
         }
       />
       <Tooltip>{label}</Tooltip>

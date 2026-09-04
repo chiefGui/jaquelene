@@ -35,12 +35,6 @@ export type StorageDeletion = Readonly<{
   areas: readonly StorageAreaUsage[];
 }>;
 
-export type Storage = Readonly<{
-  measureUsage: () => Promise<StorageUsage>;
-  deleteArea: (id: StorageAreaId) => Promise<StorageDeletion>;
-  deleteCategory: (id: StorageCategory) => Promise<StorageDeletion>;
-}>;
-
 class StorageConfigurationError extends Error {
   override readonly name = "StorageConfigurationError";
 

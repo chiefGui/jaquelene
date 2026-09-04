@@ -149,9 +149,9 @@ function StorageClearAction({
         trigger={
           <Tooltip.Anchor
             render={
-              <IconButton aria-label={accessibleLabel} disabled={disabled}>
-                <HugeiconsIcon icon={TrashIcon} size={16} strokeWidth={1.5} aria-hidden="true" />
-              </IconButton>
+              <IconButton.Root aria-label={accessibleLabel} disabled={disabled}>
+                <IconButton.Icon render={<HugeiconsIcon icon={TrashIcon} />} />
+              </IconButton.Root>
             }
           />
         }

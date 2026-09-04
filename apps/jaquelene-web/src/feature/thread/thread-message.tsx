@@ -101,14 +101,14 @@ function UserMessageToolbar({
           trigger={
             <Tooltip.Anchor
               render={
-                <IconButton
+                <IconButton.Root
                   type="button"
                   size="small"
                   aria-label="Delete this and subsequent messages"
                   disabled={disabled || deleteHistory.isPending}
                 >
-                  <HugeiconsIcon icon={TrashIcon} size={14} strokeWidth={1.5} aria-hidden="true" />
-                </IconButton>
+                  <IconButton.Icon render={<HugeiconsIcon icon={TrashIcon} />} />
+                </IconButton.Root>
               }
             />
           }
@@ -183,19 +183,14 @@ function AssistantMessageToolbar({
           trigger={
             <Tooltip.Anchor
               render={
-                <IconButton
+                <IconButton.Root
                   type="button"
                   size="small"
                   aria-label="Regenerate response"
                   disabled={disabled}
                 >
-                  <HugeiconsIcon
-                    icon={Refresh01Icon}
-                    size={14}
-                    strokeWidth={1.5}
-                    aria-hidden="true"
-                  />
-                </IconButton>
+                  <IconButton.Icon render={<HugeiconsIcon icon={Refresh01Icon} />} />
+                </IconButton.Root>
               }
             />
           }

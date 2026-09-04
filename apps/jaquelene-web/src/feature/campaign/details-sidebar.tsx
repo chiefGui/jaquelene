@@ -1,13 +1,117 @@
+import FileTextIcon from "@hugeicons/core-free-icons/FileTextIcon";
+import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type { Campaign, CampaignUsageSnapshot } from "@jaquelene/ipc/renderer";
-import { Timestamp, formatCount, formatCurrencyNanos } from "@jaquelene/ui";
+import { IconButton, Timestamp, formatCount, formatCurrencyNanos } from "@jaquelene/ui";
+import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
-import { useId, type ReactNode } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useId, useState, type ReactNode } from "react";
+import { reportError } from "@/feature/diagnostics/diagnostics";
 import { CampaignNarratorControl } from "@/feature/narrator/campaign-control";
+import { useIsTurnOperationPending } from "@/feature/thread/query";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
 import { summarizeCosts } from "@/feature/usage/presentation";
-import { CampaignDeleteControl } from "./delete-control";
+import { useDeleteCampaign, useIsCampaignMutationPending } from "./query";
 import { CampaignTitleControl } from "./title-control";
+
+function TranscriptAction({ campaignId }: { campaignId: string }) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Anchor
+        render={
+          <IconButton.Root
+            render={<Link to="/campaigns/$campaignId/transcript" params={{ campaignId }} />}
+            aria-label="Open campaign transcript"
+          >
+            <IconButton.Icon render={<HugeiconsIcon icon={FileTextIcon} />} />
+          </IconButton.Root>
+        }
+      />
+
+      <Tooltip>Transcript</Tooltip>
+    </Tooltip.Root>
+  );
+}
+
+function DeleteAction({ campaign, replyActive }: { campaign: Campaign; replyActive: boolean }) {
+  const deleteCampaign = useDeleteCampaign(campaign);
+  const campaignMutationPending = useIsCampaignMutationPending(campaign.id);
+  const turnOperationPending = useIsTurnOperationPending(campaign.threadId);
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+
+  function setConfirmationOpen(nextOpen: boolean) {
+    if (nextOpen) {
+      deleteCampaign.reset();
+    }
+
+    if (!deleteCampaign.isPending) {
+      setOpen(nextOpen);
+    }
+  }
+
+  async function confirmDeletion() {
+    try {
+      await deleteCampaign.mutateAsync();
+    } catch (cause) {
+      reportError("campaign.delete", cause);
+      return;
+    }
+
+    setOpen(false);
+
+    try {
+      await navigate({ to: "/campaigns/new", replace: true });
+    } catch (cause) {
+      reportError("campaign.open-after-delete", cause);
+    }
+  }
+
+  const unavailable = campaignMutationPending || turnOperationPending || replyActive;
+  let confirmLabel = "Delete";
+  let deletionError: string | undefined;
+
+  if (deleteCampaign.isPending) {
+    confirmLabel = "Deleting\u2026";
+  }
+
+  if (deleteCampaign.isError) {
+    deletionError = "Couldn't delete this campaign. Try again.";
+  }
+
+  return (
+    <Tooltip.Root>
+      <ConfirmDialog
+        open={open}
+        setOpen={setConfirmationOpen}
+        trigger={
+          <Tooltip.Anchor
+            render={
+              <IconButton.Root
+                type="button"
+                aria-label={`Delete ${campaign.title}`}
+                disabled={unavailable}
+              >
+                <IconButton.Icon render={<HugeiconsIcon icon={TrashIcon} />} />
+              </IconButton.Root>
+            }
+          />
+        }
+        heading={`Delete "${campaign.title}"?`}
+        description="This permanently deletes the campaign and its conversation. Usage history is kept."
+        confirmLabel={confirmLabel}
+        pending={deleteCampaign.isPending}
+        error={deletionError}
+        onConfirm={() => void confirmDeletion()}
+      />
+
+      <Tooltip>Delete</Tooltip>
+    </Tooltip.Root>
+  );
+}
 
 function MetricRow({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -77,8 +181,9 @@ export function CampaignDetailsSidebar({
         </SecondarySidebar.Body>
       </SecondarySidebar.Viewport>
 
-      <SecondarySidebar.Footer>
-        <CampaignDeleteControl campaign={campaign} replyActive={activeAttempts > 0} />
+      <SecondarySidebar.Footer style={styles.footer}>
+        <TranscriptAction campaignId={campaign.id} />
+        <DeleteAction campaign={campaign} replyActive={activeAttempts > 0} />
       </SecondarySidebar.Footer>
     </SecondarySidebar.Content>
   );
@@ -87,6 +192,12 @@ export function CampaignDetailsSidebar({
 const styles = stylex.create({
   body: {
     padding: 0,
+  },
+  footer: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.25rem",
+    justifyContent: "flex-end",
   },
   controls: {
     display: "grid",

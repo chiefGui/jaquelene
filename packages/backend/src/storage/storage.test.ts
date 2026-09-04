@@ -6,14 +6,21 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   StorageCategory,
   StorageService,
-  type Storage,
   type StorageArea,
   type StorageAreaId,
   type StorageCategory as StorageCategoryValue,
+  type StorageDeletion,
+  type StorageUsage,
 } from "./storage";
 
 const closeStorageServices: Array<() => Promise<void>> = [];
 const directories: string[] = [];
+
+type TestStorage = Readonly<{
+  measureUsage: () => Promise<StorageUsage>;
+  deleteArea: (id: StorageAreaId) => Promise<StorageDeletion>;
+  deleteCategory: (id: StorageCategoryValue) => Promise<StorageDeletion>;
+}>;
 
 function createUserDataDirectory() {
   const directory = mkdtempSync(join(tmpdir(), "jaquelene-storage-"));
@@ -31,7 +38,7 @@ async function unwrapExit<A, E>(exitPromise: Promise<Exit.Exit<A, E>>) {
   throw Cause.squash(exit.cause);
 }
 
-async function createTestStorage(storageAreas: readonly StorageArea[]): Promise<Storage> {
+async function createTestStorage(storageAreas: readonly StorageArea[]): Promise<TestStorage> {
   const runtime = ManagedRuntime.make(StorageService.layer(storageAreas));
 
   try {

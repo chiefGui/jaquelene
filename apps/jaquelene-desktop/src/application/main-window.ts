@@ -1,9 +1,10 @@
 import type {
+  Backend,
   Campaigns,
   CampaignUsageReader,
   Prompts,
   Providers,
-  Storage,
+  Threads,
   Turns,
   Usage,
 } from "@jaquelene/backend";
@@ -30,7 +31,7 @@ import { createThreadMessaging } from "../feature/thread/ipc";
 import { exposeUsage } from "../feature/usage/ipc";
 import type { LocalState } from "../local-state";
 import type { Preferences } from "../preferences/preferences";
-import { exposeStorage } from "../storage/ipc";
+import { exposeStorage, type BackendEffectRunner } from "../storage/ipc";
 
 const preloadPath = join(import.meta.dirname, "../preload/preload.cjs");
 
@@ -103,12 +104,14 @@ export function createMainWindowManager({
   campaigns,
   campaignUsage,
   prompts,
+  threads,
   turns,
   modelCatalog,
   favoriteModels,
   preferences,
   providers,
   storage,
+  runBackendEffect,
   usage,
 }: {
   rendererUrl: string;
@@ -117,15 +120,17 @@ export function createMainWindowManager({
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
   prompts: Prompts;
+  threads: Threads;
   turns: Turns;
   modelCatalog: ModelCatalog;
   favoriteModels: FavoriteModels;
   preferences: Preferences;
   providers: Providers;
-  storage: Storage;
+  storage: Backend["storage"];
+  runBackendEffect: BackendEffectRunner;
   usage: Usage;
 }): MainWindowManager {
-  const threadMessaging = createThreadMessaging(turns, diagnostics);
+  const threadMessaging = createThreadMessaging(threads, turns, diagnostics);
   let state: "open" | "closing" | "closed" = "open";
   let windowState: WindowState = "absent";
   let currentWindow: OpenWindow | undefined;
@@ -221,7 +226,7 @@ export function createMainWindowManager({
         ),
       );
       exposeProviders(browserWindow.webContents.mainFrame, providers);
-      exposeStorage(browserWindow.webContents.mainFrame, storage);
+      exposeStorage(browserWindow.webContents.mainFrame, storage, runBackendEffect);
       addFinalizer(scope, exposeUsage(browserWindow.webContents, usage));
 
       const saveWindowState = () => {

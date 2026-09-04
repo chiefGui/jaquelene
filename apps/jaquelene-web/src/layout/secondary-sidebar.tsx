@@ -128,15 +128,9 @@ function SecondarySidebarClose({
   return (
     <DialogDismiss
       render={
-        <IconButton {...props} aria-label={ariaLabel}>
-          <HugeiconsIcon
-            icon={Cancel01Icon}
-            size={16}
-            color="currentColor"
-            strokeWidth={1.5}
-            aria-hidden="true"
-          />
-        </IconButton>
+        <IconButton.Root {...props} aria-label={ariaLabel}>
+          <IconButton.Icon render={<HugeiconsIcon icon={Cancel01Icon} />} />
+        </IconButton.Root>
       }
     />
   );

@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PromptOrigin } from "@jaquelene/domain";
+import { ManagedRuntime } from "effect";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
@@ -13,7 +14,13 @@ import type {
   ProviderGenerationAdapter,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
-import { StorageCategory } from "#backend/storage/storage";
+import {
+  StorageCategory,
+  type StorageAreaId,
+  type StorageCategory as StorageCategoryValue,
+  type StorageDeletion,
+  type StorageUsage,
+} from "#backend/storage/storage";
 import { jaqueleneNarratorPromptDefinition, narratorPromptKind } from "#backend/narrator/module";
 import {
   createThreads,
@@ -21,7 +28,7 @@ import {
   THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
   THREAD_MESSAGE_PAGE_MAX_COUNT,
 } from "#backend/thread/threads";
-import { createBackend, type BackendOptions } from "./backend";
+import { BackendService, type Backend, type BackendOptions } from "./backend";
 
 const directories: string[] = [];
 
@@ -82,6 +89,65 @@ function deferred<Result>() {
   return { promise, resolve };
 }
 
+type TestStorage = Readonly<{
+  measureUsage: () => Promise<StorageUsage>;
+  deleteArea: (id: StorageAreaId) => Promise<StorageDeletion>;
+  deleteCategory: (id: StorageCategoryValue) => Promise<StorageDeletion>;
+}>;
+
+type TestBackend = Omit<Backend, "storage"> &
+  Readonly<{
+    storage: TestStorage;
+    close: () => Promise<void>;
+    [Symbol.asyncDispose]: () => Promise<void>;
+  }>;
+
+async function openBackend(options: BackendOptions, signal?: AbortSignal): Promise<TestBackend> {
+  const runtime = ManagedRuntime.make(BackendService.layer(options));
+  let backend: Backend;
+
+  try {
+    backend = await runtime.runPromise(BackendService, { signal });
+  } catch (startupCause) {
+    let startupFailure = startupCause;
+
+    if (signal?.aborted) {
+      startupFailure = signal.reason;
+    }
+
+    const failures: unknown[] = [startupFailure];
+
+    try {
+      await runtime.dispose();
+    } catch (closeFailure) {
+      failures.push(closeFailure);
+    }
+
+    if (failures.length > 1) {
+      throw new AggregateError(failures, "Could not close the backend after startup failed.");
+    }
+
+    throw startupFailure;
+  }
+
+  let closePromise: Promise<void> | undefined;
+  const close = () => {
+    closePromise ??= runtime.dispose();
+    return closePromise;
+  };
+
+  return {
+    ...backend,
+    storage: {
+      measureUsage: () => runtime.runPromise(backend.storage.measureUsage()),
+      deleteArea: (id) => runtime.runPromise(backend.storage.deleteArea(id)),
+      deleteCategory: (id) => runtime.runPromise(backend.storage.deleteCategory(id)),
+    },
+    close,
+    [Symbol.asyncDispose]: close,
+  };
+}
+
 afterEach(() => {
   for (const directory of directories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
@@ -94,7 +160,7 @@ describe("backend", () => {
     const options = backendOptions(databasePath);
 
     await expect(
-      createBackend({ ...options, cache: { ...options.cache, path: databasePath } }),
+      openBackend({ ...options, cache: { ...options.cache, path: databasePath } }),
     ).rejects.toThrow(`Storage path "${databasePath}" is registered more than once.`);
     expect(existsSync(databasePath)).toBe(false);
   });
@@ -110,7 +176,7 @@ describe("backend", () => {
         reasoning: { defaultPreset: "high" as const, supportedPresets: ["high"] as const },
       },
     ]);
-    const first = await createBackend(
+    const first = await openBackend(
       backendOptions(databasePath, [
         {
           ...providerAdapter("provider-a"),
@@ -143,7 +209,7 @@ describe("backend", () => {
     const secondList = vi.fn(async () => {
       throw new Error("The remote catalog should not be requested while the snapshot is fresh.");
     });
-    const reopened = await createBackend(
+    const reopened = await openBackend(
       backendOptions(databasePath, [
         {
           ...providerAdapter("provider-a"),
@@ -171,7 +237,7 @@ describe("backend", () => {
   it("clears derived snapshots through the cache storage owner", async () => {
     const databasePath = createDatabasePath();
     const list = vi.fn(async () => [{ id: "maker/model", name: "Model", brandId: "maker" }]);
-    const backend = await createBackend(
+    const backend = await openBackend(
       backendOptions(databasePath, [
         {
           ...providerAdapter("provider-a"),
@@ -202,7 +268,7 @@ describe("backend", () => {
         return { text: "The voyage begins." };
       },
     });
-    const first = await createBackend(backendOptions(databasePath, [provider]));
+    const first = await openBackend(backendOptions(databasePath, [provider]));
     expect(first.prompts.listKinds()).toEqual([narratorPromptKind]);
     expect(first.prompts.list({ kind: narratorPromptKind.key }).prompts).toEqual([
       {
@@ -244,29 +310,9 @@ describe("backend", () => {
     };
     expect(first.campaignUsage.get(campaign.id)).toEqual(campaignUsage);
 
-    const firstClose = first.close();
-    expect(first.close()).toBe(firstClose);
-    await firstClose;
+    await first.close();
 
-    expect(() => first.prompts.listKinds()).toThrow("Backend is closed.");
-    expect(() => first.campaignUsage.get(campaign.id)).toThrow("Backend is closed.");
-    expect(() => first.turns.inspect(campaign.threadId)).toThrow("Backend is closed.");
-    await expect(first.storage.measureUsage()).rejects.toThrow("Backend is closed.");
-    await expect(first.storage.deleteArea("content")).rejects.toThrow("Backend is closed.");
-    await expect(first.storage.deleteCategory(StorageCategory.Content)).rejects.toThrow(
-      "Backend is closed.",
-    );
-    expect(() =>
-      first.turns.submit({
-        threadId: campaign.threadId,
-        content: "Continue",
-        configuration: {
-          model: { providerId: provider.descriptor.id, modelId: "maker/model" },
-        },
-      }),
-    ).toThrow("Backend is closed.");
-
-    const reopened = await createBackend(backendOptions(databasePath));
+    const reopened = await openBackend(backendOptions(databasePath));
 
     expect(reopened.campaigns.get(campaign.id)).toEqual({
       ...campaign,
@@ -292,7 +338,7 @@ describe("backend", () => {
         return { text: `Reply ${inputs.length}` };
       },
     });
-    await using backend = await createBackend(backendOptions(createDatabasePath(), [provider]));
+    await using backend = await openBackend(backendOptions(createDatabasePath(), [provider]));
     const prompt = backend.prompts.create({
       kind: narratorPromptKind.key,
       title: "Private organizer",
@@ -329,6 +375,17 @@ describe("backend", () => {
       [{ sourceKey: prompt.key, content: "Use a hopeful tone." }],
       [{ sourceKey: prompt.key, content: "Use an ominous tone." }],
     ]);
+    expect(
+      backend.threads
+        .getTranscript(campaign.threadId)
+        .entries.map(({ kind, content }) => ({ kind, content })),
+    ).toEqual([
+      { kind: "instruction", content: "Use an ominous tone." },
+      { kind: "message", content: "Begin" },
+      { kind: "message", content: "Reply 1" },
+      { kind: "message", content: "Continue" },
+      { kind: "message", content: "Reply 2" },
+    ]);
     expect(JSON.stringify(inputs)).not.toContain("Private");
   });
 
@@ -341,7 +398,7 @@ describe("backend", () => {
         return providerResult.promise;
       },
     });
-    await using backend = await createBackend(backendOptions(createDatabasePath(), [provider]));
+    await using backend = await openBackend(backendOptions(createDatabasePath(), [provider]));
     const campaign = backend.campaigns.start({
       title: "Disposable campaign",
       composition: [{ kind: narratorPromptKind.key }],
@@ -400,15 +457,14 @@ describe("backend", () => {
         closed.push("provider-b");
       },
     };
-    const backend = await createBackend(backendOptions(databasePath, [first, second]));
+    const backend = await openBackend(backendOptions(databasePath, [first, second]));
 
     await backend.close();
 
     expect(closed).toEqual(["provider-b", "provider-a"]);
-    expect(backend.inspect()).toEqual({ state: "closed" });
   });
 
-  it("keeps a finalization failure inspectable after closing", async () => {
+  it("surfaces a finalization failure when the layer closes", async () => {
     const closeFailure = new Error("Provider close failed.");
     const provider = {
       ...providerAdapter("provider-a"),
@@ -416,13 +472,9 @@ describe("backend", () => {
         throw closeFailure;
       },
     };
-    const backend = await createBackend(backendOptions(createDatabasePath(), [provider]));
+    const backend = await openBackend(backendOptions(createDatabasePath(), [provider]));
 
     await expect(backend.close()).rejects.toBe(closeFailure);
-    expect(backend.inspect()).toEqual({
-      state: "closed",
-      terminalFailure: closeFailure,
-    });
   });
 
   it("disposes a provider produced after backend startup was cancelled", async () => {
@@ -432,7 +484,7 @@ describe("backend", () => {
     const controller = new AbortController();
     let factorySignal: AbortSignal | undefined;
     const options = backendOptions(databasePath);
-    const creating = createBackend(
+    const creating = openBackend(
       {
         ...options,
         providers: [
@@ -488,7 +540,7 @@ describe("backend", () => {
         storagePaths: [configurationPath],
       },
     } satisfies ProviderAdapter;
-    const backend = await createBackend(backendOptions(databasePath, [provider]));
+    const backend = await openBackend(backendOptions(databasePath, [provider]));
 
     await expect(backend.storage.measureUsage()).resolves.toEqual(
       expect.objectContaining({
@@ -521,7 +573,7 @@ describe("backend", () => {
         return new Promise<ProviderGenerationResult>(() => {});
       },
     });
-    const backend = await createBackend(backendOptions(databasePath, [provider]));
+    const backend = await openBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
     const pending = await backend.turns.submit({
       threadId: thread.id,
@@ -565,7 +617,7 @@ describe("backend", () => {
     const databasePath = createDatabasePath();
     const generate = vi.fn(async () => ({ text: "Too late" }));
     const provider = providerAdapter("provider-a", { generate });
-    const backend = await createBackend(backendOptions(databasePath, [provider]));
+    const backend = await openBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
     const pending = await backend.turns.submit({
       threadId: thread.id,
@@ -583,7 +635,7 @@ describe("backend", () => {
     expect(interrupted.generation).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
     );
-    const reopened = await createBackend(backendOptions(databasePath));
+    const reopened = await openBackend(backendOptions(databasePath));
 
     expect(reopened.turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [interrupted.userMessage],
@@ -611,7 +663,7 @@ describe("backend", () => {
     database.insert(generationTable).values(pending).run();
     closeDatabase(database);
 
-    const backend = await createBackend(backendOptions(databasePath));
+    const backend = await openBackend(backendOptions(databasePath));
     await backend.close();
     const recoveredDatabase = openDatabase(databasePath);
 
@@ -633,7 +685,7 @@ describe("backend", () => {
     const databasePath = createDatabasePath();
     const provider = providerAdapter("duplicate-provider");
 
-    await expect(createBackend(backendOptions(databasePath, [provider, provider]))).rejects.toThrow(
+    await expect(openBackend(backendOptions(databasePath, [provider, provider]))).rejects.toThrow(
       'Provider "duplicate-provider" is registered more than once.',
     );
     expect(() => rmSync(databasePath, { force: true })).not.toThrow();

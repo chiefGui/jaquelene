@@ -673,6 +673,33 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       return { turnId: context.turnId, threadId: context.threadId, inputMessageId, messages };
     },
 
+    getActiveMessagePath(threadId: ThreadId) {
+      const thread = database
+        .select({ activeMessageId: threadTable.activeMessageId })
+        .from(threadTable)
+        .where(eq(threadTable.id, threadId))
+        .get();
+
+      if (!thread) {
+        throw threadNotFound(threadId);
+      }
+
+      if (!thread.activeMessageId) {
+        return [];
+      }
+
+      const activeMessageId = thread.activeMessageId;
+      const messages = listMessagePath(database, threadId, activeMessageId, "older")
+        .records.reverse()
+        .map(toThreadMessage);
+
+      if (messages.at(-1)?.id !== activeMessageId) {
+        throw new Error(`Thread "${threadId}" has an invalid active message ancestry.`);
+      }
+
+      return messages;
+    },
+
     listMessages({ threadId, direction, cursor }: ListThreadMessagesRequest) {
       if (direction !== "older" && direction !== "newer") {
         throw new TypeError("Thread message direction is invalid.");
@@ -735,4 +762,3 @@ export function createThreads(database: Database, now: () => number = Date.now) 
 }
 
 export type ThreadEngine = ReturnType<typeof createThreads>;
-export type Threads = Pick<ThreadEngine, "create" | "get" | "listMessages">;

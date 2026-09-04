@@ -1,4 +1,5 @@
-import type { Database } from "#backend/database/database";
+import { Context, Effect, Layer } from "effect";
+import { DatabaseService, type Database } from "#backend/database/database";
 import { createPromptApplicationRegistry } from "./application-registry";
 import type { PromptKindModule } from "./module";
 import { createPrompts } from "./prompts";
@@ -17,4 +18,18 @@ export function createPromptSubsystem(
   );
 
   return { applications, prompts };
+}
+
+type PromptSubsystem = ReturnType<typeof createPromptSubsystem>;
+
+export class PromptService extends Context.Service<PromptService, PromptSubsystem>()(
+  "@jaquelene/backend/Prompts",
+) {
+  static readonly layer = (modules: readonly PromptKindModule[], now: () => number = Date.now) =>
+    Layer.effect(
+      this,
+      Effect.gen(function* () {
+        return PromptService.of(createPromptSubsystem(yield* DatabaseService, modules, now));
+      }),
+    );
 }

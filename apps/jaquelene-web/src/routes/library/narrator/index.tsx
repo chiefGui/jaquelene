@@ -48,7 +48,7 @@ function NarratorPromptEditAction({ prompt }: { prompt: CustomPrompt }) {
     <Tooltip.Root>
       <Tooltip.Anchor
         render={
-          <IconButton
+          <IconButton.Root
             render={
               <Link
                 to="/library/narrator/$promptKey/edit"
@@ -59,8 +59,8 @@ function NarratorPromptEditAction({ prompt }: { prompt: CustomPrompt }) {
             aria-label={`Edit ${prompt.title}`}
             style={styles.promptAction}
           >
-            <HugeiconsIcon icon={Edit02Icon} size={16} strokeWidth={1.5} aria-hidden="true" />
-          </IconButton>
+            <IconButton.Icon render={<HugeiconsIcon icon={Edit02Icon} />} />
+          </IconButton.Root>
         }
       />
       <Tooltip>Edit</Tooltip>
@@ -101,7 +101,7 @@ function NarratorPromptDefaultAction({
       <Tooltip.Root>
         <Tooltip.Anchor
           render={
-            <IconButton
+            <IconButton.Root
               type="button"
               aria-busy={defaultPending || undefined}
               aria-label={
@@ -119,14 +119,12 @@ function NarratorPromptDefaultAction({
                 defaultFailed && styles.defaultActionError,
               ]}
             >
-              <HugeiconsIcon
-                icon={Bookmark02Icon}
-                size={16}
-                strokeWidth={1.5}
-                fill={isDefault ? "currentColor" : "none"}
-                aria-hidden="true"
+              <IconButton.Icon
+                render={
+                  <HugeiconsIcon icon={Bookmark02Icon} fill={isDefault ? "currentColor" : "none"} />
+                }
               />
-            </IconButton>
+            </IconButton.Root>
           }
         />
         <Tooltip>{defaultTooltip}</Tooltip>

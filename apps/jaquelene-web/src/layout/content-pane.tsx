@@ -1,3 +1,6 @@
+import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { IconButton, type IconButtonProps } from "@jaquelene/ui";
 import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -7,6 +10,10 @@ import { shellChrome } from "./shell-chrome.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
+};
+
+export type ContentPaneBackProps = Omit<IconButtonProps, "aria-label" | "children" | "size"> & {
+  "aria-label"?: string;
 };
 
 function ContentPaneRoot({
@@ -35,11 +42,24 @@ function ContentPaneBody({ style, ...props }: StyleableProps<ComponentProps<"div
   return <div {...props} {...stylex.props(styles.body, style)} />;
 }
 
+function ContentPaneBack({
+  "aria-label": ariaLabel = "Back",
+  style,
+  ...props
+}: ContentPaneBackProps) {
+  return (
+    <IconButton.Root {...props} aria-label={ariaLabel} size="small" style={[styles.back, style]}>
+      <IconButton.Icon render={<HugeiconsIcon icon={ArrowLeft01Icon} />} />
+    </IconButton.Root>
+  );
+}
+
 export const ContentPane = {
   Root: ContentPaneRoot,
   Header: ContentPaneHeader,
   Viewport: ContentPaneViewport,
   Body: ContentPaneBody,
+  Back: ContentPaneBack,
 } as const;
 
 const styles = stylex.create({
@@ -52,6 +72,10 @@ const styles = stylex.create({
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
     paddingInlineStart: "0.75rem",
+  },
+  back: {
+    marginInlineEnd: "0.5rem",
+    marginInlineStart: "-0.125rem",
   },
   viewport: {
     flex: 1,

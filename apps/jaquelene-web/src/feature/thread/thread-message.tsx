@@ -20,6 +20,7 @@ import type { ThreadViewState } from "./thread-view-state";
 
 const loadThreadMessageEditor = () => import("./thread-message-editor");
 const ThreadMessageEditor = lazy(loadThreadMessageEditor);
+const messageFooterGap = "0.375rem";
 
 type ThreadReplyFailureView = ThreadViewState["messages"][number]["replyFailure"];
 type ThreadReplyRegenerationView = ThreadViewState["messages"][number]["regeneration"];
@@ -30,24 +31,26 @@ function replyFailureText(generation: FailedTurnGeneration, retrying: boolean) {
     return "Retrying…";
   }
 
-  return generation.failureKind === GenerationFailureKind.Interrupted
-    ? "Reply interrupted."
-    : "Couldn't generate a reply.";
+  if (generation.failureKind === GenerationFailureKind.Interrupted) {
+    return "Reply interrupted.";
+  }
+
+  return "Couldn't generate a reply.";
 }
 
 function MessageRoot({
   children,
   fromUser,
-  preserveToolbarSpace = false,
+  reserveFooterSpace = false,
 }: Readonly<{
   children: ReactNode;
   fromUser: boolean;
-  preserveToolbarSpace?: boolean;
+  reserveFooterSpace?: boolean;
 }>) {
   return (
     <article
       aria-label={fromUser ? "You" : "Assistant"}
-      data-preserve-toolbar-space={preserveToolbarSpace || undefined}
+      data-reserve-footer-space={reserveFooterSpace || undefined}
       {...stylex.props(
         styles.message,
         fromUser ? styles.userMessage : styles.assistantMessage,
@@ -331,6 +334,88 @@ function MessageContent({
   );
 }
 
+function renderRegenerationState(regeneration: ThreadReplyRegenerationView) {
+  if (regeneration?.status === "pending") {
+    return (
+      <div {...stylex.props(styles.replyState, styles.assistantReplyState)}>
+        <p role="status" {...stylex.props(styles.replyStatus)}>
+          Regenerating…
+        </p>
+      </div>
+    );
+  }
+
+  if (regeneration?.status === "failed") {
+    return (
+      <div {...stylex.props(styles.replyState, styles.assistantReplyState)}>
+        <p role="alert" {...stylex.props(styles.replyStatus, styles.replyFailure)}>
+          Couldn't regenerate the response.
+        </p>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function renderReplyFailureState({
+  announce,
+  failure,
+  retryPending,
+  retryReply,
+  turnId,
+}: Readonly<{
+  announce: boolean;
+  failure: ThreadReplyFailureView;
+  retryPending: boolean;
+  retryReply: (turnId: string) => Promise<void>;
+  turnId: string;
+}>) {
+  if (!failure) {
+    return null;
+  }
+
+  let liveRegionRole: "status" | undefined;
+  let retryAction: ReactNode = null;
+  let retryError: ReactNode = null;
+
+  if (announce) {
+    liveRegionRole = "status";
+  }
+
+  if (failure.canRetry && !failure.retrying) {
+    retryAction = (
+      <Button
+        type="button"
+        variant="ghost"
+        style={styles.retryButton}
+        disabled={retryPending}
+        onClick={() => void retryReply(turnId)}
+      >
+        Retry
+      </Button>
+    );
+  }
+
+  if (failure.retryFailed) {
+    retryError = (
+      <p role="alert" {...stylex.props(styles.retryError)}>
+        Couldn't retry the reply.
+      </p>
+    );
+  }
+
+  return (
+    <div {...stylex.props(styles.replyState)}>
+      <p role={liveRegionRole} {...stylex.props(styles.replyStatus, styles.replyFailure)}>
+        {replyFailureText(failure.generation, failure.retrying)}
+      </p>
+      {retryAction}
+      {retryError}
+    </div>
+  );
+}
+
 export const ThreadMessageRow = memo(function ThreadMessageRow({
   message,
   regeneration,
@@ -390,61 +475,31 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
     }
   }
 
-  const hasRegenerationStatus =
-    regeneration?.status === "pending" || regeneration?.status === "failed";
-  const hasFooterContent = toolbar !== null || hasRegenerationStatus || replyFailure !== null;
-  const preserveToolbarSpace = editor !== null && hasFollowingItem && !hasFooterContent;
+  const regenerationState = renderRegenerationState(regeneration);
+  const replyFailureState = renderReplyFailureState({
+    announce: announceReplyFailure,
+    failure: replyFailure,
+    retryPending,
+    retryReply,
+    turnId: message.turnId,
+  });
+  const hasFooterContent =
+    toolbar !== null || regenerationState !== null || replyFailureState !== null;
+  const reserveFooterSpace = editor !== null && hasFollowingItem && !hasFooterContent;
   let footer: ReactNode = null;
 
   if (hasFooterContent) {
     footer = (
       <MessageFooter>
         {toolbar}
-        {regeneration?.status === "pending" ? (
-          <div {...stylex.props(styles.replyState, styles.assistantReplyState)}>
-            <p role="status" {...stylex.props(styles.replyStatus)}>
-              Regenerating…
-            </p>
-          </div>
-        ) : regeneration?.status === "failed" ? (
-          <div {...stylex.props(styles.replyState, styles.assistantReplyState)}>
-            <p role="alert" {...stylex.props(styles.replyStatus, styles.replyFailure)}>
-              Couldn't regenerate the response.
-            </p>
-          </div>
-        ) : null}
-        {replyFailure ? (
-          <div {...stylex.props(styles.replyState)}>
-            <p
-              role={announceReplyFailure ? "status" : undefined}
-              {...stylex.props(styles.replyStatus, styles.replyFailure)}
-            >
-              {replyFailureText(replyFailure.generation, replyFailure.retrying)}
-            </p>
-            {replyFailure.canRetry && !replyFailure.retrying ? (
-              <Button
-                type="button"
-                variant="ghost"
-                style={styles.retryButton}
-                disabled={retryPending}
-                onClick={() => void retryReply(message.turnId)}
-              >
-                Retry
-              </Button>
-            ) : null}
-            {replyFailure.retryFailed ? (
-              <p role="alert" {...stylex.props(styles.retryError)}>
-                Couldn't retry the reply.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+        {regenerationState}
+        {replyFailureState}
       </MessageFooter>
     );
   }
 
   return (
-    <MessageRoot fromUser={fromUser} preserveToolbarSpace={preserveToolbarSpace}>
+    <MessageRoot fromUser={fromUser} reserveFooterSpace={reserveFooterSpace}>
       <MessageContent message={message} editor={editor} />
       {footer}
     </MessageRoot>
@@ -477,7 +532,7 @@ const styles = stylex.create({
   message: {
     paddingBlockEnd: {
       default: 0,
-      ':is([data-preserve-toolbar-space="true"])': `calc(${tokens.controlHeightSmall} + 0.375rem)`,
+      ':is([data-reserve-footer-space="true"])': `calc(${tokens.controlHeightSmall} + ${messageFooterGap})`,
     },
     display: "flex",
     flexDirection: "column",
@@ -492,7 +547,7 @@ const styles = stylex.create({
   messageFooter: {
     display: "flex",
     flexDirection: "column",
-    marginTop: "0.375rem",
+    marginTop: messageFooterGap,
     minHeight: tokens.controlHeightSmall,
   },
   bubble: {

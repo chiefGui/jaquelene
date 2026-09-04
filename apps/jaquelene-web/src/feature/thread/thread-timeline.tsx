@@ -64,8 +64,7 @@ type ThreadTimelineProps = Readonly<{
   messageMaxCodeUnits: number;
   beginEdit: (message: ThreadMessageView["message"]) => void;
   cancelEdit: () => void;
-  changeEditDraft: (value: string) => void;
-  saveEdit: () => Promise<void>;
+  saveEdit: (content: string) => Promise<boolean>;
   loadOlder: () => Promise<void>;
   regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
   retryReply: (turnId: string) => Promise<void>;
@@ -90,7 +89,6 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   messageMaxCodeUnits,
   beginEdit,
   cancelEdit,
-  changeEditDraft,
   saveEdit,
   loadOlder,
   regenerateResponse,
@@ -366,7 +364,6 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                 maxLength: messageMaxCodeUnits,
                 pending: editPending,
                 onCancel: cancelEdit,
-                onDraftChange: changeEditDraft,
                 onReady: revealActiveEditor,
                 onSave: saveEdit,
               };

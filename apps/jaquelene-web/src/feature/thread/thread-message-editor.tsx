@@ -1,15 +1,12 @@
 import { Button } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useLayoutEffect, type SubmitEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type SubmitEvent } from "react";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
 
 export type ThreadMessageEditSession = Readonly<{
   messageId: string;
-  threadId: string;
   originalContent: string;
-  draft: string;
-  error: string | null;
 }>;
 
 export type ThreadMessageEditorProps = Readonly<{
@@ -17,18 +14,17 @@ export type ThreadMessageEditorProps = Readonly<{
   maxLength: number;
   pending: boolean;
   onCancel: () => void;
-  onDraftChange: (value: string) => void;
   onReady: () => void;
-  onSave: () => Promise<void>;
+  onSave: (content: string) => Promise<boolean>;
 }>;
 
-function EditorError({ error }: Readonly<{ error: string | null }>) {
+function EditorError({ error, id }: Readonly<{ error: string | null; id: string }>) {
   if (!error) {
     return null;
   }
 
   return (
-    <p role="alert" {...stylex.props(styles.error)}>
+    <p id={id} role="alert" {...stylex.props(styles.error)}>
       {error}
     </p>
   );
@@ -47,16 +43,46 @@ export default function ThreadMessageEditor({
   maxLength,
   pending,
   onCancel,
-  onDraftChange,
   onReady,
   onSave,
 }: ThreadMessageEditorProps) {
-  const saveDisabled =
-    pending || !session.draft.trim() || session.draft === session.originalContent;
+  const [draft, setDraft] = useState(session.originalContent);
+  const [error, setError] = useState<string | null>(null);
+  const saveRequestPending = useRef(false);
+  const errorId = useId();
+  const saveDisabled = pending || !draft.trim() || draft === session.originalContent;
+  const errorDescription: { "aria-describedby"?: string } = {};
+
+  if (error) {
+    errorDescription["aria-describedby"] = errorId;
+  }
 
   useLayoutEffect(() => {
     onReady();
   }, [onReady]);
+
+  function changeDraft(value: string) {
+    setDraft(value);
+    setError(null);
+  }
+
+  async function saveDraft() {
+    if (saveRequestPending.current) {
+      return;
+    }
+
+    saveRequestPending.current = true;
+
+    try {
+      if (await onSave(draft)) {
+        return;
+      }
+
+      setError("Could not save this message.");
+    } finally {
+      saveRequestPending.current = false;
+    }
+  }
 
   function submitEdit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,17 +91,19 @@ export default function ThreadMessageEditor({
       return;
     }
 
-    void onSave();
+    void saveDraft();
   }
 
   return (
     <form aria-busy={pending || undefined} onSubmit={submitEdit} {...stylex.props(styles.form)}>
       <MarkdownEditor.Root
         aria-label="Edit message"
+        {...errorDescription}
+        aria-invalid={error !== null}
         autoFocus
         initialSelection="end"
-        value={session.draft}
-        onValueChange={onDraftChange}
+        value={draft}
+        onValueChange={changeDraft}
         maxLength={maxLength}
         readOnly={pending}
       >
@@ -86,7 +114,7 @@ export default function ThreadMessageEditor({
           </MarkdownEditor.Toolbar>
           <MarkdownEditor.Content />
           <div {...stylex.props(styles.footer)}>
-            <EditorError error={session.error} />
+            <EditorError id={errorId} error={error} />
             <div role="group" aria-label="Message edit actions" {...stylex.props(styles.actions)}>
               <Button
                 type="button"

@@ -271,17 +271,23 @@ const ThreadComposer = memo(function ThreadComposer({
   );
 });
 
-export function ThreadView({
-  threadId,
-  configuration,
-  configurationPending,
-  composerControls,
-}: {
+type ThreadViewProps = Readonly<{
   threadId: string;
   configuration: ModelConfigurationSelection | null;
   configurationPending: boolean;
   composerControls: ReactNode;
-}) {
+}>;
+
+export function ThreadView(props: ThreadViewProps) {
+  return <ThreadViewInstance key={props.threadId} {...props} />;
+}
+
+function ThreadViewInstance({
+  threadId,
+  configuration,
+  configurationPending,
+  composerControls,
+}: ThreadViewProps) {
   const queryClient = useQueryClient();
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
   const returnToLatestMutation = useReturnToLatestThreadMessages(threadId);
@@ -324,13 +330,7 @@ export function ThreadView({
     [configuration, historical, messagesQuery.data.pages, retryStatus, retryTurnId],
   );
   const operationPending = threadOperationPending || (!historical && threadView.replyPending);
-  let activeEditSession: ThreadMessageEditSession | null = null;
-
-  if (editSession?.threadId === threadId) {
-    activeEditSession = editSession;
-  }
-
-  const messageEditActive = activeEditSession !== null;
+  const messageEditActive = editSession !== null;
   const historyRequestPending =
     messagesQuery.isFetchingNextPage ||
     messagesQuery.isFetchingPreviousPage ||
@@ -345,10 +345,7 @@ export function ThreadView({
       resetMessageEdit();
       setEditSession({
         messageId: message.id,
-        threadId: message.threadId,
         originalContent: message.content,
-        draft: message.content,
-        error: null,
       });
     },
     [historyRequestPending, messageEditActive, operationPending, resetMessageEdit],
@@ -362,54 +359,42 @@ export function ThreadView({
     setEditSession(null);
   }, [editMessageMutation.isPending]);
 
-  const changeEditDraft = useCallback((draft: string) => {
-    setEditSession((current) => {
-      if (!current) {
-        return current;
+  const saveEdit = useCallback(
+    async (content: string) => {
+      const session = editSession;
+
+      if (
+        !session ||
+        acceptingMessageEdit.current ||
+        editMessageMutation.isPending ||
+        operationPending ||
+        !content.trim() ||
+        content === session.originalContent
+      ) {
+        return false;
       }
 
-      return { ...current, draft, error: null };
-    });
-  }, []);
+      acceptingMessageEdit.current = true;
 
-  const saveEdit = useCallback(async () => {
-    const session = activeEditSession;
+      try {
+        await editMessage({ messageId: session.messageId, content });
+        setEditSession((current) => {
+          if (current?.messageId !== session.messageId) {
+            return current;
+          }
 
-    if (
-      !session ||
-      acceptingMessageEdit.current ||
-      editMessageMutation.isPending ||
-      operationPending ||
-      !session.draft.trim() ||
-      session.draft === session.originalContent
-    ) {
-      return;
-    }
-
-    acceptingMessageEdit.current = true;
-
-    try {
-      await editMessage({ messageId: session.messageId, content: session.draft });
-      setEditSession((current) => {
-        if (current?.messageId !== session.messageId) {
-          return current;
-        }
-
-        return null;
-      });
-    } catch (cause) {
-      reportError("thread.message.edit", cause);
-      setEditSession((current) => {
-        if (current?.messageId !== session.messageId) {
-          return current;
-        }
-
-        return { ...current, error: "Could not save this message." };
-      });
-    } finally {
-      acceptingMessageEdit.current = false;
-    }
-  }, [activeEditSession, editMessage, editMessageMutation.isPending, operationPending]);
+          return null;
+        });
+        return true;
+      } catch (cause) {
+        reportError("thread.message.edit", cause);
+        return false;
+      } finally {
+        acceptingMessageEdit.current = false;
+      }
+    },
+    [editMessage, editMessageMutation.isPending, editSession, operationPending],
+  );
 
   const retryReply = useCallback(
     async (turnId: string) => {
@@ -572,7 +557,6 @@ export function ThreadView({
         {...stylex.props(styles.viewport)}
       >
         <ThreadTimeline
-          key={`timeline:${threadId}`}
           view={threadView}
           pendingSubmission={historical ? null : pendingSubmission}
           bottomInset={timelineBottomInset}
@@ -588,12 +572,11 @@ export function ThreadView({
           responseActionsDisabled={
             operationPending || configurationPending || historyNavigationPending
           }
-          editSession={activeEditSession}
+          editSession={editSession}
           editPending={editMessageMutation.isPending}
           messageMaxCodeUnits={threadView.messageMaxCodeUnits}
           beginEdit={beginEdit}
           cancelEdit={cancelEdit}
-          changeEditDraft={changeEditDraft}
           saveEdit={saveEdit}
           loadOlder={loadOlder}
           regenerateResponse={regenerateResponse}
@@ -613,7 +596,6 @@ export function ThreadView({
             />
           ) : (
             <ThreadComposer
-              key={`composer:${threadId}`}
               threadId={threadId}
               configuration={configuration}
               configurationPending={configurationPending}

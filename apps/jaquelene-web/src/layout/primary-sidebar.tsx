@@ -16,7 +16,7 @@ type PrimarySidebarLink = NavigationDestination & {
   icon: IconSvgElement;
   label: string;
   preload?: Exclude<LinkProps["preload"], undefined>;
-  replace?: boolean;
+  replace?: Exclude<LinkProps["replace"], undefined>;
 };
 
 type PrimarySidebarItem = PrimarySidebarLink & { id: string };

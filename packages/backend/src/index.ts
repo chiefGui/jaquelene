@@ -1,5 +1,5 @@
-export { createBackend } from "#backend/backend";
-export type { Backend, BackendInspection, BackendOptions } from "#backend/backend";
+export { BackendService } from "#backend/backend";
+export type { Backend, BackendOptions } from "#backend/backend";
 export {
   ThreadTranscriptEntryKind,
   type ThreadTranscript,
@@ -100,7 +100,6 @@ export {
 } from "#backend/id";
 export { assertStoragePathsAreDisjoint, StorageCategory } from "#backend/storage/storage";
 export type {
-  Storage,
   StorageArea,
   StorageAreaId,
   StorageAreaUsage,

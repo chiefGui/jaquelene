@@ -1,9 +1,9 @@
 import type {
+  Backend,
   Campaigns,
   CampaignUsageReader,
   Prompts,
   Providers,
-  Storage,
   Threads,
   Turns,
   Usage,
@@ -31,7 +31,7 @@ import { createThreadMessaging } from "../feature/thread/ipc";
 import { exposeUsage } from "../feature/usage/ipc";
 import type { LocalState } from "../local-state";
 import type { Preferences } from "../preferences/preferences";
-import { exposeStorage } from "../storage/ipc";
+import { exposeStorage, type BackendEffectRunner } from "../storage/ipc";
 
 const preloadPath = join(import.meta.dirname, "../preload/preload.cjs");
 
@@ -111,6 +111,7 @@ export function createMainWindowManager({
   preferences,
   providers,
   storage,
+  runBackendEffect,
   usage,
 }: {
   rendererUrl: string;
@@ -125,7 +126,8 @@ export function createMainWindowManager({
   favoriteModels: FavoriteModels;
   preferences: Preferences;
   providers: Providers;
-  storage: Storage;
+  storage: Backend["storage"];
+  runBackendEffect: BackendEffectRunner;
   usage: Usage;
 }): MainWindowManager {
   const threadMessaging = createThreadMessaging(threads, turns, diagnostics);
@@ -224,7 +226,7 @@ export function createMainWindowManager({
         ),
       );
       exposeProviders(browserWindow.webContents.mainFrame, providers);
-      exposeStorage(browserWindow.webContents.mainFrame, storage);
+      exposeStorage(browserWindow.webContents.mainFrame, storage, runBackendEffect);
       addFinalizer(scope, exposeUsage(browserWindow.webContents, usage));
 
       const saveWindowState = () => {

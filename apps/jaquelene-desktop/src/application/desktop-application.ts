@@ -1,6 +1,6 @@
-import { createBackend } from "@jaquelene/backend";
+import { BackendService } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
-import { Cause, Effect, Exit, Fiber } from "effect";
+import { Cause, Effect, Exit, Fiber, FiberSet } from "effect";
 import { app, safeStorage } from "electron";
 import { join } from "node:path";
 import { appUrl, handleAppScheme } from "../app-protocol";
@@ -119,69 +119,64 @@ export function launchDesktopApplication({
         },
       };
       const providers = createProviderFactories(userDataDirectory, credentialProtection);
-      const backend = yield* Effect.acquireRelease(
-        Effect.tryPromise({
-          try: (signal) =>
-            createBackend(
-              {
-                databasePath,
-                cache: {
-                  path: cachePath,
-                  reportFailure: (failure) =>
-                    diagnostics.report({
-                      severity: ErrorSeverity.Warning,
-                      operation: `cache.${failure.operation}`,
-                      error: failure.error,
-                    }),
-                },
-                providers,
-                storageAreas: createStorageAreas({
-                  diagnostics,
-                  favoriteModels,
-                  localState,
-                  preferences,
-                  userDataDirectory,
-                }),
-              },
-              signal,
-            ),
-          catch: (error) => asError(error, "Could not start the backend."),
+      const backendLayer = BackendService.layer({
+        databasePath,
+        cache: {
+          path: cachePath,
+          reportFailure: (failure) =>
+            diagnostics.report({
+              severity: ErrorSeverity.Warning,
+              operation: `cache.${failure.operation}`,
+              error: failure.error,
+            }),
+        },
+        providers,
+        storageAreas: createStorageAreas({
+          diagnostics,
+          favoriteModels,
+          localState,
+          preferences,
+          userDataDirectory,
         }),
-        (ownedBackend) => Effect.promise(() => ownedBackend[Symbol.asyncDispose]()),
-        { interruptible: true },
-      );
-      const mainWindow = yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          createMainWindowManager({
-            rendererUrl: developmentServerUrl ?? appUrl,
-            diagnostics,
-            localState,
-            campaigns: backend.campaigns,
-            campaignUsage: backend.campaignUsage,
-            prompts: backend.prompts,
-            threads: backend.threads,
-            turns: backend.turns,
-            modelCatalog: backend.models,
-            favoriteModels,
-            preferences,
-            providers: backend.providers,
-            storage: backend.storage,
-            usage: backend.usage,
-          }),
-        ),
-        (windowManager) => Effect.promise(() => windowManager[Symbol.asyncDispose]()),
-      );
-      mainWindowInspection = mainWindow.inspect;
-      showMainWindow = () => mainWindow.show();
-      yield* Effect.tryPromise({
-        try: (signal) => mainWindow.show(signal),
-        catch: (error) => asError(error, "Could not show the main window."),
       });
 
-      state = "running";
-      readySettled = true;
-      ready.resolve();
-      yield* Effect.never;
+      yield* Effect.gen(function* () {
+        const backend = yield* BackendService;
+        const runBackendEffect = yield* FiberSet.makeRuntimePromise();
+        const mainWindow = yield* Effect.acquireRelease(
+          Effect.sync(() =>
+            createMainWindowManager({
+              rendererUrl: developmentServerUrl ?? appUrl,
+              diagnostics,
+              localState,
+              campaigns: backend.campaigns,
+              campaignUsage: backend.campaignUsage,
+              prompts: backend.prompts,
+              threads: backend.threads,
+              turns: backend.turns,
+              modelCatalog: backend.models,
+              favoriteModels,
+              preferences,
+              providers: backend.providers,
+              storage: backend.storage,
+              runBackendEffect,
+              usage: backend.usage,
+            }),
+          ),
+          (windowManager) => Effect.promise(() => windowManager[Symbol.asyncDispose]()),
+        );
+        mainWindowInspection = mainWindow.inspect;
+        showMainWindow = () => mainWindow.show();
+        yield* Effect.tryPromise({
+          try: (signal) => mainWindow.show(signal),
+          catch: (error) => asError(error, "Could not show the main window."),
+        });
+
+        state = "running";
+        readySettled = true;
+        ready.resolve();
+        yield* Effect.never;
+      }).pipe(Effect.provide(backendLayer));
     }),
   );
   const fiber = Effect.runFork(program);

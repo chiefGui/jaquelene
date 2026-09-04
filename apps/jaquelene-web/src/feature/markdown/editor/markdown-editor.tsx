@@ -188,16 +188,24 @@ type MarkdownEditorPreviewToggleProps = Omit<
 
 function MarkdownEditorPreviewToggle({ style, ...props }: MarkdownEditorPreviewToggleProps) {
   const { disabled, mode, setMode } = useMarkdownEditorConfiguration("PreviewToggle");
-  const previewing = mode === "preview";
+  let icon = EyeIcon;
+  let label = "Preview";
+  let nextMode: "edit" | "preview" = "preview";
+
+  if (mode === "preview") {
+    icon = EditIcon;
+    label = "Edit";
+    nextMode = "edit";
+  }
 
   return (
     <MarkdownEditorAction
       {...props}
       style={style}
-      label={previewing ? "Edit" : "Preview"}
-      icon={previewing ? EditIcon : EyeIcon}
+      label={label}
+      icon={icon}
       disabled={disabled}
-      onClick={() => setMode(previewing ? "edit" : "preview")}
+      onClick={() => setMode(nextMode)}
     />
   );
 }

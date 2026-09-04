@@ -34,7 +34,7 @@ function EditorError({ error, id }: Readonly<{ error: string | null; id: string 
 
 function saveLabel(pending: boolean) {
   if (pending) {
-    return "Saving...";
+    return "Saving…";
   }
 
   return "Save";
@@ -55,12 +55,8 @@ export default function ThreadMessageEditor({
   const saveRequestPending = useRef(false);
   const errorId = useId();
   const empty = !draft.trim();
-  let saveDisabled = pending;
+  const saveDisabled = pending || (empty && !onDelete);
   const errorDescription: { "aria-describedby"?: string } = {};
-
-  if (empty && !onDelete) {
-    saveDisabled = true;
-  }
 
   if (error) {
     errorDescription["aria-describedby"] = errorId;

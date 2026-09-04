@@ -171,6 +171,7 @@ type ThreadComposerProps = Readonly<{
   threadId: string;
   configuration: ModelConfigurationSelection | null;
   configurationPending: boolean;
+  generationPending: boolean;
   operationPending: boolean;
   interactionDisabled: boolean;
   messageMaxCodeUnits: number;
@@ -181,6 +182,7 @@ const ThreadComposer = memo(function ThreadComposer({
   threadId,
   configuration,
   configurationPending,
+  generationPending,
   operationPending,
   interactionDisabled,
   messageMaxCodeUnits,
@@ -239,7 +241,7 @@ const ThreadComposer = memo(function ThreadComposer({
   }
 
   return (
-    <Composer pending={operationPending} onSubmit={sendMessage}>
+    <Composer pending={generationPending} onSubmit={sendMessage}>
       <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
       <Composer.Input
         id={composerInputId}
@@ -264,8 +266,14 @@ const ThreadComposer = memo(function ThreadComposer({
           ) : null}
         </Composer.Controls>
         <Composer.Submit
-          pending={operationPending}
-          disabled={configurationPending || interactionDisabled || !configuration || !draft.trim()}
+          pending={generationPending}
+          disabled={
+            operationPending ||
+            configurationPending ||
+            interactionDisabled ||
+            !configuration ||
+            !draft.trim()
+          }
         />
       </Composer.Footer>
     </Composer>
@@ -332,11 +340,30 @@ function ThreadViewInstance({
     [configuration, historical, messagesQuery.data.pages, retryStatus, retryTurnId],
   );
   const operationPending = threadOperationPending || (!historical && threadView.replyPending);
+  const generationPending =
+    pendingSubmission !== null ||
+    retryTurnMutation.isPending ||
+    regenerateReplyMutation.isPending ||
+    (!historical && threadView.replyPending);
   const messageEditActive = editSession !== null;
   const historyRequestPending =
     messagesQuery.isFetchingNextPage ||
     messagesQuery.isFetchingPreviousPage ||
     returnToLatestMutation.isPending;
+
+  useLayoutEffect(() => {
+    if (!editSession) {
+      return;
+    }
+
+    const sourceAvailable = threadView.messages.some(
+      ({ message }) => message.id === editSession.messageId,
+    );
+
+    if (!sourceAvailable) {
+      setEditSession(null);
+    }
+  }, [editSession, threadView.messages]);
 
   const beginEdit = useCallback(
     (message: ThreadMessage) => {
@@ -598,6 +625,7 @@ function ThreadViewInstance({
               threadId={threadId}
               configuration={configuration}
               configurationPending={configurationPending}
+              generationPending={generationPending}
               operationPending={operationPending}
               interactionDisabled={messageEditActive}
               messageMaxCodeUnits={threadView.messageMaxCodeUnits}

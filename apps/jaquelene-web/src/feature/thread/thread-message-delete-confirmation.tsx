@@ -58,7 +58,7 @@ export function ThreadMessageDeleteConfirmation({
       setOpen={setConfirmationOpen}
       trigger={trigger}
       heading="Delete from here?"
-      description="This message and everything after it will be deleted."
+      description="This message and every message after it will be deleted."
       confirmLabel="Delete"
       pending={pending}
       error={error}

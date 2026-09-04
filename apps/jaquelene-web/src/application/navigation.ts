@@ -2,20 +2,22 @@ import type { RegisteredRouter, ToOptions } from "@tanstack/react-router";
 import type { FileRoutesByTo } from "@/routeTree.gen";
 
 export type NavigationDestination = {
-  [Path in keyof FileRoutesByTo]: ToOptions<RegisteredRouter, string, Path> & {
-    replace?: boolean;
+  [Path in keyof FileRoutesByTo]: Omit<ToOptions<RegisteredRouter, string, Path>, "replace"> & {
     to: Path;
   };
 }[keyof FileRoutesByTo];
 
+type ReplacementNavigationDestination = NavigationDestination & {
+  replace: true;
+};
+
 type BackNavigationRouter = Readonly<{
   history: Pick<RegisteredRouter["history"], "back" | "canGoBack">;
-  navigate: (destination: NavigationDestination) => unknown;
+  navigate: (destination: ReplacementNavigationDestination) => unknown;
 }>;
 
 const homeDestination = {
   to: "/",
-  replace: true,
 } as const satisfies NavigationDestination;
 
 export function navigateBack(
@@ -27,5 +29,5 @@ export function navigateBack(
     return;
   }
 
-  void router.navigate(fallback);
+  void router.navigate({ ...fallback, replace: true });
 }

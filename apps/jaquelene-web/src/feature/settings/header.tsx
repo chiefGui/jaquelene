@@ -5,7 +5,6 @@ import { Breadcrumb } from "@/primitive/breadcrumb";
 
 const settingsLandingDestination = {
   to: "/settings/general",
-  replace: true,
 } as const;
 
 function SettingsBreadcrumb({ children, page }: { children: ReactNode; page: string }) {
@@ -35,14 +34,12 @@ export function SettingsSubpageHeader({ page }: { page: string }) {
   return (
     <ContentPane.Header>
       <ContentPane.Back
-        render={<Link {...settingsLandingDestination} />}
+        render={<Link {...settingsLandingDestination} replace />}
         aria-label="Back to settings"
       />
 
       <SettingsBreadcrumb page={page}>
-        <Breadcrumb.Link render={<Link {...settingsLandingDestination} />}>
-          Settings
-        </Breadcrumb.Link>
+        <Breadcrumb.Link {...settingsLandingDestination}>Settings</Breadcrumb.Link>
       </SettingsBreadcrumb>
     </ContentPane.Header>
   );

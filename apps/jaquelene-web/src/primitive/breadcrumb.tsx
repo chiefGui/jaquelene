@@ -1,16 +1,19 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
-import { Chip, ControlIcon, type ChipActionProps } from "@jaquelene/ui";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { ControlIcon } from "@jaquelene/ui";
+import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { Children, cloneElement, isValidElement, type ComponentProps } from "react";
+import { Link } from "@tanstack/react-router";
+import { Children, cloneElement, isValidElement, type ComponentProps, type ReactNode } from "react";
+import type { NavigationDestination } from "@/application/navigation";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
 };
 
-type BreadcrumbLinkProps = ChipActionProps & {
-  render: NonNullable<ChipActionProps["render"]>;
+type BreadcrumbLinkProps = NavigationDestination & {
+  children: ReactNode;
+  style?: StyleXStyles;
 };
 
 type BreadcrumbLabelProps = StyleableProps<ComponentProps<"span">>;
@@ -30,36 +33,44 @@ function BreadcrumbRoot({
 }
 
 function BreadcrumbList({ children, style, ...props }: StyleableProps<RoleProps<"ol">>) {
-  const items = Children.toArray(children);
-
   return (
     <Role.ol {...props} {...stylex.props(styles.list, style)}>
-      {items.map((item, index) =>
-        isValidElement<BreadcrumbItemProps>(item)
-          ? cloneElement(item, {
-              showSeparator: index > 0,
-            })
-          : item,
-      )}
+      {Children.toArray(children).map(addSeparator)}
     </Role.ol>
   );
+}
+
+function addSeparator(item: ReactNode, index: number) {
+  if (!isValidElement<BreadcrumbItemProps>(item)) {
+    return item;
+  }
+
+  return cloneElement(item, { showSeparator: index > 0 });
+}
+
+function BreadcrumbItemContent({ children }: { children: ReactNode }) {
+  if (typeof children === "string" || typeof children === "number") {
+    return <BreadcrumbLabel>{children}</BreadcrumbLabel>;
+  }
+
+  return children;
 }
 
 function BreadcrumbItem({ children, showSeparator = false, style, ...props }: BreadcrumbItemProps) {
   return (
     <Role.li {...props} {...stylex.props(styles.item, style)}>
-      {showSeparator ? <BreadcrumbSeparator /> : null}
-      {typeof children === "string" || typeof children === "number" ? (
-        <BreadcrumbLabel>{children}</BreadcrumbLabel>
-      ) : (
-        children
-      )}
+      {showSeparator && <BreadcrumbSeparator />}
+      <BreadcrumbItemContent>{children}</BreadcrumbItemContent>
     </Role.li>
   );
 }
 
-function BreadcrumbLink({ style, ...props }: BreadcrumbLinkProps) {
-  return <Chip.Action {...props} style={style} />;
+function BreadcrumbLink({ children, style, ...destination }: BreadcrumbLinkProps) {
+  return (
+    <Link {...destination} {...stylex.props(styles.link, style)}>
+      {children}
+    </Link>
+  );
 }
 
 function BreadcrumbPage({ style, ...props }: BreadcrumbPageProps) {
@@ -114,6 +125,39 @@ const styles = stylex.create({
     overflow: "hidden",
     textBox: "trim-both text",
     textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  link: {
+    borderRadius: radii.small,
+    color: {
+      default: colors.foregroundSecondary,
+      ":hover": colors.foregroundPrimary,
+    },
+    minWidth: 0,
+    outlineColor: {
+      default: null,
+      ":focus-visible": colors.focusRing,
+    },
+    outlineOffset: {
+      default: null,
+      ":focus-visible": 2,
+    },
+    outlineStyle: {
+      default: "none",
+      ":focus-visible": "solid",
+    },
+    outlineWidth: {
+      default: null,
+      ":focus-visible": 1,
+    },
+    overflow: "hidden",
+    textDecorationLine: {
+      default: "none",
+      ":hover": "underline",
+    },
+    textDecorationThickness: "from-font",
+    textOverflow: "ellipsis",
+    textUnderlineOffset: 3,
     whiteSpace: "nowrap",
   },
   page: {

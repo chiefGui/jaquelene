@@ -28,7 +28,7 @@ describe("back navigation", () => {
     navigateBack(router);
 
     expect(back).not.toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith({ to: "/", replace: true });
+    expect(navigate).toHaveBeenCalledWith({ replace: true, to: "/" });
   });
 
   it("uses a route's contextual fallback when history is empty", () => {
@@ -36,11 +36,10 @@ describe("back navigation", () => {
     const fallback = {
       to: "/campaigns/$campaignId",
       params: { campaignId: "campaign-1" },
-      replace: true,
     } as const satisfies NavigationDestination;
 
     navigateBack(router, fallback);
 
-    expect(navigate).toHaveBeenCalledWith(fallback);
+    expect(navigate).toHaveBeenCalledWith({ ...fallback, replace: true });
   });
 });

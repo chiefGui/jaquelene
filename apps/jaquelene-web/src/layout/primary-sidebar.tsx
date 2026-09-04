@@ -16,6 +16,7 @@ type PrimarySidebarLink = NavigationDestination & {
   icon: IconSvgElement;
   label: string;
   preload?: Exclude<LinkProps["preload"], undefined>;
+  replace?: boolean;
 };
 
 type PrimarySidebarItem = PrimarySidebarLink & { id: string };
@@ -47,7 +48,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
 
   function handleBack() {
     if (navigation.backDestination) {
-      void router.navigate(navigation.backDestination);
+      void router.navigate({ ...navigation.backDestination, replace: true });
       return;
     }
 

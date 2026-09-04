@@ -2,7 +2,7 @@ import { ThreadTranscriptEntryKind, type ThreadTranscriptEntry } from "@jaquelen
 import { Button } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { campaignQuery } from "@/feature/campaign/query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { loadThreadTranscript } from "@/feature/thread/query";
@@ -44,7 +44,6 @@ function TranscriptHeader({
   const destination = {
     to: "/campaigns/$campaignId",
     params: { campaignId },
-    replace: true,
   } as const;
 
   return (
@@ -54,7 +53,7 @@ function TranscriptHeader({
       <Breadcrumb.Root>
         <Breadcrumb.List>
           <Breadcrumb.Item>
-            <Breadcrumb.Link render={<Link {...destination} />}>{campaignTitle}</Breadcrumb.Link>
+            <Breadcrumb.Link {...destination}>{campaignTitle}</Breadcrumb.Link>
           </Breadcrumb.Item>
           <Breadcrumb.Item>
             <Breadcrumb.Page>Transcript</Breadcrumb.Page>
@@ -133,7 +132,7 @@ function MissingCampaignRoute() {
     <>
       <ContentPane.Header>
         <ContentPane.HistoryBack
-          fallback={{ to: "/campaigns/new", replace: true }}
+          fallback={{ to: "/campaigns/new" }}
           aria-label="Back to campaigns"
         />
 

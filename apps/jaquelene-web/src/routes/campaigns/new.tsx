@@ -99,6 +99,7 @@ function NewCampaignRoute() {
       await navigate({
         to: "/campaigns/$campaignId",
         params: { campaignId: campaign.id },
+        replace: true,
       });
     } catch (cause) {
       if (!active.current) {
@@ -155,6 +156,8 @@ function NewCampaignRoute() {
   return (
     <>
       <ContentPane.Header>
+        <ContentPane.HistoryBack />
+
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>

@@ -39,6 +39,8 @@ function AdvancedRoute() {
   return (
     <>
       <ContentPane.Header>
+        <ContentPane.HistoryBack />
+
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>Settings</Breadcrumb.Item>

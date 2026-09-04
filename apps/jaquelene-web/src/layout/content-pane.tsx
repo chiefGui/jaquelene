@@ -4,7 +4,9 @@ import { IconButton, type IconButtonProps } from "@jaquelene/ui";
 import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
+import { useRouter } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
+import { navigateBack, type NavigationDestination } from "@/application/navigation";
 import { paneSurface } from "./pane-surface.stylex";
 import { shellChrome } from "./shell-chrome.stylex";
 
@@ -14,6 +16,10 @@ type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
 
 export type ContentPaneBackProps = Omit<IconButtonProps, "aria-label" | "children" | "size"> & {
   "aria-label"?: string;
+};
+
+type ContentPaneHistoryBackProps = Omit<ContentPaneBackProps, "onClick" | "render" | "type"> & {
+  fallback?: NavigationDestination;
 };
 
 function ContentPaneRoot({
@@ -54,12 +60,21 @@ function ContentPaneBack({
   );
 }
 
+function ContentPaneHistoryBack({ fallback, ...props }: ContentPaneHistoryBackProps) {
+  const router = useRouter();
+
+  return (
+    <ContentPaneBack type="button" onClick={() => navigateBack(router, fallback)} {...props} />
+  );
+}
+
 export const ContentPane = {
   Root: ContentPaneRoot,
   Header: ContentPaneHeader,
   Viewport: ContentPaneViewport,
   Body: ContentPaneBody,
   Back: ContentPaneBack,
+  HistoryBack: ContentPaneHistoryBack,
 } as const;
 
 const styles = stylex.create({

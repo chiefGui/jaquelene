@@ -88,8 +88,10 @@ function CampaignRoute() {
 
   return (
     <SecondarySidebar.Root open={detailsOpen} setOpen={setDetailsOpen}>
-      <ContentPane.Header style={styles.header}>
-        <Breadcrumb.Root>
+      <ContentPane.Header>
+        <ContentPane.HistoryBack />
+
+        <Breadcrumb.Root style={styles.breadcrumb}>
           <Breadcrumb.List>
             <Breadcrumb.Item>
               <Breadcrumb.Page>{campaign?.title ?? "Campaign"}</Breadcrumb.Page>
@@ -147,9 +149,9 @@ function CampaignRoute() {
 }
 
 const styles = stylex.create({
-  header: {
-    gap: "0.5rem",
-    justifyContent: "space-between",
+  breadcrumb: {
+    flexGrow: 1,
+    marginInlineEnd: "0.5rem",
   },
   title: {
     fontSize: tokens.fontSizeLarge,

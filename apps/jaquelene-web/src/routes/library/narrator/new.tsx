@@ -38,6 +38,11 @@ function NewPromptRoute() {
   return (
     <>
       <ContentPane.Header>
+        <ContentPane.Back
+          render={<Link to="/library/narrator" replace />}
+          aria-label="Back to narrator"
+        />
+
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>Library</Breadcrumb.Item>

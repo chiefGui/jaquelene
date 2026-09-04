@@ -244,6 +244,8 @@ function NarratorRoute() {
   return (
     <>
       <ContentPane.Header>
+        <ContentPane.HistoryBack />
+
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>Library</Breadcrumb.Item>

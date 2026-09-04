@@ -84,6 +84,8 @@ async function remeasureStorage(operation: string, queryClient: QueryClient) {
 function StorageHeader() {
   return (
     <ContentPane.Header>
+      <ContentPane.HistoryBack />
+
       <Breadcrumb.Root>
         <Breadcrumb.List>
           <Breadcrumb.Item>Settings</Breadcrumb.Item>

@@ -49,10 +49,7 @@ function TranscriptHeader({
 
   return (
     <ContentPane.Header>
-      <ContentPane.Back
-        render={<Link {...destination} />}
-        aria-label={`Back to ${campaignTitle}`}
-      />
+      <ContentPane.HistoryBack fallback={destination} aria-label={`Back to ${campaignTitle}`} />
 
       <Breadcrumb.Root>
         <Breadcrumb.List>
@@ -135,8 +132,8 @@ function MissingCampaignRoute() {
   return (
     <>
       <ContentPane.Header>
-        <ContentPane.Back
-          render={<Link to="/campaigns/new" replace />}
+        <ContentPane.HistoryBack
+          fallback={{ to: "/campaigns/new", replace: true }}
           aria-label="Back to campaigns"
         />
 

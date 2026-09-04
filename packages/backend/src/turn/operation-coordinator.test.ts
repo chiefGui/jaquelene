@@ -39,10 +39,10 @@ describe("thread operation coordinator", () => {
   it("makes truncation an inspectable exclusive operation that cannot generate", () => {
     const coordinator = createThreadOperationCoordinator();
     const threadId = ids.thread.create();
-    const messageId = ids.message.create();
-    const truncation = coordinator.acquire(threadId, { state: "truncating", messageId });
+    const userMessageId = ids.message.create();
+    const truncation = coordinator.acquire(threadId, { state: "truncating", userMessageId });
 
-    expect(coordinator.inspect(threadId)).toEqual({ state: "truncating", messageId });
+    expect(coordinator.inspect(threadId)).toEqual({ state: "truncating", userMessageId });
     expect(() => coordinator.acquire(threadId, { state: "submitting" })).toThrow(
       `Thread "${threadId}" already has an active operation.`,
     );

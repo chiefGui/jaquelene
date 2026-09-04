@@ -2,7 +2,6 @@ import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { useRef, useState, type ReactElement } from "react";
 
 type ThreadMessageDeleteConfirmationProps = Readonly<{
-  fromAssistant: boolean;
   open: boolean;
   pending: boolean;
   setOpen: (open: boolean) => void;
@@ -11,7 +10,6 @@ type ThreadMessageDeleteConfirmationProps = Readonly<{
 }>;
 
 export function ThreadMessageDeleteConfirmation({
-  fromAssistant,
   open,
   pending,
   setOpen,
@@ -20,14 +18,7 @@ export function ThreadMessageDeleteConfirmation({
 }: ThreadMessageDeleteConfirmationProps) {
   const [failed, setFailed] = useState(false);
   const deletionRequestPending = useRef(false);
-  let heading = "Delete from here?";
-  let description = "This message and every later turn will be deleted.";
   let error: string | undefined;
-
-  if (fromAssistant) {
-    heading = "Delete this turn?";
-    description = "This response, its prompt, and every later turn will be deleted.";
-  }
 
   if (failed) {
     error = "Couldn't delete these messages.";
@@ -66,8 +57,8 @@ export function ThreadMessageDeleteConfirmation({
       open={open}
       setOpen={setConfirmationOpen}
       trigger={trigger}
-      heading={heading}
-      description={description}
+      heading="Delete from here?"
+      description="This message and everything after it will be deleted."
       confirmLabel="Delete"
       pending={pending}
       error={error}

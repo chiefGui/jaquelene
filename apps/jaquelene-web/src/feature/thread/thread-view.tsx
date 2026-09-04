@@ -380,10 +380,10 @@ function ThreadViewInstance({
     [editMessage],
   );
 
-  const deleteFromMessage = useCallback(
-    async (messageId: string) => {
+  const deleteFromUserMessage = useCallback(
+    async (userMessageId: string) => {
       try {
-        await deleteHistory(messageId);
+        await deleteHistory(userMessageId);
         setEditSession(null);
       } catch (cause) {
         reportError("thread.history.delete", cause);
@@ -576,7 +576,7 @@ function ThreadViewInstance({
           beginEdit={beginEdit}
           cancelEdit={cancelEdit}
           saveEdit={saveEdit}
-          deleteFromMessage={deleteFromMessage}
+          deleteFromUserMessage={deleteFromUserMessage}
           loadOlder={loadOlder}
           regenerateResponse={regenerateResponse}
           retryReply={retryReply}

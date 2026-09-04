@@ -132,16 +132,16 @@ function UserMessageToolbar({
   createdAt,
   disabled,
   deletePending,
-  deleteFromMessage,
+  deleteFromUserMessage,
   onEdit,
-  messageId,
+  userMessageId,
 }: Readonly<{
   createdAt: number;
   disabled: boolean;
   deletePending: boolean;
-  deleteFromMessage: (messageId: string) => Promise<void>;
+  deleteFromUserMessage: (userMessageId: string) => Promise<void>;
   onEdit: () => void;
-  messageId: string;
+  userMessageId: string;
 }>) {
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
 
@@ -154,11 +154,10 @@ function UserMessageToolbar({
     >
       <Tooltip.Root>
         <ThreadMessageDeleteConfirmation
-          fromAssistant={false}
           open={deleteConfirmationOpen}
           pending={deletePending}
           setOpen={setDeleteConfirmationOpen}
-          onDelete={() => deleteFromMessage(messageId)}
+          onDelete={() => deleteFromUserMessage(userMessageId)}
           trigger={
             <Tooltip.Anchor
               render={
@@ -409,7 +408,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   editor,
   beginEdit,
   deletePending,
-  deleteFromMessage,
+  deleteFromUserMessage,
   hasFollowingItem,
 }: Readonly<{
   message: ThreadMessage;
@@ -425,7 +424,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   editor: ThreadMessageEditorProps | null;
   beginEdit: (message: ThreadMessage) => void;
   deletePending: boolean;
-  deleteFromMessage: (messageId: string) => Promise<void>;
+  deleteFromUserMessage: (userMessageId: string) => Promise<void>;
   hasFollowingItem: boolean;
 }>) {
   const fromUser = message.author === ThreadMessageAuthor.User;
@@ -438,9 +437,9 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
           createdAt={message.createdAt}
           disabled={actionsDisabled}
           deletePending={deletePending}
-          deleteFromMessage={deleteFromMessage}
+          deleteFromUserMessage={deleteFromUserMessage}
           onEdit={() => beginEdit(message)}
-          messageId={message.id}
+          userMessageId={message.id}
         />
       );
     } else {

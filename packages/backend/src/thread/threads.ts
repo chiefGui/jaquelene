@@ -22,7 +22,7 @@ type ListThreadMessagesRequest = {
 
 export type DeleteThreadHistoryRequest = Readonly<{
   threadId: ThreadId;
-  messageId: MessageId;
+  userMessageId: MessageId;
 }>;
 
 export type EditThreadMessageRequest = Readonly<{
@@ -38,7 +38,7 @@ export type ThreadActivity = Readonly<{
 
 export type ThreadHistoryDeletion = Readonly<{
   threadId: ThreadId;
-  messageId: MessageId;
+  userMessageId: MessageId;
   activeMessageId: MessageId | null;
   deletedTurnCount: number;
   threadActivity: ThreadActivity;
@@ -324,37 +324,24 @@ function activateMessage(
 
 function deleteThreadHistoryInTransaction(
   database: Pick<Database, "get" | "run" | "select" | "update">,
-  { threadId, messageId }: DeleteThreadHistoryRequest,
+  { threadId, userMessageId }: DeleteThreadHistoryRequest,
 ): ThreadHistoryDeletion {
   const target = database
     .select({
-      turnId: threadMessageTable.turnId,
+      id: threadMessageTable.id,
+      parentMessageId: threadMessageTable.parentMessageId,
+      author: threadMessageTable.author,
     })
     .from(threadMessageTable)
-    .where(and(eq(threadMessageTable.threadId, threadId), eq(threadMessageTable.id, messageId)))
+    .where(and(eq(threadMessageTable.threadId, threadId), eq(threadMessageTable.id, userMessageId)))
     .get();
 
   if (!target) {
-    throw new RangeError(`Message "${messageId}" does not exist in thread "${threadId}".`);
+    throw new RangeError(`Message "${userMessageId}" does not exist in thread "${threadId}".`);
   }
 
-  const turnStart = database
-    .select({
-      id: threadMessageTable.id,
-      parentMessageId: threadMessageTable.parentMessageId,
-    })
-    .from(threadMessageTable)
-    .where(
-      and(
-        eq(threadMessageTable.threadId, threadId),
-        eq(threadMessageTable.turnId, target.turnId),
-        eq(threadMessageTable.author, "user"),
-      ),
-    )
-    .get();
-
-  if (!turnStart) {
-    throw new Error(`Turn "${target.turnId}" has no user message.`);
+  if (target.author !== "user") {
+    throw new TypeError(`Message "${userMessageId}" is not a user message.`);
   }
 
   const activePathMessage = database.get<ActivePathMessage>(sql`
@@ -376,22 +363,22 @@ function deleteThreadHistoryInTransaction(
     )
     SELECT id
     FROM active_path
-    WHERE id = ${messageId}
+    WHERE id = ${userMessageId}
     LIMIT 1
   `);
 
   if (!activePathMessage) {
-    throw new RangeError(`Message "${messageId}" is not on the active thread path.`);
+    throw new RangeError(`User message "${userMessageId}" is not on the active thread path.`);
   }
 
-  const retainedHead = turnStart.parentMessageId
+  const retainedHead = target.parentMessageId
     ? database
         .select({ createdAt: threadMessageTable.createdAt })
         .from(threadMessageTable)
         .where(
           and(
             eq(threadMessageTable.threadId, threadId),
-            eq(threadMessageTable.id, turnStart.parentMessageId),
+            eq(threadMessageTable.id, target.parentMessageId),
           ),
         )
         .get()
@@ -407,7 +394,7 @@ function deleteThreadHistoryInTransaction(
 
   const movedHead = database
     .update(threadTable)
-    .set({ activeMessageId: turnStart.parentMessageId, lastActivityAt: retainedHead.createdAt })
+    .set({ activeMessageId: target.parentMessageId, lastActivityAt: retainedHead.createdAt })
     .where(eq(threadTable.id, threadId))
     .run();
 
@@ -415,15 +402,15 @@ function deleteThreadHistoryInTransaction(
     throw threadNotFound(threadId);
   }
 
-  if (turnStart.parentMessageId) {
+  if (target.parentMessageId) {
     const clearedPathEdge = database
       .update(threadMessageTable)
       .set({ activeChildMessageId: null })
       .where(
         and(
           eq(threadMessageTable.threadId, threadId),
-          eq(threadMessageTable.id, turnStart.parentMessageId),
-          eq(threadMessageTable.activeChildMessageId, turnStart.id),
+          eq(threadMessageTable.id, target.parentMessageId),
+          eq(threadMessageTable.activeChildMessageId, userMessageId),
         ),
       )
       .run();
@@ -438,7 +425,7 @@ function deleteThreadHistoryInTransaction(
       SELECT id, turn_id
       FROM thread_messages
       WHERE thread_id = ${threadId}
-        AND id = ${turnStart.id}
+        AND id = ${userMessageId}
 
       UNION ALL
 
@@ -455,7 +442,7 @@ function deleteThreadHistoryInTransaction(
   const deletedTurnCount = Number(deletedTurns.changes);
 
   if (!Number.isSafeInteger(deletedTurnCount) || deletedTurnCount < 1) {
-    throw new Error(`Message "${messageId}" did not delete a turn.`);
+    throw new Error(`User message "${userMessageId}" did not delete a turn.`);
   }
 
   const updatedThread = database
@@ -475,8 +462,8 @@ function deleteThreadHistoryInTransaction(
 
   return {
     threadId,
-    messageId,
-    activeMessageId: turnStart.parentMessageId,
+    userMessageId,
+    activeMessageId: target.parentMessageId,
     deletedTurnCount,
     threadActivity: updatedThread,
   };

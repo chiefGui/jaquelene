@@ -690,11 +690,11 @@ describe("thread IPC", () => {
 
   it("deletes history through typed identities and publishes the committed change", async () => {
     const threadId = ids.thread.create();
-    const messageId = ids.message.create();
+    const userMessageId = ids.message.create();
     const activeMessageId = ids.message.create();
     const deleteFrom = vi.fn<ThreadMessagingTurns["deleteFrom"]>(() => ({
       threadId,
-      messageId,
+      userMessageId,
       activeMessageId,
       deletedTurnCount: 3,
       threadActivity: { threadId, lastActivityAt: 700, turnCount: 4 },
@@ -702,12 +702,12 @@ describe("thread IPC", () => {
     const backendTurns = createBackendTurnsStub({ deleteFrom });
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
-    const result = await requireImplementations().turns.deleteFrom({ threadId, messageId });
+    const result = await requireImplementations().turns.deleteFrom({ threadId, userMessageId });
 
-    expect(deleteFrom).toHaveBeenCalledWith({ threadId, messageId });
+    expect(deleteFrom).toHaveBeenCalledWith({ threadId, userMessageId });
     expect(result).toEqual({
       threadId,
-      messageId,
+      userMessageId,
       activeMessageId,
       deletedTurnCount: 3,
       threadActivity: { threadId, lastActivityAt: 700, turnCount: 4 },
@@ -788,10 +788,10 @@ describe("thread IPC", () => {
       TypeError,
     );
     expect(() =>
-      ipc.turns.deleteFrom({ threadId: "invalid", messageId: ids.message.create() }),
+      ipc.turns.deleteFrom({ threadId: "invalid", userMessageId: ids.message.create() }),
     ).toThrow(TypeError);
     expect(() =>
-      ipc.turns.deleteFrom({ threadId: ids.thread.create(), messageId: "invalid" }),
+      ipc.turns.deleteFrom({ threadId: ids.thread.create(), userMessageId: "invalid" }),
     ).toThrow(TypeError);
     expect(listForThread).not.toHaveBeenCalled();
     expect(getTranscript).not.toHaveBeenCalled();

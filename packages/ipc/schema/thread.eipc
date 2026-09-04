@@ -151,12 +151,12 @@ structure EditThreadMessageRequest {
 
 structure DeleteThreadHistoryRequest {
   threadId: string
-  messageId: string
+  userMessageId: string
 }
 
 structure ThreadHistoryDeletion {
   threadId: string
-  messageId: string
+  userMessageId: string
   activeMessageId?: string
   deletedTurnCount: ThreadDeletedTurnCount
   threadActivity: ThreadActivity

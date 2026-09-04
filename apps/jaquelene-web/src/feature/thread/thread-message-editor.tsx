@@ -14,9 +14,8 @@ export type ThreadMessageEditorProps = Readonly<{
   session: ThreadMessageEditSession;
   maxLength: number;
   pending: boolean;
-  fromAssistant: boolean;
   onCancel: () => void;
-  onDelete: () => Promise<void>;
+  onDelete: (() => Promise<void>) | null;
   onReady: () => void;
   onSave: (content: string) => Promise<void>;
 }>;
@@ -45,7 +44,6 @@ export default function ThreadMessageEditor({
   session,
   maxLength,
   pending,
-  fromAssistant,
   onCancel,
   onDelete,
   onReady,
@@ -57,8 +55,12 @@ export default function ThreadMessageEditor({
   const saveRequestPending = useRef(false);
   const errorId = useId();
   const empty = !draft.trim();
-  const saveDisabled = pending || draft === session.originalContent;
+  let saveDisabled = pending || draft === session.originalContent;
   const errorDescription: { "aria-describedby"?: string } = {};
+
+  if (empty && !onDelete) {
+    saveDisabled = true;
+  }
 
   if (error) {
     errorDescription["aria-describedby"] = errorId;
@@ -111,10 +113,9 @@ export default function ThreadMessageEditor({
     </Button>
   );
 
-  if (empty) {
+  if (empty && onDelete) {
     primaryAction = (
       <ThreadMessageDeleteConfirmation
-        fromAssistant={fromAssistant}
         open={deleteConfirmationOpen}
         pending={pending}
         setOpen={setDeleteConfirmationOpen}

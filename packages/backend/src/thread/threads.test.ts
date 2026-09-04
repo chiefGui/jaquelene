@@ -474,7 +474,7 @@ describe("threads", () => {
     expect(threads.startTurn(thread.id, "Accepted child").message.sequence).toBe(2);
   });
 
-  it("deletes the turn containing an active message and every descendant branch", () => {
+  it("deletes an active user turn and every descendant branch without using sequence order", () => {
     const { database, threads } = openThreads(createDatabasePath(), () => 675);
     const thread = threads.create();
     const root = threads.startTurn(thread.id, "Root message");
@@ -525,9 +525,9 @@ describe("threads", () => {
     expect(targetReply.threadActivity).not.toBeNull();
     expect(inactiveTargetReply.threadActivity).toBeNull();
     expect(retainedLaterMessage.threadActivity).toBeNull();
-    expect(threads.deleteFrom({ threadId: thread.id, messageId: targetReply.message.id })).toEqual({
+    expect(threads.deleteFrom({ threadId: thread.id, userMessageId: target.message.id })).toEqual({
       threadId: thread.id,
-      messageId: targetReply.message.id,
+      userMessageId: target.message.id,
       activeMessageId: rootReply.message.id,
       deletedTurnCount: 2,
       threadActivity: {
@@ -569,9 +569,9 @@ describe("threads", () => {
     const thread = threads.create();
     const root = threads.startTurn(thread.id, "Delete the whole history");
 
-    expect(threads.deleteFrom({ threadId: thread.id, messageId: root.message.id })).toEqual({
+    expect(threads.deleteFrom({ threadId: thread.id, userMessageId: root.message.id })).toEqual({
       threadId: thread.id,
-      messageId: root.message.id,
+      userMessageId: root.message.id,
       activeMessageId: null,
       deletedTurnCount: 1,
       threadActivity: {
@@ -590,7 +590,7 @@ describe("threads", () => {
     );
   });
 
-  it("only deletes messages on the active path of their owning thread", () => {
+  it("only deletes user messages on the active path of their owning thread", () => {
     const { database, threads } = openThreads(createDatabasePath(), () => 685);
     const thread = threads.create();
     const otherThread = threads.create();
@@ -610,13 +610,16 @@ describe("threads", () => {
 
     expect(activeReply.threadActivity).not.toBeNull();
     expect(() =>
-      threads.deleteFrom({ threadId: thread.id, messageId: inactiveUser.message.id }),
-    ).toThrow(`Message "${inactiveUser.message.id}" is not on the active thread path.`);
-    expect(() => threads.deleteFrom({ threadId: thread.id, messageId: otherMessage.id })).toThrow(
-      `Message "${otherMessage.id}" does not exist in thread "${thread.id}".`,
-    );
+      threads.deleteFrom({ threadId: thread.id, userMessageId: activeReply.message.id }),
+    ).toThrow(TypeError);
     expect(() =>
-      threads.deleteFrom({ threadId: thread.id, messageId: ids.message.create() }),
+      threads.deleteFrom({ threadId: thread.id, userMessageId: inactiveUser.message.id }),
+    ).toThrow(`User message "${inactiveUser.message.id}" is not on the active thread path.`);
+    expect(() =>
+      threads.deleteFrom({ threadId: thread.id, userMessageId: otherMessage.id }),
+    ).toThrow(`Message "${otherMessage.id}" does not exist in thread "${thread.id}".`);
+    expect(() =>
+      threads.deleteFrom({ threadId: thread.id, userMessageId: ids.message.create() }),
     ).toThrow(RangeError);
     expect(threads.listMessages({ threadId: thread.id, direction: "older" }).messages).toEqual([
       root.message,
@@ -641,7 +644,7 @@ describe("threads", () => {
 
     try {
       expect(() =>
-        threads.deleteFrom({ threadId: thread.id, messageId: target.message.id }),
+        threads.deleteFrom({ threadId: thread.id, userMessageId: target.message.id }),
       ).toThrow();
     } finally {
       database.$client.exec("DROP TRIGGER reject_turn_deletion;");

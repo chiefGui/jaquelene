@@ -66,7 +66,7 @@ type ThreadTimelineProps = Readonly<{
   beginEdit: (message: ThreadMessageView["message"]) => void;
   cancelEdit: () => void;
   saveEdit: (messageId: string, content: string) => Promise<void>;
-  deleteFromMessage: (messageId: string) => Promise<void>;
+  deleteFromUserMessage: (userMessageId: string) => Promise<void>;
   loadOlder: () => Promise<void>;
   regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
   retryReply: (turnId: string) => Promise<void>;
@@ -93,7 +93,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   beginEdit,
   cancelEdit,
   saveEdit,
-  deleteFromMessage,
+  deleteFromUserMessage,
   loadOlder,
   regenerateResponse,
   retryReply,
@@ -365,13 +365,18 @@ export const ThreadTimeline = memo(function ThreadTimeline({
             let editor: ThreadMessageEditorProps | null = null;
 
             if (editSession?.messageId === message.id) {
+              let onDelete: ThreadMessageEditorProps["onDelete"] = null;
+
+              if (message.author === "user") {
+                onDelete = () => deleteFromUserMessage(message.id);
+              }
+
               editor = {
                 session: editSession,
                 maxLength: messageMaxCodeUnits,
                 pending: editPending || deletePending,
-                fromAssistant: message.author === "assistant",
                 onCancel: cancelEdit,
-                onDelete: () => deleteFromMessage(message.id),
+                onDelete,
                 onReady: revealActiveEditor,
                 onSave: (content) => saveEdit(message.id, content),
               };
@@ -406,7 +411,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                   editor={editor}
                   beginEdit={beginEdit}
                   deletePending={deletePending}
-                  deleteFromMessage={deleteFromMessage}
+                  deleteFromUserMessage={deleteFromUserMessage}
                   hasFollowingItem={virtualItem.index + 1 < items.length}
                 />
               </li>

@@ -209,7 +209,7 @@ export function createTurns(
     deleteFrom(request: DeleteThreadHistoryRequest): ThreadHistoryDeletion {
       const lease = operationCoordinator.acquire(request.threadId, {
         state: "truncating",
-        messageId: request.messageId,
+        userMessageId: request.userMessageId,
       });
 
       try {

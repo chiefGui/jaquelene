@@ -113,7 +113,7 @@ describe("thread transcripts", () => {
       ],
     });
 
-    threads.deleteFrom({ threadId: campaign.threadId, messageId: second.message.id });
+    threads.deleteFrom({ threadId: campaign.threadId, userMessageId: second.message.id });
 
     expect(
       transcripts.get(campaign.threadId).entries.map(({ kind, content }) => ({ kind, content })),

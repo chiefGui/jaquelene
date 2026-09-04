@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
-import { ids } from "#backend/id";
+import { ids, type ThreadId } from "#backend/id";
 import { threadMessageTable, threadTable, turnTable } from "./schema";
 import {
   appendAssistantMessageInTransaction,
@@ -12,6 +12,7 @@ import {
   THREAD_MESSAGE_MAX_CODE_UNITS,
   THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
   THREAD_MESSAGE_PAGE_MAX_COUNT,
+  type ThreadEngine,
 } from "./threads";
 
 const directories: string[] = [];
@@ -31,6 +32,19 @@ function openThreads(path: string, now: () => number = Date.now) {
     database,
     threads: createThreads(database, now),
   };
+}
+
+function startTurnsInOneTransaction(
+  database: Database,
+  threads: ThreadEngine,
+  threadId: ThreadId,
+  count: number,
+) {
+  return database.transaction((transaction) =>
+    Array.from({ length: count }, (_, index) =>
+      threads.startTurnInTransaction(transaction, threadId, `Message ${index + 1}`),
+    ),
+  );
 }
 
 afterEach(() => {
@@ -193,10 +207,13 @@ describe("threads", () => {
   });
 
   it("pages backward through one branch with an opaque message cursor", () => {
-    const { threads } = openThreads(createDatabasePath(), () => 400);
+    const { database, threads } = openThreads(createDatabasePath(), () => 400);
     const thread = threads.create();
-    const turns = Array.from({ length: THREAD_MESSAGE_PAGE_MAX_COUNT + 2 }, (_, index) =>
-      threads.startTurn(thread.id, `Message ${index + 1}`),
+    const turns = startTurnsInOneTransaction(
+      database,
+      threads,
+      thread.id,
+      THREAD_MESSAGE_PAGE_MAX_COUNT + 2,
     );
 
     const newestPage = threads.listMessages({ threadId: thread.id, direction: "older" });
@@ -227,10 +244,13 @@ describe("threads", () => {
   });
 
   it("pages forward through the active branch without scanning from the thread head", () => {
-    const { threads } = openThreads(createDatabasePath(), () => 425);
+    const { database, threads } = openThreads(createDatabasePath(), () => 425);
     const thread = threads.create();
-    const turns = Array.from({ length: THREAD_MESSAGE_PAGE_MAX_COUNT + 2 }, (_, index) =>
-      threads.startTurn(thread.id, `Message ${index + 1}`),
+    const turns = startTurnsInOneTransaction(
+      database,
+      threads,
+      thread.id,
+      THREAD_MESSAGE_PAGE_MAX_COUNT + 2,
     );
     const newestPage = threads.listMessages({ threadId: thread.id, direction: "older" });
     const olderCursor = newestPage.olderCursor;

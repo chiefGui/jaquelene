@@ -2,17 +2,18 @@ import { ThreadTranscriptEntryKind, type ThreadTranscriptEntry } from "@jaquelen
 import { Button } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { fetchThreadTranscript, threadTranscriptQuery } from "@/feature/thread/query";
+import { loadThreadTranscript } from "@/feature/thread/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EmptyState } from "@/primitive/empty-state";
 
 export const Route = createFileRoute("/threads/$threadId/transcript")({
+  preload: false,
+  staleTime: 0,
   loader: {
-    handler: ({ context, params }) => fetchThreadTranscript(context.queryClient, params.threadId),
+    handler: ({ params }) => loadThreadTranscript(params.threadId),
     staleReloadMode: "blocking",
   },
   onError: (error) => reportError("thread.transcript.load", error),
@@ -97,8 +98,7 @@ function TranscriptEntries({ entries }: { entries: readonly ThreadTranscriptEntr
 }
 
 function TranscriptRoute() {
-  const { threadId } = Route.useParams();
-  const { data: transcript } = useSuspenseQuery(threadTranscriptQuery(threadId));
+  const transcript = Route.useLoaderData();
 
   return (
     <>

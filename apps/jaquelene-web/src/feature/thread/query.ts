@@ -8,7 +8,6 @@ import {
 import {
   type QueryClient,
   infiniteQueryOptions,
-  queryOptions,
   useIsMutating,
   useMutation,
   useMutationState,
@@ -88,17 +87,8 @@ export function threadMessagesQuery(threadId: string) {
   });
 }
 
-export function threadTranscriptQuery(threadId: string) {
-  return queryOptions({
-    ...ipcQueryOptions,
-    queryKey: [...threadQueryKey, threadId, "transcript"],
-    queryFn: () => getThreadTranscript(threadId),
-    staleTime: "static",
-  });
-}
-
-export function fetchThreadTranscript(queryClient: QueryClient, threadId: string) {
-  return queryClient.fetchQuery({ ...threadTranscriptQuery(threadId), staleTime: 0 });
+export function loadThreadTranscript(threadId: string) {
+  return getThreadTranscript(threadId);
 }
 
 function turnMutationScope(threadId: string) {

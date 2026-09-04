@@ -27,6 +27,7 @@ import { Route as SettingsStorageRouteImport } from "./routes/settings/storage";
 import { Route as SettingsUsageRouteImport } from "./routes/settings/usage";
 import { Route as LibraryNarratorIndexRouteImport } from "./routes/library/narrator/index";
 import { Route as LibraryNarratorNewRouteImport } from "./routes/library/narrator/new";
+import { Route as ThreadsThreadIdTranscriptRouteImport } from "./routes/threads/$threadId/transcript";
 import { Route as LibraryNarratorPromptKeyEditRouteImport } from "./routes/library/narrator/$promptKey/edit";
 
 const IndexRoute = IndexRouteImport.update({
@@ -119,6 +120,12 @@ const LibraryNarratorNewRoute = LibraryNarratorNewRouteImport.update({
   path: "/new",
   getParentRoute: () => LibraryNarratorRouteRoute,
 } as any);
+const ThreadsThreadIdTranscriptRoute =
+  ThreadsThreadIdTranscriptRouteImport.update({
+    id: "/threads/$threadId/transcript",
+    path: "/threads/$threadId/transcript",
+    getParentRoute: () => rootRouteImport,
+  } as any);
 const LibraryNarratorPromptKeyEditRoute =
   LibraryNarratorPromptKeyEditRouteImport.update({
     id: "/$promptKey/edit",
@@ -144,6 +151,7 @@ export interface FileRoutesByFullPath {
   "/campaigns/": typeof CampaignsIndexRoute;
   "/library/": typeof LibraryIndexRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
+  "/threads/$threadId/transcript": typeof ThreadsThreadIdTranscriptRoute;
   "/library/narrator/": typeof LibraryNarratorIndexRoute;
   "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
 }
@@ -162,6 +170,7 @@ export interface FileRoutesByTo {
   "/campaigns": typeof CampaignsIndexRoute;
   "/library": typeof LibraryIndexRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
+  "/threads/$threadId/transcript": typeof ThreadsThreadIdTranscriptRoute;
   "/library/narrator": typeof LibraryNarratorIndexRoute;
   "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
 }
@@ -184,6 +193,7 @@ export interface FileRoutesById {
   "/campaigns/": typeof CampaignsIndexRoute;
   "/library/": typeof LibraryIndexRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
+  "/threads/$threadId/transcript": typeof ThreadsThreadIdTranscriptRoute;
   "/library/narrator/": typeof LibraryNarratorIndexRoute;
   "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
 }
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
     | "/campaigns/"
     | "/library/"
     | "/library/narrator/new"
+    | "/threads/$threadId/transcript"
     | "/library/narrator/"
     | "/library/narrator/$promptKey/edit";
   fileRoutesByTo: FileRoutesByTo;
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | "/campaigns"
     | "/library"
     | "/library/narrator/new"
+    | "/threads/$threadId/transcript"
     | "/library/narrator"
     | "/library/narrator/$promptKey/edit";
   id:
@@ -246,6 +258,7 @@ export interface FileRouteTypes {
     | "/campaigns/"
     | "/library/"
     | "/library/narrator/new"
+    | "/threads/$threadId/transcript"
     | "/library/narrator/"
     | "/library/narrator/$promptKey/edit";
   fileRoutesById: FileRoutesById;
@@ -255,6 +268,7 @@ export interface RootRouteChildren {
   CampaignsRouteRoute: typeof CampaignsRouteRouteWithChildren;
   LibraryRouteRoute: typeof LibraryRouteRouteWithChildren;
   SettingsRouteRoute: typeof SettingsRouteRouteWithChildren;
+  ThreadsThreadIdTranscriptRoute: typeof ThreadsThreadIdTranscriptRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -385,6 +399,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof LibraryNarratorNewRouteImport;
       parentRoute: typeof LibraryNarratorRouteRoute;
     };
+    "/threads/$threadId/transcript": {
+      id: "/threads/$threadId/transcript";
+      path: "/threads/$threadId/transcript";
+      fullPath: "/threads/$threadId/transcript";
+      preLoaderRoute: typeof ThreadsThreadIdTranscriptRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/library/narrator/$promptKey/edit": {
       id: "/library/narrator/$promptKey/edit";
       path: "/$promptKey/edit";
@@ -469,6 +490,7 @@ const rootRouteChildren: RootRouteChildren = {
   CampaignsRouteRoute: CampaignsRouteRouteWithChildren,
   LibraryRouteRoute: LibraryRouteRouteWithChildren,
   SettingsRouteRoute: SettingsRouteRouteWithChildren,
+  ThreadsThreadIdTranscriptRoute: ThreadsThreadIdTranscriptRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

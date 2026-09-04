@@ -8,6 +8,7 @@ import {
 import {
   type QueryClient,
   infiniteQueryOptions,
+  queryOptions,
   useIsMutating,
   useMutation,
   useMutationState,
@@ -32,6 +33,7 @@ import {
 } from "./thread-query-cache";
 
 const listThreadMessages = requireIpcMethod(Threads?.listMessages);
+const getThreadTranscript = requireIpcMethod(Threads?.getTranscript);
 const submitTurn = requireIpcMethod(Turns?.submit);
 const retryTurn = requireIpcMethod(Turns?.retry);
 const regenerateReply = requireIpcMethod(Turns?.regenerate);
@@ -84,6 +86,19 @@ export function threadMessagesQuery(threadId: string) {
         : undefined,
     select: (data) => requireValidThreadHistory(data, threadId),
   });
+}
+
+export function threadTranscriptQuery(threadId: string) {
+  return queryOptions({
+    ...ipcQueryOptions,
+    queryKey: [...threadQueryKey, threadId, "transcript"],
+    queryFn: () => getThreadTranscript(threadId),
+    staleTime: "static",
+  });
+}
+
+export function fetchThreadTranscript(queryClient: QueryClient, threadId: string) {
+  return queryClient.fetchQuery({ ...threadTranscriptQuery(threadId), staleTime: 0 });
 }
 
 function turnMutationScope(threadId: string) {

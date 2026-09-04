@@ -1,18 +1,23 @@
-import type {
-  Backend,
-  Campaigns,
-  CampaignUsageReader,
-  Prompts,
-  Providers,
-  Threads,
-  Turns,
-  Usage,
+import {
+  BackendService,
+  type Backend,
+  type Campaigns,
+  type CampaignUsageReader,
+  type Prompts,
+  type Providers,
+  type Threads,
+  type Turns,
+  type Usage,
 } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
-import { Effect, Exit, Scope } from "effect";
+import { Context, Effect, Exit, FiberSet, Layer, Schema, Scope } from "effect";
 import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
-import type { ApplicationDiagnostics } from "../diagnostics/diagnostics";
+import { appUrl } from "../app-protocol";
+import {
+  ApplicationDiagnosticsService,
+  type ApplicationDiagnostics,
+} from "../diagnostics/diagnostics";
 import { exposeDiagnostics, exposeDiagnosticsPreferences } from "../diagnostics/ipc";
 import { exposeUserInterfacePreferences } from "../feature/appearance/user-interface/ipc";
 import { createInterfaceScaleWebPreferences } from "../feature/appearance/user-interface/zoom";
@@ -24,14 +29,16 @@ import {
 import type { ModelCatalog } from "../feature/model/catalog";
 import { exposeModelCatalog } from "../feature/model/catalog-ipc";
 import type { FavoriteModels } from "../feature/model/favorite-models";
+import { FavoriteModelsService } from "../feature/model/favorite-models-service";
 import { exposeFavoriteModels } from "../feature/model/favorite-models-ipc";
 import { exposeProviders } from "../feature/provider/ipc";
 import { exposePrompts } from "../feature/prompt/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
 import { exposeUsage } from "../feature/usage/ipc";
-import type { LocalState } from "../local-state";
-import type { Preferences } from "../preferences/preferences";
+import { LocalStateService, type LocalState } from "../local-state";
+import { PreferencesService, type Preferences } from "../preferences/preferences";
 import { exposeStorage, type BackendEffectRunner } from "../storage/ipc";
+import { DesktopConfigurationService } from "./configuration";
 
 const preloadPath = join(import.meta.dirname, "../preload/preload.cjs");
 
@@ -57,6 +64,76 @@ export type MainWindowManager = Readonly<{
   close: () => Promise<void>;
   [Symbol.asyncDispose]: () => Promise<void>;
 }>;
+
+export class MainWindowShowError extends Schema.TaggedError<MainWindowShowError>()(
+  "MainWindowShowError",
+  {
+    message: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+
+export type MainWindow = Readonly<{
+  show: Effect.Effect<void, MainWindowShowError>;
+  inspect: () => MainWindowInspection;
+}>;
+
+export class MainWindowService extends Context.Service<MainWindowService, MainWindow>()(
+  "@jaquelene/desktop/application/MainWindow",
+) {
+  static readonly layer = Layer.effect(
+    this,
+    Effect.gen(function* () {
+      const backend = yield* BackendService;
+      const configuration = yield* DesktopConfigurationService;
+      const diagnostics = yield* ApplicationDiagnosticsService;
+      const favoriteModels = yield* FavoriteModelsService;
+      const localState = yield* LocalStateService;
+      const preferences = yield* PreferencesService;
+      const runBackendEffect = yield* FiberSet.makeRuntimePromise();
+      let rendererUrl = appUrl;
+
+      if (configuration.developmentServerUrl) {
+        rendererUrl = configuration.developmentServerUrl;
+      }
+
+      const manager = yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          createMainWindowManager({
+            rendererUrl,
+            diagnostics,
+            localState,
+            campaigns: backend.campaigns,
+            campaignUsage: backend.campaignUsage,
+            prompts: backend.prompts,
+            threads: backend.threads,
+            turns: backend.turns,
+            modelCatalog: backend.models,
+            favoriteModels,
+            preferences,
+            providers: backend.providers,
+            storage: backend.storage,
+            runBackendEffect,
+            usage: backend.usage,
+          }),
+        ),
+        (windowManager) => Effect.promise(() => windowManager[Symbol.asyncDispose]()),
+      );
+
+      return MainWindowService.of({
+        show: Effect.tryPromise({
+          try: (signal) => manager.show(signal),
+          catch: (cause) =>
+            new MainWindowShowError({
+              message: "Could not show the main window.",
+              cause,
+            }),
+        }),
+        inspect: manager.inspect,
+      });
+    }),
+  );
+}
 
 function isSafeExternalUrl(rawUrl: string) {
   try {

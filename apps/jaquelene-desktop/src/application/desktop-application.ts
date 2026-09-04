@@ -3,7 +3,7 @@ import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { Cause, Effect, Exit, Fiber, FiberSet, Layer } from "effect";
 import { app, safeStorage } from "electron";
 import { join } from "node:path";
-import { appUrl, handleAppScheme } from "../app-protocol";
+import { handleAppScheme } from "../app-protocol";
 import {
   ApplicationDiagnosticsService,
   type ApplicationDiagnostics,
@@ -15,7 +15,7 @@ import { PreferencesService, type Preferences } from "../preferences/preferences
 import { createStorageAreas } from "../storage/areas";
 import { DesktopConfigurationService, type DesktopConfiguration } from "./configuration";
 import { getApplicationDatabasePaths } from "./database-paths";
-import { createMainWindowManager, type MainWindowInspection } from "./main-window";
+import { MainWindowService, type MainWindowInspection } from "./main-window";
 
 export type DesktopApplicationInspection = Readonly<{
   state: "starting" | "running" | "stopping" | "stopped";
@@ -126,7 +126,7 @@ export function launchDesktopApplication({
     const preferences = yield* PreferencesService;
     const localState = yield* LocalStateService;
     const favoriteModels = yield* FavoriteModelsService;
-    const { userDataDirectory, developmentServerUrl } = configuration;
+    const { userDataDirectory } = configuration;
 
     const { databasePath, cachePath } = getApplicationDatabasePaths(userDataDirectory);
     const credentialProtection = {
@@ -163,42 +163,17 @@ export function launchDesktopApplication({
     });
 
     yield* Effect.gen(function* () {
-      const backend = yield* BackendService;
-      const runBackendEffect = yield* FiberSet.makeRuntimePromise();
-      const mainWindow = yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          createMainWindowManager({
-            rendererUrl: developmentServerUrl ?? appUrl,
-            diagnostics,
-            localState,
-            campaigns: backend.campaigns,
-            campaignUsage: backend.campaignUsage,
-            prompts: backend.prompts,
-            threads: backend.threads,
-            turns: backend.turns,
-            modelCatalog: backend.models,
-            favoriteModels,
-            preferences,
-            providers: backend.providers,
-            storage: backend.storage,
-            runBackendEffect,
-            usage: backend.usage,
-          }),
-        ),
-        (windowManager) => Effect.promise(() => windowManager[Symbol.asyncDispose]()),
-      );
+      const mainWindow = yield* MainWindowService;
+      const runApplicationEffect = yield* FiberSet.makeRuntimePromise();
       mainWindowInspection = mainWindow.inspect;
-      showMainWindow = () => mainWindow.show();
-      yield* Effect.tryPromise({
-        try: (signal) => mainWindow.show(signal),
-        catch: (error) => asError(error, "Could not show the main window."),
-      });
+      showMainWindow = () => runApplicationEffect(mainWindow.show);
+      yield* mainWindow.show;
 
       state = "running";
       readySettled = true;
       ready.resolve();
       yield* Effect.never;
-    }).pipe(Effect.provide(backendLayer));
+    }).pipe(Effect.provide(MainWindowService.layer), Effect.provide(backendLayer));
   });
   const program = Effect.scoped(
     Effect.gen(function* () {

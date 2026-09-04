@@ -712,6 +712,7 @@ describe("thread IPC", () => {
   });
 
   it("rejects malformed TypeIDs at the adapter boundary", async () => {
+    const getTranscript = vi.fn<ThreadMessagingThreads["getTranscript"]>();
     const listForThread = vi.fn(emptyPage);
     const regenerate = vi.fn();
     const submit = vi.fn();
@@ -724,7 +725,12 @@ describe("thread IPC", () => {
       submit,
       retry,
     });
-    exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
+    exposeSingleRenderer(
+      activeTarget(),
+      backendTurns,
+      { report: vi.fn() },
+      createBackendThreadsStub({ getTranscript }),
+    );
     const ipc = requireImplementations();
     const configuration = {
       model: { providerId: "openrouter", modelId: "maker/model" },
@@ -736,6 +742,7 @@ describe("thread IPC", () => {
         direction: ThreadMessagePageDirection.Older,
       }),
     ).toThrow(TypeError);
+    expect(() => ipc.threads.getTranscript("invalid")).toThrow(TypeError);
     await expect(
       ipc.turns.submit({ threadId: "invalid", content: "Hello", configuration }),
     ).rejects.toThrow(TypeError);
@@ -750,6 +757,7 @@ describe("thread IPC", () => {
       ipc.turns.deleteFrom({ threadId: ids.thread.create(), userMessageId: "invalid" }),
     ).toThrow(TypeError);
     expect(listForThread).not.toHaveBeenCalled();
+    expect(getTranscript).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
     expect(retry).not.toHaveBeenCalled();
     expect(regenerate).not.toHaveBeenCalled();

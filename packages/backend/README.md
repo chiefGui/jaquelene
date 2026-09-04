@@ -2,7 +2,7 @@
 
 `@jaquelene/backend` is Jaquelene's application composition and lifetime boundary.
 
-It owns SQLite, migrations, IDs, campaigns, the prompt catalog and campaign composition, threads, durable turn submission and retry, reply preparation, generation state, active generation supervision, the provider registry, and storage measurement. Platform code supplies provider adapters and filesystem locations, then consumes the plain TypeScript facade returned by `createBackend`.
+It owns SQLite, migrations, IDs, campaigns, the prompt catalog and campaign composition, threads, durable turn submission and retry, reply preparation, generation state, active generation supervision, the provider registry, and storage measurement. Platform code supplies provider adapters and filesystem locations to `BackendService.layer`, provides that layer to the application program, and consumes the backend facade within the resulting scope.
 
 A provider adapter declares one stable identity and supplies configuration, model discovery, and generation capabilities. The provider subsystem validates and routes those capabilities, gives every network operation a cancellation signal, orders configuration changes, and derives provider-owned storage from the configuration capability. Disconnecting a provider stops and drains its active work before removing its credential. Adding a provider does not add another backend registry or storage manifest entry.
 
@@ -18,4 +18,4 @@ Bundlers consume `@jaquelene/backend/build` to copy required runtime directories
 
 Within the package, same-feature imports stay relative and cross-feature imports use the private `#backend/*` package map.
 
-Closing the backend stops new work, interrupts and drains active generations, and closes SQLite last. A closed backend cannot be reused; create a new backend to reopen persisted state.
+The application scope owns the backend lifetime. Closing it stops new work, interrupts and drains active generations, and closes SQLite last; reopening persisted state builds a new application scope.

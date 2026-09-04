@@ -1,7 +1,7 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { createContext, useContext, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Button, type ButtonProps } from "./button";
 
 type IconButtonSize = Exclude<ButtonProps["size"], undefined>;
@@ -14,34 +14,28 @@ export type IconButtonProps = Omit<ButtonProps, "aria-label" | "children" | "sty
 
 export type IconButtonIconProps = {
   render: NonNullable<RoleProps<"svg">["render"]>;
-  style?: StyleXStyles;
 };
-
-const IconButtonSizeContext = createContext<IconButtonSize | undefined>(undefined);
 
 function IconButtonRoot({ size = "medium", style, ...props }: IconButtonProps) {
   return (
-    <IconButtonSizeContext value={size}>
-      <Button {...props} size={size} variant="ghost" style={[styles.root, style]} />
-    </IconButtonSizeContext>
+    <Button
+      {...props}
+      size={size}
+      variant="ghost"
+      style={[styles.root, iconSizeStyles[size], style]}
+    />
   );
 }
 
-function IconButtonIcon({ style, ...props }: IconButtonIconProps) {
-  const size = useContext(IconButtonSizeContext);
-
-  if (!size) {
-    throw new Error("IconButton.Icon must be rendered inside IconButton.Root");
-  }
-
+function IconButtonIcon({ render }: IconButtonIconProps) {
   return (
     <Role.svg
-      {...props}
+      render={render}
       aria-hidden="true"
       color="currentColor"
       focusable="false"
       strokeWidth={1.5}
-      {...stylex.props(styles.icon, iconSizeStyles[size], style)}
+      {...stylex.props(styles.icon)}
     />
   );
 }
@@ -59,18 +53,14 @@ const styles = stylex.create({
   icon: {
     display: "block",
     flexShrink: 0,
+    height: "1em",
+    width: "1em",
   },
-  iconMedium: {
-    height: "1rem",
-    width: "1rem",
-  },
-  iconSmall: {
-    height: "0.875rem",
-    width: "0.875rem",
-  },
+  medium: { fontSize: "1rem" },
+  small: { fontSize: "0.875rem" },
 });
 
 const iconSizeStyles = {
-  medium: styles.iconMedium,
-  small: styles.iconSmall,
+  medium: styles.medium,
+  small: styles.small,
 } satisfies Record<IconButtonSize, StyleXStyles>;

@@ -1,10 +1,7 @@
 import { and, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "#backend/database/database";
-import {
-  requireGenerationConfiguration,
-  type GenerationConfiguration,
-} from "#backend/generation/configuration";
+import type { GenerationConfiguration } from "#backend/model/configuration";
 import {
   appendAssistantMessageInTransaction,
   requireThreadMessageContent,
@@ -19,18 +16,12 @@ import {
 import { ids, type MessageId, type TurnId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import {
-  requireResolvedReasoning,
-  resolveReasoning,
-  type ResolvedReasoning,
-} from "#backend/model/reasoning";
-import type { Models } from "#backend/provider/model-catalog";
-import {
-  requireModelReference,
-  type ModelReference,
-  type ProviderGenerationResult,
-} from "#backend/provider/provider";
-import type { ProviderGenerationRouter } from "#backend/provider/providers";
-import { normalizeProviderAccounting, type ProviderAccounting } from "#backend/usage/accounting";
+  requireResolvedModelConfiguration,
+  type ModelExecutionRunner,
+  type ModelExecutionResult,
+  type ResolvedModelConfiguration,
+} from "#backend/model/execution";
+import type { ProviderAccounting } from "#backend/provider/accounting";
 import {
   createProviderAttempts,
   settleProviderAttempt,
@@ -54,11 +45,6 @@ export type GenerateReplyRequest = {
   signal?: AbortSignal;
 };
 
-export type ResolvedGenerationConfiguration = Readonly<{
-  model: ModelReference;
-  reasoning?: ResolvedReasoning;
-}>;
-
 export type ReplyGenerationExecution =
   | {
       outcome: "completed";
@@ -72,21 +58,33 @@ export type ReplyGenerationExecution =
       cause: unknown;
     };
 
-type NormalizedProviderResult = {
-  accounting: ProviderAccounting;
-  text: string;
-};
-
 export type AcceptedReplyGeneration = Readonly<{
   generation: Generation;
   anchor: ReplyAnchor;
   activeMessageId: MessageId | null;
 }>;
 
+function modelConfigurationFromGeneration(
+  generation: Pick<Generation, "modelId" | "providerId" | "reasoning">,
+) {
+  const model = {
+    providerId: generation.providerId,
+    modelId: generation.modelId,
+  };
+
+  if (generation.reasoning === undefined) {
+    return requireResolvedModelConfiguration({ model });
+  }
+
+  return requireResolvedModelConfiguration({ model, reasoning: generation.reasoning });
+}
+
 function interruptionCause(signal: AbortSignal) {
-  return signal.reason instanceof Error
-    ? signal.reason
-    : new Error("Generation was interrupted.", { cause: signal.reason });
+  if (signal.reason instanceof Error) {
+    return signal.reason;
+  }
+
+  return new Error("Generation was interrupted.", { cause: signal.reason });
 }
 
 function waitForOperation<Result>(operation: Promise<Result>, signal?: AbortSignal) {
@@ -143,32 +141,13 @@ function waitForOperation<Result>(operation: Promise<Result>, signal?: AbortSign
   });
 }
 
-function normalizeProviderResult(
-  result: ProviderGenerationResult,
-  accounting: ProviderAccounting,
-): NormalizedProviderResult {
-  return { accounting, text: requireThreadMessageContent(result.text) };
-}
-
 export function createGenerations(
   database: Database,
   replyPreparer: ReplyPreparer,
-  models: Pick<Models, "getModel">,
-  providers: ProviderGenerationRouter,
+  modelExecutor: ModelExecutionRunner,
   now: () => number = Date.now,
   attempts: ProviderAttempts = createProviderAttempts(database, () => undefined),
 ) {
-  function requireProvider(model: ModelReference) {
-    requireModelReference(model);
-
-    const provider = providers.get(model.providerId);
-
-    if (!provider) {
-      throw new RangeError(`Unknown generation provider "${model.providerId}".`);
-    }
-
-    return provider;
-  }
   function finishedAt(generation: Pick<Generation, "startedAt">, attempt?: ProviderAttempt) {
     return Math.max(generation.startedAt, attempt?.startedAt ?? 0, now());
   }
@@ -325,7 +304,12 @@ export function createGenerations(
 
     return uniqueTurnIds.flatMap((turnId) => {
       const generation = generationByTurn.get(turnId);
-      return generation ? [generation] : [];
+
+      if (!generation) {
+        return [];
+      }
+
+      return [generation];
     });
   }
 
@@ -333,7 +317,7 @@ export function createGenerations(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
     intent: GenerationIntent,
-    requestedConfiguration: ResolvedGenerationConfiguration,
+    requestedConfiguration: ResolvedModelConfiguration,
   ): AcceptedReplyGeneration {
     const replyContext = requireReplyContext(transaction, turnId);
 
@@ -343,7 +327,7 @@ export function createGenerations(
   function acceptRegenerationInTransaction(
     transaction: Pick<Database, "insert" | "select">,
     assistantMessageId: MessageId,
-    requestedConfiguration: ResolvedGenerationConfiguration,
+    requestedConfiguration: ResolvedModelConfiguration,
   ): AcceptedReplyGeneration {
     const source = transaction
       .select({
@@ -395,19 +379,10 @@ export function createGenerations(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
     intent: GenerationIntent,
-    requestedConfiguration: ResolvedGenerationConfiguration,
+    requestedConfiguration: ResolvedModelConfiguration,
     replyContext: ReturnType<typeof requireReplyContext>,
   ): AcceptedReplyGeneration {
-    const configuration = {
-      model: {
-        providerId: requestedConfiguration.model.providerId,
-        modelId: requestedConfiguration.model.modelId,
-      },
-      ...(requestedConfiguration.reasoning === undefined
-        ? {}
-        : { reasoning: requireResolvedReasoning(requestedConfiguration.reasoning) }),
-    };
-    requireProvider(configuration.model);
+    const configuration = requireResolvedModelConfiguration(requestedConfiguration);
 
     const pendingGeneration = transaction
       .select({ id: generationTable.id })
@@ -447,11 +422,6 @@ export function createGenerations(
     { generation, anchor, activeMessageId }: AcceptedReplyGeneration,
     signal?: AbortSignal,
   ): Promise<ReplyGenerationExecution> {
-    const provider = requireProvider({
-      providerId: generation.providerId,
-      modelId: generation.modelId,
-    });
-
     if (signal?.aborted) {
       return recordFailure(generation, "interrupted", interruptionCause(signal));
     }
@@ -467,10 +437,15 @@ export function createGenerations(
         anchor,
       );
     } catch (cause) {
-      return recordFailure(generation, signal?.aborted ? "interrupted" : "preparation", cause);
+      let failureKind: GenerationFailureKind = "preparation";
+
+      if (signal?.aborted) {
+        failureKind = "interrupted";
+      }
+
+      return recordFailure(generation, failureKind, cause);
     }
 
-    let providerResult: ProviderGenerationResult;
     let attempt: ProviderAttempt;
 
     try {
@@ -485,46 +460,44 @@ export function createGenerations(
       return recordFailure(generation, "storage", cause);
     }
 
+    const executionConfiguration = modelConfigurationFromGeneration(generation);
+
+    let modelExecution: ModelExecutionResult;
+
     try {
-      providerResult = await waitForOperation(
-        provider.generate(
-          {
-            operationId: generation.id,
-            conversationId: anchor.threadId,
-            modelId: generation.modelId,
-            input,
-            ...(generation.reasoning ? { reasoning: generation.reasoning } : {}),
-          },
-          signal,
-        ),
+      modelExecution = await modelExecutor.execute(
+        {
+          operationId: generation.id,
+          conversationId: anchor.threadId,
+          configuration: executionConfiguration,
+          input,
+        },
         signal,
       );
     } catch (cause) {
-      return recordFailure(
-        generation,
-        signal?.aborted ? "interrupted" : "provider",
-        cause,
-        attempt,
-      );
+      let failureKind: GenerationFailureKind = "provider";
+
+      if (signal?.aborted) {
+        failureKind = "interrupted";
+      }
+
+      return recordFailure(generation, failureKind, cause, attempt);
     }
 
-    const normalizedAccounting = normalizeProviderAccounting(providerResult);
-
-    if (normalizedAccounting.outcome === "invalid") {
+    if (modelExecution.outcome === "invalid-accounting") {
       return recordFailure(
         generation,
         "invalid-output",
-        normalizedAccounting.cause,
+        modelExecution.cause,
         attempt,
-        normalizedAccounting.accounting,
+        modelExecution.accounting,
       );
     }
-    const { accounting } = normalizedAccounting;
-
-    let output: NormalizedProviderResult;
+    const { accounting } = modelExecution;
+    let text: string;
 
     try {
-      output = normalizeProviderResult(providerResult, accounting);
+      text = requireThreadMessageContent(modelExecution.text);
     } catch (cause) {
       return recordFailure(generation, "invalid-output", cause, attempt, accounting);
     }
@@ -537,7 +510,7 @@ export function createGenerations(
           turnId: generation.turnId,
           parentMessageId: anchor.inputMessageId,
           activateIfMessageId: activeMessageId,
-          content: output.text,
+          content: text,
           createdAt: completionTime,
         });
         const storedCompletedGeneration = transaction
@@ -559,7 +532,7 @@ export function createGenerations(
           transaction,
           attempt.id,
           { status: "completed", finishedAt: completionTime },
-          output.accounting,
+          accounting,
         );
 
         if (!settledAttempt) {
@@ -572,7 +545,7 @@ export function createGenerations(
       attempts.changed();
       return { outcome: "completed", ...result };
     } catch (cause) {
-      return recordFailure(generation, "storage", cause, attempt, output.accounting);
+      return recordFailure(generation, "storage", cause, attempt, accounting);
     }
   }
 
@@ -596,28 +569,8 @@ export function createGenerations(
   async function resolveConfiguration(
     requestedConfiguration: GenerationConfiguration,
     signal?: AbortSignal,
-  ): Promise<ResolvedGenerationConfiguration> {
-    const configuration = {
-      model: {
-        providerId: requestedConfiguration.model.providerId,
-        modelId: requestedConfiguration.model.modelId,
-      },
-      ...(requestedConfiguration.reasoningPreset === undefined
-        ? {}
-        : { reasoningPreset: requestedConfiguration.reasoningPreset }),
-    };
-    requireGenerationConfiguration(configuration);
-    requireProvider(configuration.model);
-    const model = await models.getModel(configuration.model, signal);
-    const reasoning = resolveReasoning(model.reasoning, configuration.reasoningPreset);
-
-    return {
-      model: {
-        providerId: configuration.model.providerId,
-        modelId: configuration.model.modelId,
-      },
-      ...(reasoning ? { reasoning } : {}),
-    };
+  ): Promise<ResolvedModelConfiguration> {
+    return modelExecutor.resolveConfiguration(requestedConfiguration, signal);
   }
 
   return {

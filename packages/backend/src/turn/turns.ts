@@ -1,5 +1,5 @@
 import type { Database } from "#backend/database/database";
-import type { GenerationConfiguration } from "#backend/generation/configuration";
+import type { GenerationConfiguration } from "#backend/model/configuration";
 import type {
   AcceptedReplyGeneration,
   GenerationEngine,

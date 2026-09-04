@@ -29,7 +29,7 @@ export {
   requireGenerationConfigurationSelection,
   type GenerationConfiguration,
   type GenerationConfigurationSelection,
-} from "#backend/generation/configuration";
+} from "#backend/model/configuration";
 export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
 export {
   reasoningEfforts,

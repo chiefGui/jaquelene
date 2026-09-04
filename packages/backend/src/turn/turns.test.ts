@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { Effect } from "effect";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createGenerations } from "#backend/generation/generations";
@@ -9,6 +10,11 @@ import { createReplyPreparer } from "#backend/generation/reply-preparation";
 import { generationTable } from "#backend/generation/schema";
 import { superviseGenerations } from "#backend/generation/supervisor";
 import { ids } from "#backend/id";
+import {
+  createModelExecutionRunner,
+  createModelExecutor,
+  type ModelExecutionRunner,
+} from "#backend/model/execution";
 import { createModelInputResolver } from "#backend/model/input-resolver";
 import type {
   ProviderGenerationRequest,
@@ -49,16 +55,8 @@ function createDatabasePath() {
   return join(directory, "jaquelene.sqlite");
 }
 
-function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
-  const database = openDatabase(createDatabasePath());
-  const { applications: promptApplications } = createPromptSubsystem(database, [
-    narratorPromptModule,
-  ]);
-  const campaigns = createCampaigns(database, now);
-  const threads = createThreads(database, now);
-  const generationEngine = createGenerations(
-    database,
-    createReplyPreparer(threads, createModelInputResolver(campaigns, promptApplications)),
+function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
+  const executor = createModelExecutor(
     {
       async getModel(reference) {
         if (reference.providerId !== "provider-a") {
@@ -70,14 +68,43 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
     },
     {
       get(providerId) {
-        return providerId === "provider-a"
-          ? {
-              generate: (request, signal) =>
-                generate({ ...request, ...(signal ? { signal } : {}) }),
+        if (providerId !== "provider-a") {
+          return undefined;
+        }
+
+        return {
+          generate: (request, signal) => {
+            const testRequest: ProviderGenerationRequest & { signal?: AbortSignal } = {
+              ...request,
+            };
+
+            if (signal !== undefined) {
+              testRequest.signal = signal;
             }
-          : undefined;
+
+            return generate(testRequest);
+          },
+        };
       },
     },
+  );
+
+  return createModelExecutionRunner(executor, (effect, options) =>
+    Effect.runPromise(effect, options),
+  );
+}
+
+function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
+  const database = openDatabase(createDatabasePath());
+  const { applications: promptApplications } = createPromptSubsystem(database, [
+    narratorPromptModule,
+  ]);
+  const campaigns = createCampaigns(database, now);
+  const threads = createThreads(database, now);
+  const generationEngine = createGenerations(
+    database,
+    createReplyPreparer(threads, createModelInputResolver(campaigns, promptApplications)),
+    modelExecutionRunner(generate),
     now,
   );
   const supervised = superviseGenerations(generationEngine);

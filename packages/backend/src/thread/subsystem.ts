@@ -1,7 +1,7 @@
 import { Context, Effect, Layer } from "effect";
 import { DatabaseService, type Database } from "#backend/database/database";
 import type { ThreadId } from "#backend/id";
-import { ModelInputService, type ModelInputComposer } from "#backend/model/input-composer";
+import { ModelInputService, type ModelInputResolver } from "#backend/model/input-resolver";
 import type { ThreadTranscript } from "@jaquelene/domain";
 import { createThreads, type ThreadEngine } from "./threads";
 import { createThreadTranscriptReader } from "./transcript";
@@ -13,7 +13,7 @@ export type Threads = Pick<ThreadEngine, "create" | "get" | "listMessages"> &
 
 function createThreadSubsystem(
   database: Database,
-  modelInputs: ModelInputComposer,
+  modelInputs: ModelInputResolver,
   now: () => number = Date.now,
 ) {
   const engine = createThreads(database, now);

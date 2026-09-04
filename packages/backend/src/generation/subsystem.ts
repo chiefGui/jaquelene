@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 import { DatabaseService, type Database } from "#backend/database/database";
-import { ModelInputService } from "#backend/model/input-composer";
+import { ModelInputService } from "#backend/model/input-resolver";
 import type { Models } from "#backend/provider/model-catalog";
 import { ProvidersService, type ProviderGenerationRouter } from "#backend/provider/providers";
 import { ThreadService } from "#backend/thread/subsystem";

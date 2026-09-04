@@ -1,6 +1,6 @@
 import type { MessageId, ThreadId, TurnId } from "#backend/id";
 import { requireModelInput, type ModelInput } from "#backend/model/input";
-import type { ModelInputComposer } from "#backend/model/input-composer";
+import type { ModelInputResolver } from "#backend/model/input-resolver";
 import type { ThreadEngine } from "#backend/thread/threads";
 
 export type ReplyAnchor = Readonly<{
@@ -26,7 +26,7 @@ export function requireReplyInput(prepared: ModelInput, anchor: ReplyAnchor): Mo
 
 export function createReplyPreparer(
   threads: Pick<ThreadEngine, "getTurnContext">,
-  modelInputs: ModelInputComposer,
+  modelInputs: ModelInputResolver,
 ): ReplyPreparer {
   return {
     prepare(anchor) {
@@ -39,7 +39,7 @@ export function createReplyPreparer(
         throw new Error(`The accepted input for turn "${anchor.turnId}" has changed.`);
       }
 
-      return modelInputs.compose({
+      return modelInputs.resolve({
         threadId: anchor.threadId,
         messages: context.messages,
       });

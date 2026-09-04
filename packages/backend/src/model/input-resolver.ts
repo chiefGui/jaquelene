@@ -12,21 +12,21 @@ export type ModelInputSourceMessage = Readonly<{
   content: string;
 }>;
 
-export type ComposeModelInputRequest = Readonly<{
+export type ResolveModelInputRequest = Readonly<{
   threadId: ThreadId;
   messages: readonly ModelInputSourceMessage[];
 }>;
 
-export type ModelInputComposer = Readonly<{
-  compose(request: ComposeModelInputRequest): ModelInput;
+export type ModelInputResolver = Readonly<{
+  resolve(request: ResolveModelInputRequest): ModelInput;
 }>;
 
-export function createModelInputComposer(
+export function createModelInputResolver(
   campaigns: Pick<CampaignEngine, "getContextForThread">,
   promptApplications: Pick<PromptApplicationRegistry, "resolve">,
-): ModelInputComposer {
+): ModelInputResolver {
   return {
-    compose({ threadId, messages }) {
+    resolve({ threadId, messages }) {
       return requireModelInput({
         instructions: promptApplications.resolve({
           threadId,
@@ -42,7 +42,7 @@ export function createModelInputComposer(
   };
 }
 
-export class ModelInputService extends Context.Service<ModelInputService, ModelInputComposer>()(
+export class ModelInputService extends Context.Service<ModelInputService, ModelInputResolver>()(
   "@jaquelene/backend/ModelInputs",
 ) {
   static readonly layer = Layer.effect(
@@ -51,7 +51,7 @@ export class ModelInputService extends Context.Service<ModelInputService, ModelI
       const campaigns = yield* CampaignService;
       const prompts = yield* PromptService;
       return ModelInputService.of(
-        createModelInputComposer(campaigns.campaigns, prompts.applications),
+        createModelInputResolver(campaigns.campaigns, prompts.applications),
       );
     }),
   );

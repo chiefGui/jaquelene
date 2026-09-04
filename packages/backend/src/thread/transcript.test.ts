@@ -6,7 +6,7 @@ import { ThreadTranscriptEntryKind } from "@jaquelene/domain";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
-import { createModelInputComposer } from "#backend/model/input-composer";
+import { createModelInputResolver } from "#backend/model/input-resolver";
 import {
   jaqueleneNarratorPromptDefinition,
   narratorPromptKind,
@@ -34,7 +34,7 @@ function openTranscriptEnvironment(now: () => number = Date.now) {
   const threads = createThreads(database, now);
   const transcripts = createThreadTranscriptReader(
     threads,
-    createModelInputComposer(campaigns, applications),
+    createModelInputResolver(campaigns, applications),
   );
 
   return { campaigns, database, threads, transcripts };

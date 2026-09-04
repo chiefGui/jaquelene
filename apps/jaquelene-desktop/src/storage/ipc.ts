@@ -9,7 +9,7 @@ import { Storage as StorageIpc, StorageCategory as IpcStorageCategory } from "@j
 import type * as Effect from "effect/Effect";
 import type { WebFrameMain } from "electron";
 
-export type BackendEffectRunner = <Success, Failure>(
+type StorageEffectRunner = <Success, Failure>(
   effect: Effect.Effect<Success, Failure>,
 ) => Promise<Success>;
 
@@ -48,17 +48,17 @@ function toIpcAreas(value: StorageUsage | StorageDeletion) {
 export function exposeStorage(
   target: WebFrameMain,
   storage: Backend["storage"],
-  runBackendEffect: BackendEffectRunner,
+  runEffect: StorageEffectRunner,
 ) {
   StorageIpc.for(target).setImplementation({
     async measureUsage() {
-      return toIpcAreas(await runBackendEffect(storage.measureUsage()));
+      return toIpcAreas(await runEffect(storage.measureUsage()));
     },
     async deleteArea(id) {
-      return toIpcAreas(await runBackendEffect(storage.deleteArea(id)));
+      return toIpcAreas(await runEffect(storage.deleteArea(id)));
     },
     async deleteCategory(id) {
-      return toIpcAreas(await runBackendEffect(storage.deleteCategory(fromIpcCategory(id))));
+      return toIpcAreas(await runEffect(storage.deleteCategory(fromIpcCategory(id))));
     },
   });
 }

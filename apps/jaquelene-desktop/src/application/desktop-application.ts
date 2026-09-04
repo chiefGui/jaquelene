@@ -1,18 +1,8 @@
-import { BackendService } from "@jaquelene/backend";
-import { ErrorSeverity } from "@jaquelene/diagnostics";
-import { Cause, Effect, Exit, Fiber, FiberSet } from "effect";
-import { app, safeStorage } from "electron";
-import { join } from "node:path";
-import { appUrl, handleAppScheme } from "../app-protocol";
+import { Cause, Effect, Exit, ManagedRuntime } from "effect";
 import type { ApplicationDiagnostics } from "../diagnostics/diagnostics";
-import { createFavoriteModels } from "../feature/model/favorite-models";
-import { createFavoriteModelsStorage } from "../feature/model/favorite-models-store";
-import { createProviderFactories } from "../feature/provider/registry";
-import { createLocalState } from "../local-state";
 import type { Preferences } from "../preferences/preferences";
-import { createStorageAreas } from "../storage/areas";
-import { getApplicationDatabasePaths } from "./database-paths";
-import { createMainWindowManager, type MainWindowInspection } from "./main-window";
+import { createDesktopApplicationLayer } from "./layer";
+import { MainWindowService, type MainWindowInspection } from "./main-window";
 
 export type DesktopApplicationInspection = Readonly<{
   state: "starting" | "running" | "stopping" | "stopped";
@@ -45,28 +35,6 @@ function errorFromCause(cause: Cause.Cause<Error>, message: string) {
   return new AggregateError(errors, message);
 }
 
-function waitForSignal<Result>(result: Promise<Result>, signal: AbortSignal) {
-  if (signal.aborted) {
-    result.catch(() => undefined);
-    return Promise.reject(signal.reason);
-  }
-
-  let removeListener: (() => void) | undefined;
-  const interruption = new Promise<never>((_resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    signal.addEventListener("abort", onAbort, { once: true });
-    removeListener = () => signal.removeEventListener("abort", onAbort);
-  });
-
-  return Promise.race([result, interruption]).finally(removeListener);
-}
-
-async function requireSecureStorage() {
-  if (!(await safeStorage.isAsyncEncryptionAvailable())) {
-    throw new Error("Secure credential storage is unavailable.");
-  }
-}
-
 export function launchDesktopApplication({
   diagnostics,
   preferences,
@@ -76,111 +44,54 @@ export function launchDesktopApplication({
   diagnostics: ApplicationDiagnostics;
   preferences: Preferences;
   userDataDirectory: string;
-  developmentServerUrl?: string;
+  developmentServerUrl: string | undefined;
 }): DesktopApplication {
   const ready = Promise.withResolvers<void>();
   let readySettled = false;
   let state: DesktopApplicationInspection["state"] = "starting";
   let mainWindowInspection: (() => MainWindowInspection) | undefined;
   let showMainWindow: (() => Promise<void>) | undefined;
+  const applicationAbortController = new AbortController();
+  const applicationLayer = createDesktopApplicationLayer({
+    configuration: { userDataDirectory, developmentServerUrl },
+    diagnostics,
+    preferences,
+  });
+  const runtime = ManagedRuntime.make(applicationLayer);
 
-  const program = Effect.scoped(
-    Effect.gen(function* () {
-      yield* Effect.tryPromise({
-        try: (signal) => waitForSignal(app.whenReady(), signal),
-        catch: (error) => asError(error, "Electron did not become ready."),
-      });
+  const applicationProgram = Effect.gen(function* () {
+    const mainWindow = yield* MainWindowService;
+    mainWindowInspection = mainWindow.inspect;
+    showMainWindow = () => runtime.runPromise(mainWindow.show);
+    yield* mainWindow.show;
 
-      if (!developmentServerUrl) {
-        let webAppDirectory = join(app.getAppPath(), "../jaquelene-web/dist");
+    state = "running";
+    readySettled = true;
+    ready.resolve();
+    yield* Effect.never;
+  });
+  const executionResult = runtime.runPromiseExit(applicationProgram, {
+    signal: applicationAbortController.signal,
+  });
+  const result = executionResult.then(async (exit): Promise<Exit.Exit<void, Error>> => {
+    try {
+      await runtime.dispose();
+      return exit;
+    } catch (error) {
+      const disposalError = asError(error, "Could not dispose the desktop application runtime.");
 
-        if (app.isPackaged) {
-          webAppDirectory = join(process.resourcesPath, "web");
-        }
-
-        yield* Effect.acquireRelease(
-          Effect.sync(() => handleAppScheme(webAppDirectory)),
-          (registration) => Effect.sync(() => registration[Symbol.dispose]()),
+      if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
+        return Exit.fail(
+          new AggregateError(
+            [...Cause.prettyErrors(exit.cause), disposalError],
+            "Desktop application execution and cleanup failed.",
+          ),
         );
       }
 
-      const { databasePath, cachePath } = getApplicationDatabasePaths(userDataDirectory);
-      const localState = createLocalState(userDataDirectory, diagnostics);
-      const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
-      const credentialProtection = {
-        async encrypt(apiKey: string) {
-          await requireSecureStorage();
-          return safeStorage.encryptStringAsync(apiKey);
-        },
-        async decrypt(encryptedApiKey: Buffer) {
-          await requireSecureStorage();
-          const { result } = await safeStorage.decryptStringAsync(encryptedApiKey);
-          return result;
-        },
-      };
-      const providers = createProviderFactories(userDataDirectory, credentialProtection);
-      const backendLayer = BackendService.layer({
-        databasePath,
-        cache: {
-          path: cachePath,
-          reportFailure: (failure) =>
-            diagnostics.report({
-              severity: ErrorSeverity.Warning,
-              operation: `cache.${failure.operation}`,
-              error: failure.error,
-            }),
-        },
-        providers,
-        storageAreas: createStorageAreas({
-          diagnostics,
-          favoriteModels,
-          localState,
-          preferences,
-          userDataDirectory,
-        }),
-      });
-
-      yield* Effect.gen(function* () {
-        const backend = yield* BackendService;
-        const runBackendEffect = yield* FiberSet.makeRuntimePromise();
-        const mainWindow = yield* Effect.acquireRelease(
-          Effect.sync(() =>
-            createMainWindowManager({
-              rendererUrl: developmentServerUrl ?? appUrl,
-              diagnostics,
-              localState,
-              campaigns: backend.campaigns,
-              campaignUsage: backend.campaignUsage,
-              prompts: backend.prompts,
-              threads: backend.threads,
-              turns: backend.turns,
-              modelCatalog: backend.models,
-              favoriteModels,
-              preferences,
-              providers: backend.providers,
-              storage: backend.storage,
-              runBackendEffect,
-              usage: backend.usage,
-            }),
-          ),
-          (windowManager) => Effect.promise(() => windowManager[Symbol.asyncDispose]()),
-        );
-        mainWindowInspection = mainWindow.inspect;
-        showMainWindow = () => mainWindow.show();
-        yield* Effect.tryPromise({
-          try: (signal) => mainWindow.show(signal),
-          catch: (error) => asError(error, "Could not show the main window."),
-        });
-
-        state = "running";
-        readySettled = true;
-        ready.resolve();
-        yield* Effect.never;
-      }).pipe(Effect.provide(backendLayer));
-    }),
-  );
-  const fiber = Effect.runFork(program);
-  const result = Effect.runPromise(Fiber.await(fiber));
+      return Exit.fail(disposalError);
+    }
+  });
   let stopPromise: Promise<Exit.Exit<void, Error>> | undefined;
 
   void result.then((exit) => {
@@ -200,11 +111,14 @@ export function launchDesktopApplication({
 
   function stop() {
     if (!stopPromise) {
-      if (state !== "stopped") {
-        state = "stopping";
+      if (state === "stopped") {
+        stopPromise = result;
+        return stopPromise;
       }
 
-      stopPromise = Effect.runPromise(Fiber.interrupt(fiber)).then(() => result);
+      state = "stopping";
+      applicationAbortController.abort();
+      stopPromise = result;
     }
 
     return stopPromise;
@@ -222,16 +136,11 @@ export function launchDesktopApplication({
       await showMainWindow();
     },
     inspect: () => {
-      const inspection: {
-        state: DesktopApplicationInspection["state"];
-        window?: MainWindowInspection;
-      } = { state };
-
       if (mainWindowInspection) {
-        inspection.window = mainWindowInspection();
+        return { state, window: mainWindowInspection() };
       }
 
-      return inspection;
+      return { state };
     },
     stop,
   };

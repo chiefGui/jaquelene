@@ -11,7 +11,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useId, useState, type ReactNode } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { CampaignNarratorControl } from "@/feature/narrator/campaign-control";
-import { useIsTurnOperationPending } from "@/feature/thread/query";
+import { useIsThreadOperationPending } from "@/feature/thread/query";
 import { SecondarySidebar } from "@/layout/secondary-sidebar";
 import { summarizeCosts } from "@/feature/usage/presentation";
 import { useDeleteCampaign, useIsCampaignMutationPending } from "./query";
@@ -39,7 +39,7 @@ function TranscriptAction({ campaignId }: { campaignId: string }) {
 function DeleteAction({ campaign, replyActive }: { campaign: Campaign; replyActive: boolean }) {
   const deleteCampaign = useDeleteCampaign(campaign);
   const campaignMutationPending = useIsCampaignMutationPending(campaign.id);
-  const turnOperationPending = useIsTurnOperationPending(campaign.threadId);
+  const threadOperationPending = useIsThreadOperationPending(campaign.threadId);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -70,7 +70,7 @@ function DeleteAction({ campaign, replyActive }: { campaign: Campaign; replyActi
     }
   }
 
-  const unavailable = campaignMutationPending || turnOperationPending || replyActive;
+  const unavailable = campaignMutationPending || threadOperationPending || replyActive;
   let confirmLabel = "Delete";
   let deletionError: string | undefined;
 

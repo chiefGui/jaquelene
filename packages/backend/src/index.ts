@@ -127,6 +127,7 @@ export type { Threads } from "#backend/thread/subsystem";
 export type { ThreadActivity } from "#backend/thread/threads";
 export type {
   DeleteThreadHistoryRequest,
+  EditThreadMessageRequest,
   RegenerateReplyRequest,
   RetryTurnRequest,
   SubmitTurnRequest,
@@ -135,6 +136,6 @@ export type {
   Turns,
   TurnAcceptance,
   TurnOperation,
-  TurnOperationInspection,
+  ThreadOperationInspection,
   TurnSettlement,
 } from "#backend/turn/turns";

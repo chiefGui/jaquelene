@@ -4,7 +4,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { colors, radii, shadows, tokens } from "../tokens.stylex";
 import { Button, type ButtonProps } from "./button";
 
-export type ChipActionProps = Omit<ButtonProps, "size" | "style" | "tone" | "variant"> & {
+export type ChipActionProps = Omit<ButtonProps, "shape" | "size" | "style" | "tone" | "variant"> & {
   style?: StyleXStyles;
 };
 

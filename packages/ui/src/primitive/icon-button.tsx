@@ -2,6 +2,7 @@ import { Role, type RoleProps } from "@ariakit/react/role";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ReactNode } from "react";
+import { tokens } from "../tokens.stylex";
 import { Button, type ButtonProps } from "./button";
 
 type IconButtonSize = Exclude<ButtonProps["size"], undefined>;
@@ -56,8 +57,8 @@ const styles = stylex.create({
     height: "1em",
     width: "1em",
   },
-  medium: { fontSize: "1rem" },
-  small: { fontSize: "0.875rem" },
+  medium: { fontSize: tokens.controlIconSize },
+  small: { fontSize: tokens.controlIconSizeSmall },
 });
 
 const iconSizeStyles = {

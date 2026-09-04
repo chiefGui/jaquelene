@@ -101,6 +101,8 @@ export const tokens = stylex.defineConsts({
   // Control geometry
   controlHeight: "2rem",
   controlHeightSmall: "1.5rem",
+  controlIconSize: "1rem",
+  controlIconSizeSmall: "0.75rem",
 
   // Typography
   fontGeist: '"Geist Variable", ui-sans-serif, system-ui, sans-serif',

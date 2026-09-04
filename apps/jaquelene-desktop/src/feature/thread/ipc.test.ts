@@ -28,6 +28,7 @@ const implementations = vi.hoisted(() => ({
   dispatchReplyCompleted: vi.fn<(completion: IpcCompletedReply) => void>(),
   dispatchReplySuperseded: vi.fn<(reply: IpcSupersededReply) => void>(),
   dispatchHistoryDeleted: vi.fn<(deletion: IpcThreadHistoryDeletion) => void>(),
+  dispatchMessageEdited: vi.fn(),
 }));
 
 vi.mock("@jaquelene/ipc/main", () => ({
@@ -78,6 +79,7 @@ vi.mock("@jaquelene/ipc/main", () => ({
           dispatchReplyCompleted: implementations.dispatchReplyCompleted,
           dispatchReplySuperseded: implementations.dispatchReplySuperseded,
           dispatchHistoryDeleted: implementations.dispatchHistoryDeleted,
+          dispatchMessageEdited: implementations.dispatchMessageEdited,
         };
       },
     }),
@@ -202,6 +204,7 @@ function createBackendTurnsStub(
 ): ThreadMessagingTurns {
   return {
     deleteFrom: vi.fn(),
+    editMessage: vi.fn(),
     listForThread: vi.fn(emptyPage),
     regenerate: vi.fn(),
     submit: vi.fn(),
@@ -233,6 +236,7 @@ beforeEach(() => {
   implementations.dispatchReplyCompleted.mockClear();
   implementations.dispatchReplySuperseded.mockClear();
   implementations.dispatchHistoryDeleted.mockClear();
+  implementations.dispatchMessageEdited.mockClear();
 });
 
 describe("thread IPC", () => {
@@ -711,6 +715,34 @@ describe("thread IPC", () => {
     expect(implementations.dispatchHistoryDeleted).toHaveBeenCalledWith(result);
   });
 
+  it("edits a message through its typed identity and publishes the committed message", async () => {
+    const { acceptance } = createTurnState();
+    const editedMessage = { ...acceptance.userMessage, content: "Edited message" };
+    const editMessage = vi.fn<ThreadMessagingTurns["editMessage"]>(() => editedMessage);
+    const backendTurns = createBackendTurnsStub({ editMessage });
+
+    exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
+    const result = await requireImplementations().turns.editMessage({
+      messageId: editedMessage.id,
+      content: editedMessage.content,
+    });
+
+    expect(editMessage).toHaveBeenCalledWith({
+      messageId: editedMessage.id,
+      content: editedMessage.content,
+    });
+    expect(result).toEqual({
+      id: editedMessage.id,
+      threadId: editedMessage.threadId,
+      turnId: editedMessage.turnId,
+      sequence: editedMessage.sequence,
+      author: "user",
+      content: editedMessage.content,
+      createdAt: editedMessage.createdAt,
+    });
+    expect(implementations.dispatchMessageEdited).toHaveBeenCalledWith(result);
+  });
+
   it("rejects malformed TypeIDs at the adapter boundary", async () => {
     const getTranscript = vi.fn<ThreadMessagingThreads["getTranscript"]>();
     const listForThread = vi.fn(emptyPage);
@@ -718,8 +750,10 @@ describe("thread IPC", () => {
     const submit = vi.fn();
     const retry = vi.fn();
     const deleteFrom = vi.fn<ThreadMessagingTurns["deleteFrom"]>();
+    const editMessage = vi.fn<ThreadMessagingTurns["editMessage"]>();
     const backendTurns = createBackendTurnsStub({
       deleteFrom,
+      editMessage,
       listForThread,
       regenerate,
       submit,
@@ -750,6 +784,9 @@ describe("thread IPC", () => {
     await expect(
       ipc.turns.regenerate({ assistantMessageId: "invalid", configuration }),
     ).rejects.toThrow(TypeError);
+    expect(() => ipc.turns.editMessage({ messageId: "invalid", content: "Edited" })).toThrow(
+      TypeError,
+    );
     expect(() =>
       ipc.turns.deleteFrom({ threadId: "invalid", userMessageId: ids.message.create() }),
     ).toThrow(TypeError);
@@ -761,6 +798,7 @@ describe("thread IPC", () => {
     expect(submit).not.toHaveBeenCalled();
     expect(retry).not.toHaveBeenCalled();
     expect(regenerate).not.toHaveBeenCalled();
+    expect(editMessage).not.toHaveBeenCalled();
     expect(deleteFrom).not.toHaveBeenCalled();
   });
 });

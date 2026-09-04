@@ -130,6 +130,52 @@ describe("threads", () => {
     ).toEqual({ lastActivityAt: second.message.createdAt, turnCount: 2 });
   });
 
+  it("replaces user and assistant content without changing message identity or activity", () => {
+    let timestamp = 250;
+    const { database, threads } = openThreads(createDatabasePath(), () => timestamp++);
+    const thread = threads.create();
+    const turn = threads.startTurn(thread.id, "Original user message");
+    const reply = database.transaction((transaction) =>
+      appendAssistantMessageInTransaction(transaction, {
+        threadId: thread.id,
+        turnId: turn.turn.id,
+        parentMessageId: turn.message.id,
+        activateIfMessageId: turn.message.id,
+        content: "Original assistant message",
+        createdAt: timestamp++,
+      }),
+    );
+    const activityBeforeEdit = database
+      .select({
+        lastActivityAt: threadTable.lastActivityAt,
+        turnCount: threadTable.turnCount,
+      })
+      .from(threadTable)
+      .where(eq(threadTable.id, thread.id))
+      .get();
+
+    expect(
+      threads.editMessage({ messageId: turn.message.id, content: "Edited user message" }),
+    ).toEqual({ ...turn.message, content: "Edited user message" });
+    expect(
+      threads.editMessage({ messageId: reply.message.id, content: "Edited assistant message" }),
+    ).toEqual({ ...reply.message, content: "Edited assistant message" });
+    expect(threads.listMessages({ threadId: thread.id, direction: "older" }).messages).toEqual([
+      { ...turn.message, content: "Edited user message" },
+      { ...reply.message, content: "Edited assistant message" },
+    ]);
+    expect(
+      database
+        .select({
+          lastActivityAt: threadTable.lastActivityAt,
+          turnCount: threadTable.turnCount,
+        })
+        .from(threadTable)
+        .where(eq(threadTable.id, thread.id))
+        .get(),
+    ).toEqual(activityBeforeEdit);
+  });
+
   it("follows message ancestry for a turn without leaking sibling branches", () => {
     const { database, threads } = openThreads(createDatabasePath(), () => 300);
     const thread = threads.create();
@@ -734,6 +780,15 @@ describe("threads", () => {
     expect(() => threads.getTurnContext(missingTurnId)).toThrow(
       `Turn "${missingTurnId}" does not exist.`,
     );
+    expect(() =>
+      threads.editMessage({ messageId: ids.message.create(), content: "Missing" }),
+    ).toThrow(RangeError);
+    expect(() =>
+      threads.editMessage({
+        messageId: threads.startTurn(thread.id, "Valid").message.id,
+        content: " \n\t ",
+      }),
+    ).toThrow(TypeError);
   });
 
   it("rejects malformed, missing, and cross-thread message cursors", () => {

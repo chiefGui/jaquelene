@@ -1,12 +1,12 @@
 import ConnectIcon from "@hugeicons/core-free-icons/ConnectIcon";
 import ChartHistogramIcon from "@hugeicons/core-free-icons/ChartHistogramIcon";
 import HardDriveIcon from "@hugeicons/core-free-icons/HardDriveIcon";
-import Edit02Icon from "@hugeicons/core-free-icons/Edit02Icon";
 import PaletteIcon from "@hugeicons/core-free-icons/PaletteIcon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import ToolsIcon from "@hugeicons/core-free-icons/ToolsIcon";
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { PrimarySidebar } from "@/layout/primary-sidebar";
+import { EditIcon } from "@/primitive/icons";
 
 function SettingsSidebar() {
   return (
@@ -38,7 +38,7 @@ function SettingsSidebar() {
           },
           {
             id: "markdown-editor",
-            icon: Edit02Icon,
+            icon: EditIcon,
             label: "Editor lab",
             replace: true,
             to: "/settings/markdown-editor",

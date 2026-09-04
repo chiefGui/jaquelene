@@ -1,7 +1,6 @@
 import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
 import Bookmark02Icon from "@hugeicons/core-free-icons/Bookmark02Icon";
-import Edit02Icon from "@hugeicons/core-free-icons/Edit02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PromptOrigin, narratorPromptKindKey } from "@jaquelene/domain";
 import type { CustomPrompt, Prompt, PromptKind } from "@jaquelene/ipc/renderer";
@@ -21,6 +20,7 @@ import {
 } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
+import { EditIcon } from "@/primitive/icons";
 
 type SetPromptDefaultMutation = ReturnType<typeof useSetPromptDefault>;
 
@@ -59,7 +59,7 @@ function NarratorPromptEditAction({ prompt }: { prompt: CustomPrompt }) {
             aria-label={`Edit ${prompt.title}`}
             style={styles.promptAction}
           >
-            <IconButton.Icon render={<HugeiconsIcon icon={Edit02Icon} />} />
+            <IconButton.Icon render={<HugeiconsIcon icon={EditIcon} />} />
           </IconButton.Root>
         }
       />

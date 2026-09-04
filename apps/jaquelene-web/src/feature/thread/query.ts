@@ -3,6 +3,7 @@ import {
   Threads,
   Turns,
   type RequestedModelConfiguration,
+  type ThreadMessage,
   type ThreadMessagePageRequest,
 } from "@jaquelene/ipc/renderer";
 import {
@@ -24,6 +25,7 @@ import {
   isLatestThreadHistory,
   latestThreadHistoryPageParam,
   reconcileThreadTurn,
+  reconcileThreadMessageEdit,
   requireValidThreadHistory,
   retainThreadHistory,
   type ThreadHistoryPageParam,
@@ -37,7 +39,9 @@ const submitTurn = requireIpcMethod(Turns?.submit);
 const retryTurn = requireIpcMethod(Turns?.retry);
 const regenerateReply = requireIpcMethod(Turns?.regenerate);
 const deleteThreadHistory = requireIpcMethod(Turns?.deleteFrom);
+const editThreadMessage = requireIpcMethod(Turns?.editMessage);
 const onHistoryDeleted = requireIpcMethod(Turns?.onHistoryDeleted);
+const onMessageEdited = requireIpcMethod(Turns?.onMessageEdited);
 const onReplyFailed = requireIpcMethod(Turns?.onReplyFailed);
 const onReplyCompleted = requireIpcMethod(Turns?.onReplyCompleted);
 const onReplySuperseded = requireIpcMethod(Turns?.onReplySuperseded);
@@ -95,8 +99,8 @@ function turnMutationScope(threadId: string) {
   return { id: `thread:${threadId}:generation` };
 }
 
-function turnMutationKey(threadId: string) {
-  return [...threadQueryKey, threadId, "turn"] as const;
+function threadOperationMutationKey(threadId: string) {
+  return [...threadQueryKey, threadId, "operation"] as const;
 }
 
 function copyRequestedModelConfiguration(
@@ -156,6 +160,32 @@ function reloadThread(queryClient: QueryClient, threadId: string) {
   return queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
 }
 
+function applyThreadMessageEdit(queryClient: QueryClient, message: ThreadMessage) {
+  const query = threadMessagesQuery(message.threadId);
+  const current = queryClient.getQueryData<ThreadQueryData>(query.queryKey);
+
+  if (!current) {
+    return;
+  }
+
+  const reconciliation = reconcileThreadMessageEdit(current, message);
+
+  switch (reconciliation.outcome) {
+    case "updated":
+      queryClient.setQueryData(query.queryKey, reconciliation.data);
+      return;
+    case "current":
+    case "historical":
+      return;
+    case "reload":
+      reportError(
+        "thread.message.edit.reconcile",
+        new Error(`Could not apply edited message "${message.id}" to its thread.`),
+      );
+      return queryClient.resetQueries({ queryKey: query.queryKey, exact: true });
+  }
+}
+
 function refreshCampaignUsage(queryClient: QueryClient) {
   void invalidateCampaignUsage(queryClient).catch((cause: unknown) =>
     reportError("campaign.usage.refresh", cause),
@@ -197,15 +227,15 @@ export function useReturnToLatestThreadMessages(threadId: string) {
   });
 }
 
-export function useIsTurnOperationPending(threadId: string) {
-  return useIsMutating({ mutationKey: turnMutationKey(threadId) }) > 0;
+export function useIsThreadOperationPending(threadId: string) {
+  return useIsMutating({ mutationKey: threadOperationMutationKey(threadId) }) > 0;
 }
 
 export function usePendingTurnSubmission(threadId: string) {
   const pending = useMutationState<SubmitTurnVariables>({
     filters: {
       exact: true,
-      mutationKey: [...turnMutationKey(threadId), "submit"],
+      mutationKey: [...threadOperationMutationKey(threadId), "submit"],
       status: "pending",
     },
     select: (mutation) => mutation.state.variables as SubmitTurnVariables,
@@ -216,7 +246,10 @@ export function usePendingTurnSubmission(threadId: string) {
 
 export function installThreadReconciliation(queryClient: QueryClient) {
   function runReconciliation(
-    operation: "thread.turn.settlement" | "thread.history.delete.reconcile",
+    operation:
+      | "thread.turn.settlement"
+      | "thread.history.delete.reconcile"
+      | "thread.message.edit.reconcile",
     reconcile: () => unknown,
   ) {
     try {
@@ -255,12 +288,18 @@ export function installThreadReconciliation(queryClient: QueryClient) {
       queryClient.resetQueries({ queryKey: threadMessagesQuery(threadId).queryKey, exact: true }),
     );
   });
+  const stopMessageEditedListener = onMessageEdited((message) => {
+    runReconciliation("thread.message.edit.reconcile", () =>
+      applyThreadMessageEdit(queryClient, message),
+    );
+  });
 
   return () => {
     stopFailureListener();
     stopCompletionListener();
     stopSupersededListener();
     stopHistoryDeletedListener();
+    stopMessageEditedListener();
   };
 }
 
@@ -269,7 +308,7 @@ export function useSubmitTurn(threadId: string) {
 
   return useMutation({
     ...ipcMutationOptions,
-    mutationKey: [...turnMutationKey(threadId), "submit"],
+    mutationKey: [...threadOperationMutationKey(threadId), "submit"],
     scope: turnMutationScope(threadId),
     mutationFn: ({ content, configuration }: SubmitTurnVariables) =>
       submitTurn({
@@ -298,7 +337,7 @@ export function useRetryTurn(threadId: string) {
 
   return useMutation({
     ...ipcMutationOptions,
-    mutationKey: [...turnMutationKey(threadId), "retry"],
+    mutationKey: [...threadOperationMutationKey(threadId), "retry"],
     scope: turnMutationScope(threadId),
     mutationFn: ({
       turnId,
@@ -322,7 +361,7 @@ export function useRegenerateReply(threadId: string) {
 
   return useMutation({
     ...ipcMutationOptions,
-    mutationKey: [...turnMutationKey(threadId), "regenerate"],
+    mutationKey: [...threadOperationMutationKey(threadId), "regenerate"],
     scope: turnMutationScope(threadId),
     mutationFn: ({
       assistantMessageId,
@@ -352,7 +391,21 @@ export function useRegenerateReply(threadId: string) {
 export function useDeleteThreadHistoryFromMessage(threadId: string) {
   return useMutation({
     ...ipcMutationOptions,
-    mutationKey: [...turnMutationKey(threadId), "delete-history-from-message"],
+    mutationKey: [...threadOperationMutationKey(threadId), "delete-history-from-message"],
     mutationFn: (userMessageId: string) => deleteThreadHistory({ threadId, userMessageId }),
+  });
+}
+
+export function useEditThreadMessage(threadId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    ...ipcMutationOptions,
+    mutationKey: [...threadOperationMutationKey(threadId), "edit-message"],
+    mutationFn: ({ messageId, content }: { messageId: string; content: string }) =>
+      editThreadMessage({ messageId, content }),
+    onSuccess(message) {
+      return applyThreadMessageEdit(queryClient, message);
+    },
   });
 }

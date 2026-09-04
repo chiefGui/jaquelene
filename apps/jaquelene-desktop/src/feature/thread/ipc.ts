@@ -30,14 +30,17 @@ import {
 
 type ThreadMessagingTurns = Pick<
   Turns,
-  "deleteFrom" | "listForThread" | "regenerate" | "retry" | "submit"
+  "deleteFrom" | "editMessage" | "listForThread" | "regenerate" | "retry" | "submit"
 >;
 type ThreadMessagingThreads = Pick<Threads, "getTranscript">;
 type TurnGenerationOperation =
   | "thread.reply.regenerate"
   | "thread.turn.retry"
   | "thread.turn.submit";
-type ThreadChangeOperation = TurnGenerationOperation | "thread.history.delete";
+type ThreadChangeOperation =
+  | TurnGenerationOperation
+  | "thread.history.delete"
+  | "thread.message.edit";
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
   switch (author) {
@@ -303,6 +306,18 @@ export function createThreadMessaging(
       });
 
       const dispatcher = TurnsIpc.for(target).setImplementation({
+        editMessage(request) {
+          const message = toIpcMessage(
+            turns.editMessage({
+              messageId: ids.message.parse(request.messageId),
+              content: request.content,
+            }),
+          );
+          publishThreadChange("thread.message.edit", (destination) =>
+            destination.dispatchMessageEdited(message),
+          );
+          return message;
+        },
         deleteFrom(request) {
           const deletion = toIpcHistoryDeletion(
             turns.deleteFrom({

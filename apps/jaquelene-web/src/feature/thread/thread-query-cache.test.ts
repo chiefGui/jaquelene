@@ -15,6 +15,7 @@ import {
   createLatestThreadHistory,
   isLatestThreadHistory,
   latestThreadHistoryPageParam,
+  reconcileThreadMessageEdit,
   reconcileThreadTurn,
   requireValidThreadHistory,
   retainThreadHistory,
@@ -26,6 +27,13 @@ const threadId = "thread-test";
 const defaultContentByteBudget = 128 * 1024;
 const textEncoder = new TextEncoder();
 
+type PageOptions = {
+  contentByteBudget?: number;
+  messageCountLimit?: number;
+  olderCursor?: string;
+  newerCursor?: string;
+};
+
 function page(
   messages: ThreadMessage[],
   generations: TurnGeneration[],
@@ -34,12 +42,7 @@ function page(
     messageCountLimit = 50,
     olderCursor,
     newerCursor,
-  }: Readonly<{
-    contentByteBudget?: number;
-    messageCountLimit?: number;
-    olderCursor?: string;
-    newerCursor?: string;
-  }> = {},
+  }: Readonly<PageOptions> = {},
 ): ThreadMessagePage {
   return {
     messages,
@@ -148,6 +151,121 @@ function requireUpdated(data: ThreadQueryData, update: ThreadTurnUpdate) {
 }
 
 describe("thread query cache", () => {
+  it("repartitions edited content while preserving a valid latest window", () => {
+    const first = failedTurn(1);
+    const second = failedTurn(2);
+    const third = failedTurn(3);
+    first.userMessage.content = "1111";
+    second.userMessage.content = "2222";
+    third.userMessage.content = "3333";
+    const data: ThreadQueryData = {
+      pages: [
+        page([second.userMessage, third.userMessage], [second.generation, third.generation], {
+          contentByteBudget: 8,
+          olderCursor: first.userMessage.id,
+        }),
+        page([first.userMessage], [first.generation], {
+          contentByteBudget: 8,
+          newerCursor: second.userMessage.id,
+        }),
+      ],
+      pageParams: [latestThreadHistoryPageParam, olderPageParam(first.userMessage.id)],
+    };
+    const editedMessage = { ...second.userMessage, content: "222222" };
+    const reconciliation = reconcileThreadMessageEdit(data, editedMessage);
+
+    if (reconciliation.outcome !== "updated") {
+      throw new Error(`Expected an updated cache, received ${reconciliation.outcome}.`);
+    }
+
+    expect(
+      reconciliation.data.pages.map(({ messages }) =>
+        messages.map(({ sequence, content }) => [sequence, content]),
+      ),
+    ).toEqual([[[3, "3333"]], [[2, "222222"]], [[1, "1111"]]]);
+    expect(reconciliation.data.pageParams).toEqual([
+      latestThreadHistoryPageParam,
+      olderPageParam(second.userMessage.id),
+      olderPageParam(first.userMessage.id),
+    ]);
+    expect(() => requireValidThreadHistory(reconciliation.data, threadId)).not.toThrow();
+  });
+
+  it("retains an oversized edited message and its historical cursors", () => {
+    const turns = Array.from({ length: 3 }, (_, index) => failedTurn(index + 1));
+
+    for (const turn of turns) {
+      turn.userMessage.content = "\u6f22".repeat(100_000);
+    }
+
+    const data: ThreadQueryData = {
+      pages: turns.toReversed().map(({ userMessage, generation }, index, pages) => {
+        const newerPage = pages[index - 1];
+        const olderPage = pages[index + 1];
+        const options: PageOptions = {};
+
+        if (olderPage) {
+          options.olderCursor = olderPage.userMessage.id;
+        }
+
+        if (newerPage) {
+          options.newerCursor = newerPage.userMessage.id;
+        }
+
+        return page([userMessage], [generation], options);
+      }),
+      pageParams: [
+        latestThreadHistoryPageParam,
+        olderPageParam(turns[1]!.userMessage.id),
+        olderPageParam(turns[0]!.userMessage.id),
+      ],
+    };
+    const target = turns[1]!.userMessage;
+    const editedMessage = { ...target, content: "\u754c".repeat(100_000) };
+    const reconciliation = reconcileThreadMessageEdit(data, editedMessage);
+
+    if (reconciliation.outcome !== "updated") {
+      throw new Error(`Expected an updated cache, received ${reconciliation.outcome}.`);
+    }
+
+    expect(reconciliation.data.pages).toHaveLength(1);
+    expect(reconciliation.data.pages[0]).toEqual(
+      expect.objectContaining({
+        messages: [editedMessage],
+        newerCursor: turns[2]!.userMessage.id,
+        olderCursor: turns[0]!.userMessage.id,
+        contentBytes: 300_000,
+      }),
+    );
+    expect(reconciliation.data.pageParams).toEqual([olderPageParam(editedMessage.id)]);
+    expect(isLatestThreadHistory(reconciliation.data)).toBe(false);
+    expect(() => requireValidThreadHistory(reconciliation.data, threadId)).not.toThrow();
+  });
+
+  it("ignores unloaded edits and rejects immutable message changes", () => {
+    const turn = failedTurn(1);
+    const data: ThreadQueryData = {
+      pages: [page([turn.userMessage], [turn.generation])],
+      pageParams: [latestThreadHistoryPageParam],
+    };
+
+    expect(
+      reconcileThreadMessageEdit(data, {
+        ...turn.userMessage,
+        id: "message-outside-window",
+        sequence: 2,
+        content: "Edited elsewhere",
+      }),
+    ).toEqual({ outcome: "current" });
+    expect(
+      reconcileThreadMessageEdit(data, {
+        ...turn.userMessage,
+        author: ThreadMessageAuthor.Assistant,
+        content: "Inconsistent edit",
+      }),
+    ).toEqual({ outcome: "reload" });
+  });
+
   it("uses server page capacity when an accepted turn overflows the latest page", () => {
     const first = failedTurn(1);
     const second = failedTurn(2);

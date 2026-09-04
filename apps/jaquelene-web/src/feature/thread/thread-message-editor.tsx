@@ -55,7 +55,7 @@ export default function ThreadMessageEditor({
   const saveRequestPending = useRef(false);
   const errorId = useId();
   const empty = !draft.trim();
-  let saveDisabled = pending || draft === session.originalContent;
+  let saveDisabled = pending;
   const errorDescription: { "aria-describedby"?: string } = {};
 
   if (empty && !onDelete) {
@@ -95,6 +95,11 @@ export default function ThreadMessageEditor({
     event.preventDefault();
 
     if (saveDisabled || empty) {
+      return;
+    }
+
+    if (draft === session.originalContent) {
+      onCancel();
       return;
     }
 

@@ -17,6 +17,7 @@ import {
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import {
   remeasureStorageUsage,
   storageUsageQuery,
@@ -24,7 +25,6 @@ import {
   useDeleteStorageCategory,
 } from "@/feature/storage/query";
 import { ContentPane } from "@/layout/content-pane";
-import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/storage")({
   loader: {
@@ -79,21 +79,6 @@ async function remeasureStorage(operation: string, queryClient: QueryClient) {
   } catch (cause) {
     reportError(operation, cause);
   }
-}
-
-function StorageHeader() {
-  return (
-    <ContentPane.Header>
-      <Breadcrumb.Root>
-        <Breadcrumb.List>
-          <Breadcrumb.Item>Settings</Breadcrumb.Item>
-          <Breadcrumb.Item>
-            <Breadcrumb.Page>Storage</Breadcrumb.Page>
-          </Breadcrumb.Item>
-        </Breadcrumb.List>
-      </Breadcrumb.Root>
-    </ContentPane.Header>
-  );
 }
 
 function StorageUsageBreakdown({ categories }: { categories: readonly StorageCategoryView[] }) {
@@ -224,7 +209,7 @@ function StorageRouteError() {
 
   return (
     <>
-      <StorageHeader />
+      <SettingsSubpageHeader page="Storage" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>
@@ -280,7 +265,7 @@ function StorageRoute() {
 
   return (
     <>
-      <StorageHeader />
+      <SettingsSubpageHeader page="Storage" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

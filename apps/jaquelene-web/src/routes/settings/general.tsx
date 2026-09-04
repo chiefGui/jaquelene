@@ -10,8 +10,8 @@ import {
 } from "@/feature/campaign/preferences";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import { ModelPicker } from "@/feature/model/picker";
+import { SettingsLandingHeader } from "@/feature/settings/header";
 import { ContentPane } from "@/layout/content-pane";
-import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/general")({
   loader: async ({ context }) => {
@@ -33,16 +33,7 @@ function GeneralRoute() {
 
   return (
     <>
-      <ContentPane.Header>
-        <Breadcrumb.Root>
-          <Breadcrumb.List>
-            <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Item>
-              <Breadcrumb.Page>General</Breadcrumb.Page>
-            </Breadcrumb.Item>
-          </Breadcrumb.List>
-        </Breadcrumb.Root>
-      </ContentPane.Header>
+      <SettingsLandingHeader />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

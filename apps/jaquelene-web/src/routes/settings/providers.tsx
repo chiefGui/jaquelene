@@ -27,8 +27,8 @@ import {
   useClearProviderConfiguration,
   useConfigureProviderApiKey,
 } from "@/feature/provider/query";
+import { SettingsSubpageHeader } from "@/feature/settings/header";
 import { ContentPane } from "@/layout/content-pane";
-import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/providers")({
   loader: ({ context }) => context.queryClient.query(providersQuery),
@@ -271,16 +271,7 @@ function ProvidersRoute() {
 
   return (
     <>
-      <ContentPane.Header>
-        <Breadcrumb.Root>
-          <Breadcrumb.List>
-            <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Item>
-              <Breadcrumb.Page>Providers</Breadcrumb.Page>
-            </Breadcrumb.Item>
-          </Breadcrumb.List>
-        </Breadcrumb.Root>
-      </ContentPane.Header>
+      <SettingsSubpageHeader page="Providers" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

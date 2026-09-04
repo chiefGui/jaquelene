@@ -66,13 +66,16 @@ function EditPromptRoute() {
   return (
     <>
       <ContentPane.Header>
+        <ContentPane.Back
+          render={<Link to="/library/narrator" replace />}
+          aria-label="Back to narrator"
+        />
+
         <Breadcrumb.Root>
           <Breadcrumb.List>
             <Breadcrumb.Item>Library</Breadcrumb.Item>
             <Breadcrumb.Item>
-              <Breadcrumb.Link render={<Link to="/library/narrator" replace />}>
-                Narrator
-              </Breadcrumb.Link>
+              <Breadcrumb.Link to="/library/narrator">Narrator</Breadcrumb.Link>
             </Breadcrumb.Item>
             <Breadcrumb.Item>
               <Breadcrumb.Page

@@ -14,6 +14,7 @@ import { createStorageAreas } from "../storage/areas";
 import { DesktopConfigurationService, type DesktopConfiguration } from "./configuration";
 import { getApplicationDatabasePaths } from "./database-paths";
 import { MainWindowService } from "./main-window";
+import { RendererService } from "./renderer";
 
 export type DesktopApplicationLayerOptions = Readonly<{
   configuration: DesktopConfiguration;
@@ -86,17 +87,10 @@ export function createDesktopApplicationLayer({
   const configurationLayer = DesktopConfigurationService.layer(configuration);
   const diagnosticsLayer = ApplicationDiagnosticsService.layer(diagnostics);
   const preferencesLayer = PreferencesService.layer(preferences);
-  const localStateLayer = LocalStateService.layer.pipe(
-    Layer.provide(Layer.merge(configurationLayer, diagnosticsLayer)),
-  );
-  const favoriteModelsLayer = FavoriteModelsService.layer.pipe(Layer.provide(configurationLayer));
-  const environmentLayer = Layer.mergeAll(
-    configurationLayer,
-    diagnosticsLayer,
-    preferencesLayer,
-    localStateLayer,
-    favoriteModelsLayer,
-  );
+  const baseLayer = Layer.mergeAll(configurationLayer, diagnosticsLayer, preferencesLayer);
+  const rendererLayer = RendererService.layer.pipe(Layer.provideMerge(baseLayer));
+  const localCapabilitiesLayer = Layer.merge(LocalStateService.layer, FavoriteModelsService.layer);
+  const environmentLayer = localCapabilitiesLayer.pipe(Layer.provideMerge(rendererLayer));
   const backendLayer = createBackendLayer().pipe(Layer.provideMerge(environmentLayer));
 
   return MainWindowService.layer.pipe(Layer.provide(backendLayer));

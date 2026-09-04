@@ -1,7 +1,4 @@
-import { Cause, Effect, Exit, Fiber, FiberSet } from "effect";
-import { app } from "electron";
-import { join } from "node:path";
-import { handleAppScheme } from "../app-protocol";
+import { Cause, Effect, Exit, ManagedRuntime } from "effect";
 import type { ApplicationDiagnostics } from "../diagnostics/diagnostics";
 import type { Preferences } from "../preferences/preferences";
 import { createDesktopApplicationLayer } from "./layer";
@@ -38,22 +35,6 @@ function errorFromCause(cause: Cause.Cause<Error>, message: string) {
   return new AggregateError(errors, message);
 }
 
-function waitForSignal<Result>(result: Promise<Result>, signal: AbortSignal) {
-  if (signal.aborted) {
-    result.catch(() => undefined);
-    return Promise.reject(signal.reason);
-  }
-
-  let removeListener: (() => void) | undefined;
-  const interruption = new Promise<never>((_resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    signal.addEventListener("abort", onAbort, { once: true });
-    removeListener = () => signal.removeEventListener("abort", onAbort);
-  });
-
-  return Promise.race([result, interruption]).finally(removeListener);
-}
-
 export function launchDesktopApplication({
   diagnostics,
   preferences,
@@ -70,17 +51,18 @@ export function launchDesktopApplication({
   let state: DesktopApplicationInspection["state"] = "starting";
   let mainWindowInspection: (() => MainWindowInspection) | undefined;
   let showMainWindow: (() => Promise<void>) | undefined;
+  const applicationAbortController = new AbortController();
   const applicationLayer = createDesktopApplicationLayer({
     configuration: { userDataDirectory, developmentServerUrl },
     diagnostics,
     preferences,
   });
+  const runtime = ManagedRuntime.make(applicationLayer);
 
   const applicationProgram = Effect.gen(function* () {
     const mainWindow = yield* MainWindowService;
-    const runApplicationEffect = yield* FiberSet.makeRuntimePromise();
     mainWindowInspection = mainWindow.inspect;
-    showMainWindow = () => runApplicationEffect(mainWindow.show);
+    showMainWindow = () => runtime.runPromise(mainWindow.show);
     yield* mainWindow.show;
 
     state = "running";
@@ -88,31 +70,28 @@ export function launchDesktopApplication({
     ready.resolve();
     yield* Effect.never;
   });
-  const program = Effect.scoped(
-    Effect.gen(function* () {
-      yield* Effect.tryPromise({
-        try: (signal) => waitForSignal(app.whenReady(), signal),
-        catch: (error) => asError(error, "Electron did not become ready."),
-      });
+  const executionResult = runtime.runPromiseExit(applicationProgram, {
+    signal: applicationAbortController.signal,
+  });
+  const result = executionResult.then(async (exit): Promise<Exit.Exit<void, Error>> => {
+    try {
+      await runtime.dispose();
+      return exit;
+    } catch (error) {
+      const disposalError = asError(error, "Could not dispose the desktop application runtime.");
 
-      if (!developmentServerUrl) {
-        let webAppDirectory = join(app.getAppPath(), "../jaquelene-web/dist");
-
-        if (app.isPackaged) {
-          webAppDirectory = join(process.resourcesPath, "web");
-        }
-
-        yield* Effect.acquireRelease(
-          Effect.sync(() => handleAppScheme(webAppDirectory)),
-          (registration) => Effect.sync(() => registration[Symbol.dispose]()),
+      if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
+        return Exit.fail(
+          new AggregateError(
+            [...Cause.prettyErrors(exit.cause), disposalError],
+            "Desktop application execution and cleanup failed.",
+          ),
         );
       }
 
-      yield* applicationProgram.pipe(Effect.provide(applicationLayer));
-    }),
-  );
-  const fiber = Effect.runFork(program);
-  const result = Effect.runPromise(Fiber.await(fiber));
+      return Exit.fail(disposalError);
+    }
+  });
   let stopPromise: Promise<Exit.Exit<void, Error>> | undefined;
 
   void result.then((exit) => {
@@ -132,11 +111,14 @@ export function launchDesktopApplication({
 
   function stop() {
     if (!stopPromise) {
-      if (state !== "stopped") {
-        state = "stopping";
+      if (state === "stopped") {
+        stopPromise = result;
+        return stopPromise;
       }
 
-      stopPromise = Effect.runPromise(Fiber.interrupt(fiber)).then(() => result);
+      state = "stopping";
+      applicationAbortController.abort();
+      stopPromise = result;
     }
 
     return stopPromise;

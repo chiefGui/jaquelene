@@ -151,13 +151,8 @@ const styles = stylex.create({
       ":focus-visible": 1,
     },
     overflow: "hidden",
-    textDecorationLine: {
-      default: "none",
-      ":hover": "underline",
-    },
-    textDecorationThickness: "from-font",
+    textDecorationLine: "none",
     textOverflow: "ellipsis",
-    textUnderlineOffset: 3,
     whiteSpace: "nowrap",
   },
   page: {

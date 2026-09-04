@@ -3,8 +3,8 @@ import * as stylex from "@stylexjs/stylex";
 import { createFileRoute } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
+import { SettingsHeader } from "@/feature/settings/header";
 import { ContentPane } from "@/layout/content-pane";
-import { Breadcrumb } from "@/primitive/breadcrumb";
 
 const initialMarkdown = `# Narrative direction
 
@@ -31,18 +31,7 @@ function MarkdownEditorRoute() {
 
   return (
     <>
-      <ContentPane.Header>
-        <ContentPane.HistoryBack />
-
-        <Breadcrumb.Root>
-          <Breadcrumb.List>
-            <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Item>
-              <Breadcrumb.Page>Markdown editor lab</Breadcrumb.Page>
-            </Breadcrumb.Item>
-          </Breadcrumb.List>
-        </Breadcrumb.Root>
-      </ContentPane.Header>
+      <SettingsHeader page="Markdown editor lab" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

@@ -11,9 +11,9 @@ import {
   diagnosticsPreferencesQuery,
   useSetDiagnosticsWriteToDisk,
 } from "@/feature/diagnostics/preferences";
+import { SettingsHeader } from "@/feature/settings/header";
 import { ipcMutationOptions } from "@/ipc";
 import { ContentPane } from "@/layout/content-pane";
-import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/settings/advanced")({
   loader: ({ context }) => context.queryClient.query(diagnosticsPreferencesQuery),
@@ -38,18 +38,7 @@ function AdvancedRoute() {
 
   return (
     <>
-      <ContentPane.Header>
-        <ContentPane.HistoryBack />
-
-        <Breadcrumb.Root>
-          <Breadcrumb.List>
-            <Breadcrumb.Item>Settings</Breadcrumb.Item>
-            <Breadcrumb.Item>
-              <Breadcrumb.Page>Advanced</Breadcrumb.Page>
-            </Breadcrumb.Item>
-          </Breadcrumb.List>
-        </Breadcrumb.Root>
-      </ContentPane.Header>
+      <SettingsHeader page="Advanced" />
 
       <ContentPane.Viewport>
         <ContentPane.Body>

@@ -139,8 +139,8 @@ function configurationFreeProvider(overrides: Partial<ProviderAdapter> = {}): Pr
 
 function generationRequest() {
   return {
-    generationId: ids.generation.create(),
-    threadId: ids.thread.create(),
+    operationId: ids.generation.create(),
+    conversationId: ids.thread.create(),
     modelId: "maker/model",
     input: {
       instructions: [],

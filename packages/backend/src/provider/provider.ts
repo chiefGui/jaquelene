@@ -1,5 +1,4 @@
 import type { ApiKeyProviderConfiguration, ProviderConfigureResult } from "@jaquelene/domain";
-import type { GenerationId, ThreadId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import type { ModelReasoningCapability, ResolvedReasoning } from "#backend/model/reasoning";
 
@@ -168,8 +167,8 @@ export function createGenerationUsage(input: GenerationUsageInput): GenerationUs
 }
 
 export type ProviderGenerationRequest = Readonly<{
-  generationId: GenerationId;
-  threadId: ThreadId;
+  operationId: string;
+  conversationId?: string;
   modelId: string;
   input: ModelInput;
   reasoning?: ResolvedReasoning;

@@ -489,8 +489,8 @@ export function createGenerations(
       providerResult = await waitForOperation(
         provider.generate(
           {
-            generationId: generation.id,
-            threadId: anchor.threadId,
+            operationId: generation.id,
+            conversationId: anchor.threadId,
             modelId: generation.modelId,
             input,
             ...(generation.reasoning ? { reasoning: generation.reasoning } : {}),

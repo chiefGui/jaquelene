@@ -171,8 +171,8 @@ describe("generations", () => {
     });
 
     expect(generate).toHaveBeenCalledWith({
-      generationId: result.generation.id,
-      threadId: thread.id,
+      operationId: result.generation.id,
+      conversationId: thread.id,
       modelId: "maker/requested-model",
       input: {
         instructions: [],
@@ -319,8 +319,8 @@ describe("generations", () => {
     });
 
     expect(provider.generate).toHaveBeenCalledWith({
-      generationId: expect.stringMatching(/^generation_/),
-      threadId: campaign.threadId,
+      operationId: expect.stringMatching(/^generation_/),
+      conversationId: campaign.threadId,
       modelId: "maker/model",
       input: {
         instructions: [

@@ -16,7 +16,7 @@ type OpenRouterChatRequest = {
   messages: ChatMessages[];
   metadata: Record<string, string>;
   reasoning?: OpenRouterReasoningRequest;
-  session_id: string;
+  session_id?: string;
   stream: false;
 };
 
@@ -160,10 +160,13 @@ export function createOpenRouterGeneration(
         const chatRequest: OpenRouterChatRequest = {
           model: request.modelId,
           messages: toOpenRouterMessages(request.input),
-          metadata: { jaquelene_generation_id: request.generationId },
-          session_id: request.threadId,
+          metadata: { jaquelene_operation_id: request.operationId },
           stream: false,
         };
+
+        if (request.conversationId !== undefined) {
+          chatRequest.session_id = request.conversationId;
+        }
 
         if (reasoning !== undefined) {
           chatRequest.reasoning = reasoning;

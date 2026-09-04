@@ -36,8 +36,8 @@ function chatResult(overrides: Record<string, unknown> = {}) {
 
 function generationRequest(): ProviderGenerationRequest {
   return {
-    generationId: ids.generation.create(),
-    threadId: ids.thread.create(),
+    operationId: ids.generation.create(),
+    conversationId: ids.thread.create(),
     modelId: "maker/requested-model",
     input: {
       instructions: [{ sourceKey: "test.instruction", content: "Instruction" }],

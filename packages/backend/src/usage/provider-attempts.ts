@@ -2,8 +2,8 @@ import { and, eq } from "drizzle-orm";
 import { campaignTable } from "#backend/campaign/schema";
 import type { Database } from "#backend/database/database";
 import { ids, type GenerationId, type ProviderAttemptId, type ThreadId } from "#backend/id";
-import type { ProviderAccounting } from "./accounting";
-import { providerAccountingFields } from "./accounting";
+import type { ProviderAccounting } from "#backend/provider/accounting";
+import { providerAccountingFields } from "#backend/provider/accounting";
 import {
   providerAttemptTable,
   type ProviderAttempt,

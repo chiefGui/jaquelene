@@ -1,21 +1,12 @@
-export type ModelIdentity = Readonly<{
-  providerId: string;
-  modelId: string;
-}>;
+import type {
+  ModelIdentity,
+  ModelReasoningOptions,
+  RequestedModelConfiguration,
+} from "../model/configuration";
 
 export type CampaignGenerationPreferences<Model, ReasoningPreset> = Readonly<{
   model?: Model;
   reasoningPreset?: ReasoningPreset;
-}>;
-
-export type GenerationConfiguration<Model, ReasoningPreset> = Readonly<{
-  model: Model;
-  reasoningPreset?: ReasoningPreset;
-}>;
-
-export type ModelReasoningOptions<ReasoningPreset> = Readonly<{
-  defaultPreset: ReasoningPreset;
-  supportedPresets: readonly ReasoningPreset[];
 }>;
 
 function sameModel(left: ModelIdentity, right: ModelIdentity) {
@@ -30,10 +21,20 @@ function campaignPreferences<Model, ReasoningPreset>(
     return undefined;
   }
 
-  return {
-    ...(model === undefined ? {} : { model }),
-    ...(reasoningPreset === undefined ? {} : { reasoningPreset }),
-  };
+  const preferences: {
+    model?: Model;
+    reasoningPreset?: ReasoningPreset;
+  } = {};
+
+  if (model !== undefined) {
+    preferences.model = model;
+  }
+
+  if (reasoningPreset !== undefined) {
+    preferences.reasoningPreset = reasoningPreset;
+  }
+
+  return preferences;
 }
 
 function supportedReasoningPreference<ReasoningPreset>(
@@ -57,19 +58,18 @@ export function composeCampaignGenerationConfiguration<
 >(
   defaultModel: Model | null,
   preferences: CampaignGenerationPreferences<Model, ReasoningPreset> | undefined,
-): GenerationConfiguration<Model, ReasoningPreset> | null {
+): RequestedModelConfiguration<Model, ReasoningPreset> | null {
   const model = preferences?.model ?? defaultModel;
 
   if (!model) {
     return null;
   }
 
-  return {
-    model,
-    ...(preferences?.reasoningPreset === undefined
-      ? {}
-      : { reasoningPreset: preferences.reasoningPreset }),
-  };
+  if (preferences?.reasoningPreset === undefined) {
+    return { model };
+  }
+
+  return { model, reasoningPreset: preferences.reasoningPreset };
 }
 
 export function setCampaignGenerationModel<Model extends ModelIdentity, ReasoningPreset>(
@@ -78,7 +78,11 @@ export function setCampaignGenerationModel<Model extends ModelIdentity, Reasonin
   defaultModel: Model | null,
   reasoning: ModelReasoningOptions<ReasoningPreset> | undefined,
 ): CampaignGenerationPreferences<Model, ReasoningPreset> | undefined {
-  const modelPreference = defaultModel && sameModel(model, defaultModel) ? undefined : model;
+  let modelPreference: Model | undefined = model;
+
+  if (defaultModel && sameModel(model, defaultModel)) {
+    modelPreference = undefined;
+  }
   const reasoningPreset = supportedReasoningPreference(preferences?.reasoningPreset, reasoning);
 
   return campaignPreferences(modelPreference, reasoningPreset);

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { Effect } from "effect";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createGenerations } from "#backend/generation/generations";
@@ -9,6 +10,12 @@ import { createReplyPreparer } from "#backend/generation/reply-preparation";
 import { generationTable } from "#backend/generation/schema";
 import { superviseGenerations } from "#backend/generation/supervisor";
 import { ids } from "#backend/id";
+import {
+  createModelExecutionRunner,
+  createModelExecutor,
+  ModelProviderError,
+  type ModelExecutionRunner,
+} from "#backend/model/execution";
 import { createModelInputResolver } from "#backend/model/input-resolver";
 import type {
   ProviderGenerationRequest,
@@ -49,16 +56,8 @@ function createDatabasePath() {
   return join(directory, "jaquelene.sqlite");
 }
 
-function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
-  const database = openDatabase(createDatabasePath());
-  const { applications: promptApplications } = createPromptSubsystem(database, [
-    narratorPromptModule,
-  ]);
-  const campaigns = createCampaigns(database, now);
-  const threads = createThreads(database, now);
-  const generationEngine = createGenerations(
-    database,
-    createReplyPreparer(threads, createModelInputResolver(campaigns, promptApplications)),
+function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
+  const executor = createModelExecutor(
     {
       async getModel(reference) {
         if (reference.providerId !== "provider-a") {
@@ -70,14 +69,43 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
     },
     {
       get(providerId) {
-        return providerId === "provider-a"
-          ? {
-              generate: (request, signal) =>
-                generate({ ...request, ...(signal ? { signal } : {}) }),
+        if (providerId !== "provider-a") {
+          return undefined;
+        }
+
+        return {
+          generate: (request, signal) => {
+            const testRequest: ProviderGenerationRequest & { signal?: AbortSignal } = {
+              ...request,
+            };
+
+            if (signal !== undefined) {
+              testRequest.signal = signal;
             }
-          : undefined;
+
+            return generate(testRequest);
+          },
+        };
       },
     },
+  );
+
+  return createModelExecutionRunner(executor, (effect, options) =>
+    Effect.runPromise(effect, options),
+  );
+}
+
+function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
+  const database = openDatabase(createDatabasePath());
+  const { applications: promptApplications } = createPromptSubsystem(database, [
+    narratorPromptModule,
+  ]);
+  const campaigns = createCampaigns(database, now);
+  const threads = createThreads(database, now);
+  const generationEngine = createGenerations(
+    database,
+    createReplyPreparer(threads, createModelInputResolver(campaigns, promptApplications)),
+    modelExecutionRunner(generate),
     now,
   );
   const supervised = superviseGenerations(generationEngine);
@@ -240,7 +268,10 @@ describe("turns", () => {
     expect(failed.generation).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "provider" }),
     );
-    expect(failed.failure).toEqual({ cause: providerFailure });
+    expect(failed.failure.cause).toBeInstanceOf(ModelProviderError);
+    expect(failed.failure.cause).toEqual(
+      expect.objectContaining({ cause: providerFailure, message: providerFailure.message }),
+    );
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
 
     const pendingRetry = turns.retry({
@@ -400,13 +431,23 @@ describe("turns", () => {
     });
     const failed = await failedAttempt.settlement;
 
+    if (failed.outcome !== "failed") {
+      throw new Error("Expected regeneration to fail.");
+    }
+
     expect(failed).toEqual(
       expect.objectContaining({
         outcome: "failed",
-        failure: { cause: regenerationFailure },
+        failure: {
+          cause: expect.objectContaining({
+            cause: regenerationFailure,
+            message: regenerationFailure.message,
+          }),
+        },
         threadActivity: original.threadActivity,
       }),
     );
+    expect(failed.failure.cause).toBeInstanceOf(ModelProviderError);
     expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toEqual([
       submission.acceptance.userMessage,
       original.assistantMessage,
@@ -652,7 +693,7 @@ describe("turns", () => {
           model: { providerId: "missing-provider", modelId: "maker/model" },
         },
       }),
-    ).rejects.toThrow('Unknown generation provider "missing-provider".');
+    ).rejects.toThrow('Unknown model provider "missing-provider".');
     await expect(
       turns.submit({ threadId: thread.id, content: "  ", configuration }),
     ).rejects.toThrow(TypeError);

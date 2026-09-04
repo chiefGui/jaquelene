@@ -25,11 +25,11 @@ export type {
 } from "#backend/campaign/campaigns";
 export type { CampaignUsage, CampaignUsageReader } from "#backend/campaign/usage";
 export {
-  requireGenerationConfiguration,
-  requireGenerationConfigurationSelection,
-  type GenerationConfiguration,
-  type GenerationConfigurationSelection,
-} from "#backend/generation/configuration";
+  requireModelConfigurationSelection,
+  requireRequestedModelConfiguration,
+  type ModelConfigurationSelection,
+  type RequestedModelConfiguration,
+} from "#backend/model/configuration";
 export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
 export {
   reasoningEfforts,

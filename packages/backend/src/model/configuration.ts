@@ -1,4 +1,4 @@
-import type { GenerationConfiguration as ComposedGenerationConfiguration } from "@jaquelene/domain";
+import type { RequestedModelConfiguration as ComposedModelConfiguration } from "@jaquelene/domain";
 import { requireReasoningPreset, type ReasoningPreset } from "#backend/model/reasoning";
 import {
   requireModelReference,
@@ -7,12 +7,12 @@ import {
   type ModelSelection,
 } from "#backend/provider/provider";
 
-export type GenerationConfiguration = ComposedGenerationConfiguration<
+export type RequestedModelConfiguration = ComposedModelConfiguration<
   ModelReference,
   ReasoningPreset
 >;
 
-export function requireGenerationConfiguration(configuration: GenerationConfiguration) {
+export function requireRequestedModelConfiguration(configuration: RequestedModelConfiguration) {
   requireModelReference(configuration.model);
 
   if (configuration.reasoningPreset !== undefined) {
@@ -20,14 +20,12 @@ export function requireGenerationConfiguration(configuration: GenerationConfigur
   }
 }
 
-export type GenerationConfigurationSelection = ComposedGenerationConfiguration<
+export type ModelConfigurationSelection = ComposedModelConfiguration<
   ModelSelection,
   ReasoningPreset
 >;
 
-export function requireGenerationConfigurationSelection(
-  configuration: GenerationConfigurationSelection,
-) {
+export function requireModelConfigurationSelection(configuration: ModelConfigurationSelection) {
   requireModelSelection(configuration.model);
 
   if (configuration.reasoningPreset !== undefined) {

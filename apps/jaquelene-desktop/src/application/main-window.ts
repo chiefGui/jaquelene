@@ -36,12 +36,14 @@ import { createThreadMessaging } from "../feature/thread/ipc";
 import { exposeUsage } from "../feature/usage/ipc";
 import { LocalStateService, type LocalState } from "../local-state";
 import { PreferencesService, type Preferences } from "../preferences/preferences";
-import { exposeStorage, type EffectRunner } from "../storage/ipc";
+import { exposeStorage } from "../storage/ipc";
 import { RendererService } from "./renderer";
 
 const preloadPath = join(import.meta.dirname, "../preload/preload.cjs");
 
 type WindowState = "absent" | "opening" | "open" | "closing";
+
+type EffectRunner = <Success, Failure>(effect: Effect.Effect<Success, Failure>) => Promise<Success>;
 
 type OpenWindow = {
   browserWindow: BrowserWindow;

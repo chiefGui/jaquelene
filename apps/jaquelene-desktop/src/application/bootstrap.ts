@@ -49,13 +49,17 @@ export function bootstrapDesktopApplication() {
       preferences = createPreferences(userDataDirectory);
       app.setAppLogsPath(diagnosticsDirectory);
       registerAppScheme();
+      let developmentServerUrl: string | undefined;
+
+      if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
+        developmentServerUrl = process.env.VITE_DEV_SERVER_URL;
+      }
+
       return launchDesktopApplication({
         diagnostics,
         preferences,
         userDataDirectory,
-        ...(!app.isPackaged && process.env.VITE_DEV_SERVER_URL
-          ? { developmentServerUrl: process.env.VITE_DEV_SERVER_URL }
-          : {}),
+        developmentServerUrl,
       });
     },
   });

@@ -44,7 +44,7 @@ export function launchDesktopApplication({
   diagnostics: ApplicationDiagnostics;
   preferences: Preferences;
   userDataDirectory: string;
-  developmentServerUrl?: string;
+  developmentServerUrl: string | undefined;
 }): DesktopApplication {
   const ready = Promise.withResolvers<void>();
   let readySettled = false;
@@ -136,16 +136,11 @@ export function launchDesktopApplication({
       await showMainWindow();
     },
     inspect: () => {
-      const inspection: {
-        state: DesktopApplicationInspection["state"];
-        window?: MainWindowInspection;
-      } = { state };
-
       if (mainWindowInspection) {
-        inspection.window = mainWindowInspection();
+        return { state, window: mainWindowInspection() };
       }
 
-      return inspection;
+      return { state };
     },
     stop,
   };

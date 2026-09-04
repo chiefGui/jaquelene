@@ -26,7 +26,7 @@ vi.mock("../app-protocol", () => ({
 }));
 
 import { DesktopConfigurationService } from "./configuration";
-import { RendererService } from "./renderer";
+import { RendererInitializationError, RendererService } from "./renderer";
 
 function readRendererUrl(developmentServerUrl: string | undefined) {
   return Effect.runPromise(
@@ -50,6 +50,19 @@ beforeEach(() => {
 });
 
 describe("renderer service", () => {
+  it("reports Electron readiness failures through the typed Effect channel", async () => {
+    const failure = new Error("Electron failed to initialize.");
+    harness.whenReady.mockRejectedValueOnce(failure);
+
+    await expect(readRendererUrl(undefined)).rejects.toEqual(
+      new RendererInitializationError({
+        message: "Electron did not become ready.",
+        cause: failure,
+      }),
+    );
+    expect(harness.handleAppScheme).not.toHaveBeenCalled();
+  });
+
   it("waits for Electron and owns the packaged application protocol", async () => {
     const url = await readRendererUrl(undefined);
 

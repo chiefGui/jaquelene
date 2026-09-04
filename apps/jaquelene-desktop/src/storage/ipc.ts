@@ -9,7 +9,7 @@ import { Storage as StorageIpc, StorageCategory as IpcStorageCategory } from "@j
 import type * as Effect from "effect/Effect";
 import type { WebFrameMain } from "electron";
 
-export type EffectRunner = <Success, Failure>(
+type StorageEffectRunner = <Success, Failure>(
   effect: Effect.Effect<Success, Failure>,
 ) => Promise<Success>;
 
@@ -48,7 +48,7 @@ function toIpcAreas(value: StorageUsage | StorageDeletion) {
 export function exposeStorage(
   target: WebFrameMain,
   storage: Backend["storage"],
-  runEffect: EffectRunner,
+  runEffect: StorageEffectRunner,
 ) {
   StorageIpc.for(target).setImplementation({
     async measureUsage() {

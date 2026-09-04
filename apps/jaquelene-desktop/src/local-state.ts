@@ -122,10 +122,16 @@ export function createLocalState(userDataDirectory: string, diagnostics: ErrorRe
     },
     loadMainWindowState: (workAreas: readonly Rectangle[]) => {
       const mainWindow = store.get("mainWindow");
-      return mainWindow &&
-        workAreas.some((workArea) => rectanglesIntersect(mainWindow.bounds, workArea))
-        ? mainWindow
-        : undefined;
+
+      if (!mainWindow) {
+        return undefined;
+      }
+
+      if (!workAreas.some((workArea) => rectanglesIntersect(mainWindow.bounds, workArea))) {
+        return undefined;
+      }
+
+      return mainWindow;
     },
     saveMainWindowState: (mainWindow: MainWindowState) => {
       if (skipNextSave) {

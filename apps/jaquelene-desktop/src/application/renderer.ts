@@ -16,22 +16,6 @@ export type Renderer = Readonly<{
   url: string;
 }>;
 
-function waitForSignal<Result>(result: Promise<Result>, signal: AbortSignal) {
-  if (signal.aborted) {
-    result.catch(() => undefined);
-    return Promise.reject(signal.reason);
-  }
-
-  let removeListener: (() => void) | undefined;
-  const interruption = new Promise<never>((_resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    signal.addEventListener("abort", onAbort, { once: true });
-    removeListener = () => signal.removeEventListener("abort", onAbort);
-  });
-
-  return Promise.race([result, interruption]).finally(removeListener);
-}
-
 export class RendererService extends Context.Service<RendererService, Renderer>()(
   "@jaquelene/desktop/application/Renderer",
 ) {
@@ -41,7 +25,7 @@ export class RendererService extends Context.Service<RendererService, Renderer>(
       const configuration = yield* DesktopConfigurationService;
 
       yield* Effect.tryPromise({
-        try: (signal) => waitForSignal(app.whenReady(), signal),
+        try: () => app.whenReady(),
         catch: (cause) =>
           new RendererInitializationError({
             message: "Electron did not become ready.",

@@ -4,7 +4,7 @@ import { CampaignService } from "#backend/campaign/subsystem";
 import type { CampaignUsageReader } from "#backend/campaign/usage";
 import { DatabaseService, getDatabaseStoragePaths } from "#backend/database/database";
 import { GenerationService } from "#backend/generation/subsystem";
-import { ModelInputService } from "#backend/model/input-composer";
+import { ModelInputService } from "#backend/model/input-resolver";
 import { narratorPromptModule } from "#backend/narrator/module";
 import { PromptService } from "#backend/prompt/subsystem";
 import type { Prompts } from "#backend/prompt/types";

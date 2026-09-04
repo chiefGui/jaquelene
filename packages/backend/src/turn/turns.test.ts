@@ -9,7 +9,7 @@ import { createReplyPreparer } from "#backend/generation/reply-preparation";
 import { generationTable } from "#backend/generation/schema";
 import { superviseGenerations } from "#backend/generation/supervisor";
 import { ids } from "#backend/id";
-import { createModelInputComposer } from "#backend/model/input-composer";
+import { createModelInputResolver } from "#backend/model/input-resolver";
 import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
@@ -58,7 +58,7 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
   const threads = createThreads(database, now);
   const generationEngine = createGenerations(
     database,
-    createReplyPreparer(threads, createModelInputComposer(campaigns, promptApplications)),
+    createReplyPreparer(threads, createModelInputResolver(campaigns, promptApplications)),
     {
       async getModel(reference) {
         if (reference.providerId !== "provider-a") {

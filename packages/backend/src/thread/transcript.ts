@@ -1,6 +1,6 @@
 import { ThreadTranscriptEntryKind, type ThreadTranscript } from "@jaquelene/domain";
 import type { ThreadId } from "#backend/id";
-import type { ModelInputComposer } from "#backend/model/input-composer";
+import type { ModelInputResolver } from "#backend/model/input-resolver";
 import type { ThreadEngine } from "./threads";
 
 export type ThreadTranscriptReader = Readonly<{
@@ -9,12 +9,12 @@ export type ThreadTranscriptReader = Readonly<{
 
 export function createThreadTranscriptReader(
   threads: Pick<ThreadEngine, "getActiveMessagePath">,
-  modelInputs: ModelInputComposer,
+  modelInputs: ModelInputResolver,
 ): ThreadTranscriptReader {
   return {
     get(threadId) {
       const messages = threads.getActiveMessagePath(threadId);
-      const input = modelInputs.compose({ threadId, messages });
+      const input = modelInputs.resolve({ threadId, messages });
 
       return {
         threadId,

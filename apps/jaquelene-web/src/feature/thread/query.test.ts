@@ -19,7 +19,7 @@ const ipc = vi.hoisted(() => {
   const stopReplySuperseded = vi.fn();
 
   return {
-    Threads: { listMessages: vi.fn() },
+    Threads: { getTranscript: vi.fn(), listMessages: vi.fn() },
     Turns: {
       deleteFrom: vi.fn(),
       regenerate: vi.fn(),

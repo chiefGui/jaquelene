@@ -18,6 +18,7 @@ import {
   type ApplicationDiagnostics,
 } from "../diagnostics/diagnostics";
 import { exposeDiagnostics, exposeDiagnosticsPreferences } from "../diagnostics/ipc";
+import { exposeAiActions } from "../feature/ai-action/ipc";
 import { exposeUserInterfacePreferences } from "../feature/appearance/user-interface/ipc";
 import { createInterfaceScaleWebPreferences } from "../feature/appearance/user-interface/zoom";
 import {
@@ -43,7 +44,10 @@ const preloadPath = join(import.meta.dirname, "../preload/preload.cjs");
 
 type WindowState = "absent" | "opening" | "open" | "closing";
 
-type EffectRunner = <Success, Failure>(effect: Effect.Effect<Success, Failure>) => Promise<Success>;
+type EffectRunner = <Success, Failure>(
+  effect: Effect.Effect<Success, Failure>,
+  options?: { signal?: AbortSignal },
+) => Promise<Success>;
 
 type OpenWindow = {
   browserWindow: BrowserWindow;
@@ -108,6 +112,7 @@ export class MainWindowService extends Context.Service<MainWindowService, MainWi
             preferences,
             providers: backend.providers,
             storage: backend.storage,
+            aiActionRunner: backend.aiActionRunner,
             runEffect,
             usage: backend.usage,
           }),
@@ -181,6 +186,7 @@ function createMainWindowManager({
   preferences,
   providers,
   storage,
+  aiActionRunner,
   runEffect,
   usage,
 }: {
@@ -197,6 +203,7 @@ function createMainWindowManager({
   preferences: Preferences;
   providers: Providers;
   storage: Backend["storage"];
+  aiActionRunner: Backend["aiActionRunner"];
   runEffect: EffectRunner;
   usage: Usage;
 }): MainWindowManager {
@@ -287,6 +294,16 @@ function createMainWindowManager({
       await addFinalizer(scope, () => browserWindow.off("closed", onClosed));
 
       exposePrompts(browserWindow.webContents.mainFrame, prompts);
+      await addFinalizer(
+        scope,
+        exposeAiActions(
+          browserWindow.webContents,
+          aiActionRunner,
+          preferences.aiAction,
+          runEffect,
+          diagnostics,
+        ),
+      );
       exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
       exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
       exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);

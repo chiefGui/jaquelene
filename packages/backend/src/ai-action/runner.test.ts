@@ -13,6 +13,7 @@ import { createAiActionRunner, type RunAiActionRequest } from "./runner";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
+  vi.useRealTimers();
   for (const cleanup of cleanups.splice(0).reverse()) {
     cleanup();
   }
@@ -88,6 +89,48 @@ function environment(execution: ReturnType<Inference["execute"]> = Effect.succee
 }
 
 describe("AI action runner", () => {
+  it("bounds provider execution time and settles timed-out attempts", async () => {
+    vi.useFakeTimers();
+    const entered = Promise.withResolvers<void>();
+    const { runner, database } = environment(
+      Effect.sync(() => entered.resolve()).pipe(Effect.andThen(Effect.never)),
+    );
+    const result = Effect.runPromise(Effect.flip(runner.run(request)));
+    await entered.promise;
+    await vi.advanceTimersByTimeAsync(120_001);
+    expect((await result).kind).toBe("timeout");
+    expect(database.select().from(providerAttemptTable).get()).toMatchObject({
+      status: "failed",
+      failureKind: "provider",
+    });
+  });
+
+  it("bounds model resolution time without recording a provider attempt", async () => {
+    vi.useFakeTimers();
+    const { inference, attempts, database } = environment();
+    const entered = Promise.withResolvers<void>();
+    const runner = createAiActionRunner(
+      [{ target: request.target, actions: [action] }],
+      {
+        ...inference,
+        resolveConfiguration: () =>
+          Effect.sync(() => entered.resolve()).pipe(Effect.andThen(Effect.never)),
+      },
+      attempts,
+    );
+    const result = Effect.runPromise(Effect.flip(runner.run(request)));
+    await entered.promise;
+    await vi.advanceTimersByTimeAsync(120_001);
+    expect((await result).kind).toBe("timeout");
+    expect(inference.execute).not.toHaveBeenCalled();
+    expect(database.select().from(providerAttemptTable).all()).toEqual([]);
+  });
+
+  it("rejects results outside the shared text contract even if a definition accepts them", async () => {
+    const { runner } = environment(Effect.succeed(completed("x".repeat(40_001))));
+    expect((await Effect.runPromise(Effect.flip(runner.run(request)))).kind).toBe("output");
+  });
+
   it("runs shared and exclusive definitions without changing execution", async () => {
     const { runner, inference, database } = environment();
     expect(runner.list("first-field")).toEqual([

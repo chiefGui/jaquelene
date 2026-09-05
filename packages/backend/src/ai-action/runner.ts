@@ -1,4 +1,9 @@
-import { AI_ACTION_TEXT_MAX_UTF16_LENGTH, type AiActionDescriptor } from "@jaquelene/domain";
+import {
+  aiActionInputSchema,
+  aiActionTextResultSchema,
+  type AiActionDescriptor,
+  type AiActionInput,
+} from "@jaquelene/domain";
 import { Cause, Clock, Context, Effect, Exit, Layer, Schema } from "effect";
 import type { RequestedModelConfiguration } from "#backend/model/configuration";
 import { InferenceService, type Inference } from "#backend/model/inference";
@@ -17,13 +22,6 @@ const descriptorSchema = Schema.Struct({
   label: identitySchema,
   requiresText: Schema.Boolean,
 });
-const requestSchema = Schema.Struct({
-  executionId: identitySchema,
-  target: identitySchema,
-  actionId: identitySchema,
-  text: Schema.String.check(Schema.isMaxLength(AI_ACTION_TEXT_MAX_UTF16_LENGTH)),
-});
-const decodeRequest = Schema.decodeUnknownEffect(requestSchema);
 const decodeDescriptor = Schema.decodeUnknownSync(descriptorSchema);
 const decodeIdentity = Schema.decodeUnknownSync(identitySchema);
 
@@ -41,13 +39,10 @@ export class AiActionError extends Schema.TaggedError<AiActionError>()("AiAction
   cause: Schema.Defect(),
 }) {}
 
-export type RunAiActionRequest = Readonly<{
-  executionId: string;
-  target: string;
-  actionId: string;
-  text: string;
-  configuration: RequestedModelConfiguration;
-}>;
+export type RunAiActionRequest = AiActionInput &
+  Readonly<{
+    configuration: RequestedModelConfiguration;
+  }>;
 
 export type AiActionRunner = Readonly<{
   list: (target: string) => readonly AiActionDescriptor[];
@@ -91,16 +86,16 @@ export function createAiActionRunner(
       cause,
     });
   const run = Effect.fn("AiActionRunner.run")(function* (request: RunAiActionRequest) {
-    const input = yield* decodeRequest(request).pipe(
-      Effect.mapError(
-        (cause) =>
-          new AiActionError({
-            kind: "input",
-            message: "The AI action input is invalid.",
-            cause,
-          }),
-      ),
-    );
+    const { configuration: requestedConfiguration, ...payload } = request;
+    const input = yield* Effect.try({
+      try: () => aiActionInputSchema.parse(payload),
+      catch: (cause) =>
+        new AiActionError({
+          kind: "input",
+          message: "The AI action input is invalid.",
+          cause,
+        }),
+    });
     const definition = targets.get(input.target)?.get(input.actionId);
     if (!definition) {
       return yield* new AiActionError({
@@ -125,7 +120,7 @@ export function createAiActionRunner(
           cause,
         }),
     });
-    const configuration = yield* inference.resolveConfiguration(request.configuration).pipe(
+    const configuration = yield* inference.resolveConfiguration(requestedConfiguration).pipe(
       Effect.mapError(
         (cause) =>
           new AiActionError({
@@ -134,6 +129,15 @@ export function createAiActionRunner(
             cause,
           }),
       ),
+      Effect.timeoutOrElse({
+        duration: "2 minutes",
+        orElse: () =>
+          new AiActionError({
+            kind: "timeout",
+            message: "Loading the model took too long. Try again.",
+            cause: undefined,
+          }),
+      }),
     );
     const result = yield* Effect.acquireUseRelease(
       Clock.currentTimeMillis.pipe(
@@ -142,7 +146,10 @@ export function createAiActionRunner(
             try: () =>
               attempts.start({
                 executionId: input.executionId,
-                attribution: { kind: "ai-action", id: `${input.target}/${input.actionId}` },
+                attribution: {
+                  kind: "ai-action",
+                  id: `${encodeURIComponent(input.target)}/${encodeURIComponent(input.actionId)}`,
+                },
                 providerId: configuration.model.providerId,
                 requestedModelId: configuration.model.modelId,
                 startedAt,
@@ -204,7 +211,7 @@ export function createAiActionRunner(
       });
     }
     return yield* Effect.try({
-      try: () => definition.parseResult(result.text),
+      try: () => aiActionTextResultSchema.parse(definition.parseResult(result.text)),
       catch: (cause) =>
         new AiActionError({
           kind: "output",

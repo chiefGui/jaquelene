@@ -51,6 +51,8 @@ export {
 type WithoutChildren<Props> = Props extends unknown ? Omit<Props, "children"> : never;
 
 export type MarkdownEditorProps = WithoutChildren<MarkdownEditorRootProps> & {
+  toolbarActions?: ReactNode;
+  statusContent?: ReactNode;
   style?: StyleXStyles;
 };
 
@@ -352,17 +354,23 @@ function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsP
 
 const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent({
   style,
+  toolbarActions,
+  statusContent,
 }: {
   style: StyleXStyles | undefined;
+  toolbarActions: ReactNode;
+  statusContent: ReactNode;
 }) {
   return (
     <MarkdownEditorFrame style={style}>
       <MarkdownEditorToolbar>
         <MarkdownEditorFormattingActions />
+        {toolbarActions}
         <MarkdownEditorPreviewToggle style={styles.previewTogglePlacement} />
       </MarkdownEditorToolbar>
       <MarkdownEditorContent />
       <MarkdownEditorStatus>
+        {statusContent}
         <MarkdownEditorStatistics />
       </MarkdownEditorStatus>
     </MarkdownEditorFrame>
@@ -370,10 +378,14 @@ const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent(
 });
 
 const MarkdownEditorDefault = forwardRef<HTMLElement, MarkdownEditorProps>(
-  function MarkdownEditorDefault({ style, ...props }, ref) {
+  function MarkdownEditorDefault({ style, toolbarActions, statusContent, ...props }, ref) {
     return (
       <MarkdownEditorRoot {...props} ref={ref}>
-        <MarkdownEditorDefaultContent style={style} />
+        <MarkdownEditorDefaultContent
+          style={style}
+          toolbarActions={toolbarActions}
+          statusContent={statusContent}
+        />
       </MarkdownEditorRoot>
     );
   },

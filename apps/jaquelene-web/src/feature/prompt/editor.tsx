@@ -21,12 +21,15 @@ import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { AiActionMenu, AiActionStatus } from "@/feature/ai-action/menu";
+import { useAiAction } from "@/feature/ai-action/use-ai-action";
 import { useFormStatus } from "@/feature/form/status";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
 import { usePromptFormValidation } from "./form";
 import { useCreatePrompt, useUpdatePrompt } from "./query";
 
 type PromptEditorProps = {
+  aiActionTarget?: string;
   "aria-labelledby": string;
   onCancel?: () => void | Promise<void>;
 } & (
@@ -78,6 +81,12 @@ export function PromptEditor(props: PromptEditorProps) {
     },
     [clearStatus, form],
   );
+  const aiAction = useAiAction({
+    target: props.aiActionTarget,
+    value: body,
+    onValueChange: setBody,
+    disabled: saving || awaitingCreatedPrompt,
+  });
 
   useEffect(() => {
     active.current = true;
@@ -88,7 +97,7 @@ export function PromptEditor(props: PromptEditorProps) {
 
   usePromptFormValidation(form);
   useFormSubmit(form, async (state) => {
-    if (savingRef.current) {
+    if (savingRef.current || aiAction.busy) {
       return;
     }
 
@@ -198,7 +207,9 @@ export function PromptEditor(props: PromptEditorProps) {
               value={body}
               onValueChange={setBody}
               maxLength={PROMPT_BODY_MAX_UTF16_LENGTH}
-              readOnly={editorReadOnly}
+              readOnly={editorReadOnly || aiAction.busy}
+              toolbarActions={<AiActionMenu control={aiAction} />}
+              statusContent={<AiActionStatus control={aiAction} />}
             />
           }
         />
@@ -220,7 +231,7 @@ export function PromptEditor(props: PromptEditorProps) {
           </Button>
         ) : null}
 
-        <Button type="submit" aria-busy={saving || undefined}>
+        <Button type="submit" disabled={aiAction.busy} aria-busy={saving || undefined}>
           {submitLabel}
         </Button>
       </div>

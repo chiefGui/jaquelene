@@ -11,12 +11,15 @@ import {
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import { ModelPicker } from "@/feature/model/picker";
 import { SettingsLandingHeader } from "@/feature/settings/header";
+import { AiActionModelPreference } from "@/feature/ai-action/model-preference";
+import { aiActionModelQuery } from "@/feature/ai-action/query";
 import { ContentPane } from "@/layout/content-pane";
 
 export const Route = createFileRoute("/settings/general")({
   loader: async ({ context }) => {
     await Promise.all([
       context.queryClient.query(defaultCampaignModelQuery),
+      context.queryClient.query(aiActionModelQuery),
       context.queryClient.query(modelProvidersQuery),
     ]);
   },
@@ -37,6 +40,7 @@ function GeneralRoute() {
 
       <ContentPane.Viewport>
         <ContentPane.Body>
+          <AiActionModelPreference />
           <Item.Section aria-labelledby="campaign-heading">
             <Item.Heading id="campaign-heading">Campaign</Item.Heading>
 

@@ -1,4 +1,9 @@
-import { PromptOrigin, narratorPromptKindKey, promptKeySchema } from "@jaquelene/domain";
+import {
+  PromptOrigin,
+  narratorPromptActionTarget,
+  narratorPromptKindKey,
+  promptKeySchema,
+} from "@jaquelene/domain";
 import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
@@ -101,7 +106,11 @@ function EditPromptRoute() {
             </EmptyState.Root>
           ) : prompt?.origin === PromptOrigin.Custom ? (
             <div {...stylex.props(styles.editor)}>
-              <PromptEditor aria-labelledby={pageHeadingId} prompt={prompt} />
+              <PromptEditor
+                aria-labelledby={pageHeadingId}
+                prompt={prompt}
+                aiActionTarget={narratorPromptActionTarget}
+              />
               <NarratorPromptManagement prompt={prompt} onDeleted={finishDeletion} />
               <PromptMetadata prompt={prompt} />
             </div>

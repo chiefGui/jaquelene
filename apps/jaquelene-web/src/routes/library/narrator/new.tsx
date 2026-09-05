@@ -1,4 +1,4 @@
-import { narratorPromptKindKey } from "@jaquelene/domain";
+import { narratorPromptActionTarget, narratorPromptKindKey } from "@jaquelene/domain";
 import type { CustomPrompt } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
@@ -65,6 +65,7 @@ function NewPromptRoute() {
         <ContentPane.Body>
           {kind ? (
             <PromptEditor
+              aiActionTarget={narratorPromptActionTarget}
               aria-labelledby={pageHeadingId}
               kind={narratorPromptKindKey}
               onCancel={openNarrator}

@@ -1,0 +1,41 @@
+module jaquelene
+
+subtype AiActionIdentity = string(
+  minLength: 1
+  maxLength: 120
+)
+
+structure AiActionDescriptor {
+  id: string
+  label: string
+  requiresText: boolean
+}
+
+zod_reference AiActionInput {
+  import = "@jaquelene/domain"
+  type = "AiActionInput"
+  schema = "aiActionInputSchema"
+}
+
+zod_reference AiActionResult {
+  import = "@jaquelene/domain"
+  type = "AiActionResult"
+  schema = "aiActionResultSchema"
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface AiActionRunner {
+  list(target: AiActionIdentity) -> AiActionDescriptor[]
+  run(input: AiActionInput) -> AiActionResult
+  cancel(executionId: AiActionIdentity)
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface AiActionPreferences {
+  getModel() -> ModelSelection?
+  setModel(model: ModelSelection?) -> ModelSelection?
+}

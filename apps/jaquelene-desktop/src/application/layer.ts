@@ -1,4 +1,5 @@
-import { BackendService } from "@jaquelene/backend";
+import * as NodePath from "@effect/platform-node/NodePath";
+import { BackendService, nodeFileTreeLayer } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { Effect, Layer } from "effect";
 import { safeStorage } from "electron";
@@ -91,7 +92,11 @@ export function createDesktopApplicationLayer({
   const rendererLayer = RendererService.layer.pipe(Layer.provideMerge(baseLayer));
   const localCapabilitiesLayer = Layer.merge(LocalStateService.layer, FavoriteModelsService.layer);
   const environmentLayer = localCapabilitiesLayer.pipe(Layer.provideMerge(rendererLayer));
-  const backendLayer = createBackendLayer().pipe(Layer.provideMerge(environmentLayer));
+  const filesystemLayer = nodeFileTreeLayer.pipe(Layer.provideMerge(NodePath.layer));
+  const backendLayer = createBackendLayer().pipe(
+    Layer.provide(filesystemLayer),
+    Layer.provideMerge(environmentLayer),
+  );
 
   return MainWindowService.layer.pipe(Layer.provide(backendLayer));
 }

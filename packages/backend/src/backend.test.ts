@@ -1,8 +1,10 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as NodePath from "@effect/platform-node/NodePath";
 import { PromptOrigin } from "@jaquelene/domain";
-import { ManagedRuntime } from "effect";
+import { Layer, ManagedRuntime } from "effect";
+import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
@@ -103,7 +105,12 @@ type TestBackend = Omit<Backend, "storage"> &
   }>;
 
 async function openBackend(options: BackendOptions, signal?: AbortSignal): Promise<TestBackend> {
-  const runtime = ManagedRuntime.make(BackendService.layer(options));
+  const runtime = ManagedRuntime.make(
+    BackendService.layer(options).pipe(
+      Layer.provide(nodeFileTreeLayer),
+      Layer.provide(NodePath.layer),
+    ),
+  );
   let backend: Backend;
 
   try {

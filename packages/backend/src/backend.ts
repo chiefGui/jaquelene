@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Path } from "effect";
 import type { Campaigns } from "#backend/campaign/campaigns";
 import { CampaignService } from "#backend/campaign/subsystem";
 import type { CampaignUsageReader } from "#backend/campaign/usage";
@@ -180,21 +180,24 @@ function createConfiguredBackendLayer({
 
 function createBackendLayer(options: BackendOptions) {
   return Layer.unwrap(
-    Effect.try({
-      try: () => {
-        assertStoragePathsAreDisjoint([
-          { id: "content", paths: getDatabaseStoragePaths(options.databasePath) },
-          { id: "cache", paths: getCacheStoragePaths(options.cache.path) },
-          ...options.providers.map((provider) => ({
-            id: `provider:${provider.id}`,
-            paths: provider.storagePaths,
-          })),
-          ...options.storageAreas.map(({ id, paths }) => ({ id, paths })),
-        ]);
+    Effect.gen(function* () {
+      const pathService = yield* Path.Path;
+      yield* Effect.try({
+        try: () => {
+          assertStoragePathsAreDisjoint(pathService, [
+            { id: "content", paths: getDatabaseStoragePaths(options.databasePath) },
+            { id: "cache", paths: getCacheStoragePaths(options.cache.path) },
+            ...options.providers.map((provider) => ({
+              id: `provider:${provider.id}`,
+              paths: provider.storagePaths,
+            })),
+            ...options.storageAreas.map(({ id, paths }) => ({ id, paths })),
+          ]);
+        },
+        catch: (cause) => asError(cause, "Could not configure the backend."),
+      });
 
-        return createConfiguredBackendLayer(options);
-      },
-      catch: (cause) => asError(cause, "Could not configure the backend."),
+      return createConfiguredBackendLayer(options);
     }),
   );
 }

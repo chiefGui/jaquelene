@@ -1,6 +1,5 @@
-import { lstat, opendir } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { Context, Effect, Layer, Schema, Semaphore } from "effect";
+import { Context, Effect, Layer, Path, Schema, Semaphore, Stream } from "effect";
+import { FileTreeService } from "#backend/filesystem/file-tree";
 
 const maximumByteCount = BigInt(Number.MAX_SAFE_INTEGER);
 
@@ -91,88 +90,45 @@ export class StorageTargetNotFoundError extends Schema.TaggedError<StorageTarget
   }
 }
 
-function isMissing(error: unknown) {
-  return error instanceof Error && (error as NodeJS.ErrnoException).code === "ENOENT";
-}
+function getPathComparisonKey(pathService: Path.Path, path: string) {
+  const normalized = pathService.resolve(path);
 
-async function measurePath(path: string): Promise<bigint> {
-  try {
-    const entry = await lstat(path, { bigint: true });
-
-    if (entry.isFile()) {
-      return entry.size;
-    }
-
-    if (!entry.isDirectory()) {
-      return 0n;
-    }
-
-    const directory = await opendir(path);
-    let totalBytes = 0n;
-
-    for await (const child of directory) {
-      totalBytes += await measurePath(join(path, child.name));
-    }
-
-    return totalBytes;
-  } catch (error) {
-    if (isMissing(error)) {
-      return 0n;
-    }
-
-    throw error;
-  }
-}
-
-async function measurePaths(paths: readonly string[]) {
-  const measurements = await Promise.all(paths.map(measurePath));
-  return measurements.reduce((totalBytes, bytes) => totalBytes + bytes, 0n);
-}
-
-function assertSupportedByteCount(bytes: bigint) {
-  if (bytes > maximumByteCount) {
-    throw new RangeError("Storage usage exceeds the maximum supported byte count.");
-  }
-}
-
-function getPathComparisonKey(path: string) {
-  const normalized = resolve(path);
-
-  if (process.platform === "win32") {
+  if (pathService.sep === "\\") {
     return normalized.toLowerCase();
   }
 
   return normalized;
 }
 
-function pathContains(parent: string, candidate: string) {
-  const pathFromParent = relative(parent, candidate);
+function pathContains(pathService: Path.Path, parent: string, candidate: string) {
+  const pathFromParent = pathService.relative(parent, candidate);
   return (
     pathFromParent === "" ||
     (pathFromParent !== ".." &&
-      !pathFromParent.startsWith(`..${sep}`) &&
-      !isAbsolute(pathFromParent))
+      !pathFromParent.startsWith(`..${pathService.sep}`) &&
+      !pathService.isAbsolute(pathFromParent))
   );
 }
 
-function pathsOverlap(left: string, right: string) {
-  return pathContains(left, right) || pathContains(right, left);
+function pathsOverlap(pathService: Path.Path, left: string, right: string) {
+  return pathContains(pathService, left, right) || pathContains(pathService, right, left);
 }
 
 export function assertStoragePathsAreDisjoint(
+  pathService: Path.Path,
   owners: readonly Readonly<{ id: StorageAreaId; paths: readonly string[] }>[],
 ) {
   const registeredPaths: Array<{ path: string; comparisonKey: string }> = [];
 
   for (const owner of owners) {
     for (const path of owner.paths) {
-      if (!path || !isAbsolute(path)) {
+      if (!path || !pathService.isAbsolute(path)) {
         throw new TypeError(`Storage area "${owner.id}" requires absolute owned paths.`);
       }
 
-      const pathComparisonKey = getPathComparisonKey(path);
+      const pathComparisonKey = getPathComparisonKey(pathService, path);
       const overlappingPath = registeredPaths.find(({ comparisonKey }) =>
-        pathsOverlap(comparisonKey, pathComparisonKey),
+        pathsOverlap(pathService, comparisonKey, pathComparisonKey),
       );
 
       if (overlappingPath?.comparisonKey === pathComparisonKey) {
@@ -188,7 +144,7 @@ export function assertStoragePathsAreDisjoint(
   }
 }
 
-function registerStorageAreas(areas: readonly StorageArea[]) {
+function registerStorageAreas(pathService: Path.Path, areas: readonly StorageArea[]) {
   const registeredIds = new Set<StorageAreaId>();
   const categories = new Set<StorageCategory>(Object.values(StorageCategory));
 
@@ -219,22 +175,8 @@ function registerStorageAreas(areas: readonly StorageArea[]) {
     } satisfies StorageArea;
   });
 
-  assertStoragePathsAreDisjoint(registeredAreas);
+  assertStoragePathsAreDisjoint(pathService, registeredAreas);
   return registeredAreas;
-}
-
-async function measureAreas(areas: readonly StorageArea[]) {
-  const measurements = await Promise.all(
-    areas.map(async (area) => ({ area, bytes: await measurePaths(area.paths) })),
-  );
-  const totalBytes = measurements.reduce((total, measurement) => total + measurement.bytes, 0n);
-  assertSupportedByteCount(totalBytes);
-
-  return measurements.map(({ area, bytes }) => ({
-    id: area.id,
-    category: area.category,
-    bytes: Number(bytes),
-  }));
 }
 
 type StorageServiceShape = Readonly<{
@@ -260,8 +202,10 @@ export class StorageService extends Context.Service<StorageService, StorageServi
     Layer.effect(
       StorageService,
       Effect.gen(function* () {
+        const pathService = yield* Path.Path;
+        const fileTree = yield* FileTreeService;
         const registeredAreas = yield* Effect.try({
-          try: () => registerStorageAreas(areas),
+          try: () => registerStorageAreas(pathService, areas),
           catch: (cause) => new StorageConfigurationError({ cause }),
         });
         const areasByCategory = new Map<StorageCategory, StorageArea[]>(
@@ -274,11 +218,39 @@ export class StorageService extends Context.Service<StorageService, StorageServi
 
         const areasById = new Map(registeredAreas.map((area) => [area.id, area]));
         const semaphore = yield* Semaphore.make(1);
-        const measure = (measuredAreas: readonly StorageArea[]) =>
-          Effect.tryPromise({
-            try: () => measureAreas(measuredAreas),
-            catch: (cause) => new StorageMeasurementError({ cause }),
-          });
+        const measure = Effect.fn("Storage.measure")(function* (areas: readonly StorageArea[]) {
+          const measurements = yield* Effect.forEach(
+            areas,
+            Effect.fn(function* (area) {
+              const bytes = yield* Stream.fromIterable(area.paths).pipe(
+                Stream.flatMap((path) => fileTree.files(path)),
+                Stream.runFold(
+                  () => 0n,
+                  (total, file) => total + file.bytes,
+                ),
+                Effect.mapError((cause) => new StorageMeasurementError({ cause })),
+              );
+              return { area, bytes };
+            }),
+            { concurrency: 4 },
+          );
+          const totalBytes = measurements.reduce(
+            (total, measurement) => total + measurement.bytes,
+            0n,
+          );
+
+          if (totalBytes > maximumByteCount) {
+            return yield* new StorageMeasurementError({
+              cause: new RangeError("Storage usage exceeds the maximum supported byte count."),
+            });
+          }
+
+          return measurements.map(({ area, bytes }) => ({
+            id: area.id,
+            category: area.category,
+            bytes: Number(bytes),
+          }));
+        });
 
         const measureUsage = Effect.fn("Storage.measureUsage")(function* () {
           return { areas: yield* measure(registeredAreas) };

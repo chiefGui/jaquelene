@@ -21,6 +21,7 @@
     "typeid-js": "^1.2.0"
   },
   "devDependencies": {
+    "@effect/platform-node": "4.0.0-rc.112",
     "@types/node": "^26.3.0",
     "drizzle-kit": "1.0.0-rc.4"
   }

@@ -1,12 +1,16 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Cause, Deferred, Effect, Exit, ManagedRuntime } from "effect";
+import * as NodePath from "@effect/platform-node/NodePath";
+import { Cause, Deferred, Effect, Exit, Layer, ManagedRuntime, Path, Stream } from "effect";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { FileTreeError, FileTreeService } from "#backend/filesystem/file-tree";
+import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
 import {
   StorageAreaDeleteError,
   StorageCategory,
   StorageService,
+  assertStoragePathsAreDisjoint,
   type StorageArea,
   type StorageAreaId,
   type StorageCategory as StorageCategoryValue,
@@ -18,7 +22,7 @@ const closeStorageServices: Array<() => Promise<void>> = [];
 const directories: string[] = [];
 
 type TestStorage = Readonly<{
-  measureUsage: () => Promise<StorageUsage>;
+  measureUsage: (signal?: AbortSignal) => Promise<StorageUsage>;
   deleteArea: (id: StorageAreaId, signal?: AbortSignal) => Promise<StorageDeletion>;
   deleteCategory: (id: StorageCategoryValue) => Promise<StorageDeletion>;
 }>;
@@ -39,8 +43,16 @@ async function unwrapExit<A, E>(exitPromise: Promise<Exit.Exit<A, E>>) {
   throw Cause.squash(exit.cause);
 }
 
-async function createTestStorage(storageAreas: readonly StorageArea[]): Promise<TestStorage> {
-  const runtime = ManagedRuntime.make(StorageService.layer(storageAreas));
+async function createTestStorage(
+  storageAreas: readonly StorageArea[],
+  fileTreeLayer: Layer.Layer<FileTreeService, never, Path.Path> = nodeFileTreeLayer,
+): Promise<TestStorage> {
+  const runtime = ManagedRuntime.make(
+    StorageService.layer(storageAreas).pipe(
+      Layer.provide(fileTreeLayer),
+      Layer.provide(NodePath.layer),
+    ),
+  );
 
   try {
     await runtime.context();
@@ -52,8 +64,13 @@ async function createTestStorage(storageAreas: readonly StorageArea[]): Promise<
   closeStorageServices.push(() => runtime.dispose());
 
   return {
-    measureUsage: () =>
-      unwrapExit(runtime.runPromiseExit(StorageService.use((storage) => storage.measureUsage()))),
+    measureUsage: (signal) =>
+      unwrapExit(
+        runtime.runPromiseExit(
+          StorageService.use((storage) => storage.measureUsage()),
+          { signal },
+        ),
+      ),
     deleteArea: (id, signal) =>
       unwrapExit(
         runtime.runPromiseExit(
@@ -116,7 +133,7 @@ describe("storage", () => {
     await expect(storage.measureUsage()).rejects.toMatchObject({
       _tag: "StorageMeasurementError",
       message: "Could not measure storage usage.",
-      cause: { code: "ERR_INVALID_ARG_VALUE" },
+      cause: { _tag: "FileTreeError", cause: { code: "ERR_INVALID_ARG_VALUE" } },
     });
   });
 
@@ -178,6 +195,209 @@ describe("storage", () => {
     await expect(storage.measureUsage()).resolves.toEqual({
       areas: [{ id: "content", category: StorageCategory.Content, bytes: 256 }],
     });
+  });
+
+  it("bounds concurrent measurement and preserves registration order", async () => {
+    const firstBatchStarted = Deferred.makeUnsafe<void>();
+    const release = Deferred.makeUnsafe<void>();
+    let active = 0;
+    let maximumActive = 0;
+    let started = 0;
+    const fileTreeLayer = Layer.succeed(FileTreeService, {
+      files: (path) =>
+        Stream.unwrap(
+          Effect.gen(function* () {
+            yield* Effect.acquireRelease(
+              Effect.sync(() => {
+                started += 1;
+                active += 1;
+                maximumActive = Math.max(maximumActive, active);
+              }),
+              () =>
+                Effect.sync(() => {
+                  active -= 1;
+                }),
+            );
+            if (started === 4) {
+              yield* Deferred.succeed(firstBatchStarted, undefined);
+            }
+            yield* Deferred.await(release);
+            return Stream.succeed({ path, bytes: 2n });
+          }),
+        ),
+    });
+    const directory = createUserDataDirectory();
+    const areas = Array.from({ length: 7 }, (_, index) => ({
+      id: `owner:${index}`,
+      category: StorageCategory.AppData,
+      paths: [join(directory, `${index}-first`), join(directory, `${index}-second`)],
+      delete: Effect.void,
+    }));
+    const storage = await createTestStorage(areas, fileTreeLayer);
+    const measuring = storage.measureUsage();
+    await Effect.runPromise(Deferred.await(firstBatchStarted));
+    expect(started).toBe(4);
+    await Effect.runPromise(Deferred.succeed(release, undefined));
+
+    await expect(measuring).resolves.toEqual({
+      areas: areas.map(({ id, category }) => ({ id, category, bytes: 4 })),
+    });
+    expect(started).toBe(14);
+    expect(maximumActive).toBe(4);
+    expect(active).toBe(0);
+  });
+
+  it("cleans up interrupted measurement before releasing the storage lock", async () => {
+    const started = Deferred.makeUnsafe<void>();
+    const releaseCleanup = Deferred.makeUnsafe<void>();
+    const cleanupStarted = Deferred.makeUnsafe<void>();
+    const deleteOwner = vi.fn();
+    let interrupted = false;
+    const fileTreeLayer = Layer.succeed(FileTreeService, {
+      files: () =>
+        Stream.unwrap(
+          Effect.gen(function* () {
+            if (interrupted) {
+              return Stream.empty;
+            }
+            yield* Effect.acquireRelease(Deferred.succeed(started, undefined), () =>
+              Effect.gen(function* () {
+                interrupted = true;
+                yield* Deferred.succeed(cleanupStarted, undefined);
+                yield* Deferred.await(releaseCleanup);
+              }),
+            );
+            return yield* Effect.never;
+          }),
+        ),
+    });
+    const storage = await createTestStorage(
+      [
+        {
+          id: "content",
+          category: StorageCategory.Content,
+          paths: [join(createUserDataDirectory(), "owned")],
+          delete: Effect.sync(deleteOwner),
+        },
+      ],
+      fileTreeLayer,
+    );
+    const controller = new AbortController();
+    const measuring = storage.measureUsage(controller.signal);
+    const result = expect(measuring).rejects.toBeDefined();
+    await Effect.runPromise(Deferred.await(started));
+    controller.abort();
+    await Effect.runPromise(Deferred.await(cleanupStarted));
+    const deleting = storage.deleteArea("content");
+    expect(deleteOwner).not.toHaveBeenCalled();
+    await Effect.runPromise(Deferred.succeed(releaseCleanup, undefined));
+    await result;
+    await deleting;
+    expect(deleteOwner).toHaveBeenCalledOnce();
+  });
+
+  it("rejects totals that cannot be represented exactly by the storage contract", async () => {
+    const directory = createUserDataDirectory();
+    const storage = await createTestStorage(
+      [
+        {
+          id: "content",
+          category: StorageCategory.Content,
+          paths: [join(directory, "content")],
+          delete: Effect.void,
+        },
+        {
+          id: "cache",
+          category: StorageCategory.Cache,
+          paths: [join(directory, "cache")],
+          delete: Effect.void,
+        },
+      ],
+      Layer.succeed(FileTreeService, {
+        files: (path) => Stream.succeed({ path, bytes: BigInt(Number.MAX_SAFE_INTEGER) }),
+      }),
+    );
+
+    await expect(storage.measureUsage()).rejects.toMatchObject({
+      _tag: "StorageMeasurementError",
+      cause: { message: "Storage usage exceeds the maximum supported byte count." },
+    });
+    await expect(storage.deleteArea("content")).resolves.toEqual({
+      areas: [{ id: "content", category: StorageCategory.Content, bytes: Number.MAX_SAFE_INTEGER }],
+    });
+  });
+
+  it("preserves measurement failures and cleans up concurrent traversal", async () => {
+    const directory = createUserDataDirectory();
+    const failedPath = join(directory, "failed");
+    const peerStarted = Deferred.makeUnsafe<void>();
+    const cleanup = vi.fn();
+    const failure = new FileTreeError({
+      path: failedPath,
+      operation: "lstat",
+      cause: new Error("Access denied."),
+    });
+    const storage = await createTestStorage(
+      [
+        {
+          id: "content",
+          category: StorageCategory.Content,
+          paths: [failedPath],
+          delete: Effect.void,
+        },
+        {
+          id: "cache",
+          category: StorageCategory.Cache,
+          paths: [join(directory, "peer")],
+          delete: Effect.void,
+        },
+      ],
+      Layer.succeed(FileTreeService, {
+        files: (path) => {
+          if (path === failedPath) {
+            return Stream.fromEffect(
+              Deferred.await(peerStarted).pipe(Effect.andThen(Effect.fail(failure))),
+            );
+          }
+          return Stream.unwrap(
+            Effect.gen(function* () {
+              yield* Effect.acquireRelease(Deferred.succeed(peerStarted, undefined), () =>
+                Effect.sync(cleanup),
+              );
+              return yield* Effect.never;
+            }),
+          );
+        },
+      }),
+    );
+
+    await expect(storage.measureUsage()).rejects.toMatchObject({
+      _tag: "StorageMeasurementError",
+      cause: failure,
+    });
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("preserves traversal defects and releases the storage lock", async () => {
+    const defect = new Error("Unexpected traversal defect.");
+    const deleteOwner = vi.fn();
+    const storage = await createTestStorage(
+      [
+        {
+          id: "content",
+          category: StorageCategory.Content,
+          paths: [join(createUserDataDirectory(), "owned")],
+          delete: Effect.sync(deleteOwner),
+        },
+      ],
+      Layer.succeed(FileTreeService, {
+        files: () => Stream.die(defect),
+      }),
+    );
+
+    await expect(storage.measureUsage()).rejects.toBe(defect);
+    await expect(storage.deleteArea("content")).rejects.toBe(defect);
+    expect(deleteOwner).toHaveBeenCalledOnce();
   });
 
   it("returns fresh usage for deleted owners without measuring unrelated areas", async () => {
@@ -579,5 +799,54 @@ describe("storage", () => {
       _tag: "StorageConfigurationError",
       cause: { message: `Storage paths "${ownedDirectory}" and "${nestedPath}" overlap.` },
     });
+  });
+});
+
+describe("storage path ownership", () => {
+  it("uses Windows normalization and case rules independently of the host", async () => {
+    const pathService = await Effect.runPromise(
+      Path.Path.pipe(Effect.provide(NodePath.layerWin32)),
+    );
+
+    expect(() =>
+      assertStoragePathsAreDisjoint(pathService, [
+        { id: "first", paths: ["C:\\data\\cache"] },
+        { id: "second", paths: ["c:/DATA/other/../cache"] },
+      ]),
+    ).toThrow("is registered more than once");
+    expect(() =>
+      assertStoragePathsAreDisjoint(pathService, [
+        { id: "first", paths: ["C:\\data\\cache"] },
+        { id: "second", paths: ["c:/DATA/cache/child"] },
+      ]),
+    ).toThrow("overlap");
+    expect(() =>
+      assertStoragePathsAreDisjoint(pathService, [
+        { id: "first", paths: ["C:\\data\\cache"] },
+        { id: "second", paths: ["C:\\data\\cache-backup", "D:\\data\\cache"] },
+      ]),
+    ).not.toThrow();
+  });
+
+  it("preserves POSIX case sensitivity and rejects relative ownership", async () => {
+    const pathService = await Effect.runPromise(
+      Path.Path.pipe(Effect.provide(NodePath.layerPosix)),
+    );
+
+    expect(() =>
+      assertStoragePathsAreDisjoint(pathService, [
+        { id: "first", paths: ["/data/Cache"] },
+        { id: "second", paths: ["/data/cache"] },
+      ]),
+    ).not.toThrow();
+    expect(() =>
+      assertStoragePathsAreDisjoint(pathService, [
+        { id: "first", paths: ["/data/cache/"] },
+        { id: "second", paths: ["/data/cache/child"] },
+      ]),
+    ).toThrow("overlap");
+    expect(() =>
+      assertStoragePathsAreDisjoint(pathService, [{ id: "first", paths: ["data/cache"] }]),
+    ).toThrow("requires absolute owned paths");
   });
 });

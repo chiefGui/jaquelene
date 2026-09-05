@@ -1,5 +1,5 @@
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
-import Bookshelf01Icon from "@hugeicons/core-free-icons/Bookshelf01Icon";
+import FolderLibraryIcon from "@hugeicons/core-free-icons/FolderLibraryIcon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { IconButton, Skeleton } from "@jaquelene/ui";
@@ -143,7 +143,7 @@ export function PrimarySidebar({ navigation }: { navigation: PrimarySidebarNavig
                   aria-label="Library"
                   style={styles.footerAction}
                 >
-                  <IconButton.Icon render={<HugeiconsIcon icon={Bookshelf01Icon} />} />
+                  <IconButton.Icon render={<HugeiconsIcon icon={FolderLibraryIcon} />} />
                 </IconButton.Root>
               }
             />

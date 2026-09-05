@@ -1,5 +1,5 @@
-import { StorageCategory, type StorageArea } from "@jaquelene/backend";
-import { Context, Layer } from "effect";
+import { StorageAreaDeleteError, StorageCategory, type StorageArea } from "@jaquelene/backend";
+import { Context, Effect, Layer } from "effect";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import { deleteStoreFile } from "@/storage/delete-store-file";
@@ -53,7 +53,10 @@ export function createPreferencesStorageArea(
     id: "preferences",
     category: StorageCategory.AppData,
     paths: getPreferencesStoragePaths(userDataDirectory),
-    delete: preferences.deleteAll,
+    delete: Effect.try({
+      try: () => preferences.deleteAll(),
+      catch: (cause) => new StorageAreaDeleteError({ areaId: "preferences", cause }),
+    }),
   };
 }
 

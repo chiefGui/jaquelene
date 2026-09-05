@@ -2,7 +2,11 @@ import { Context, Effect, Layer } from "effect";
 import { providerConfigureResultSchema, providerKeyLabelSchema } from "@jaquelene/domain";
 import type { ResourceCache } from "#backend/resource-cache/resource-cache";
 import { ResourceCacheService } from "#backend/resource-cache/service";
-import { StorageCategory, type StorageArea } from "#backend/storage/storage";
+import {
+  StorageAreaDeleteError,
+  StorageCategory,
+  type StorageArea,
+} from "#backend/storage/storage";
 import type {
   ApiKeyProviderConfigurationSnapshot,
   ProviderAdapter,
@@ -571,12 +575,17 @@ export function createProviderSubsystem(
       return [];
     }
 
+    const areaId = `provider:${adapter.descriptor.id}`;
+
     return [
       {
-        id: `provider:${adapter.descriptor.id}`,
+        id: areaId,
         category: StorageCategory.AppData,
         paths: [...adapter.configuration.storagePaths],
-        delete: () => providers.clearConfiguration(adapter.descriptor.id),
+        delete: Effect.tryPromise({
+          try: () => providers.clearConfiguration(adapter.descriptor.id),
+          catch: (cause) => new StorageAreaDeleteError({ areaId, cause }),
+        }).pipe(Effect.uninterruptible),
       },
     ];
   });

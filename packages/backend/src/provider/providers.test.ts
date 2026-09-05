@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { ids } from "#backend/id";
 import type { CacheStore, StoredCacheEntry } from "#backend/resource-cache/cache-store";
@@ -176,14 +177,16 @@ describe("provider subsystem", () => {
     await expect(
       subsystem.generations.get("local-provider")?.generate(generationRequest()),
     ).resolves.toEqual({ text: "Local reply" });
-    expect(subsystem.storageAreas).toEqual([
+    expect(
+      subsystem.storageAreas.map(({ id, category, paths }) => ({ id, category, paths })),
+    ).toEqual([
       {
         id: "provider:api-key-provider",
         category: StorageCategory.AppData,
         paths: configured.configuration.storagePaths,
-        delete: expect.any(Function),
       },
     ]);
+    expect(Effect.isEffect(subsystem.storageAreas[0]?.delete)).toBe(true);
     await subsystem.close();
   });
 
@@ -321,7 +324,8 @@ describe("provider subsystem", () => {
       { id: "api-key-provider", brandId: "api-key" },
     ]);
 
-    await subsystem.storageAreas[0]?.delete();
+    const area = subsystem.storageAreas[0]!;
+    await Effect.runPromise(area.delete);
     expect(clear).toHaveBeenCalledOnce();
     expect(subsystem.providers.inspectConfiguration(adapter.descriptor.id)).toEqual({
       kind: "api-key",

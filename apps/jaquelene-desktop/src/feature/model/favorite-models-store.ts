@@ -1,4 +1,5 @@
-import { StorageCategory, type StorageArea } from "@jaquelene/backend";
+import { StorageAreaDeleteError, StorageCategory, type StorageArea } from "@jaquelene/backend";
+import { Effect } from "effect";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import { deleteStoreFile } from "@/storage/delete-store-file";
@@ -55,6 +56,9 @@ export function createFavoriteModelsStorageArea(
     id: "favorite-models",
     category: StorageCategory.AppData,
     paths: getFavoriteModelsStoragePaths(userDataDirectory),
-    delete: favoriteModels.deleteAll,
+    delete: Effect.try({
+      try: () => favoriteModels.deleteAll(),
+      catch: (cause) => new StorageAreaDeleteError({ areaId: "favorite-models", cause }),
+    }),
   };
 }

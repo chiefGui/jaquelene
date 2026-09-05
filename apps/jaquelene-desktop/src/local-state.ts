@@ -1,4 +1,4 @@
-import { StorageCategory, type StorageArea } from "@jaquelene/backend";
+import { StorageAreaDeleteError, StorageCategory, type StorageArea } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
 import { Context, Effect, Layer, Schema } from "effect";
 import { renameSync, rmSync } from "node:fs";
@@ -64,7 +64,10 @@ export function createLocalStateStorageArea(
     id: "local-state",
     category: StorageCategory.AppData,
     paths: getLocalStateStoragePaths(userDataDirectory),
-    delete: localState.deleteAll,
+    delete: Effect.try({
+      try: () => localState.deleteAll(),
+      catch: (cause) => new StorageAreaDeleteError({ areaId: "local-state", cause }),
+    }),
   };
 }
 

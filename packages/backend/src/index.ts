@@ -98,7 +98,15 @@ export {
   type ThreadId,
   type TurnId,
 } from "#backend/id";
-export { assertStoragePathsAreDisjoint, StorageCategory } from "#backend/storage/storage";
+export {
+  assertStoragePathsAreDisjoint,
+  StorageAreaDeleteError,
+  StorageCategory,
+  StorageConfigurationError,
+  StorageDeleteError,
+  StorageMeasurementError,
+  StorageTargetNotFoundError,
+} from "#backend/storage/storage";
 export type {
   StorageArea,
   StorageAreaId,

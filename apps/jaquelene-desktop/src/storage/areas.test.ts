@@ -1,9 +1,11 @@
 import { StorageCategory } from "@jaquelene/backend";
+import { Effect, Fiber, Result } from "effect";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { ApplicationDiagnostics } from "@/diagnostics/diagnostics";
+import { createDiagnosticsStorageArea } from "@/diagnostics/storage";
 import { createFavoriteModels } from "@/feature/model/favorite-models";
 import { createFavoriteModelsStorage } from "@/feature/model/favorite-models-store";
 import { createLocalState } from "@/local-state";
@@ -56,7 +58,7 @@ describe("storage areas", () => {
         id,
         category,
         paths,
-        deletable: typeof deleteArea === "function",
+        deletable: Effect.isEffect(deleteArea),
       })),
     ).toEqual([
       {
@@ -115,10 +117,12 @@ describe("storage areas", () => {
       preferences,
       userDataDirectory,
     });
-    await Promise.all(
-      areas
-        .filter(({ category }) => category === StorageCategory.AppData)
-        .map((area) => area.delete()),
+    await Effect.runPromise(
+      Effect.forEach(
+        areas.filter(({ category }) => category === StorageCategory.AppData),
+        (area) => area.delete,
+        { discard: true },
+      ),
     );
 
     expect(favoriteModels.list()).toEqual([]);
@@ -131,5 +135,71 @@ describe("storage areas", () => {
     for (const path of areas.flatMap(({ paths }) => paths)) {
       expect(existsSync(path)).toBe(false);
     }
+  });
+
+  it("identifies each owner when its deletion operation fails", async () => {
+    const userDataDirectory = mkdtempSync(join(tmpdir(), "jaquelene-storage-areas-"));
+    directories.push(userDataDirectory);
+    const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
+    const diagnostics = createDiagnostics();
+    const localState = createLocalState(userDataDirectory, diagnostics);
+    const preferences = createPreferences(userDataDirectory);
+    const failure = new Error("Could not remove the owned data.");
+    const fail = () => {
+      throw failure;
+    };
+    vi.spyOn(diagnostics, "deleteAll").mockImplementation(fail);
+    vi.spyOn(favoriteModels, "deleteAll").mockImplementation(fail);
+    vi.spyOn(localState, "deleteAll").mockImplementation(fail);
+    vi.spyOn(preferences, "deleteAll").mockImplementation(fail);
+    const areas = createStorageAreas({
+      diagnostics,
+      favoriteModels,
+      localState,
+      preferences,
+      userDataDirectory,
+    });
+
+    for (const area of areas) {
+      await expect(Effect.runPromise(Effect.result(area.delete))).resolves.toEqual(
+        Result.fail(
+          expect.objectContaining({
+            _tag: "StorageAreaDeleteError",
+            areaId: area.id,
+            cause: failure,
+          }),
+        ),
+      );
+    }
+  });
+
+  it("finishes an uncancellable owner deletion before releasing its caller", async () => {
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const events: string[] = [];
+    const diagnostics = createDiagnostics(async () => {
+      events.push("deletion:start");
+      started.resolve();
+      await release.promise;
+      events.push("deletion:finish");
+    });
+    const area = createDiagnosticsStorageArea("unused", diagnostics);
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const deleting = yield* Effect.forkChild(
+          area.delete.pipe(Effect.onExit(() => Effect.sync(() => events.push("caller:release")))),
+        );
+        yield* Effect.promise(() => started.promise);
+        const interrupting = yield* Effect.forkChild(Fiber.interrupt(deleting));
+        yield* Effect.yieldNow;
+        const beforeCompletion = [...events];
+        release.resolve();
+        yield* Fiber.join(interrupting);
+
+        expect(beforeCompletion).toEqual(["deletion:start"]);
+        expect(events).toEqual(["deletion:start", "deletion:finish", "caller:release"]);
+      }),
+    );
   });
 });

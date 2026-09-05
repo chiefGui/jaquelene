@@ -1,9 +1,14 @@
 import { eq } from "drizzle-orm";
+import { Effect } from "effect";
 import { campaignTable } from "#backend/campaign/schema";
 import { getDatabaseStoragePaths, type Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { promptTable } from "#backend/prompt/schema";
-import { StorageCategory, type StorageArea } from "#backend/storage/storage";
+import {
+  StorageAreaDeleteError,
+  StorageCategory,
+  type StorageArea,
+} from "#backend/storage/storage";
 import { threadTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
 
@@ -44,6 +49,9 @@ export function createContentStorageArea(database: Database, databasePath: strin
     id: "content",
     category: StorageCategory.Content,
     paths: getDatabaseStoragePaths(databasePath),
-    delete: () => deleteContent(database),
+    delete: Effect.try({
+      try: () => deleteContent(database),
+      catch: (cause) => new StorageAreaDeleteError({ areaId: "content", cause }),
+    }),
   };
 }

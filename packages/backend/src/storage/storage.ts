@@ -1,6 +1,6 @@
 import { lstat, opendir } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { Context, Effect, Layer, Semaphore } from "effect";
+import { Context, Effect, Layer, Schema, Semaphore } from "effect";
 
 const maximumByteCount = BigInt(Number.MAX_SAFE_INTEGER);
 
@@ -18,7 +18,7 @@ export type StorageArea = Readonly<{
   id: StorageAreaId;
   category: StorageCategory;
   paths: readonly string[];
-  delete: () => Promise<void> | void;
+  delete: Effect.Effect<void, StorageAreaDeleteError>;
 }>;
 
 export type StorageAreaUsage = Readonly<{
@@ -35,24 +35,53 @@ export type StorageDeletion = Readonly<{
   areas: readonly StorageAreaUsage[];
 }>;
 
-class StorageConfigurationError extends Error {
-  override readonly name = "StorageConfigurationError";
-
-  constructor(cause: unknown) {
-    super("Storage areas are invalid.", { cause });
+export class StorageConfigurationError extends Schema.TaggedError<StorageConfigurationError>()(
+  "StorageConfigurationError",
+  { cause: Schema.Defect() },
+) {
+  override get message() {
+    return "Storage areas are invalid.";
   }
 }
 
-class StorageMeasurementError extends Error {
-  override readonly name = "StorageMeasurementError";
-
-  constructor(cause: unknown) {
-    super("Could not measure storage usage.", { cause });
+export class StorageMeasurementError extends Schema.TaggedError<StorageMeasurementError>()(
+  "StorageMeasurementError",
+  { cause: Schema.Defect() },
+) {
+  override get message() {
+    return "Could not measure storage usage.";
   }
 }
 
-class StorageDeleteError extends Error {
-  override readonly name = "StorageDeleteError";
+export class StorageAreaDeleteError extends Schema.TaggedError<StorageAreaDeleteError>()(
+  "StorageAreaDeleteError",
+  { areaId: Schema.String, cause: Schema.Defect() },
+) {
+  override get message() {
+    return `Could not delete storage area "${this.areaId}".`;
+  }
+}
+
+export class StorageDeleteError extends Schema.TaggedError<StorageDeleteError>()(
+  "StorageDeleteError",
+  { message: Schema.String, failures: Schema.NonEmptyArray(StorageAreaDeleteError) },
+) {
+  override get cause() {
+    if (this.failures.length === 1) {
+      return this.failures[0];
+    }
+
+    return new AggregateError(this.failures, this.message);
+  }
+}
+
+export class StorageTargetNotFoundError extends Schema.TaggedError<StorageTargetNotFoundError>()(
+  "StorageTargetNotFoundError",
+  { kind: Schema.Literals(["area", "category"]), id: Schema.String },
+) {
+  override get message() {
+    return `Storage ${this.kind} "${this.id}" does not exist.`;
+  }
 }
 
 function isMissing(error: unknown) {
@@ -101,7 +130,12 @@ function assertSupportedByteCount(bytes: bigint) {
 
 function getPathComparisonKey(path: string) {
   const normalized = resolve(path);
-  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+
+  if (process.platform === "win32") {
+    return normalized.toLowerCase();
+  }
+
+  return normalized;
 }
 
 function pathContains(parent: string, candidate: string) {
@@ -166,8 +200,8 @@ function registerStorageAreas(areas: readonly StorageArea[]) {
       throw new TypeError(`Storage area "${area.id}" has an unknown category.`);
     }
 
-    if (typeof area.delete !== "function") {
-      throw new TypeError(`Storage area "${area.id}" requires a delete operation.`);
+    if (!Effect.isEffect(area.delete)) {
+      throw new TypeError(`Storage area "${area.id}" requires a delete Effect.`);
     }
 
     return {
@@ -196,31 +230,20 @@ async function measureAreas(areas: readonly StorageArea[]) {
   }));
 }
 
-async function deleteAreas(areas: readonly StorageArea[]) {
-  const results = await Promise.allSettled(
-    areas.map((area) => Promise.resolve().then(area.delete)),
-  );
-  const failures = results.flatMap((result) =>
-    result.status === "rejected" ? [result.reason] : [],
-  );
-
-  if (failures.length === 1) {
-    throw failures[0];
-  }
-
-  if (failures.length > 1) {
-    throw new AggregateError(failures, "Multiple storage owners failed to delete their data.");
-  }
-}
-
 type StorageServiceShape = Readonly<{
   measureUsage: () => Effect.Effect<StorageUsage, StorageMeasurementError>;
   deleteArea: (
     id: StorageAreaId,
-  ) => Effect.Effect<StorageDeletion, StorageDeleteError | StorageMeasurementError>;
+  ) => Effect.Effect<
+    StorageDeletion,
+    StorageDeleteError | StorageMeasurementError | StorageTargetNotFoundError
+  >;
   deleteCategory: (
     id: StorageCategory,
-  ) => Effect.Effect<StorageDeletion, StorageDeleteError | StorageMeasurementError>;
+  ) => Effect.Effect<
+    StorageDeletion,
+    StorageDeleteError | StorageMeasurementError | StorageTargetNotFoundError
+  >;
 }>;
 
 export class StorageService extends Context.Service<StorageService, StorageServiceShape>()(
@@ -232,7 +255,7 @@ export class StorageService extends Context.Service<StorageService, StorageServi
       Effect.gen(function* () {
         const registeredAreas = yield* Effect.try({
           try: () => registerStorageAreas(areas),
-          catch: (cause) => new StorageConfigurationError(cause),
+          catch: (cause) => new StorageConfigurationError({ cause }),
         });
         const areasByCategory = new Map<StorageCategory, StorageArea[]>(
           Object.values(StorageCategory).map((category) => [category, []]),
@@ -247,56 +270,43 @@ export class StorageService extends Context.Service<StorageService, StorageServi
         const measure = (measuredAreas: readonly StorageArea[]) =>
           Effect.tryPromise({
             try: () => measureAreas(measuredAreas),
-            catch: (cause) => new StorageMeasurementError(cause),
+            catch: (cause) => new StorageMeasurementError({ cause }),
           });
-        const deleteRegisteredAreas = (areas: readonly StorageArea[], message: string) =>
-          Effect.gen(function* () {
-            yield* Effect.tryPromise({
-              try: () => deleteAreas(areas),
-              catch: (cause) => new StorageDeleteError(message, { cause }),
-            });
+        const deleteRegisteredAreas = Effect.fn("Storage.deleteRegisteredAreas")(function* (
+          areas: readonly StorageArea[],
+          message: string,
+        ) {
+          yield* Effect.validate(areas, (area) => area.delete, {
+            concurrency: 4,
+            discard: true,
+          }).pipe(Effect.mapError((failures) => new StorageDeleteError({ message, failures })));
 
-            return { areas: yield* measure(areas) };
-          });
-
-        return StorageService.of({
-          measureUsage: () =>
-            semaphore.withPermits(1)(Effect.map(measure(registeredAreas), (areas) => ({ areas }))),
-          deleteArea: (id) =>
-            semaphore.withPermits(1)(
-              Effect.gen(function* () {
-                const area = areasById.get(id);
-
-                if (!area) {
-                  return yield* Effect.fail(
-                    new StorageDeleteError(`Storage area "${id}" does not exist.`),
-                  );
-                }
-
-                return yield* deleteRegisteredAreas(
-                  [area],
-                  `Could not delete storage area "${id}".`,
-                );
-              }),
-            ),
-          deleteCategory: (id) =>
-            semaphore.withPermits(1)(
-              Effect.gen(function* () {
-                const areas = areasByCategory.get(id);
-
-                if (!areas) {
-                  return yield* Effect.fail(
-                    new StorageDeleteError(`Storage category "${id}" does not exist.`),
-                  );
-                }
-
-                return yield* deleteRegisteredAreas(
-                  areas,
-                  `Could not delete storage category "${id}".`,
-                );
-              }),
-            ),
+          return { areas: yield* measure(areas) };
         });
+
+        const measureUsage = Effect.fn("Storage.measureUsage")(function* () {
+          return { areas: yield* measure(registeredAreas) };
+        }, semaphore.withPermits(1));
+        const deleteArea = Effect.fn("Storage.deleteArea")(function* (id: StorageAreaId) {
+          const area = areasById.get(id);
+
+          if (!area) {
+            return yield* new StorageTargetNotFoundError({ kind: "area", id });
+          }
+
+          return yield* deleteRegisteredAreas([area], `Could not delete storage area "${id}".`);
+        }, semaphore.withPermits(1));
+        const deleteCategory = Effect.fn("Storage.deleteCategory")(function* (id: StorageCategory) {
+          const areas = areasByCategory.get(id);
+
+          if (!areas) {
+            return yield* new StorageTargetNotFoundError({ kind: "category", id });
+          }
+
+          return yield* deleteRegisteredAreas(areas, `Could not delete storage category "${id}".`);
+        }, semaphore.withPermits(1));
+
+        return StorageService.of({ measureUsage, deleteArea, deleteCategory });
       }),
     );
 }

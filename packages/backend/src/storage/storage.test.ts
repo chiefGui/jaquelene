@@ -1,9 +1,10 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Cause, Exit, ManagedRuntime } from "effect";
+import { Cause, Deferred, Effect, Exit, ManagedRuntime } from "effect";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
+  StorageAreaDeleteError,
   StorageCategory,
   StorageService,
   type StorageArea,
@@ -18,7 +19,7 @@ const directories: string[] = [];
 
 type TestStorage = Readonly<{
   measureUsage: () => Promise<StorageUsage>;
-  deleteArea: (id: StorageAreaId) => Promise<StorageDeletion>;
+  deleteArea: (id: StorageAreaId, signal?: AbortSignal) => Promise<StorageDeletion>;
   deleteCategory: (id: StorageCategoryValue) => Promise<StorageDeletion>;
 }>;
 
@@ -53,8 +54,13 @@ async function createTestStorage(storageAreas: readonly StorageArea[]): Promise<
   return {
     measureUsage: () =>
       unwrapExit(runtime.runPromiseExit(StorageService.use((storage) => storage.measureUsage()))),
-    deleteArea: (id) =>
-      unwrapExit(runtime.runPromiseExit(StorageService.use((storage) => storage.deleteArea(id)))),
+    deleteArea: (id, signal) =>
+      unwrapExit(
+        runtime.runPromiseExit(
+          StorageService.use((storage) => storage.deleteArea(id)),
+          { signal },
+        ),
+      ),
     deleteCategory: (id) =>
       unwrapExit(
         runtime.runPromiseExit(StorageService.use((storage) => storage.deleteCategory(id))),
@@ -78,13 +84,13 @@ describe("storage", () => {
         id: "content",
         category: StorageCategory.Content,
         paths: [join(directory, "jaquelene.sqlite"), join(directory, "attachments")],
-        delete: vi.fn(),
+        delete: Effect.void,
       },
       {
         id: "preferences",
         category: StorageCategory.AppData,
         paths: [join(directory, "preferences.json")],
-        delete: vi.fn(),
+        delete: Effect.void,
       },
     ]);
 
@@ -103,12 +109,12 @@ describe("storage", () => {
         id: "content",
         category: StorageCategory.Content,
         paths: [`${directory}\0`],
-        delete: vi.fn(),
+        delete: Effect.void,
       },
     ]);
 
     await expect(storage.measureUsage()).rejects.toMatchObject({
-      name: "StorageMeasurementError",
+      _tag: "StorageMeasurementError",
       message: "Could not measure storage usage.",
       cause: { code: "ERR_INVALID_ARG_VALUE" },
     });
@@ -133,13 +139,13 @@ describe("storage", () => {
         id: "content",
         category: StorageCategory.Content,
         paths: [databasePath, attachmentsPath],
-        delete: vi.fn(),
+        delete: Effect.void,
       },
       {
         id: "local-state",
         category: StorageCategory.AppData,
         paths: [localStatePath],
-        delete: vi.fn(),
+        delete: Effect.void,
       },
     ]);
 
@@ -159,7 +165,7 @@ describe("storage", () => {
         id: "content",
         category: StorageCategory.Content,
         paths: [databasePath],
-        delete: vi.fn(),
+        delete: Effect.void,
       },
     ]);
 
@@ -188,19 +194,19 @@ describe("storage", () => {
         id: "content",
         category: StorageCategory.Content,
         paths: [`${directory}\0`],
-        delete: deleteContent,
+        delete: Effect.sync(deleteContent),
       },
       {
         id: "favorite-models",
         category: StorageCategory.AppData,
         paths: [favoritesPath],
-        delete: deleteFavorites,
+        delete: Effect.sync(deleteFavorites),
       },
       {
         id: "preferences",
         category: StorageCategory.AppData,
         paths: [preferencesPath],
-        delete: deletePreferences,
+        delete: Effect.sync(deletePreferences),
       },
     ]);
 
@@ -224,24 +230,155 @@ describe("storage", () => {
         id: "favorite-models",
         category: StorageCategory.AppData,
         paths: [join(directory, "favorite-models.json")],
-        delete: () => {
-          throw failure;
-        },
+        delete: Effect.fail(
+          new StorageAreaDeleteError({ areaId: "favorite-models", cause: failure }),
+        ),
       },
       {
         id: "preferences",
         category: StorageCategory.AppData,
         paths: [join(directory, "preferences.json")],
-        delete: deletePreferences,
+        delete: Effect.sync(deletePreferences),
       },
     ]);
 
     await expect(storage.deleteCategory(StorageCategory.AppData)).rejects.toMatchObject({
-      name: "StorageDeleteError",
+      _tag: "StorageDeleteError",
       message: `Could not delete storage category "${StorageCategory.AppData}".`,
-      cause: failure,
+      failures: [{ _tag: "StorageAreaDeleteError", areaId: "favorite-models", cause: failure }],
     });
     expect(deletePreferences).toHaveBeenCalledOnce();
+  });
+
+  it("preserves every failed owner and its cause when deleting a category", async () => {
+    const firstFailure = new StorageAreaDeleteError({
+      areaId: "favorite-models",
+      cause: new Error("Favorite storage failed."),
+    });
+    const secondFailure = new StorageAreaDeleteError({
+      areaId: "preferences",
+      cause: new Error("Preference storage failed."),
+    });
+    const storage = await createTestStorage([
+      {
+        id: firstFailure.areaId,
+        category: StorageCategory.AppData,
+        paths: [],
+        delete: Effect.fail(firstFailure),
+      },
+      {
+        id: secondFailure.areaId,
+        category: StorageCategory.AppData,
+        paths: [],
+        delete: Effect.fail(secondFailure),
+      },
+    ]);
+
+    await expect(storage.deleteCategory(StorageCategory.AppData)).rejects.toMatchObject({
+      _tag: "StorageDeleteError",
+      failures: [firstFailure, secondFailure],
+      cause: expect.objectContaining({ errors: [firstFailure, secondFailure] }),
+    });
+  });
+
+  it("runs deletion effects only when requested and reuses them for later requests", async () => {
+    const deleteOwner = vi.fn();
+    const storage = await createTestStorage([
+      {
+        id: "preferences",
+        category: StorageCategory.AppData,
+        paths: [],
+        delete: Effect.sync(deleteOwner),
+      },
+    ]);
+
+    await storage.measureUsage();
+    expect(deleteOwner).not.toHaveBeenCalled();
+
+    await storage.deleteArea("preferences");
+    await storage.deleteArea("preferences");
+    expect(deleteOwner).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds concurrent owner deletions", async () => {
+    const firstBatchStarted = Deferred.makeUnsafe<void>();
+    const releaseOwners = Deferred.makeUnsafe<void>();
+    let started = 0;
+    let active = 0;
+    let maximumActive = 0;
+    const storage = await createTestStorage(
+      Array.from({ length: 7 }, (_, index) => ({
+        id: `owner:${index}`,
+        category: StorageCategory.AppData,
+        paths: [],
+        delete: Effect.gen(function* () {
+          started += 1;
+          active += 1;
+          maximumActive = Math.max(maximumActive, active);
+
+          if (started === 4) {
+            yield* Deferred.succeed(firstBatchStarted, undefined);
+          }
+
+          yield* Deferred.await(releaseOwners);
+          active -= 1;
+        }),
+      })),
+    );
+
+    const deleting = storage.deleteCategory(StorageCategory.AppData);
+    await Effect.runPromise(Deferred.await(firstBatchStarted));
+    expect(started).toBe(4);
+    await Effect.runPromise(Deferred.succeed(releaseOwners, undefined));
+    await deleting;
+
+    expect(started).toBe(7);
+    expect(maximumActive).toBe(4);
+    expect(active).toBe(0);
+  });
+
+  it("interrupts cancellable owners and releases the storage lock after cleanup", async () => {
+    const started = Deferred.makeUnsafe<void>();
+    const cleanup = vi.fn();
+    const storage = await createTestStorage([
+      {
+        id: "content",
+        category: StorageCategory.Content,
+        paths: [],
+        delete: Effect.gen(function* () {
+          yield* Deferred.succeed(started, undefined);
+          yield* Effect.never;
+        }).pipe(Effect.onInterrupt(() => Effect.sync(cleanup))),
+      },
+    ]);
+    const controller = new AbortController();
+    const deleting = storage.deleteArea("content", controller.signal);
+    const interrupted = expect(deleting).rejects.toBeDefined();
+    await Effect.runPromise(Deferred.await(started));
+    controller.abort();
+    await interrupted;
+
+    expect(cleanup).toHaveBeenCalledOnce();
+    await expect(storage.measureUsage()).resolves.toEqual({
+      areas: [{ id: "content", category: StorageCategory.Content, bytes: 0 }],
+    });
+  });
+
+  it("preserves defects instead of reporting them as expected deletion failures", async () => {
+    const defect = new Error("Unexpected owner defect.");
+    const storage = await createTestStorage([
+      {
+        id: "content",
+        category: StorageCategory.Content,
+        paths: [],
+        delete: Effect.die(defect),
+      },
+    ]);
+
+    await expect(storage.deleteArea("content")).rejects.toBe(defect);
+    await expect(storage.measureUsage()).resolves.toEqual({
+      areas: [{ id: "content", category: StorageCategory.Content, bytes: 0 }],
+    });
   });
 
   it("serializes deletion operations", async () => {
@@ -260,20 +397,20 @@ describe("storage", () => {
         id: "content",
         category: StorageCategory.Content,
         paths: [join(directory, "jaquelene.sqlite")],
-        delete: async () => {
+        delete: Effect.promise(async () => {
           events.push("content:start");
           reportFirstStarted();
           await firstCanFinish;
           events.push("content:end");
-        },
+        }),
       },
       {
         id: "favorite-models",
         category: StorageCategory.AppData,
         paths: [join(directory, "favorite-models.json")],
-        delete: () => {
+        delete: Effect.sync(() => {
           events.push("app-data");
-        },
+        }),
       },
     ]);
 
@@ -304,13 +441,13 @@ describe("storage", () => {
         id: "diagnostics",
         category: StorageCategory.AppData,
         paths: [join(directory, "diagnostics")],
-        delete: deleteDiagnostics,
+        delete: Effect.sync(deleteDiagnostics),
       },
       {
         id: "preferences",
         category: StorageCategory.AppData,
         paths: [preferencesPath],
-        delete: deletePreferences,
+        delete: Effect.sync(deletePreferences),
       },
     ]);
 
@@ -328,16 +465,14 @@ describe("storage", () => {
         id: "diagnostics",
         category: StorageCategory.AppData,
         paths: [join(createUserDataDirectory(), "diagnostics")],
-        delete: () => {
-          throw failure;
-        },
+        delete: Effect.fail(new StorageAreaDeleteError({ areaId: "diagnostics", cause: failure })),
       },
     ]);
 
     await expect(storage.deleteArea("diagnostics")).rejects.toMatchObject({
-      name: "StorageDeleteError",
+      _tag: "StorageDeleteError",
       message: 'Could not delete storage area "diagnostics".',
-      cause: failure,
+      failures: [{ _tag: "StorageAreaDeleteError", areaId: "diagnostics", cause: failure }],
     });
   });
 
@@ -345,11 +480,15 @@ describe("storage", () => {
     const storage = await createTestStorage([]);
 
     await expect(storage.deleteArea("unknown" as StorageAreaId)).rejects.toMatchObject({
-      name: "StorageDeleteError",
+      _tag: "StorageTargetNotFoundError",
+      kind: "area",
+      id: "unknown",
       message: 'Storage area "unknown" does not exist.',
     });
     await expect(storage.deleteCategory("unknown" as StorageCategoryValue)).rejects.toMatchObject({
-      name: "StorageDeleteError",
+      _tag: "StorageTargetNotFoundError",
+      kind: "category",
+      id: "unknown",
       message: 'Storage category "unknown" does not exist.',
     });
   });
@@ -364,11 +503,11 @@ describe("storage", () => {
           id: "",
           category: StorageCategory.AppData,
           paths: [join(directory, "unknown.json")],
-          delete: vi.fn(),
+          delete: Effect.void,
         },
       ]),
     ).rejects.toMatchObject({
-      name: "StorageConfigurationError",
+      _tag: "StorageConfigurationError",
       cause: { message: "Storage areas require an identity." },
     });
 
@@ -378,17 +517,17 @@ describe("storage", () => {
           id: "preferences",
           category: StorageCategory.AppData,
           paths: [sharedPath],
-          delete: vi.fn(),
+          delete: Effect.void,
         },
         {
           id: "preferences",
           category: StorageCategory.AppData,
           paths: [join(directory, "other.json")],
-          delete: vi.fn(),
+          delete: Effect.void,
         },
       ]),
     ).rejects.toMatchObject({
-      name: "StorageConfigurationError",
+      _tag: "StorageConfigurationError",
       cause: {
         message: 'Storage area "preferences" is registered more than once.',
       },
@@ -400,17 +539,17 @@ describe("storage", () => {
           id: "preferences",
           category: StorageCategory.AppData,
           paths: [sharedPath],
-          delete: vi.fn(),
+          delete: Effect.void,
         },
         {
           id: "local-state",
           category: StorageCategory.AppData,
           paths: [sharedPath],
-          delete: vi.fn(),
+          delete: Effect.void,
         },
       ]),
     ).rejects.toMatchObject({
-      name: "StorageConfigurationError",
+      _tag: "StorageConfigurationError",
       cause: { message: `Storage path "${sharedPath}" is registered more than once.` },
     });
 
@@ -423,17 +562,17 @@ describe("storage", () => {
           id: "content",
           category: StorageCategory.Content,
           paths: [ownedDirectory],
-          delete: vi.fn(),
+          delete: Effect.void,
         },
         {
           id: "local-state",
           category: StorageCategory.AppData,
           paths: [nestedPath],
-          delete: vi.fn(),
+          delete: Effect.void,
         },
       ]),
     ).rejects.toMatchObject({
-      name: "StorageConfigurationError",
+      _tag: "StorageConfigurationError",
       cause: { message: `Storage paths "${ownedDirectory}" and "${nestedPath}" overlap.` },
     });
   });

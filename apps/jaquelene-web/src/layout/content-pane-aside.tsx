@@ -1,9 +1,9 @@
 import {
   Dialog,
   DialogDisclosure,
-  DialogProvider,
-  useDialogContext,
+  useDialogStore,
   type DialogProps,
+  type DialogStore,
 } from "@ariakit/react/dialog";
 import { Role, type RoleProps } from "@ariakit/react/role";
 import { useStoreState } from "@ariakit/react/store";
@@ -20,20 +20,14 @@ import {
   createContext,
   useContext,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
-  type Dispatch,
   type ReactNode,
-  type SetStateAction,
 } from "react";
 import { contentPaneLayout, shellLayout } from "./layout-tokens.stylex";
 
 const OverlayContext = createContext<boolean | null>(null);
-const AsideStateContext = createContext<{
-  open: boolean;
-  setOpen: Dispatch<SetStateAction<boolean>>;
-} | null>(null);
+const AsideContext = createContext<DialogStore | null>(null);
 // Reserve 36rem for the conversation alongside the 20rem inspector.
 const minimumDockedWidthRem = 56;
 
@@ -41,24 +35,19 @@ type AsidePartProps = Omit<RoleProps<"div">, "className" | "style"> & {
   style?: StyleXStyles;
 };
 
-export function ContentPaneAsideStateProvider({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const state = useMemo(() => ({ open, setOpen }), [open]);
-  return <AsideStateContext.Provider value={state}>{children}</AsideStateContext.Provider>;
+export function ContentPaneAsideProvider({ children }: { children: ReactNode }) {
+  const dialog = useDialogStore();
+  return <AsideContext.Provider value={dialog}>{children}</AsideContext.Provider>;
 }
 
-export function ContentPaneAsideProvider({ children }: { children: ReactNode }) {
-  const state = useContext(AsideStateContext);
-  if (!state) throw new Error("ContentPane.AsideProvider requires ContentPane.Root.");
-  return (
-    <DialogProvider open={state.open} setOpen={state.setOpen}>
-      {children}
-    </DialogProvider>
-  );
+function useAsideStore() {
+  const dialog = useContext(AsideContext);
+  if (!dialog) throw new Error("Content-pane inspector parts require ContentPane.Root.");
+  return dialog;
 }
 
 export function ContentPaneSplit({ children }: { children: ReactNode }) {
-  const dialog = useDialogContext();
+  const dialog = useAsideStore();
   const open = useStoreState(dialog, "open");
   const ref = useRef<HTMLDivElement>(null);
   const [overlay, setOverlay] = useState(true);
@@ -79,8 +68,6 @@ export function ContentPaneSplit({ children }: { children: ReactNode }) {
     return () => observer.disconnect();
   }, []);
 
-  if (!dialog) throw new Error("ContentPane.Split requires ContentPane.AsideProvider.");
-
   return (
     <OverlayContext.Provider value={overlay}>
       <div ref={ref} {...stylex.props(styles.split, open && styles.withAside)}>
@@ -91,9 +78,8 @@ export function ContentPaneSplit({ children }: { children: ReactNode }) {
 }
 
 export function ContentPaneAsideToggle({ label }: { label: string }) {
-  const dialog = useDialogContext();
+  const dialog = useAsideStore();
   const open = useStoreState(dialog, "open");
-  if (!dialog) throw new Error("ContentPane.AsideToggle requires ContentPane.AsideProvider.");
   let action = `Show ${label}`;
   let icon = PanelRightOpenIcon;
   if (open) {
@@ -104,7 +90,6 @@ export function ContentPaneAsideToggle({ label }: { label: string }) {
   return (
     <Tooltip.Root placement="bottom-end">
       <DialogDisclosure
-        // TooltipProvider supplies a dialog context too; target the pane's store.
         store={dialog}
         render={
           <Tooltip.Anchor
@@ -128,10 +113,11 @@ export function ContentPaneAside({
   children: ReactNode;
   "aria-label": string;
 }) {
-  const dialog = useDialogContext();
+  const dialog = useAsideStore();
   const open = useStoreState(dialog, "open");
   const overlay = useContext(OverlayContext);
   const ref = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const [hasOpened, setHasOpened] = useState(false);
 
   useLayoutEffect(() => {
@@ -143,7 +129,6 @@ export function ContentPaneAside({
   }, [open, overlay]);
 
   if (open && !hasOpened) setHasOpened(true);
-  if (!dialog) throw new Error("ContentPane.Aside requires ContentPane.AsideProvider.");
   if (overlay === null) throw new Error("ContentPane.Aside requires ContentPane.Split.");
 
   let mode: "hidden" | "visible" = "hidden";
@@ -153,7 +138,9 @@ export function ContentPaneAside({
   if (overlay) {
     placement = styles.overlay;
     // Override Ariakit's inline fixed positioning to contain the scrim in this pane.
-    backdrop = <div {...stylex.props(styles.backdrop)} style={{ position: "absolute" }} />;
+    backdrop = (
+      <div ref={backdropRef} {...stylex.props(styles.backdrop)} style={{ position: "absolute" }} />
+    );
   }
 
   return (
@@ -165,12 +152,8 @@ export function ContentPaneAside({
       portal={false}
       backdrop={backdrop}
       preventBodyScroll={false}
-      hideOnInteractOutside={(event) => {
-        if (!overlay || !(event.target instanceof Element)) return false;
-        // Navigation preserves the preference; the pane's backdrop still dismisses it.
-        if (event.target.closest("a[href], header")) return false;
-        return ref.current?.closest("main")?.contains(event.target) === true;
-      }}
+      // Navigation leaves the preference intact; only the owned scrim dismisses it.
+      hideOnInteractOutside={(event) => event.target === backdropRef.current}
       initialFocus={ref}
       {...stylex.props(styles.aside, placement)}
     >

@@ -67,41 +67,39 @@ function CampaignRoute() {
   }
 
   return (
-    <ContentPane.AsideProvider>
-      <ContentPane.Split>
-        <ContentPane.Header layout="centered">
-          <ContentPane.HeaderLeading>
-            <ContentPane.HistoryBack />
-          </ContentPane.HeaderLeading>
-          <ContentPane.HeaderTitle>
-            <CampaignTitleControl campaign={campaign} />
-          </ContentPane.HeaderTitle>
-          <ContentPane.HeaderTrailing>
-            <ContentPane.AsideToggle label="campaign details" />
-          </ContentPane.HeaderTrailing>
-        </ContentPane.Header>
+    <ContentPane.Split>
+      <ContentPane.Header layout="centered">
+        <ContentPane.HeaderLeading>
+          <ContentPane.HistoryBack />
+        </ContentPane.HeaderLeading>
+        <ContentPane.HeaderTitle>
+          <CampaignTitleControl campaign={campaign} />
+        </ContentPane.HeaderTitle>
+        <ContentPane.HeaderTrailing>
+          <ContentPane.AsideToggle label="campaign details" />
+        </ContentPane.HeaderTrailing>
+      </ContentPane.Header>
 
-        <ContentPane.Viewport fade={false} style={styles.threadViewport}>
-          <ThreadView
-            threadId={campaign.threadId}
-            configuration={effectiveConfiguration}
-            configurationPending={effectiveConfigurationPending}
-            composerControls={
-              <CampaignGenerationControls
-                campaignId={campaign.id}
-                defaultModel={defaultModel}
-                configuration={effectiveConfiguration}
-                disabled={defaultModelPending}
-                preferences={campaign.generationPreferences}
-              />
-            }
-          />
-        </ContentPane.Viewport>
-        <ContentPane.Aside aria-label="Campaign details">
-          <CampaignDetailsPanel campaign={campaign} />
-        </ContentPane.Aside>
-      </ContentPane.Split>
-    </ContentPane.AsideProvider>
+      <ContentPane.Viewport fade={false} style={styles.threadViewport}>
+        <ThreadView
+          threadId={campaign.threadId}
+          configuration={effectiveConfiguration}
+          configurationPending={effectiveConfigurationPending}
+          composerControls={
+            <CampaignGenerationControls
+              campaignId={campaign.id}
+              defaultModel={defaultModel}
+              configuration={effectiveConfiguration}
+              disabled={defaultModelPending}
+              preferences={campaign.generationPreferences}
+            />
+          }
+        />
+      </ContentPane.Viewport>
+      <ContentPane.Aside aria-label="Campaign details">
+        <CampaignDetailsPanel campaign={campaign} />
+      </ContentPane.Aside>
+    </ContentPane.Split>
   );
 }
 

@@ -14,7 +14,6 @@ import {
   ContentPaneAsideBody,
   ContentPaneAsideFooter,
   ContentPaneAsideProvider,
-  ContentPaneAsideStateProvider,
   ContentPaneAsideToggle,
   ContentPaneAsideViewport,
   ContentPaneSplit,
@@ -41,13 +40,13 @@ function ContentPaneRoot({
   ...props
 }: StyleableProps<ComponentProps<"main">>) {
   return (
-    <ContentPaneAsideStateProvider>
+    <ContentPaneAsideProvider>
       <main
         {...props}
         aria-label={ariaLabel}
         {...stylex.props(paneSurface.root, styles.root, style)}
       />
-    </ContentPaneAsideStateProvider>
+    </ContentPaneAsideProvider>
   );
 }
 
@@ -135,7 +134,6 @@ export const ContentPane = {
   Body: ContentPaneBody,
   Back: ContentPaneBack,
   HistoryBack: ContentPaneHistoryBack,
-  AsideProvider: ContentPaneAsideProvider,
   AsideToggle: ContentPaneAsideToggle,
   Split: ContentPaneSplit,
   Aside: ContentPaneAside,

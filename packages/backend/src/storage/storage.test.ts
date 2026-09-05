@@ -2,21 +2,29 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as NodePath from "@effect/platform-node/NodePath";
-import { Cause, Deferred, Effect, Exit, Layer, ManagedRuntime, Path, Stream } from "effect";
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import {
+  Cause,
+  Context,
+  Deferred,
+  Effect,
+  Exit,
+  Layer,
+  ManagedRuntime,
+  Path,
+  Stream,
+} from "effect";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 import { FileTreeError, FileTreeService } from "#backend/filesystem/file-tree";
 import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
 import {
   StorageAreaDeleteError,
   StorageCategory,
-  StorageService,
-  assertStoragePathsAreDisjoint,
   type StorageArea,
   type StorageAreaId,
   type StorageCategory as StorageCategoryValue,
-  type StorageDeletion,
-  type StorageUsage,
-} from "./storage";
+} from "./area";
+import { StorageRegistry } from "./registry";
+import { StorageService, type StorageDeletion, type StorageUsage } from "./storage";
 
 const closeStorageServices: Array<() => Promise<void>> = [];
 const directories: string[] = [];
@@ -48,7 +56,7 @@ async function createTestStorage(
   fileTreeLayer: Layer.Layer<FileTreeService, never, Path.Path> = nodeFileTreeLayer,
 ): Promise<TestStorage> {
   const runtime = ManagedRuntime.make(
-    StorageService.layer(storageAreas).pipe(
+    Layer.unwrap(StorageRegistry.make(storageAreas).pipe(Effect.map(StorageService.layer))).pipe(
       Layer.provide(fileTreeLayer),
       Layer.provide(NodePath.layer),
     ),
@@ -94,6 +102,46 @@ afterEach(async () => {
 });
 
 describe("storage", () => {
+  it("binds deletion to the owner services supplied when storage starts", async () => {
+    class Owner extends Context.Service<Owner, { readonly clear: Effect.Effect<void> }>()(
+      "test/StorageOwner",
+    ) {}
+    const clear = vi.fn();
+    const unrelatedClear = vi.fn();
+    const registry = await Effect.runPromise(
+      StorageRegistry.make([
+        {
+          id: "owner",
+          category: StorageCategory.AppData,
+          paths: [],
+          delete: Owner.use((owner) => owner.clear),
+        },
+      ]).pipe(Effect.provide(NodePath.layer)),
+    );
+    const storageLayer = StorageService.layer(registry);
+    expectTypeOf(storageLayer).toEqualTypeOf<
+      Layer.Layer<StorageService, never, Owner | FileTreeService>
+    >();
+    const runtime = ManagedRuntime.make(
+      storageLayer.pipe(
+        Layer.provide(Layer.succeed(Owner, { clear: Effect.sync(clear) })),
+        Layer.provide(nodeFileTreeLayer),
+        Layer.provide(NodePath.layer),
+      ),
+    );
+    closeStorageServices.push(() => runtime.dispose());
+    await runtime.context();
+    expect(clear).not.toHaveBeenCalled();
+
+    await runtime.runPromise(
+      StorageService.use((storage) => storage.deleteArea("owner")).pipe(
+        Effect.provideService(Owner, { clear: Effect.sync(unrelatedClear) }),
+      ),
+    );
+    expect(clear).toHaveBeenCalledOnce();
+    expect(unrelatedClear).not.toHaveBeenCalled();
+  });
+
   it("reports no usage when owned paths do not exist", async () => {
     const directory = createUserDataDirectory();
     const storage = await createTestStorage([
@@ -715,138 +763,5 @@ describe("storage", () => {
       id: "unknown",
       message: 'Storage category "unknown" does not exist.',
     });
-  });
-
-  it("rejects missing and conflicting owner identities during startup", async () => {
-    const directory = createUserDataDirectory();
-    const sharedPath = join(directory, "shared.json");
-
-    await expect(
-      createTestStorage([
-        {
-          id: "",
-          category: StorageCategory.AppData,
-          paths: [join(directory, "unknown.json")],
-          delete: Effect.void,
-        },
-      ]),
-    ).rejects.toMatchObject({
-      _tag: "StorageConfigurationError",
-      cause: { message: "Storage areas require an identity." },
-    });
-
-    await expect(
-      createTestStorage([
-        {
-          id: "preferences",
-          category: StorageCategory.AppData,
-          paths: [sharedPath],
-          delete: Effect.void,
-        },
-        {
-          id: "preferences",
-          category: StorageCategory.AppData,
-          paths: [join(directory, "other.json")],
-          delete: Effect.void,
-        },
-      ]),
-    ).rejects.toMatchObject({
-      _tag: "StorageConfigurationError",
-      cause: {
-        message: 'Storage area "preferences" is registered more than once.',
-      },
-    });
-
-    await expect(
-      createTestStorage([
-        {
-          id: "preferences",
-          category: StorageCategory.AppData,
-          paths: [sharedPath],
-          delete: Effect.void,
-        },
-        {
-          id: "local-state",
-          category: StorageCategory.AppData,
-          paths: [sharedPath],
-          delete: Effect.void,
-        },
-      ]),
-    ).rejects.toMatchObject({
-      _tag: "StorageConfigurationError",
-      cause: { message: `Storage path "${sharedPath}" is registered more than once.` },
-    });
-
-    const ownedDirectory = join(directory, "attachments");
-    const nestedPath = join(ownedDirectory, "portrait.png");
-
-    await expect(
-      createTestStorage([
-        {
-          id: "content",
-          category: StorageCategory.Content,
-          paths: [ownedDirectory],
-          delete: Effect.void,
-        },
-        {
-          id: "local-state",
-          category: StorageCategory.AppData,
-          paths: [nestedPath],
-          delete: Effect.void,
-        },
-      ]),
-    ).rejects.toMatchObject({
-      _tag: "StorageConfigurationError",
-      cause: { message: `Storage paths "${ownedDirectory}" and "${nestedPath}" overlap.` },
-    });
-  });
-});
-
-describe("storage path ownership", () => {
-  it("uses Windows normalization and case rules independently of the host", async () => {
-    const pathService = await Effect.runPromise(
-      Path.Path.pipe(Effect.provide(NodePath.layerWin32)),
-    );
-
-    expect(() =>
-      assertStoragePathsAreDisjoint(pathService, [
-        { id: "first", paths: ["C:\\data\\cache"] },
-        { id: "second", paths: ["c:/DATA/other/../cache"] },
-      ]),
-    ).toThrow("is registered more than once");
-    expect(() =>
-      assertStoragePathsAreDisjoint(pathService, [
-        { id: "first", paths: ["C:\\data\\cache"] },
-        { id: "second", paths: ["c:/DATA/cache/child"] },
-      ]),
-    ).toThrow("overlap");
-    expect(() =>
-      assertStoragePathsAreDisjoint(pathService, [
-        { id: "first", paths: ["C:\\data\\cache"] },
-        { id: "second", paths: ["C:\\data\\cache-backup", "D:\\data\\cache"] },
-      ]),
-    ).not.toThrow();
-  });
-
-  it("preserves POSIX case sensitivity and rejects relative ownership", async () => {
-    const pathService = await Effect.runPromise(
-      Path.Path.pipe(Effect.provide(NodePath.layerPosix)),
-    );
-
-    expect(() =>
-      assertStoragePathsAreDisjoint(pathService, [
-        { id: "first", paths: ["/data/Cache"] },
-        { id: "second", paths: ["/data/cache"] },
-      ]),
-    ).not.toThrow();
-    expect(() =>
-      assertStoragePathsAreDisjoint(pathService, [
-        { id: "first", paths: ["/data/cache/"] },
-        { id: "second", paths: ["/data/cache/child"] },
-      ]),
-    ).toThrow("overlap");
-    expect(() =>
-      assertStoragePathsAreDisjoint(pathService, [{ id: "first", paths: ["data/cache"] }]),
-    ).toThrow("requires absolute owned paths");
   });
 });

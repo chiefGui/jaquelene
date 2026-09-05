@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as NodePath from "@effect/platform-node/NodePath";
 import { PromptOrigin } from "@jaquelene/domain";
-import { Layer, ManagedRuntime } from "effect";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
@@ -20,9 +20,8 @@ import {
   StorageCategory,
   type StorageAreaId,
   type StorageCategory as StorageCategoryValue,
-  type StorageDeletion,
-  type StorageUsage,
-} from "#backend/storage/storage";
+} from "#backend/storage/area";
+import type { StorageDeletion, StorageUsage } from "#backend/storage/storage";
 import { jaqueleneNarratorPromptDefinition, narratorPromptKind } from "#backend/narrator/module";
 import {
   createThreads,
@@ -59,15 +58,17 @@ function backendOptions(
       path: join(databasePath, "..", "jaquelene-cache.sqlite"),
       reportFailure: () => undefined,
     },
-    providers: providers.map(
-      (provider) =>
-        ({
-          id: provider.descriptor.id,
-          storagePaths:
-            provider.configuration.kind === "api-key" ? provider.configuration.storagePaths : [],
-          create: () => provider,
-        }) satisfies ProviderFactory,
-    ),
+    providers: providers.map((provider) => {
+      let storagePaths: readonly string[] | null = null;
+      if (provider.configuration.kind === "api-key") {
+        storagePaths = [];
+      }
+      return {
+        id: provider.descriptor.id,
+        storagePaths,
+        create: () => provider,
+      } satisfies ProviderFactory;
+    }),
     storageAreas: [],
   };
 }
@@ -168,9 +169,104 @@ describe("backend", () => {
 
     await expect(
       openBackend({ ...options, cache: { ...options.cache, path: databasePath } }),
-    ).rejects.toThrow(`Storage path "${databasePath}" is registered more than once.`);
+    ).rejects.toMatchObject({
+      _tag: "StorageConfigurationError",
+      cause: { message: `Storage path "${databasePath}" is registered more than once.` },
+    });
     expect(existsSync(databasePath)).toBe(false);
   });
+
+  it.each(["identity", "category", "paths"])(
+    "rejects invalid storage %s before acquiring backend resources",
+    async (invalid) => {
+      const databasePath = createDatabasePath();
+      const options = backendOptions(databasePath);
+      const create = vi.fn(() => providerAdapter("provider-a"));
+      const storageArea = {
+        id: "desktop",
+        category: StorageCategory.AppData as StorageCategory,
+        paths: [join(databasePath, "..", "desktop.json")],
+        delete: Effect.void,
+      };
+      if (invalid === "identity") {
+        storageArea.id = "content";
+      }
+      if (invalid === "category") {
+        storageArea.category = "unknown" as StorageCategory;
+      }
+      if (invalid === "paths") {
+        storageArea.paths = [databasePath];
+      }
+
+      await expect(
+        openBackend({
+          ...options,
+          providers: [{ id: "provider-a", storagePaths: null, create }],
+          storageAreas: [storageArea],
+        }),
+      ).rejects.toMatchObject({ _tag: "StorageConfigurationError" });
+      expect(existsSync(databasePath)).toBe(false);
+      expect(existsSync(options.cache.path)).toBe(false);
+      expect(create).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects provider path conflicts before opening databases or creating providers", async () => {
+    const databasePath = createDatabasePath();
+    const options = backendOptions(databasePath);
+    const create = vi.fn(() => providerAdapter("provider-a"));
+
+    await expect(
+      openBackend({
+        ...options,
+        providers: [{ id: "provider-a", storagePaths: [databasePath], create }],
+      }),
+    ).rejects.toMatchObject({
+      _tag: "StorageConfigurationError",
+      cause: { message: `Storage path "${databasePath}" is registered more than once.` },
+    });
+    expect(existsSync(databasePath)).toBe(false);
+    expect(existsSync(options.cache.path)).toBe(false);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it.each(["api-key", "none"] as const)(
+    "disposes providers whose %s capability disagrees with their storage declaration",
+    async (kind) => {
+      const options = backendOptions(createDatabasePath());
+      const dispose = vi.fn();
+      let storagePaths: readonly string[] | null = [];
+      let configuration: ProviderAdapter["configuration"] = { kind: "none" };
+      if (kind === "api-key") {
+        storagePaths = null;
+        configuration = {
+          kind,
+          inspect: () => ({ state: "unconfigured" }),
+          configure: async () => ({ state: "configured", keyLabel: "key...123" }),
+          clear: async () => undefined,
+        };
+      }
+      await expect(
+        openBackend({
+          ...options,
+          providers: [
+            {
+              id: "provider-a",
+              storagePaths,
+              create: () => ({
+                ...providerAdapter("provider-a"),
+                configuration,
+                [Symbol.dispose]: dispose,
+              }),
+            },
+          ],
+        }),
+      ).rejects.toThrow(
+        'Provider factory "provider-a" storage does not match its configuration capability.',
+      );
+      expect(dispose).toHaveBeenCalledOnce();
+    },
+  );
 
   it("serves a persisted model catalog without repeating the remote request after restart", async () => {
     const databasePath = createDatabasePath();
@@ -497,7 +593,7 @@ describe("backend", () => {
         providers: [
           {
             id: "provider-a",
-            storagePaths: [],
+            storagePaths: null,
             create(signal) {
               factorySignal = signal;
               return adapter.promise;
@@ -528,14 +624,16 @@ describe("backend", () => {
       ...providerAdapter("provider-a"),
       configuration: {
         kind: "api-key" as const,
-        inspect: () =>
-          configured
-            ? ({
-                state: "configured" as const,
-                revision: "configuration-1",
-                keyLabel: "key...123",
-              } as const)
-            : ({ state: "unconfigured" as const } as const),
+        inspect: () => {
+          if (configured) {
+            return {
+              state: "configured" as const,
+              revision: "configuration-1",
+              keyLabel: "key...123",
+            };
+          }
+          return { state: "unconfigured" as const };
+        },
         async configure() {
           configured = true;
           return { state: "configured" as const, keyLabel: "key...123" };
@@ -544,10 +642,14 @@ describe("backend", () => {
           configured = false;
           rmSync(configurationPath, { force: true });
         },
-        storagePaths: [configurationPath],
       },
     } satisfies ProviderAdapter;
-    const backend = await openBackend(backendOptions(databasePath, [provider]));
+    const backend = await openBackend({
+      ...backendOptions(databasePath),
+      providers: [
+        { id: provider.descriptor.id, storagePaths: [configurationPath], create: () => provider },
+      ],
+    });
 
     await expect(backend.storage.measureUsage()).resolves.toEqual(
       expect.objectContaining({

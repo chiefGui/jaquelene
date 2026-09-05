@@ -1,24 +1,14 @@
-import { Context, Effect, Layer, Path, Schema, Semaphore, Stream } from "effect";
+import { Context, Effect, Layer, Schema, Semaphore, Stream } from "effect";
 import { FileTreeService } from "#backend/filesystem/file-tree";
+import {
+  StorageAreaDeleteError,
+  StorageCategory,
+  type StorageArea,
+  type StorageAreaId,
+} from "./area";
+import type { StorageRegistry } from "./registry";
 
 const maximumByteCount = BigInt(Number.MAX_SAFE_INTEGER);
-
-export const StorageCategory = {
-  Content: "content",
-  Cache: "cache",
-  AppData: "app-data",
-} as const;
-
-export type StorageCategory = (typeof StorageCategory)[keyof typeof StorageCategory];
-
-export type StorageAreaId = string;
-
-export type StorageArea = Readonly<{
-  id: StorageAreaId;
-  category: StorageCategory;
-  paths: readonly string[];
-  delete: Effect.Effect<void, StorageAreaDeleteError>;
-}>;
 
 export type StorageAreaUsage = Readonly<{
   id: StorageAreaId;
@@ -34,30 +24,12 @@ export type StorageDeletion = Readonly<{
   areas: readonly StorageAreaUsage[];
 }>;
 
-export class StorageConfigurationError extends Schema.TaggedError<StorageConfigurationError>()(
-  "StorageConfigurationError",
-  { cause: Schema.Defect() },
-) {
-  override get message() {
-    return "Storage areas are invalid.";
-  }
-}
-
 export class StorageMeasurementError extends Schema.TaggedError<StorageMeasurementError>()(
   "StorageMeasurementError",
   { cause: Schema.Defect() },
 ) {
   override get message() {
     return "Could not measure storage usage.";
-  }
-}
-
-export class StorageAreaDeleteError extends Schema.TaggedError<StorageAreaDeleteError>()(
-  "StorageAreaDeleteError",
-  { areaId: Schema.String, cause: Schema.Defect() },
-) {
-  override get message() {
-    return `Could not delete storage area "${this.areaId}".`;
   }
 }
 
@@ -90,95 +62,6 @@ export class StorageTargetNotFoundError extends Schema.TaggedError<StorageTarget
   }
 }
 
-function getPathComparisonKey(pathService: Path.Path, path: string) {
-  const normalized = pathService.resolve(path);
-
-  if (pathService.sep === "\\") {
-    return normalized.toLowerCase();
-  }
-
-  return normalized;
-}
-
-function pathContains(pathService: Path.Path, parent: string, candidate: string) {
-  const pathFromParent = pathService.relative(parent, candidate);
-  return (
-    pathFromParent === "" ||
-    (pathFromParent !== ".." &&
-      !pathFromParent.startsWith(`..${pathService.sep}`) &&
-      !pathService.isAbsolute(pathFromParent))
-  );
-}
-
-function pathsOverlap(pathService: Path.Path, left: string, right: string) {
-  return pathContains(pathService, left, right) || pathContains(pathService, right, left);
-}
-
-export function assertStoragePathsAreDisjoint(
-  pathService: Path.Path,
-  owners: readonly Readonly<{ id: StorageAreaId; paths: readonly string[] }>[],
-) {
-  const registeredPaths: Array<{ path: string; comparisonKey: string }> = [];
-
-  for (const owner of owners) {
-    for (const path of owner.paths) {
-      if (!path || !pathService.isAbsolute(path)) {
-        throw new TypeError(`Storage area "${owner.id}" requires absolute owned paths.`);
-      }
-
-      const pathComparisonKey = getPathComparisonKey(pathService, path);
-      const overlappingPath = registeredPaths.find(({ comparisonKey }) =>
-        pathsOverlap(pathService, comparisonKey, pathComparisonKey),
-      );
-
-      if (overlappingPath?.comparisonKey === pathComparisonKey) {
-        throw new TypeError(`Storage path "${path}" is registered more than once.`);
-      }
-
-      if (overlappingPath) {
-        throw new TypeError(`Storage paths "${overlappingPath.path}" and "${path}" overlap.`);
-      }
-
-      registeredPaths.push({ path, comparisonKey: pathComparisonKey });
-    }
-  }
-}
-
-function registerStorageAreas(pathService: Path.Path, areas: readonly StorageArea[]) {
-  const registeredIds = new Set<StorageAreaId>();
-  const categories = new Set<StorageCategory>(Object.values(StorageCategory));
-
-  const registeredAreas = areas.map((area) => {
-    if (typeof area.id !== "string" || !area.id.trim()) {
-      throw new TypeError("Storage areas require an identity.");
-    }
-
-    if (registeredIds.has(area.id)) {
-      throw new TypeError(`Storage area "${area.id}" is registered more than once.`);
-    }
-
-    registeredIds.add(area.id);
-
-    if (!categories.has(area.category)) {
-      throw new TypeError(`Storage area "${area.id}" has an unknown category.`);
-    }
-
-    if (!Effect.isEffect(area.delete)) {
-      throw new TypeError(`Storage area "${area.id}" requires a delete Effect.`);
-    }
-
-    return {
-      id: area.id,
-      category: area.category,
-      paths: [...area.paths],
-      delete: area.delete,
-    } satisfies StorageArea;
-  });
-
-  assertStoragePathsAreDisjoint(pathService, registeredAreas);
-  return registeredAreas;
-}
-
 type StorageServiceShape = Readonly<{
   measureUsage: () => Effect.Effect<StorageUsage, StorageMeasurementError>;
   deleteArea: (
@@ -198,17 +81,14 @@ type StorageServiceShape = Readonly<{
 export class StorageService extends Context.Service<StorageService, StorageServiceShape>()(
   "@jaquelene/backend/Storage",
 ) {
-  static readonly layer = (areas: readonly StorageArea[]) =>
+  static readonly layer = <Requirements>(registry: StorageRegistry<Requirements>) =>
     Layer.effect(
       StorageService,
       Effect.gen(function* () {
-        const pathService = yield* Path.Path;
+        const ownerContext = yield* Effect.context<Requirements>();
         const fileTree = yield* FileTreeService;
-        const registeredAreas = yield* Effect.try({
-          try: () => registerStorageAreas(pathService, areas),
-          catch: (cause) => new StorageConfigurationError({ cause }),
-        });
-        const areasByCategory = new Map<StorageCategory, StorageArea[]>(
+        const registeredAreas = registry.areas;
+        const areasByCategory = new Map<StorageCategory, StorageArea<Requirements>[]>(
           Object.values(StorageCategory).map((category) => [category, []]),
         );
 
@@ -218,7 +98,9 @@ export class StorageService extends Context.Service<StorageService, StorageServi
 
         const areasById = new Map(registeredAreas.map((area) => [area.id, area]));
         const semaphore = yield* Semaphore.make(1);
-        const measure = Effect.fn("Storage.measure")(function* (areas: readonly StorageArea[]) {
+        const measure = Effect.fn("Storage.measure")(function* (
+          areas: readonly StorageArea<Requirements>[],
+        ) {
           const measurements = yield* Effect.forEach(
             areas,
             Effect.fn(function* (area) {
@@ -262,7 +144,7 @@ export class StorageService extends Context.Service<StorageService, StorageServi
             return yield* new StorageTargetNotFoundError({ kind: "area", id });
           }
 
-          yield* area.delete;
+          yield* Effect.provideContext(area.delete, ownerContext);
           return { areas: yield* measure([area]) };
         }, semaphore.withPermits(1));
         const deleteCategory = Effect.fn("Storage.deleteCategory")(function* (id: StorageCategory) {
@@ -272,10 +154,14 @@ export class StorageService extends Context.Service<StorageService, StorageServi
             return yield* new StorageTargetNotFoundError({ kind: "category", id });
           }
 
-          yield* Effect.validate(areas, (area) => area.delete, {
-            concurrency: 4,
-            discard: true,
-          }).pipe(
+          yield* Effect.validate(
+            areas,
+            (area) => Effect.provideContext(area.delete, ownerContext),
+            {
+              concurrency: 4,
+              discard: true,
+            },
+          ).pipe(
             Effect.mapError(
               (failures) => new StorageCategoryDeleteError({ category: id, failures }),
             ),

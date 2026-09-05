@@ -234,7 +234,6 @@ export type ProviderConfigurationAdapter =
       inspect: () => ApiKeyProviderConfigurationSnapshot;
       configure: (apiKey: string, signal: AbortSignal) => Promise<ProviderConfigureResult>;
       clear: () => Promise<void>;
-      storagePaths: readonly string[];
     }>
   | Readonly<{
       kind: "none";
@@ -262,6 +261,7 @@ export type ProviderAdapter = Readonly<{
 
 export type ProviderFactory = Readonly<{
   id: ProviderId;
-  storagePaths: readonly string[];
+  /** Owned API-key configuration paths; null for configuration-free providers. */
+  storagePaths: readonly string[] | null;
   create: (signal: AbortSignal) => ProviderAdapter | PromiseLike<ProviderAdapter>;
 }>;

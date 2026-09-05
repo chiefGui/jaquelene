@@ -5,7 +5,12 @@ import { Effect, Result } from "effect";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { campaignTable } from "#backend/campaign/schema";
-import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
+import {
+  DatabaseService,
+  closeDatabase,
+  openDatabase,
+  type Database,
+} from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
 import { narratorPromptKind, narratorPromptModule } from "#backend/narrator/module";
@@ -59,9 +64,11 @@ describe("content storage area", () => {
         finishedAt: turn.createdAt,
       })
       .run();
-    const area = createContentStorageArea(database, path);
+    const deletion = createContentStorageArea(path).delete.pipe(
+      Effect.provideService(DatabaseService, database),
+    );
 
-    await Effect.runPromise(area.delete);
+    await Effect.runPromise(deletion);
 
     expect(database.select().from(generationTable).all()).toEqual([]);
     expect(database.select().from(providerAttemptTable).all()).toEqual([]);
@@ -70,7 +77,7 @@ describe("content storage area", () => {
     expect(database.select().from(threadMessageTable).all()).toEqual([]);
     expect(database.select().from(turnTable).all()).toEqual([]);
     expect(database.select().from(threadTable).all()).toEqual([]);
-    await expect(Effect.runPromise(area.delete)).resolves.toBeUndefined();
+    await expect(Effect.runPromise(deletion)).resolves.toBeUndefined();
   });
 
   it("preserves content while a reply is being generated", () => {
@@ -91,9 +98,11 @@ describe("content storage area", () => {
         startedAt: 0,
       })
       .run();
-    const area = createContentStorageArea(database, path);
+    const deletion = createContentStorageArea(path).delete.pipe(
+      Effect.provideService(DatabaseService, database),
+    );
 
-    expect(Effect.runSync(Effect.result(area.delete))).toEqual(
+    expect(Effect.runSync(Effect.result(deletion))).toEqual(
       Result.fail(
         expect.objectContaining({
           _tag: "StorageAreaDeleteError",
@@ -128,9 +137,11 @@ describe("content storage area", () => {
         startedAt: 0,
       })
       .run();
-    const area = createContentStorageArea(database, path);
+    const deletion = createContentStorageArea(path).delete.pipe(
+      Effect.provideService(DatabaseService, database),
+    );
 
-    expect(Effect.runSync(Effect.result(area.delete))).toEqual(
+    expect(Effect.runSync(Effect.result(deletion))).toEqual(
       Result.fail(
         expect.objectContaining({
           _tag: "StorageAreaDeleteError",
@@ -171,9 +182,11 @@ describe("content storage area", () => {
         SELECT RAISE(ABORT, 'Rejected thread deletion');
       END;
     `);
-    const area = createContentStorageArea(database, path);
+    const deletion = createContentStorageArea(path).delete.pipe(
+      Effect.provideService(DatabaseService, database),
+    );
 
-    expect(Effect.runSync(Effect.result(area.delete))).toEqual(
+    expect(Effect.runSync(Effect.result(deletion))).toEqual(
       Result.fail(
         expect.objectContaining({
           _tag: "StorageAreaDeleteError",

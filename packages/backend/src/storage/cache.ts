@@ -1,16 +1,19 @@
 import { Effect } from "effect";
-import type { ResourceCache } from "#backend/resource-cache/resource-cache";
+import { ResourceCacheService } from "#backend/resource-cache/service";
 import { getCacheStoragePaths } from "#backend/resource-cache/sqlite-cache-store";
-import { StorageAreaDeleteError, StorageCategory, type StorageArea } from "./storage";
+import { StorageAreaDeleteError, StorageCategory, type StorageArea } from "./area";
 
-export function createCacheStorageArea(cache: ResourceCache, cachePath: string): StorageArea {
+export function createCacheStorageArea(cachePath: string): StorageArea<ResourceCacheService> {
+  const id = "cache";
   return {
-    id: "cache",
+    id,
     category: StorageCategory.Cache,
     paths: getCacheStoragePaths(cachePath),
-    delete: Effect.tryPromise({
-      try: () => cache.clear(),
-      catch: (cause) => new StorageAreaDeleteError({ areaId: "cache", cause }),
-    }).pipe(Effect.uninterruptible),
+    delete: ResourceCacheService.use((cache) =>
+      Effect.tryPromise({
+        try: () => cache.clear(),
+        catch: (cause) => new StorageAreaDeleteError({ areaId: id, cause }),
+      }).pipe(Effect.uninterruptible),
+    ),
   };
 }

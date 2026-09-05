@@ -126,7 +126,6 @@ export function createApiKeyConfiguration(
   return {
     kind: "api-key",
     inspect,
-    storagePaths: getApiKeyConfigurationStoragePaths(userDataDirectory, provider.id),
 
     async withApiKey<Result>(use: (apiKey: string) => Promise<Result>) {
       const apiKey = await readApiKey();

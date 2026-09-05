@@ -101,21 +101,18 @@ export {
   type TurnId,
 } from "#backend/id";
 export {
-  assertStoragePathsAreDisjoint,
-  StorageAreaDeleteError,
-  StorageCategory,
   StorageCategoryDeleteError,
-  StorageConfigurationError,
   StorageMeasurementError,
   StorageTargetNotFoundError,
 } from "#backend/storage/storage";
-export type {
-  StorageArea,
-  StorageAreaId,
-  StorageAreaUsage,
-  StorageDeletion,
-  StorageUsage,
-} from "#backend/storage/storage";
+export type { StorageAreaUsage, StorageDeletion, StorageUsage } from "#backend/storage/storage";
+export {
+  StorageAreaDeleteError,
+  StorageCategory,
+  type StorageArea,
+  type StorageAreaId,
+} from "#backend/storage/area";
+export { StorageConfigurationError } from "#backend/storage/registry";
 export type { Instruction, PromptApplication } from "#backend/prompt/application-registry";
 export type {
   BuiltInPrompt,

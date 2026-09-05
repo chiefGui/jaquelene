@@ -4,6 +4,11 @@ import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import { deleteStoreFile } from "@/storage/delete-store-file";
 import {
+  createAiActionPreferences,
+  aiActionPreferencesSchema,
+  type AiActionPreferenceValues,
+} from "@/feature/ai-action/preferences";
+import {
   createDiagnosticsPreferences,
   diagnosticsPreferencesSchema,
   type DiagnosticsPreferenceValues,
@@ -20,6 +25,7 @@ import {
 } from "@/feature/campaign/preferences";
 
 type PreferencesData = {
+  aiAction?: AiActionPreferenceValues;
   appearance?: {
     userInterface?: UserInterfacePreferenceValues;
   };
@@ -30,6 +36,7 @@ type PreferencesData = {
 const storeName = "preferences";
 
 const schema = {
+  aiAction: aiActionPreferencesSchema,
   appearance: {
     type: "object",
     additionalProperties: false,
@@ -82,6 +89,10 @@ export function createPreferences(userDataDirectory: string) {
     read: () => store.get("campaign"),
     write: (campaign) => store.set("campaign", campaign),
   });
+  const aiAction = createAiActionPreferences({
+    read: () => store.get("aiAction"),
+    write: (values) => store.set("aiAction", values),
+  });
   const diagnostics = createDiagnosticsPreferences({
     read: () => store.get("diagnostics"),
     write: (values) => store.set("diagnostics", values),
@@ -92,6 +103,7 @@ export function createPreferences(userDataDirectory: string) {
       userInterface,
     },
     campaign,
+    aiAction,
     diagnostics,
     deleteAll: () => deleteStoreFile(store),
   };

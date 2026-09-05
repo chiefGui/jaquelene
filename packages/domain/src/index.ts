@@ -80,3 +80,4 @@ export {
   type ThreadTranscriptInstruction,
   type ThreadTranscriptMessage,
 } from "./thread/transcript";
+export { AI_ACTION_TEXT_MAX_UTF16_LENGTH, type AiActionDescriptor } from "./ai-action/action";

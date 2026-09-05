@@ -193,7 +193,9 @@ function AppearanceRoute() {
       <ContentPane.Viewport>
         <ContentPane.Body>
           <Item.Section aria-labelledby="user-interface-heading">
-            <Item.Heading id="user-interface-heading">User Interface</Item.Heading>
+            <Item.SectionHeader>
+              <Item.Heading id="user-interface-heading">User interface</Item.Heading>
+            </Item.SectionHeader>
 
             <Item.Group>
               <PreferenceSelectItem

@@ -214,7 +214,9 @@ function StorageRouteError() {
       <ContentPane.Viewport>
         <ContentPane.Body>
           <Item.Section aria-labelledby={headingId}>
-            <Item.Heading id={headingId}>Usage</Item.Heading>
+            <Item.SectionHeader>
+              <Item.Heading id={headingId}>Usage</Item.Heading>
+            </Item.SectionHeader>
 
             <Item.Group>
               <Item.Root>

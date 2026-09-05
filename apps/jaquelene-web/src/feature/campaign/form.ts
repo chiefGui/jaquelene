@@ -7,10 +7,11 @@ import {
 import { formatCount } from "@jaquelene/ui";
 import { useZodFormValidation, type FormValidationIssue } from "@/feature/form/zod";
 
-function formatCampaignTitleIssue(issue: FormValidationIssue) {
-  return issue.code === "too_big"
-    ? `Use ${formatCount(CAMPAIGN_TITLE_MAX_LENGTH)} characters or fewer`
-    : "Enter a campaign title";
+export function formatCampaignTitleIssue(issue: FormValidationIssue) {
+  if (issue.code === "too_big") {
+    return `Use ${formatCount(CAMPAIGN_TITLE_MAX_LENGTH)} characters or fewer`;
+  }
+  return "Enter a campaign title";
 }
 
 export function useCampaignTitleFormValidation(form: FormStore<CampaignTitleInput>) {

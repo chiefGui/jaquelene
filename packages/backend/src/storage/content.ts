@@ -1,9 +1,14 @@
 import { eq } from "drizzle-orm";
+import { Effect } from "effect";
 import { campaignTable } from "#backend/campaign/schema";
-import { getDatabaseStoragePaths, type Database } from "#backend/database/database";
+import {
+  DatabaseService,
+  getDatabaseStoragePaths,
+  type Database,
+} from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { promptTable } from "#backend/prompt/schema";
-import { StorageCategory, type StorageArea } from "#backend/storage/storage";
+import { StorageAreaDeleteError, StorageCategory, type StorageArea } from "#backend/storage/area";
 import { threadTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
 
@@ -39,11 +44,17 @@ function deleteContent(database: Database) {
   database.$client.exec("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");
 }
 
-export function createContentStorageArea(database: Database, databasePath: string): StorageArea {
+export function createContentStorageArea(databasePath: string): StorageArea<DatabaseService> {
+  const id = "content";
   return {
-    id: "content",
+    id,
     category: StorageCategory.Content,
     paths: getDatabaseStoragePaths(databasePath),
-    delete: () => deleteContent(database),
+    delete: DatabaseService.use((database) =>
+      Effect.try({
+        try: () => deleteContent(database),
+        catch: (cause) => new StorageAreaDeleteError({ areaId: id, cause }),
+      }),
+    ),
   };
 }

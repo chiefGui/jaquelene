@@ -1,10 +1,16 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Effect, Result } from "effect";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { campaignTable } from "#backend/campaign/schema";
-import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
+import {
+  DatabaseService,
+  closeDatabase,
+  openDatabase,
+  type Database,
+} from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
 import { narratorPromptKind, narratorPromptModule } from "#backend/narrator/module";
@@ -58,9 +64,11 @@ describe("content storage area", () => {
         finishedAt: turn.createdAt,
       })
       .run();
-    const area = createContentStorageArea(database, path);
+    const deletion = createContentStorageArea(path).delete.pipe(
+      Effect.provideService(DatabaseService, database),
+    );
 
-    await area.delete();
+    await Effect.runPromise(deletion);
 
     expect(database.select().from(generationTable).all()).toEqual([]);
     expect(database.select().from(providerAttemptTable).all()).toEqual([]);
@@ -69,7 +77,7 @@ describe("content storage area", () => {
     expect(database.select().from(threadMessageTable).all()).toEqual([]);
     expect(database.select().from(turnTable).all()).toEqual([]);
     expect(database.select().from(threadTable).all()).toEqual([]);
-    expect(() => area.delete()).not.toThrow();
+    await expect(Effect.runPromise(deletion)).resolves.toBeUndefined();
   });
 
   it("preserves content while a reply is being generated", () => {
@@ -90,10 +98,20 @@ describe("content storage area", () => {
         startedAt: 0,
       })
       .run();
-    const area = createContentStorageArea(database, path);
+    const deletion = createContentStorageArea(path).delete.pipe(
+      Effect.provideService(DatabaseService, database),
+    );
 
-    expect(() => area.delete()).toThrow(
-      "Content cannot be deleted while a reply is being generated.",
+    expect(Effect.runSync(Effect.result(deletion))).toEqual(
+      Result.fail(
+        expect.objectContaining({
+          _tag: "StorageAreaDeleteError",
+          areaId: "content",
+          cause: expect.objectContaining({
+            message: "Content cannot be deleted while a reply is being generated.",
+          }),
+        }),
+      ),
     );
     expect(database.select().from(campaignTable).all()).toHaveLength(1);
     expect(database.select().from(promptTable).all()).toHaveLength(2);
@@ -117,9 +135,21 @@ describe("content storage area", () => {
         startedAt: 0,
       })
       .run();
-    const area = createContentStorageArea(database, path);
+    const deletion = createContentStorageArea(path).delete.pipe(
+      Effect.provideService(DatabaseService, database),
+    );
 
-    expect(() => area.delete()).toThrow("provider attempt is active");
+    expect(Effect.runSync(Effect.result(deletion))).toEqual(
+      Result.fail(
+        expect.objectContaining({
+          _tag: "StorageAreaDeleteError",
+          areaId: "content",
+          cause: expect.objectContaining({
+            message: expect.stringContaining("provider attempt is active"),
+          }),
+        }),
+      ),
+    );
     expect(database.select().from(providerAttemptTable).all()).toHaveLength(1);
     expect(database.select().from(campaignTable).all()).toHaveLength(1);
   });
@@ -150,9 +180,21 @@ describe("content storage area", () => {
         SELECT RAISE(ABORT, 'Rejected thread deletion');
       END;
     `);
-    const area = createContentStorageArea(database, path);
+    const deletion = createContentStorageArea(path).delete.pipe(
+      Effect.provideService(DatabaseService, database),
+    );
 
-    expect(() => area.delete()).toThrow('Failed query: delete from "threads"');
+    expect(Effect.runSync(Effect.result(deletion))).toEqual(
+      Result.fail(
+        expect.objectContaining({
+          _tag: "StorageAreaDeleteError",
+          areaId: "content",
+          cause: expect.objectContaining({
+            message: expect.stringContaining('Failed query: delete from "threads"'),
+          }),
+        }),
+      ),
+    );
     expect(database.select().from(campaignTable).all()).toHaveLength(1);
     expect(database.select().from(threadTable).all()).toHaveLength(1);
     expect(database.select().from(turnTable).all()).toHaveLength(1);

@@ -41,10 +41,9 @@ describe("OpenRouter provider", () => {
         throw new Error("OpenRouter must use API-key configuration.");
       }
 
-      expect(provider.configuration.storagePaths).toEqual([
+      expect(factory.storagePaths).toEqual([
         join(userDataDirectory, `${openRouterProviderId}.json`),
       ]);
-      expect(factory.storagePaths).toEqual(provider.configuration.storagePaths);
       await provider.configuration.configure("openrouter-key", new AbortController().signal);
       expect(verify).toHaveBeenCalledWith("openrouter-key", expect.any(AbortSignal));
     } finally {

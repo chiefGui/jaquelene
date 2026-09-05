@@ -2,7 +2,7 @@ import { Context, Effect, Layer } from "effect";
 import type { Campaigns } from "#backend/campaign/campaigns";
 import { CampaignService } from "#backend/campaign/subsystem";
 import type { CampaignUsageReader } from "#backend/campaign/usage";
-import { DatabaseService, getDatabaseStoragePaths } from "#backend/database/database";
+import { DatabaseService } from "#backend/database/database";
 import { GenerationService } from "#backend/generation/subsystem";
 import { ModelExecutionService } from "#backend/model/execution";
 import { ModelInputService } from "#backend/model/input-resolver";
@@ -11,29 +11,27 @@ import { PromptService } from "#backend/prompt/subsystem";
 import type { Prompts } from "#backend/prompt/types";
 import type { ProviderFactory } from "#backend/provider/provider";
 import { ProvidersService, type Models, type Providers } from "#backend/provider/providers";
+import { createProviderStorageArea } from "#backend/provider/storage";
 import type { ResourceCacheFailure } from "#backend/resource-cache/resource-cache";
 import { ResourceCacheService } from "#backend/resource-cache/service";
-import { getCacheStoragePaths } from "#backend/resource-cache/sqlite-cache-store";
+import type { StorageArea } from "#backend/storage/area";
 import { createCacheStorageArea } from "#backend/storage/cache";
 import { createContentStorageArea } from "#backend/storage/content";
-import {
-  StorageService,
-  assertStoragePathsAreDisjoint,
-  type StorageArea,
-} from "#backend/storage/storage";
+import { StorageRegistry } from "#backend/storage/registry";
+import { StorageService } from "#backend/storage/storage";
 import { ThreadService, type Threads } from "#backend/thread/subsystem";
 import { TurnService } from "#backend/turn/subsystem";
 import type { Turns } from "#backend/turn/turns";
 import { UsageService, type Usage } from "#backend/usage/subsystem";
 
-export type BackendOptions = Readonly<{
+export type BackendOptions<StorageRequirements = never> = Readonly<{
   databasePath: string;
   cache: Readonly<{
     path: string;
     reportFailure: (failure: ResourceCacheFailure) => void;
   }>;
   providers: readonly ProviderFactory[];
-  storageAreas: readonly StorageArea[];
+  storageAreas: readonly StorageArea<StorageRequirements>[];
 }>;
 
 export type Backend = Readonly<{
@@ -97,41 +95,12 @@ const readBackend = Effect.gen(function* () {
   });
 });
 
-function createStorageLayer(
-  databasePath: string,
-  cachePath: string,
-  storageAreas: readonly StorageArea[],
+function createConfiguredBackendLayer<StorageRequirements>(
+  { databasePath, cache: cacheOptions, providers }: BackendOptions<StorageRequirements>,
+  registry: StorageRegistry<
+    StorageRequirements | DatabaseService | ResourceCacheService | ProvidersService
+  >,
 ) {
-  return Layer.unwrap(
-    Effect.gen(function* () {
-      const database = yield* DatabaseService;
-      const providers = yield* ProvidersService;
-      const resourceCache = yield* ResourceCacheService;
-
-      return StorageService.layer([
-        createContentStorageArea(database, databasePath),
-        createCacheStorageArea(resourceCache, cachePath),
-        ...providers.storageAreas,
-        ...storageAreas,
-      ]);
-    }),
-  );
-}
-
-function asError(cause: unknown, message: string) {
-  if (cause instanceof Error) {
-    return cause;
-  }
-
-  return new Error(message, { cause });
-}
-
-function createConfiguredBackendLayer({
-  databasePath,
-  cache: cacheOptions,
-  providers,
-  storageAreas,
-}: BackendOptions) {
   const databaseLayer = DatabaseService.layer(databasePath);
   const resourceCacheLayer = ResourceCacheService.layer(cacheOptions);
   const campaignsLayer = CampaignService.layer().pipe(Layer.provide(databaseLayer));
@@ -161,7 +130,7 @@ function createConfiguredBackendLayer({
   const turnsLayer = TurnService.layer.pipe(
     Layer.provide(Layer.mergeAll(databaseLayer, generationsLayer, threadsLayer)),
   );
-  const storageLayer = createStorageLayer(databasePath, cacheOptions.path, storageAreas).pipe(
+  const storageLayer = StorageService.layer(registry).pipe(
     Layer.provide(Layer.mergeAll(databaseLayer, providersLayer, resourceCacheLayer)),
   );
   const backendDependencies = Layer.mergeAll(
@@ -177,23 +146,25 @@ function createConfiguredBackendLayer({
   return Layer.effect(BackendService, readBackend).pipe(Layer.provide(backendDependencies));
 }
 
-function createBackendLayer(options: BackendOptions) {
+function createBackendLayer<StorageRequirements>(options: BackendOptions<StorageRequirements>) {
   return Layer.unwrap(
-    Effect.try({
-      try: () => {
-        assertStoragePathsAreDisjoint([
-          { id: "content", paths: getDatabaseStoragePaths(options.databasePath) },
-          { id: "cache", paths: getCacheStoragePaths(options.cache.path) },
-          ...options.providers.map((provider) => ({
-            id: `provider:${provider.id}`,
-            paths: provider.storagePaths,
-          })),
-          ...options.storageAreas.map(({ id, paths }) => ({ id, paths })),
-        ]);
+    Effect.gen(function* () {
+      const areas: StorageArea<
+        StorageRequirements | DatabaseService | ResourceCacheService | ProvidersService
+      >[] = [
+        createContentStorageArea(options.databasePath),
+        createCacheStorageArea(options.cache.path),
+        ...options.providers.flatMap((provider) => {
+          if (provider.storagePaths === null) {
+            return [];
+          }
+          return [createProviderStorageArea(provider.id, provider.storagePaths)];
+        }),
+        ...options.storageAreas,
+      ];
+      const registry = yield* StorageRegistry.make(areas);
 
-        return createConfiguredBackendLayer(options);
-      },
-      catch: (cause) => asError(cause, "Could not configure the backend."),
+      return createConfiguredBackendLayer(options, registry);
     }),
   );
 }

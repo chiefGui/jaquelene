@@ -1,15 +1,17 @@
 import { join } from "node:path";
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { ids } from "#backend/id";
 import type { CacheStore, StoredCacheEntry } from "#backend/resource-cache/cache-store";
 import { createResourceCache } from "#backend/resource-cache/resource-cache";
-import { StorageCategory } from "#backend/storage/storage";
+import { StorageCategory } from "#backend/storage/area";
 import type {
   ApiKeyProviderConfigurationSnapshot,
   ProviderAdapter,
   ProviderConfigureResult,
 } from "./provider";
-import { createProviderSubsystem } from "./providers";
+import { ProvidersService, createProviderSubsystem } from "./providers";
+import { createProviderStorageArea } from "./storage";
 
 const keyLabel = "key...123";
 
@@ -97,7 +99,6 @@ function apiKeyProvider(overrides: Partial<ProviderAdapter> = {}): ProviderAdapt
       async clear() {
         configuration = { state: "unconfigured" };
       },
-      storagePaths: [join(process.cwd(), "api-key-provider.json")],
     },
     models: {
       async list(signal) {
@@ -176,14 +177,14 @@ describe("provider subsystem", () => {
     await expect(
       subsystem.generations.get("local-provider")?.generate(generationRequest()),
     ).resolves.toEqual({ text: "Local reply" });
-    expect(subsystem.storageAreas).toEqual([
-      {
-        id: "provider:api-key-provider",
-        category: StorageCategory.AppData,
-        paths: configured.configuration.storagePaths,
-        delete: expect.any(Function),
-      },
-    ]);
+    const paths = [join(process.cwd(), "api-key-provider.json")];
+    const area = createProviderStorageArea(configured.descriptor.id, paths);
+    expect(area).toMatchObject({
+      id: "provider:api-key-provider",
+      category: StorageCategory.AppData,
+      paths,
+    });
+    expect(Effect.isEffect(area.delete)).toBe(true);
     await subsystem.close();
   });
 
@@ -321,7 +322,8 @@ describe("provider subsystem", () => {
       { id: "api-key-provider", brandId: "api-key" },
     ]);
 
-    await subsystem.storageAreas[0]?.delete();
+    const area = createProviderStorageArea(adapter.descriptor.id, []);
+    await Effect.runPromise(area.delete.pipe(Effect.provideService(ProvidersService, subsystem)));
     expect(clear).toHaveBeenCalledOnce();
     expect(subsystem.providers.inspectConfiguration(adapter.descriptor.id)).toEqual({
       kind: "api-key",
@@ -346,7 +348,6 @@ describe("provider subsystem", () => {
             return { state: "configured", keyLabel };
           },
           async clear() {},
-          storagePaths: [],
         },
       });
       const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
@@ -372,7 +373,6 @@ describe("provider subsystem", () => {
             } as unknown as ProviderConfigureResult;
           },
           async clear() {},
-          storagePaths: [],
         },
       });
       const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
@@ -410,7 +410,6 @@ describe("provider subsystem", () => {
         async clear() {
           configuration = { state: "unconfigured" };
         },
-        storagePaths: [],
       },
       models: { list },
     });
@@ -457,7 +456,6 @@ describe("provider subsystem", () => {
         async clear() {
           configuration = { state: "unconfigured" };
         },
-        storagePaths: [],
       },
       models: { list },
     });
@@ -494,7 +492,6 @@ describe("provider subsystem", () => {
           events.push("clear");
           configuration = { state: "unconfigured" };
         },
-        storagePaths: [],
       },
     });
     const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
@@ -536,7 +533,6 @@ describe("provider subsystem", () => {
           await finishClear.promise;
           configuration = { state: "unconfigured" };
         },
-        storagePaths: [],
       },
       models: {
         list(signal) {
@@ -589,7 +585,6 @@ describe("provider subsystem", () => {
         async clear() {
           throw failure;
         },
-        storagePaths: [],
       },
     });
     const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());

@@ -38,10 +38,7 @@ describe("NanoGPT provider", () => {
         throw new Error("NanoGPT must use API-key configuration.");
       }
 
-      expect(provider.configuration.storagePaths).toEqual([
-        join(userDataDirectory, `${nanoGptProviderId}.json`),
-      ]);
-      expect(factory.storagePaths).toEqual(provider.configuration.storagePaths);
+      expect(factory.storagePaths).toEqual([join(userDataDirectory, `${nanoGptProviderId}.json`)]);
       const apiKey = "sk-nano-123e4567-e89b-12d3-a456-426614174000";
       await expect(
         provider.configuration.configure(apiKey, new AbortController().signal),

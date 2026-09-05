@@ -1,4 +1,5 @@
-import { BackendService } from "@jaquelene/backend";
+import * as NodePath from "@effect/platform-node/NodePath";
+import { BackendService, nodeFileTreeLayer } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { Effect, Layer } from "effect";
 import { safeStorage } from "electron";
@@ -33,9 +34,6 @@ function createBackendLayer() {
     Effect.gen(function* () {
       const configuration = yield* DesktopConfigurationService;
       const diagnostics = yield* ApplicationDiagnosticsService;
-      const favoriteModels = yield* FavoriteModelsService;
-      const localState = yield* LocalStateService;
-      const preferences = yield* PreferencesService;
       const { databasePath, cachePath } = getApplicationDatabasePaths(
         configuration.userDataDirectory,
       );
@@ -67,13 +65,7 @@ function createBackendLayer() {
             }),
         },
         providers,
-        storageAreas: createStorageAreas({
-          diagnostics,
-          favoriteModels,
-          localState,
-          preferences,
-          userDataDirectory: configuration.userDataDirectory,
-        }),
+        storageAreas: createStorageAreas(configuration.userDataDirectory),
       });
     }),
   );
@@ -91,7 +83,11 @@ export function createDesktopApplicationLayer({
   const rendererLayer = RendererService.layer.pipe(Layer.provideMerge(baseLayer));
   const localCapabilitiesLayer = Layer.merge(LocalStateService.layer, FavoriteModelsService.layer);
   const environmentLayer = localCapabilitiesLayer.pipe(Layer.provideMerge(rendererLayer));
-  const backendLayer = createBackendLayer().pipe(Layer.provideMerge(environmentLayer));
+  const filesystemLayer = nodeFileTreeLayer.pipe(Layer.provideMerge(NodePath.layer));
+  const backendLayer = createBackendLayer().pipe(
+    Layer.provide(filesystemLayer),
+    Layer.provideMerge(environmentLayer),
+  );
 
   return MainWindowService.layer.pipe(Layer.provide(backendLayer));
 }

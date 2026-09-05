@@ -2,7 +2,6 @@ import { Context, Effect, Layer } from "effect";
 import { providerConfigureResultSchema, providerKeyLabelSchema } from "@jaquelene/domain";
 import type { ResourceCache } from "#backend/resource-cache/resource-cache";
 import { ResourceCacheService } from "#backend/resource-cache/service";
-import { StorageCategory, type StorageArea } from "#backend/storage/storage";
 import type {
   ApiKeyProviderConfigurationSnapshot,
   ProviderAdapter,
@@ -65,7 +64,6 @@ type ProviderSubsystem = Readonly<{
   providers: Providers;
   models: Models;
   generations: ProviderGenerationRouter;
-  storageAreas: readonly StorageArea[];
   close: () => Promise<void>;
 }>;
 
@@ -116,6 +114,12 @@ async function createOwnedProviderSubsystem(
       if (adapter.descriptor.id !== factory.id) {
         throw new TypeError(
           `Provider factory "${factory.id}" created provider "${adapter.descriptor.id}".`,
+        );
+      }
+
+      if ((factory.storagePaths !== null) !== (adapter.configuration.kind === "api-key")) {
+        throw new TypeError(
+          `Provider factory "${factory.id}" storage does not match its configuration capability.`,
         );
       }
 
@@ -566,26 +570,10 @@ export function createProviderSubsystem(
     get: (providerId) => generationRoutes.get(providerId),
   };
 
-  const storageAreas = [...providersById.values()].flatMap<StorageArea>(({ adapter }) => {
-    if (adapter.configuration.kind !== "api-key") {
-      return [];
-    }
-
-    return [
-      {
-        id: `provider:${adapter.descriptor.id}`,
-        category: StorageCategory.AppData,
-        paths: [...adapter.configuration.storagePaths],
-        delete: () => providers.clearConfiguration(adapter.descriptor.id),
-      },
-    ];
-  });
-
   return {
     providers,
     models,
     generations,
-    storageAreas,
     close() {
       if (!closePromise) {
         state = "closing";

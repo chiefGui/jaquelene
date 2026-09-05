@@ -1,5 +1,7 @@
 export { BackendService } from "#backend/backend";
 export type { Backend, BackendOptions } from "#backend/backend";
+export { FileTreeError, FileTreeService } from "#backend/filesystem/file-tree";
+export { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
 export {
   ThreadTranscriptEntryKind,
   type ThreadTranscript,
@@ -98,14 +100,19 @@ export {
   type ThreadId,
   type TurnId,
 } from "#backend/id";
-export { assertStoragePathsAreDisjoint, StorageCategory } from "#backend/storage/storage";
-export type {
-  StorageArea,
-  StorageAreaId,
-  StorageAreaUsage,
-  StorageDeletion,
-  StorageUsage,
+export {
+  StorageCategoryDeleteError,
+  StorageMeasurementError,
+  StorageTargetNotFoundError,
 } from "#backend/storage/storage";
+export type { StorageAreaUsage, StorageDeletion, StorageUsage } from "#backend/storage/storage";
+export {
+  StorageAreaDeleteError,
+  StorageCategory,
+  type StorageArea,
+  type StorageAreaId,
+} from "#backend/storage/area";
+export { StorageConfigurationError } from "#backend/storage/registry";
 export type { Instruction, PromptApplication } from "#backend/prompt/application-registry";
 export type {
   BuiltInPrompt,

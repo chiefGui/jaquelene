@@ -25,3 +25,26 @@ Within the package, same-feature imports stay relative and cross-feature imports
 The application scope owns the backend lifetime. Closing it stops new work, interrupts and drains active generations, and closes SQLite last; reopening persisted state builds a new application scope.
 
 The SQLite baseline includes execution-based usage accounting. Existing databases from before this baseline require a reset. For a development profile, close Jaquelene and run `bun run db:reset`; this removes that profile's content and cache databases while preserving its settings and provider credentials.
+
+## Provider performance baseline
+
+Run `bun run --cwd packages/backend bench:providers` from the repository root. Bun bundles the harness; Node executes it against the real provider and model-execution services. It uses synthetic provider responses and SQLite in memory, with no network, credentials, or user-profile files. Generated JavaScript stays in the ignored package cache.
+
+Each process runs 10 warmup rounds and 15 measured rounds, rotating workload order. Each sample is a batch mean; output includes all samples, their median/range, iteration counts, and the host details. Timed cycles include assertions and orchestration. The two acquisition workloads include cache initialization and shutdown; the configuration workload includes invalidation and a fresh 256-model catalog load. These are warmed service measurements, not cold application startup or individual-request tail latency.
+
+Initial baseline against production code at `41f226d`, before the provider refactor: Windows x64, Node 24.7.0, Effect 4.0.0-rc.112 with the repository patch, Bun 1.4.1, Intel Core i9-9900KF. Each column is an independent process run; values are microseconds per named operation or complete cycle.
+
+| Workload                                                  |  Run 1 |  Run 2 |  Run 3 |
+| --------------------------------------------------------- | -----: | -----: | -----: |
+| acquire and release two providers with an in-memory cache | 360.34 | 356.53 | 366.76 |
+| hot model lookup in a 256-model catalog                   |   1.70 |   1.61 |   1.71 |
+| dispatch one immediate generation                         |   1.88 |   1.84 |   1.85 |
+| execute through the model Effect service                  |  26.85 |  25.83 |  26.08 |
+| dispatch 32 concurrent generations                        |  61.26 |  54.69 |  56.26 |
+| replace configuration and reload the catalog              | 540.06 | 566.28 | 567.85 |
+| dispatch and cancel 32 generations                        | 284.63 | 244.91 | 290.07 |
+| acquire, dispatch 32 generations, and shut down           | 733.68 | 715.10 | 711.97 |
+
+Use the same runtime, fixtures, batch sizes, and machine for before/after comparisons. Repeat fresh-process runs and report absolute differences alongside percentages; the spread above shows why a single run is not a regression gate. Investigate repeatable slowdowns outside observed noise before accepting a refactor. Do not speed up a benchmark by omitting disposal, interruption, validation, or cache invalidation. Operation-count and result assertions enforce those paths where observable; behavioral tests remain the correctness gate.
+
+This baseline does not establish cross-platform parity, allocation bounds, or worst-case latency. Changes to concurrency or operation bookkeeping also require targeted allocation/CPU profiling and lifecycle stress checks before the refactor is considered complete.

@@ -627,6 +627,172 @@ describe("provider subsystem", () => {
     await subsystem.close();
   });
 
+  it("skips a cancelled queued configuration without blocking the next change", async () => {
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const configuredKeys: string[] = [];
+    const original = apiKeyProvider();
+    const adapter = apiKeyProvider({
+      configuration: {
+        ...original.configuration,
+        async configure(apiKey, signal) {
+          configuredKeys.push(apiKey);
+          if (apiKey === "first") {
+            started.resolve();
+            await release.promise;
+          }
+          return original.configuration.configure(apiKey, signal);
+        },
+      },
+    });
+    const cache = await createTestResourceCache();
+    const subsystem = createProviderSubsystem([adapter], cache);
+
+    try {
+      const first = subsystem.providers.configureApiKey(adapter.descriptor.id, "first");
+      await started.promise;
+      const controller = new AbortController();
+      const reason = new Error("Configuration cancelled.");
+      const cancelled = subsystem.providers.configureApiKey(
+        adapter.descriptor.id,
+        "cancelled",
+        controller.signal,
+      );
+      const rejected = expect(cancelled).rejects.toBe(reason);
+      const last = subsystem.providers.configureApiKey(adapter.descriptor.id, "last");
+      controller.abort(reason);
+      await rejected;
+      expect(configuredKeys).toEqual(["first"]);
+      release.resolve();
+
+      await Promise.all([first, last]);
+      expect(configuredKeys).toEqual(["first", "last"]);
+      expect(subsystem.providers.inspectConfiguration(adapter.descriptor.id).state).toBe(
+        "configured",
+      );
+    } finally {
+      release.resolve();
+      await subsystem.close();
+      await cache.close();
+    }
+  });
+
+  it("reconnects with fresh models after a successful disconnect", async () => {
+    let revision = 0;
+    let configuration: ApiKeyProviderConfigurationSnapshot = { state: "unconfigured" };
+    const list = vi.fn(async () => [
+      { id: `model-${revision}`, name: "Current model", brandId: "local" },
+    ]);
+    const adapter = apiKeyProvider({
+      configuration: {
+        kind: "api-key",
+        inspect: () => configuration,
+        async configure() {
+          revision += 1;
+          configuration = { state: "configured", revision: String(revision), keyLabel };
+          return { state: "configured", keyLabel };
+        },
+        async clear() {
+          configuration = { state: "unconfigured" };
+        },
+      },
+      models: { list },
+    });
+    const cache = await createTestResourceCache();
+    const subsystem = createProviderSubsystem([adapter], cache);
+
+    try {
+      await subsystem.providers.configureApiKey(adapter.descriptor.id, "first");
+      expect(await listModels(subsystem, adapter.descriptor.id)).toMatchObject([{ id: "model-1" }]);
+      await subsystem.providers.clearConfiguration(adapter.descriptor.id);
+      expect(subsystem.providers.inspectConfiguration(adapter.descriptor.id).state).toBe(
+        "unconfigured",
+      );
+      await expect(listModels(subsystem, adapter.descriptor.id)).rejects.toThrow("not configured");
+
+      await subsystem.providers.configureApiKey(adapter.descriptor.id, "second");
+      expect(await listModels(subsystem, adapter.descriptor.id)).toMatchObject([{ id: "model-2" }]);
+      await expect(
+        subsystem.generations.get(adapter.descriptor.id)!.generate(generationRequest()),
+      ).resolves.toEqual({ text: "Generated reply" });
+      expect(list).toHaveBeenCalledTimes(2);
+    } finally {
+      await subsystem.close();
+      await cache.close();
+    }
+  });
+
+  it("cancels one generation without interrupting another on the same provider", async () => {
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const signals: AbortSignal[] = [];
+    const adapter = configurationFreeProvider({
+      generation: {
+        async generate(_request, signal) {
+          signals.push(signal);
+          if (signals.length === 2) {
+            started.resolve();
+          }
+          await release.promise;
+          signal.throwIfAborted();
+          return { text: "Reply" };
+        },
+      },
+    });
+    const cache = await createTestResourceCache();
+    const subsystem = createProviderSubsystem([adapter], cache);
+
+    try {
+      const route = subsystem.generations.get(adapter.descriptor.id)!;
+      const controller = new AbortController();
+      const reason = new Error("Only this request was cancelled.");
+      const cancelled = route.generate(generationRequest(), controller.signal);
+      const rejected = expect(cancelled).rejects.toBe(reason);
+      const surviving = route.generate(generationRequest());
+      await started.promise;
+      controller.abort(reason);
+      await rejected;
+      expect(signals.map((signal) => signal.aborted)).toEqual([true, false]);
+      release.resolve();
+      await expect(surviving).resolves.toEqual({ text: "Reply" });
+    } finally {
+      release.resolve();
+      await subsystem.close();
+      await cache.close();
+    }
+  });
+
+  it("attempts every disposal in reverse order and preserves each failure", async () => {
+    const closed: string[] = [];
+    const firstFailure = new Error("First disposal failed.");
+    const lastFailure = new Error("Last disposal failed.");
+    const adapters = ["first", "middle", "last"].map((id) =>
+      configurationFreeProvider({
+        descriptor: { id, name: id, brandId: "local" },
+        async [Symbol.asyncDispose]() {
+          closed.push(id);
+          if (id === "first") {
+            throw firstFailure;
+          }
+          if (id === "last") {
+            throw lastFailure;
+          }
+        },
+      }),
+    );
+    const cache = await createTestResourceCache();
+    const subsystem = createProviderSubsystem(adapters, cache);
+
+    try {
+      const closing = subsystem.close();
+      await expect(closing).rejects.toMatchObject({ errors: [lastFailure, firstFailure] });
+      expect(subsystem.close()).toBe(closing);
+      expect(closed).toEqual(["last", "middle", "first"]);
+    } finally {
+      await cache.close();
+    }
+  });
+
   it("rejects new work and interrupts active work during close", async () => {
     let activeSignal: AbortSignal | undefined;
     const started = Promise.withResolvers<void>();

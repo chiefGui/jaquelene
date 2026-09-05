@@ -19,23 +19,23 @@
       "entityType": "tables"
     },
     {
-      "name": "campaign_prompt_selections",
+      "name": "campaign_skill_selections",
       "entityType": "tables"
     },
     {
-      "name": "prompt_default_overrides",
+      "name": "skill_default_overrides",
       "entityType": "tables"
     },
     {
-      "name": "prompt_kind_fallbacks",
+      "name": "skill_kind_fallbacks",
       "entityType": "tables"
     },
     {
-      "name": "prompt_kinds",
+      "name": "skill_kinds",
       "entityType": "tables"
     },
     {
-      "name": "prompts",
+      "name": "skills",
       "entityType": "tables"
     },
     {
@@ -282,7 +282,7 @@
       "generated": null,
       "name": "campaign_id",
       "entityType": "columns",
-      "table": "campaign_prompt_selections"
+      "table": "campaign_skill_selections"
     },
     {
       "type": "text",
@@ -292,7 +292,7 @@
       "generated": null,
       "name": "kind",
       "entityType": "columns",
-      "table": "campaign_prompt_selections"
+      "table": "campaign_skill_selections"
     },
     {
       "type": "text",
@@ -300,29 +300,9 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "prompt_key",
+      "name": "skill_key",
       "entityType": "columns",
-      "table": "campaign_prompt_selections"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "kind",
-      "entityType": "columns",
-      "table": "prompt_default_overrides"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "prompt_key",
-      "entityType": "columns",
-      "table": "prompt_default_overrides"
+      "table": "campaign_skill_selections"
     },
     {
       "type": "text",
@@ -332,7 +312,7 @@
       "generated": null,
       "name": "kind",
       "entityType": "columns",
-      "table": "prompt_kind_fallbacks"
+      "table": "skill_default_overrides"
     },
     {
       "type": "text",
@@ -340,9 +320,29 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "prompt_key",
+      "name": "skill_key",
       "entityType": "columns",
-      "table": "prompt_kind_fallbacks"
+      "table": "skill_default_overrides"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "skill_kind_fallbacks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "skill_key",
+      "entityType": "columns",
+      "table": "skill_kind_fallbacks"
     },
     {
       "type": "text",
@@ -352,7 +352,7 @@
       "generated": null,
       "name": "key",
       "entityType": "columns",
-      "table": "prompt_kinds"
+      "table": "skill_kinds"
     },
     {
       "type": "text",
@@ -362,7 +362,7 @@
       "generated": null,
       "name": "name",
       "entityType": "columns",
-      "table": "prompt_kinds"
+      "table": "skill_kinds"
     },
     {
       "type": "text",
@@ -372,7 +372,7 @@
       "generated": null,
       "name": "description",
       "entityType": "columns",
-      "table": "prompt_kinds"
+      "table": "skill_kinds"
     },
     {
       "type": "text",
@@ -382,7 +382,7 @@
       "generated": null,
       "name": "key",
       "entityType": "columns",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "type": "text",
@@ -392,7 +392,7 @@
       "generated": null,
       "name": "kind",
       "entityType": "columns",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "type": "text",
@@ -402,7 +402,7 @@
       "generated": null,
       "name": "origin",
       "entityType": "columns",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "type": "text",
@@ -412,7 +412,7 @@
       "generated": null,
       "name": "title",
       "entityType": "columns",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "type": "text",
@@ -420,9 +420,9 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "body",
+      "name": "prompt",
       "entityType": "columns",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "type": "integer",
@@ -432,7 +432,7 @@
       "generated": null,
       "name": "created_at",
       "entityType": "columns",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "type": "integer",
@@ -442,7 +442,7 @@
       "generated": null,
       "name": "updated_at",
       "entityType": "columns",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "type": "text",
@@ -927,31 +927,31 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_campaign_prompt_selections_campaign_id_campaigns_id_fk",
+      "name": "fk_campaign_skill_selections_campaign_id_campaigns_id_fk",
       "entityType": "fks",
-      "table": "campaign_prompt_selections"
+      "table": "campaign_skill_selections"
     },
     {
       "columns": [
         "kind"
       ],
-      "tableTo": "prompt_kinds",
+      "tableTo": "skill_kinds",
       "columnsTo": [
         "key"
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_campaign_prompt_selections_kind_prompt_kinds_key_fk",
+      "name": "fk_campaign_skill_selections_kind_skill_kinds_key_fk",
       "entityType": "fks",
-      "table": "campaign_prompt_selections"
+      "table": "campaign_skill_selections"
     },
     {
       "columns": [
         "kind",
-        "prompt_key"
+        "skill_key"
       ],
-      "tableTo": "prompts",
+      "tableTo": "skills",
       "columnsTo": [
         "kind",
         "key"
@@ -959,31 +959,31 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": true,
-      "name": "campaign_prompt_selections_prompt_fk",
+      "name": "campaign_skill_selections_skill_fk",
       "entityType": "fks",
-      "table": "campaign_prompt_selections"
+      "table": "campaign_skill_selections"
     },
     {
       "columns": [
         "kind"
       ],
-      "tableTo": "prompt_kinds",
+      "tableTo": "skill_kinds",
       "columnsTo": [
         "key"
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_prompt_default_overrides_kind_prompt_kinds_key_fk",
+      "name": "fk_skill_default_overrides_kind_skill_kinds_key_fk",
       "entityType": "fks",
-      "table": "prompt_default_overrides"
+      "table": "skill_default_overrides"
     },
     {
       "columns": [
         "kind",
-        "prompt_key"
+        "skill_key"
       ],
-      "tableTo": "prompts",
+      "tableTo": "skills",
       "columnsTo": [
         "kind",
         "key"
@@ -991,31 +991,31 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": true,
-      "name": "prompt_default_overrides_prompt_fk",
+      "name": "skill_default_overrides_skill_fk",
       "entityType": "fks",
-      "table": "prompt_default_overrides"
+      "table": "skill_default_overrides"
     },
     {
       "columns": [
         "kind"
       ],
-      "tableTo": "prompt_kinds",
+      "tableTo": "skill_kinds",
       "columnsTo": [
         "key"
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "fk_prompt_kind_fallbacks_kind_prompt_kinds_key_fk",
+      "name": "fk_skill_kind_fallbacks_kind_skill_kinds_key_fk",
       "entityType": "fks",
-      "table": "prompt_kind_fallbacks"
+      "table": "skill_kind_fallbacks"
     },
     {
       "columns": [
         "kind",
-        "prompt_key"
+        "skill_key"
       ],
-      "tableTo": "prompts",
+      "tableTo": "skills",
       "columnsTo": [
         "kind",
         "key"
@@ -1023,24 +1023,24 @@
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "nameExplicit": true,
-      "name": "prompt_kind_fallbacks_prompt_fk",
+      "name": "skill_kind_fallbacks_skill_fk",
       "entityType": "fks",
-      "table": "prompt_kind_fallbacks"
+      "table": "skill_kind_fallbacks"
     },
     {
       "columns": [
         "kind"
       ],
-      "tableTo": "prompt_kinds",
+      "tableTo": "skill_kinds",
       "columnsTo": [
         "key"
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
-      "name": "fk_prompts_kind_prompt_kinds_key_fk",
+      "name": "fk_skills_kind_skill_kinds_key_fk",
       "entityType": "fks",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "columns": [
@@ -1190,45 +1190,45 @@
         "kind"
       ],
       "nameExplicit": false,
-      "name": "campaign_prompt_selections_pk",
+      "name": "campaign_skill_selections_pk",
       "entityType": "pks",
-      "table": "campaign_prompt_selections"
+      "table": "campaign_skill_selections"
     },
     {
       "columns": [
         "kind"
       ],
       "nameExplicit": false,
-      "name": "prompt_default_overrides_pk",
+      "name": "skill_default_overrides_pk",
       "entityType": "pks",
-      "table": "prompt_default_overrides"
+      "table": "skill_default_overrides"
     },
     {
       "columns": [
         "kind"
       ],
       "nameExplicit": false,
-      "name": "prompt_kind_fallbacks_pk",
+      "name": "skill_kind_fallbacks_pk",
       "entityType": "pks",
-      "table": "prompt_kind_fallbacks"
+      "table": "skill_kind_fallbacks"
     },
     {
       "columns": [
         "key"
       ],
       "nameExplicit": false,
-      "name": "prompt_kinds_pk",
+      "name": "skill_kinds_pk",
       "entityType": "pks",
-      "table": "prompt_kinds"
+      "table": "skill_kinds"
     },
     {
       "columns": [
         "key"
       ],
       "nameExplicit": false,
-      "name": "prompts_pk",
+      "name": "skills_pk",
       "entityType": "pks",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "columns": [
@@ -1333,44 +1333,44 @@
     {
       "columns": [
         {
-          "value": "prompt_key",
+          "value": "skill_key",
           "isExpression": false
         }
       ],
       "isUnique": false,
       "where": null,
       "origin": "manual",
-      "name": "campaign_prompt_selections_prompt_index",
+      "name": "campaign_skill_selections_skill_index",
       "entityType": "indexes",
-      "table": "campaign_prompt_selections"
+      "table": "campaign_skill_selections"
     },
     {
       "columns": [
         {
-          "value": "prompt_key",
+          "value": "skill_key",
           "isExpression": false
         }
       ],
       "isUnique": false,
       "where": null,
       "origin": "manual",
-      "name": "prompt_default_overrides_prompt_index",
+      "name": "skill_default_overrides_skill_index",
       "entityType": "indexes",
-      "table": "prompt_default_overrides"
+      "table": "skill_default_overrides"
     },
     {
       "columns": [
         {
-          "value": "prompt_key",
+          "value": "skill_key",
           "isExpression": false
         }
       ],
       "isUnique": true,
       "where": null,
       "origin": "manual",
-      "name": "prompt_kind_fallbacks_prompt_unique",
+      "name": "skill_kind_fallbacks_skill_unique",
       "entityType": "indexes",
-      "table": "prompt_kind_fallbacks"
+      "table": "skill_kind_fallbacks"
     },
     {
       "columns": [
@@ -1386,9 +1386,9 @@
       "isUnique": true,
       "where": null,
       "origin": "manual",
-      "name": "prompts_kind_key_unique",
+      "name": "skills_kind_key_unique",
       "entityType": "indexes",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "columns": [
@@ -1408,9 +1408,9 @@
       "isUnique": false,
       "where": null,
       "origin": "manual",
-      "name": "prompts_kind_created_at_index",
+      "name": "skills_kind_created_at_index",
       "entityType": "indexes",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "columns": [
@@ -1686,51 +1686,51 @@
     },
     {
       "value": "length(\"key\") > 0 AND length(\"key\") <= 64 AND \"key\" NOT GLOB '*[^a-z0-9-]*' AND \"key\" GLOB '[a-z]*'",
-      "name": "prompt_kinds_key_valid",
+      "name": "skill_kinds_key_valid",
       "entityType": "checks",
-      "table": "prompt_kinds"
+      "table": "skill_kinds"
     },
     {
       "value": "\"name\" = trim(\"name\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length(\"name\") > 0",
-      "name": "prompt_kinds_name_valid",
+      "name": "skill_kinds_name_valid",
       "entityType": "checks",
-      "table": "prompt_kinds"
+      "table": "skill_kinds"
     },
     {
       "value": "\"description\" = trim(\"description\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length(\"description\") > 0",
-      "name": "prompt_kinds_description_valid",
+      "name": "skill_kinds_description_valid",
       "entityType": "checks",
-      "table": "prompt_kinds"
+      "table": "skill_kinds"
     },
     {
       "value": "length(\"key\") > 0 AND length(\"key\") <= 128",
-      "name": "prompts_key_valid",
+      "name": "skills_key_valid",
       "entityType": "checks",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "value": "\"origin\" IN ('built-in', 'custom')",
-      "name": "prompts_origin_valid",
+      "name": "skills_origin_valid",
       "entityType": "checks",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "value": "\"title\" = trim(\"title\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length(\"title\") > 0 AND length(\"title\") <= 120",
-      "name": "prompts_title_valid",
+      "name": "skills_title_valid",
       "entityType": "checks",
-      "table": "prompts"
+      "table": "skills"
     },
     {
-      "value": "length(trim(\"body\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0 AND length(\"body\") <= 20000",
-      "name": "prompts_body_valid",
+      "value": "length(trim(\"prompt\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0 AND length(\"prompt\") <= 20000",
+      "name": "skills_prompt_valid",
       "entityType": "checks",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "value": "(\"origin\" = 'built-in' AND \"created_at\" IS NULL AND \"updated_at\" IS NULL) OR (\"origin\" = 'custom' AND \"created_at\" IS NOT NULL AND \"updated_at\" IS NOT NULL AND \"created_at\" >= 0 AND \"updated_at\" >= \"created_at\")",
-      "name": "prompts_lifecycle_valid",
+      "name": "skills_lifecycle_valid",
       "entityType": "checks",
-      "table": "prompts"
+      "table": "skills"
     },
     {
       "value": "\"sequence\" > 0",

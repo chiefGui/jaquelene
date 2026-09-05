@@ -23,7 +23,7 @@ export const ids = {
   message: defineId("message"),
   generation: defineId("generation"),
   providerAttempt: defineId("attempt"),
-  prompt: defineId("prompt"),
+  skill: defineId("skill"),
 } as const;
 
 export type CampaignId = ReturnType<typeof ids.campaign.create>;

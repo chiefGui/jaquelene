@@ -22,11 +22,14 @@ import type {
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import {
-  jaqueleneNarratorPromptDefinition,
-  narratorPromptKind,
-  narratorPromptModule,
+  jaqueleneNarratorSkillDefinition,
+  narratorSkillKind,
+  narratorSkillRegistration,
 } from "#backend/narrator/module";
-import { createPromptSubsystem } from "#backend/prompt/subsystem";
+import { createSkills } from "#backend/skill/skills";
+import { createCampaignSkills } from "#backend/campaign/skills";
+import { createCampaignInstructionRegistry } from "#backend/campaign/instructions";
+import { createNarratorApplication } from "#backend/narrator/module";
 import { threadMessageTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
 import { createUsageHistory } from "#backend/usage/history";
@@ -107,8 +110,9 @@ function modelExecutionRunner(provider?: TestGenerationProvider): ModelExecution
 
 function openGenerationEnvironment(provider: TestGenerationProvider, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
-  const { applications: promptApplications, prompts } = createPromptSubsystem(database, [
-    narratorPromptModule,
+  const skills = createSkills(database, [narratorSkillRegistration]);
+  const instructions = createCampaignInstructionRegistry([
+    createNarratorApplication(createCampaignSkills(database, skills)),
   ]);
   const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
@@ -116,10 +120,7 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   const usage = createUsageHistory(database, changed);
   const generationOptions: GenerationOptions = {
     database,
-    replyPreparer: createReplyPreparer(
-      threads,
-      createModelInputResolver(campaigns, promptApplications),
-    ),
+    replyPreparer: createReplyPreparer(threads, createModelInputResolver(campaigns, instructions)),
     modelExecutor: modelExecutionRunner(provider),
     attempts: usage.attempts,
     getUsageAttribution: (threadId) => getCampaignUsageAttribution(database, threadId),
@@ -133,8 +134,8 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
     database,
     generations,
     generationOptions,
-    promptApplications,
-    prompts,
+    instructions,
+    skills,
     threads,
     usage,
   };
@@ -419,7 +420,7 @@ describe("generations", () => {
     const { campaigns, generations, threads } = openGenerationEnvironment(provider);
     const campaign = campaigns.start({
       title: "The Long Night",
-      composition: [{ kind: narratorPromptKind.key }],
+      composition: [{ kind: narratorSkillKind.key }],
     });
     const started = threads.startTurn(campaign.threadId, "Begin");
 
@@ -436,8 +437,8 @@ describe("generations", () => {
       input: {
         instructions: [
           {
-            sourceKey: jaqueleneNarratorPromptDefinition.key,
-            content: jaqueleneNarratorPromptDefinition.body,
+            sourceKey: jaqueleneNarratorSkillDefinition.key,
+            content: jaqueleneNarratorSkillDefinition.prompt,
           },
         ],
         dialogue: [{ messageId: started.message.id, role: "user", content: "Begin" }],

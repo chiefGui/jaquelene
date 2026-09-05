@@ -8,7 +8,7 @@ import {
   type TurnId,
 } from "./id";
 
-type PromptId = ReturnType<typeof ids.prompt.create>;
+type SkillId = ReturnType<typeof ids.skill.create>;
 
 const identities = [
   ["campaign", ids.campaign],
@@ -16,7 +16,7 @@ const identities = [
   ["turn", ids.turn],
   ["message", ids.message],
   ["generation", ids.generation],
-  ["prompt", ids.prompt],
+  ["skill", ids.skill],
 ] as const;
 
 describe("IDs", () => {
@@ -34,8 +34,8 @@ describe("IDs", () => {
     expectTypeOf<ThreadId>().not.toExtend<TurnId>();
     expectTypeOf<TurnId>().not.toExtend<MessageId>();
     expectTypeOf<MessageId>().not.toExtend<GenerationId>();
-    expectTypeOf<GenerationId>().not.toExtend<PromptId>();
-    expectTypeOf<PromptId>().not.toExtend<CampaignId>();
+    expectTypeOf<GenerationId>().not.toExtend<SkillId>();
+    expectTypeOf<SkillId>().not.toExtend<CampaignId>();
   });
 
   it("rejects malformed and differently prefixed identities", () => {

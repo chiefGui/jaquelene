@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as NodePath from "@effect/platform-node/NodePath";
-import { PromptOrigin } from "@jaquelene/domain";
+import { SkillOrigin } from "@jaquelene/domain";
 import { Context, Effect, Layer, Logger, ManagedRuntime, Path } from "effect";
 import { FileTreeService } from "#backend/filesystem/file-tree";
 import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
@@ -24,7 +24,7 @@ import {
   type StorageCategory as StorageCategoryValue,
 } from "#backend/storage/area";
 import type { StorageDeletion, StorageUsage } from "#backend/storage/storage";
-import { jaqueleneNarratorPromptDefinition, narratorPromptKind } from "#backend/narrator/module";
+import { jaqueleneNarratorSkillDefinition, narratorSkillKind } from "#backend/narrator/module";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
@@ -436,17 +436,17 @@ describe("backend", () => {
       },
     });
     const first = await openBackend(backendOptions(databasePath, [provider]));
-    expect(first.prompts.listKinds()).toEqual([narratorPromptKind]);
-    expect(first.prompts.list({ kind: narratorPromptKind.key }).prompts).toEqual([
+    expect(first.skills.listKinds()).toEqual([narratorSkillKind]);
+    expect(first.skills.list({ kind: narratorSkillKind.key }).skills).toEqual([
       {
-        ...jaqueleneNarratorPromptDefinition,
-        kind: narratorPromptKind.key,
-        origin: PromptOrigin.BuiltIn,
+        ...jaqueleneNarratorSkillDefinition,
+        kind: narratorSkillKind.key,
+        origin: SkillOrigin.BuiltIn,
       },
     ]);
     const campaign = first.campaigns.start({
       title: "Voyage",
-      composition: [{ kind: narratorPromptKind.key }],
+      composition: [{ kind: narratorSkillKind.key }],
     });
     const submittedOperation = await first.turns.submit({
       threadId: campaign.threadId,
@@ -561,14 +561,14 @@ describe("backend", () => {
       },
     });
     await using backend = await openBackend(backendOptions(createDatabasePath(), [provider]));
-    const prompt = backend.prompts.create({
-      kind: narratorPromptKind.key,
+    const skill = backend.skills.create({
+      kind: narratorSkillKind.key,
       title: "Private organizer",
-      body: "Use a hopeful tone.",
+      prompt: "Use a hopeful tone.",
     });
     const campaign = backend.campaigns.start({
       title: "Changing direction",
-      composition: [{ kind: narratorPromptKind.key, promptKey: prompt.key }],
+      composition: [{ kind: narratorSkillKind.key, skillKey: skill.key }],
     });
     const configuration = {
       model: { providerId: provider.descriptor.id, modelId: "maker/model" },
@@ -581,9 +581,9 @@ describe("backend", () => {
         configuration,
       })
     ).settlement;
-    backend.prompts.update(prompt.key, {
+    backend.skills.update(skill.key, {
       title: "Still private",
-      body: "Use an ominous tone.",
+      prompt: "Use an ominous tone.",
     });
     await (
       await backend.turns.submit({
@@ -594,8 +594,8 @@ describe("backend", () => {
     ).settlement;
 
     expect(inputs.map(({ instructions }) => instructions)).toEqual([
-      [{ sourceKey: prompt.key, content: "Use a hopeful tone." }],
-      [{ sourceKey: prompt.key, content: "Use an ominous tone." }],
+      [{ sourceKey: skill.key, content: "Use a hopeful tone." }],
+      [{ sourceKey: skill.key, content: "Use an ominous tone." }],
     ]);
     expect(
       backend.threads
@@ -623,7 +623,7 @@ describe("backend", () => {
     await using backend = await openBackend(backendOptions(createDatabasePath(), [provider]));
     const campaign = backend.campaigns.start({
       title: "Disposable campaign",
-      composition: [{ kind: narratorPromptKind.key }],
+      composition: [{ kind: narratorSkillKind.key }],
     });
     const operation = await backend.turns.submit({
       threadId: campaign.threadId,

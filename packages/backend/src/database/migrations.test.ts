@@ -38,10 +38,19 @@ describe("database migrations", () => {
         .all()
         .map(({ name }) => name);
       expect(tables).toContain("campaigns");
-      expect(tables).toContain("prompts");
-      expect(tables).toContain("campaign_prompt_selections");
+      expect(tables).toContain("skills");
+      expect(tables).toContain("campaign_skill_selections");
+      expect(tables).not.toContain("prompts");
+      expect(tables).not.toContain("campaign_prompt_selections");
       expect(tables).not.toContain("scenarios");
       expect(tables).not.toContain("roleplay_instructions");
+
+      const skillColumns = client
+        .prepare("PRAGMA table_info(skills)")
+        .all()
+        .map(({ name }) => name);
+      expect(skillColumns).toContain("prompt");
+      expect(skillColumns).not.toContain("body");
 
       const attemptColumns = client
         .prepare("PRAGMA table_info(provider_attempts)")

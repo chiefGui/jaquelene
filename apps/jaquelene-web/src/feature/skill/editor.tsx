@@ -11,70 +11,70 @@ import {
 } from "@ariakit/react/form";
 import { useStoreState } from "@ariakit/react/store";
 import {
-  PROMPT_BODY_MAX_UTF16_LENGTH,
-  PROMPT_TITLE_MAX_UTF16_LENGTH,
-  updatePromptInputSchema,
-  type UpdatePromptInput,
+  PROMPT_MAX_UTF16_LENGTH,
+  SKILL_TITLE_MAX_UTF16_LENGTH,
+  updateSkillInputSchema,
+  type UpdateSkillInput,
 } from "@jaquelene/domain";
-import type { CustomPrompt } from "@jaquelene/ipc/renderer";
+import type { CustomSkill } from "@jaquelene/ipc/renderer";
 import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { useFormStatus } from "@/feature/form/status";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
-import { usePromptFormValidation } from "./form";
-import { useCreatePrompt, useUpdatePrompt } from "./query";
+import { useSkillFormValidation } from "./form";
+import { useCreateSkill, useUpdateSkill } from "./query";
 
-type PromptEditorProps = {
+type SkillEditorProps = {
   "aria-labelledby": string;
   onCancel?: () => void | Promise<void>;
 } & (
   | {
       kind: string;
-      onSaved: (prompt: CustomPrompt) => void | Promise<void>;
-      prompt?: undefined;
+      onSaved: (skill: CustomSkill) => void | Promise<void>;
+      skill?: undefined;
     }
   | {
       kind?: undefined;
-      onSaved?: (prompt: CustomPrompt) => void | Promise<void>;
-      prompt: CustomPrompt;
+      onSaved?: (skill: CustomSkill) => void | Promise<void>;
+      skill: CustomSkill;
     }
 );
 
-function getEditorValues(prompt?: CustomPrompt): UpdatePromptInput {
-  return { body: prompt?.body ?? "", title: prompt?.title ?? "" };
+function getEditorValues(skill?: CustomSkill): UpdateSkillInput {
+  return { prompt: skill?.prompt ?? "", title: skill?.title ?? "" };
 }
 
-function promptValuesEqual(left: UpdatePromptInput, right: UpdatePromptInput) {
-  return left.body === right.body && left.title === right.title;
+function skillValuesEqual(left: UpdateSkillInput, right: UpdateSkillInput) {
+  return left.prompt === right.prompt && left.title === right.title;
 }
 
-export function PromptEditor(props: PromptEditorProps) {
-  const { "aria-labelledby": ariaLabelledBy, onCancel, onSaved, prompt } = props;
-  const createPrompt = useCreatePrompt();
-  const updatePrompt = useUpdatePrompt();
-  const form = useFormStore({ defaultValues: getEditorValues(prompt) });
-  const body = useFormValue<string>(form, form.names.body);
+export function SkillEditor(props: SkillEditorProps) {
+  const { "aria-labelledby": ariaLabelledBy, onCancel, onSaved, skill } = props;
+  const createSkill = useCreateSkill();
+  const updateSkill = useUpdateSkill();
+  const form = useFormStore({ defaultValues: getEditorValues(skill) });
+  const prompt = useFormValue<string>(form, form.names.prompt);
   const hasSubmitted = useStoreState(
     form,
     ["submitFailed", "submitSucceed"],
     (state) => state.submitFailed > 0 || state.submitSucceed > 0,
   );
-  const [savedPrompt, setSavedPrompt] = useState<CustomPrompt | null>(null);
+  const [savedSkill, setSavedSkill] = useState<CustomSkill | null>(null);
   const [saving, setSaving] = useState(false);
   const { clear: clearStatus, showError, showSuccess, status } = useFormStatus();
   const operationStatusId = useId();
   const active = useRef(true);
   const savingRef = useRef(false);
-  const editing = Boolean(prompt);
-  const awaitingCreatedPrompt = !editing && Boolean(savedPrompt);
-  const editorReadOnly = !editing && (saving || awaitingCreatedPrompt);
-  const submitLabel = awaitingCreatedPrompt ? "Open prompt" : editing ? "Save" : "Create";
-  const setBody = useCallback(
+  const editing = Boolean(skill);
+  const awaitingCreatedSkill = !editing && Boolean(savedSkill);
+  const editorReadOnly = !editing && (saving || awaitingCreatedSkill);
+  const submitLabel = awaitingCreatedSkill ? "Open prompt" : editing ? "Save" : "Create";
+  const setPrompt = useCallback(
     (value: string) => {
       clearStatus();
-      form.setValue(form.names.body, value);
+      form.setValue(form.names.prompt, value);
     },
     [clearStatus, form],
   );
@@ -86,7 +86,7 @@ export function PromptEditor(props: PromptEditorProps) {
     };
   }, []);
 
-  usePromptFormValidation(form);
+  useSkillFormValidation(form);
   useFormSubmit(form, async (state) => {
     if (savingRef.current) {
       return;
@@ -97,26 +97,26 @@ export function PromptEditor(props: PromptEditorProps) {
     clearStatus();
 
     try {
-      let result = savedPrompt;
-      let submittedValues: UpdatePromptInput | null = null;
+      let result = savedSkill;
+      let submittedValues: UpdateSkillInput | null = null;
 
       if (!result) {
         try {
-          const input = updatePromptInputSchema.parse(state.values);
+          const input = updateSkillInputSchema.parse(state.values);
           submittedValues = input;
-          result = props.prompt
-            ? await updatePrompt.mutateAsync({ key: props.prompt.key, input })
-            : await createPrompt.mutateAsync({ kind: props.kind, ...input });
+          result = props.skill
+            ? await updateSkill.mutateAsync({ key: props.skill.key, input })
+            : await createSkill.mutateAsync({ kind: props.kind, ...input });
 
           if (!active.current) {
             return;
           }
 
           if (!editing) {
-            setSavedPrompt(result);
+            setSavedSkill(result);
           }
         } catch (cause) {
-          reportError(editing ? "prompt.update" : "prompt.create", cause);
+          reportError(editing ? "skill.update" : "skill.create", cause);
           if (active.current) {
             showError(editing ? "Couldn't save this prompt." : "Couldn't create this prompt.");
           }
@@ -131,13 +131,13 @@ export function PromptEditor(props: PromptEditorProps) {
       try {
         await onSaved?.(result);
         if (active.current) {
-          setSavedPrompt(null);
-          if (!submittedValues || promptValuesEqual(form.getState().values, submittedValues)) {
+          setSavedSkill(null);
+          if (!submittedValues || skillValuesEqual(form.getState().values, submittedValues)) {
             showSuccess("Saved");
           }
         }
       } catch (cause) {
-        reportError("prompt.after-save", cause);
+        reportError("skill.after-save", cause);
         if (active.current) {
           showError("The prompt was saved, but its page couldn't be updated.");
         }
@@ -171,7 +171,7 @@ export function PromptEditor(props: PromptEditorProps) {
           render={
             <Input
               type="text"
-              maxLength={PROMPT_TITLE_MAX_UTF16_LENGTH}
+              maxLength={SKILL_TITLE_MAX_UTF16_LENGTH}
               onChange={clearStatus}
               readOnly={editorReadOnly}
               style={styles.titleInput}
@@ -182,27 +182,27 @@ export function PromptEditor(props: PromptEditorProps) {
       </Field.Root>
 
       <Field.Root style={styles.promptField}>
-        <FormLabel name={form.names.body} render={<Field.Label />}>
+        <FormLabel name={form.names.prompt} render={<Field.Label />}>
           Prompt
         </FormLabel>
         <FormDescription
-          name={form.names.body}
+          name={form.names.prompt}
           render={<Field.Description style={styles.promptDescription} />}
         >
           AI models receive this text. Keep it concise.
         </FormDescription>
         <FormControl
-          name={form.names.body}
+          name={form.names.prompt}
           render={
             <MarkdownEditor
-              value={body}
-              onValueChange={setBody}
-              maxLength={PROMPT_BODY_MAX_UTF16_LENGTH}
+              value={prompt}
+              onValueChange={setPrompt}
+              maxLength={PROMPT_MAX_UTF16_LENGTH}
               readOnly={editorReadOnly}
             />
           }
         />
-        <FormError name={form.names.body} render={<Field.Error style={styles.promptError} />} />
+        <FormError name={form.names.prompt} render={<Field.Error style={styles.promptError} />} />
       </Field.Root>
 
       <div {...stylex.props(styles.actions)}>

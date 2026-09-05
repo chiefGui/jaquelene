@@ -15,29 +15,29 @@ import { useId, useState, type ReactElement } from "react";
 
 const descriptionMaxLength = 180;
 
-export type PromptSelectOption = Readonly<{
+export type SkillSelectOption = Readonly<{
   description: string;
   title: string;
   value: string;
 }>;
 
-type PromptSelectFooterAction = Readonly<{
+type SkillSelectFooterAction = Readonly<{
   label: string;
   render: ReactElement;
 }>;
 
-type PromptSelectProps = {
+type SkillSelectProps = {
   "aria-describedby"?: string;
   "aria-labelledby": string;
   busy?: boolean;
   disabled?: boolean;
-  footerAction?: PromptSelectFooterAction;
+  footerAction?: SkillSelectFooterAction;
   hasMore?: boolean;
   id: string;
   loadingMore?: boolean;
   onLoadMore?: () => void;
   onValueChange: (value: string) => void;
-  options: readonly PromptSelectOption[];
+  options: readonly SkillSelectOption[];
   value: string;
 };
 
@@ -58,7 +58,7 @@ function summarizeDescription(description: string) {
   return `${normalized.slice(0, end).trimEnd()}…`;
 }
 
-function PromptOption({ option }: { option: PromptSelectOption }) {
+function SkillOption({ option }: { option: SkillSelectOption }) {
   const descriptionId = useId();
 
   return (
@@ -84,7 +84,7 @@ function PromptOption({ option }: { option: PromptSelectOption }) {
   );
 }
 
-function PromptSelectContent({
+function SkillSelectContent({
   footerAction,
   hasMore,
   labelledBy,
@@ -92,12 +92,12 @@ function PromptSelectContent({
   onLoadMore,
   options,
 }: {
-  footerAction: PromptSelectFooterAction | undefined;
+  footerAction: SkillSelectFooterAction | undefined;
   hasMore: boolean;
   labelledBy: string;
   loadingMore: boolean;
   onLoadMore: (() => void) | undefined;
-  options: readonly PromptSelectOption[];
+  options: readonly SkillSelectOption[];
 }) {
   const combobox = useComboboxContext();
   const mounted = useStoreState(combobox, "mounted") ?? false;
@@ -115,7 +115,7 @@ function PromptSelectContent({
       >
         <ComboboxList alwaysVisible aria-labelledby={labelledBy} {...stylex.props(styles.options)}>
           {options.map((option) => (
-            <PromptOption key={option.value} option={option} />
+            <SkillOption key={option.value} option={option} />
           ))}
         </ComboboxList>
 
@@ -150,7 +150,7 @@ function PromptSelectContent({
   );
 }
 
-export function PromptSelect({
+export function SkillSelect({
   "aria-describedby": ariaDescribedBy,
   "aria-labelledby": ariaLabelledBy,
   busy = false,
@@ -163,12 +163,12 @@ export function PromptSelect({
   onValueChange,
   options,
   value,
-}: PromptSelectProps) {
+}: SkillSelectProps) {
   const [open, setOpen] = useState(false);
   const selectedOption = options.find((option) => option.value === value);
 
   if (!selectedOption) {
-    throw new Error(`PromptSelect value "${value}" is unavailable.`);
+    throw new Error(`SkillSelect value "${value}" is unavailable.`);
   }
 
   return (
@@ -180,7 +180,7 @@ export function PromptSelect({
         const option = options.find((candidate) => candidate.value === nextValue);
 
         if (!option) {
-          throw new TypeError(`Unknown prompt selection "${nextValue}".`);
+          throw new TypeError(`Unknown skill selection "${nextValue}".`);
         }
 
         setOpen(false);
@@ -202,7 +202,7 @@ export function PromptSelect({
         <Select.Value style={styles.triggerValue}>{selectedOption.title}</Select.Value>
       </Select>
 
-      <PromptSelectContent
+      <SkillSelectContent
         footerAction={footerAction}
         hasMore={hasMore}
         labelledBy={ariaLabelledBy}

@@ -7,7 +7,7 @@ import {
   type Database,
 } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
-import { promptTable } from "#backend/prompt/schema";
+import { skillTable } from "#backend/skill/schema";
 import { StorageAreaDeleteError, StorageCategory, type StorageArea } from "#backend/storage/area";
 import { threadTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
@@ -36,7 +36,7 @@ function deleteContent(database: Database) {
 
     transaction.delete(providerAttemptTable).run();
     transaction.delete(campaignTable).run();
-    transaction.delete(promptTable).where(eq(promptTable.origin, "custom")).run();
+    transaction.delete(skillTable).where(eq(skillTable.origin, "custom")).run();
     transaction.delete(generationTable).run();
     transaction.delete(threadTable).run();
   });

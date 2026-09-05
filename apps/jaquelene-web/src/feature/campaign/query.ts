@@ -21,7 +21,7 @@ import {
 import {
   campaignDetailQueryKey,
   campaignListQueryKey,
-  campaignPromptSelectionPrefix,
+  campaignSkillSelectionPrefix,
   campaignRecordQueryKey,
   campaignUsageRecordQueryKey,
   threadQueryPrefix,
@@ -345,7 +345,7 @@ export function deleteCampaignMutationOptions(
   const campaignKey = campaignRecordQueryKey(campaign.id);
   const usageKey = campaignUsageRecordQueryKey(campaign.id);
   const threadKey = threadQueryPrefix(campaign.threadId);
-  const promptSelectionKey = campaignPromptSelectionPrefix(campaign.id);
+  const skillSelectionKey = campaignSkillSelectionPrefix(campaign.id);
 
   return mutationOptions<CampaignDeletion, Error, void>({
     ...ipcMutationOptions,
@@ -366,7 +366,7 @@ export function deleteCampaignMutationOptions(
         queryClient.cancelQueries({ queryKey: campaignPagesQuery.queryKey, exact: true }),
         queryClient.cancelQueries({ queryKey: usageKey, exact: true }),
         queryClient.cancelQueries({ queryKey: threadKey }),
-        queryClient.cancelQueries({ queryKey: promptSelectionKey }),
+        queryClient.cancelQueries({ queryKey: skillSelectionKey }),
       ]);
     },
     onSuccess(deletion) {
@@ -376,7 +376,7 @@ export function deleteCampaignMutationOptions(
         removeCampaignFromPages(data, deletion.id),
       );
       queryClient.removeQueries({ queryKey: threadQueryPrefix(deletion.threadId) });
-      queryClient.removeQueries({ queryKey: promptSelectionKey });
+      queryClient.removeQueries({ queryKey: skillSelectionKey });
       void queryClient.invalidateQueries({
         queryKey: campaignPagesQuery.queryKey,
         exact: true,

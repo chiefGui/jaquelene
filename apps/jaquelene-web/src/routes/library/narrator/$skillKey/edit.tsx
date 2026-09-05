@@ -1,56 +1,56 @@
-import { PromptOrigin, narratorPromptKindKey, promptKeySchema } from "@jaquelene/domain";
+import { SkillOrigin, narratorSkillKindKey, skillKeySchema } from "@jaquelene/domain";
 import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { NarratorPromptManagement } from "@/feature/narrator/management";
-import { PromptEditor } from "@/feature/prompt/editor";
-import { PromptMetadata } from "@/feature/prompt/metadata";
-import { promptDefaultQuery, promptKindsQuery, promptQuery } from "@/feature/prompt/query";
+import { NarratorSkillManagement } from "@/feature/narrator/management";
+import { SkillEditor } from "@/feature/skill/editor";
+import { SkillMetadata } from "@/feature/skill/metadata";
+import { skillDefaultQuery, skillKindsQuery, skillQuery } from "@/feature/skill/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EmptyState } from "@/primitive/empty-state";
 
-export const Route = createFileRoute("/library/narrator/$promptKey/edit")({
+export const Route = createFileRoute("/library/narrator/$skillKey/edit")({
   loader: async ({ context, params }) => {
-    const promptKey = promptKeySchema.safeParse(params.promptKey);
+    const skillKey = skillKeySchema.safeParse(params.skillKey);
 
-    if (!promptKey.success) {
+    if (!skillKey.success) {
       return null;
     }
 
-    const [kinds, prompt] = await Promise.all([
-      context.queryClient.query(promptKindsQuery),
-      context.queryClient.query(promptQuery(promptKey.data)),
+    const [kinds, skill] = await Promise.all([
+      context.queryClient.query(skillKindsQuery),
+      context.queryClient.query(skillQuery(skillKey.data)),
     ]);
-    const registered = kinds.some((kind) => kind.key === narratorPromptKindKey);
+    const registered = kinds.some((kind) => kind.key === narratorSkillKindKey);
 
-    if (!registered || prompt?.kind !== narratorPromptKindKey) {
+    if (!registered || skill?.kind !== narratorSkillKindKey) {
       return null;
     }
 
-    if (prompt.origin === PromptOrigin.Custom) {
-      await context.queryClient.query(promptDefaultQuery(narratorPromptKindKey));
+    if (skill.origin === SkillOrigin.Custom) {
+      await context.queryClient.query(skillDefaultQuery(narratorSkillKindKey));
     }
 
-    return String(prompt.key);
+    return String(skill.key);
   },
-  remountDeps: ({ params }) => params.promptKey,
-  component: EditPromptRoute,
+  remountDeps: ({ params }) => params.skillKey,
+  component: EditSkillRoute,
 });
 
 const pageHeadingId = "edit-prompt-page";
 
-function EditPromptRoute() {
-  const promptKey = Route.useLoaderData();
-  const promptResult = useQuery({
-    ...promptQuery(promptKey ?? ""),
-    enabled: promptKey !== null,
+function EditSkillRoute() {
+  const skillKey = Route.useLoaderData();
+  const skillResult = useQuery({
+    ...skillQuery(skillKey ?? ""),
+    enabled: skillKey !== null,
   });
-  const prompt = promptResult.data;
+  const skill = skillResult.data;
   const navigate = useNavigate({
-    from: "/library/narrator/$promptKey/edit",
+    from: "/library/narrator/$skillKey/edit",
   });
   const [deleted, setDeleted] = useState(false);
 
@@ -80,9 +80,9 @@ function EditPromptRoute() {
             <Breadcrumb.Item>
               <Breadcrumb.Page
                 id={pageHeadingId}
-                aria-label={prompt ? `Edit ${prompt.title}` : "Edit prompt"}
+                aria-label={skill ? `Edit ${skill.title}` : "Edit prompt"}
               >
-                {prompt?.title ?? "Prompt"}
+                {skill?.title ?? "Skill"}
               </Breadcrumb.Page>
             </Breadcrumb.Item>
           </Breadcrumb.List>
@@ -99,17 +99,17 @@ function EditPromptRoute() {
                 Back to narrator
               </Button>
             </EmptyState.Root>
-          ) : prompt?.origin === PromptOrigin.Custom ? (
+          ) : skill?.origin === SkillOrigin.Custom ? (
             <div {...stylex.props(styles.editor)}>
-              <PromptEditor aria-labelledby={pageHeadingId} prompt={prompt} />
-              <NarratorPromptManagement prompt={prompt} onDeleted={finishDeletion} />
-              <PromptMetadata prompt={prompt} />
+              <SkillEditor aria-labelledby={pageHeadingId} skill={skill} />
+              <NarratorSkillManagement skill={skill} onDeleted={finishDeletion} />
+              <SkillMetadata skill={skill} />
             </div>
           ) : (
             <EmptyState.Root>
-              <EmptyState.Title>{prompt ? "Built-in prompt" : "Prompt not found"}</EmptyState.Title>
+              <EmptyState.Title>{skill ? "Built-in prompt" : "Prompt not found"}</EmptyState.Title>
               <EmptyState.Description>
-                {prompt ? "Built-in prompts can't be edited." : "It may have been deleted."}
+                {skill ? "Built-in prompts can't be edited." : "It may have been deleted."}
               </EmptyState.Description>
               <Button render={<Link to="/library/narrator" replace />} style={styles.returnAction}>
                 Back to narrator

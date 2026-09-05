@@ -1,32 +1,32 @@
-import { narratorPromptKindKey } from "@jaquelene/domain";
-import type { CustomPrompt } from "@jaquelene/ipc/renderer";
+import { narratorSkillKindKey } from "@jaquelene/domain";
+import type { CustomSkill } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { PromptEditor } from "@/feature/prompt/editor";
-import { promptKindsQuery } from "@/feature/prompt/query";
+import { SkillEditor } from "@/feature/skill/editor";
+import { skillKindsQuery } from "@/feature/skill/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EmptyState } from "@/primitive/empty-state";
 
 export const Route = createFileRoute("/library/narrator/new")({
   loader: async ({ context }) => {
-    const kinds = await context.queryClient.query(promptKindsQuery);
-    return kinds.find((kind) => kind.key === narratorPromptKindKey) ?? null;
+    const kinds = await context.queryClient.query(skillKindsQuery);
+    return kinds.find((kind) => kind.key === narratorSkillKindKey) ?? null;
   },
-  component: NewPromptRoute,
+  component: NewSkillRoute,
 });
 
 const pageHeadingId = "new-prompt-page";
 
-function NewPromptRoute() {
+function NewSkillRoute() {
   const kind = Route.useLoaderData();
   const navigate = useNavigate({ from: "/library/narrator/new" });
 
-  function openPrompt(prompt: CustomPrompt) {
+  function openSkill(skill: CustomSkill) {
     return navigate({
-      to: "/library/narrator/$promptKey/edit",
-      params: { promptKey: prompt.key },
+      to: "/library/narrator/$skillKey/edit",
+      params: { skillKey: skill.key },
       replace: true,
     });
   }
@@ -64,11 +64,11 @@ function NewPromptRoute() {
       <ContentPane.Viewport>
         <ContentPane.Body>
           {kind ? (
-            <PromptEditor
+            <SkillEditor
               aria-labelledby={pageHeadingId}
-              kind={narratorPromptKindKey}
+              kind={narratorSkillKindKey}
               onCancel={openNarrator}
-              onSaved={openPrompt}
+              onSaved={openSkill}
             />
           ) : (
             <EmptyState.Root>

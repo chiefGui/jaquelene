@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setImmediate } from "node:timers/promises";
 import * as NodePath from "@effect/platform-node/NodePath";
-import { Cause, Deferred, Effect, Exit, Layer, Stream } from "effect";
+import { Cause, Effect, Exit, Layer } from "effect";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { FileTreeService } from "./file-tree";
 import { nodeFileTreeLayer } from "./node-file-tree";
@@ -17,8 +17,8 @@ function createDirectory() {
   return directory;
 }
 
-function files(path: string) {
-  return Stream.unwrap(FileTreeService.use((tree) => Effect.succeed(tree.files(path))));
+function measureBytes(path: string) {
+  return FileTreeService.use((tree) => tree.measureBytes(path));
 }
 
 function trackDirectoryClosures() {
@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 describe("Node file tree", () => {
-  it("streams regular files with exact byte sizes and closes each completed directory", async () => {
+  it("counts exact bytes and closes each directory before visiting its sibling", async () => {
     const directory = createDirectory();
     const firstPath = join(directory, "first");
     const secondPath = join(directory, "second");
@@ -45,24 +45,21 @@ describe("Node file tree", () => {
     writeFileSync(join(firstPath, "one"), Buffer.alloc(5));
     writeFileSync(join(secondPath, "two"), Buffer.alloc(7));
     const closedDirectories = trackDirectoryClosures();
-    const closedBeforeFile: number[] = [];
+    const closedBeforeReading: number[] = [];
+    const visited = new Set<string>();
+    const read: () => ReturnType<Dir["read"]> = Dir.prototype.read;
+    vi.spyOn(Dir.prototype, "read").mockImplementation(function (this: Dir) {
+      if (!visited.has(this.path)) {
+        visited.add(this.path);
+        closedBeforeReading.push(closedDirectories());
+      }
+      return read.call(this);
+    });
 
-    const entries = await Effect.runPromise(
-      files(directory).pipe(
-        Stream.tap(() => Effect.sync(() => closedBeforeFile.push(closedDirectories()))),
-        Stream.runCollect,
-        Effect.provide(layer),
-      ),
-    );
-
-    expect(entries).toHaveLength(2);
-    expect(entries).toEqual(
-      expect.arrayContaining([
-        { path: join(firstPath, "one"), bytes: 5n },
-        { path: join(secondPath, "two"), bytes: 7n },
-      ]),
-    );
-    expect(closedBeforeFile).toEqual([0, 1]);
+    await expect(
+      Effect.runPromise(measureBytes(directory).pipe(Effect.provide(layer))),
+    ).resolves.toBe(12n);
+    expect(closedBeforeReading).toEqual([0, 0, 1]);
     expect(closedDirectories()).toBe(3);
   });
 
@@ -73,13 +70,11 @@ describe("Node file tree", () => {
     const read = vi.spyOn(Dir.prototype, "read");
 
     await expect(
-      Effect.runPromise(files(filePath).pipe(Stream.runCollect, Effect.provide(layer))),
-    ).resolves.toEqual([{ path: filePath, bytes: 11n }]);
+      Effect.runPromise(measureBytes(filePath).pipe(Effect.provide(layer))),
+    ).resolves.toBe(11n);
     await expect(
-      Effect.runPromise(
-        files(join(directory, "missing")).pipe(Stream.runCollect, Effect.provide(layer)),
-      ),
-    ).resolves.toEqual([]);
+      Effect.runPromise(measureBytes(join(directory, "missing")).pipe(Effect.provide(layer))),
+    ).resolves.toBe(0n);
     expect(read).not.toHaveBeenCalled();
   });
 
@@ -93,14 +88,24 @@ describe("Node file tree", () => {
     symlinkSync(directory, join(directory, "cycle"), "junction");
 
     await expect(
-      Effect.runPromise(files(directory).pipe(Stream.runCollect, Effect.provide(layer))),
-    ).resolves.toEqual([{ path: join(directory, "owned"), bytes: 3n }]);
+      Effect.runPromise(measureBytes(directory).pipe(Effect.provide(layer))),
+    ).resolves.toBe(3n);
     await expect(
-      Effect.runPromise(files(outsideLink).pipe(Stream.runCollect, Effect.provide(layer))),
-    ).resolves.toEqual([]);
+      Effect.runPromise(measureBytes(outsideLink).pipe(Effect.provide(layer))),
+    ).resolves.toBe(0n);
   });
 
-  it("closes an interrupted stream without reading the rest of the tree", async () => {
+  it("reuses a measurement program without retaining previous byte counts", async () => {
+    const directory = createDirectory();
+    const filePath = join(directory, "file");
+    const measurement = measureBytes(directory).pipe(Effect.provide(layer));
+    writeFileSync(filePath, Buffer.alloc(5));
+    await expect(Effect.runPromise(measurement)).resolves.toBe(5n);
+    writeFileSync(filePath, Buffer.alloc(9));
+    await expect(Effect.runPromise(measurement)).resolves.toBe(9n);
+  });
+
+  it("closes interrupted ancestors without reading the rest of the tree", async () => {
     const directory = createDirectory();
     const nested = join(directory, "nested");
     mkdirSync(nested);
@@ -108,22 +113,16 @@ describe("Node file tree", () => {
       writeFileSync(join(nested, String(index)), "file");
     }
     const closedDirectories = trackDirectoryClosures();
-    const read = vi.spyOn(Dir.prototype, "read");
-    const started = Deferred.makeUnsafe<void>();
     const controller = new AbortController();
-    const result = Effect.runPromiseExit(
-      files(directory).pipe(
-        Stream.mapEffect(() =>
-          Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
-        ),
-        Stream.runDrain,
-        Effect.provide(layer),
-      ),
-      { signal: controller.signal },
-    );
+    const originalRead: () => ReturnType<Dir["read"]> = Dir.prototype.read;
+    const read = vi.spyOn(Dir.prototype, "read").mockImplementation(function (this: Dir) {
+      if (this.path === nested) controller.abort();
+      return originalRead.call(this);
+    });
+    const result = Effect.runPromiseExit(measureBytes(directory).pipe(Effect.provide(layer)), {
+      signal: controller.signal,
+    });
 
-    await Effect.runPromise(Deferred.await(started));
-    controller.abort();
     const exit = await result;
 
     expect(Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)).toBe(true);
@@ -145,10 +144,9 @@ describe("Node file tree", () => {
       return entry;
     });
     const controller = new AbortController();
-    const result = Effect.runPromiseExit(
-      files(directory).pipe(Stream.runDrain, Effect.provide(layer)),
-      { signal: controller.signal },
-    );
+    const result = Effect.runPromiseExit(measureBytes(directory).pipe(Effect.provide(layer)), {
+      signal: controller.signal,
+    });
 
     await started.promise;
     controller.abort();
@@ -166,9 +164,7 @@ describe("Node file tree", () => {
     const cause = Object.assign(new Error("Access denied."), { code: "EACCES" });
     vi.spyOn(Dir.prototype, "read").mockRejectedValueOnce(cause);
     const closedDirectories = trackDirectoryClosures();
-    const exit = await Effect.runPromiseExit(
-      files(directory).pipe(Stream.runDrain, Effect.provide(layer)),
-    );
+    const exit = await Effect.runPromiseExit(measureBytes(directory).pipe(Effect.provide(layer)));
 
     expect(Exit.isFailure(exit) && Cause.squash(exit.cause)).toMatchObject({
       _tag: "FileTreeError",
@@ -177,5 +173,33 @@ describe("Node file tree", () => {
       cause,
     });
     expect(closedDirectories()).toBe(1);
+  });
+
+  it("preserves a child cleanup failure while still closing its ancestors", async () => {
+    const directory = createDirectory();
+    const nested = join(directory, "nested");
+    mkdirSync(nested);
+    writeFileSync(join(nested, "file"), "file");
+    const failure = new Error("Could not close the directory.");
+    const closed: string[] = [];
+    const closePromise: () => Promise<void> = Dir.prototype.close;
+    const closeCallback: (callback: (error: NodeJS.ErrnoException | null) => void) => void =
+      Dir.prototype.close;
+    vi.spyOn(Dir.prototype, "close").mockImplementation(function (this: Dir, callback) {
+      if (callback) return closeCallback.call(this, callback);
+      closed.push(this.path);
+      return closePromise.call(this).then(() => {
+        if (this.path === nested) throw failure;
+      });
+    });
+
+    const exit = await Effect.runPromiseExit(measureBytes(directory).pipe(Effect.provide(layer)));
+    expect(Exit.isFailure(exit) && Cause.squash(exit.cause)).toMatchObject({
+      _tag: "FileTreeError",
+      path: nested,
+      operation: "close",
+      cause: failure,
+    });
+    expect(closed).toEqual([nested, directory]);
   });
 });

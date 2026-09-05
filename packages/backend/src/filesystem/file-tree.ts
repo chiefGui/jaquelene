@@ -1,6 +1,4 @@
-import { Context, Schema, type Stream } from "effect";
-
-export type FileEntry = Readonly<{ path: string; bytes: bigint }>;
+import { Context, Schema, type Effect } from "effect";
 
 export class FileTreeError extends Schema.TaggedError<FileTreeError>()("FileTreeError", {
   path: Schema.String,
@@ -15,7 +13,7 @@ export class FileTreeError extends Schema.TaggedError<FileTreeError>()("FileTree
 export class FileTreeService extends Context.Service<
   FileTreeService,
   {
-    /** Streams regular files without following symbolic-link entries. Missing paths are empty. */
-    readonly files: (path: string) => Stream.Stream<FileEntry, FileTreeError>;
+    /** Counts regular-file bytes without following symbolic-link entries. Missing paths count as zero. */
+    readonly measureBytes: (path: string) => Effect.Effect<bigint, FileTreeError>;
   }
 >()("@jaquelene/backend/FileTree") {}

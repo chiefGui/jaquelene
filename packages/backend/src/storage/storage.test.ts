@@ -1,18 +1,9 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setImmediate } from "node:timers/promises";
 import * as NodePath from "@effect/platform-node/NodePath";
-import {
-  Cause,
-  Context,
-  Deferred,
-  Effect,
-  Exit,
-  Layer,
-  ManagedRuntime,
-  Path,
-  Stream,
-} from "effect";
+import { Cause, Context, Deferred, Effect, Exit, Layer, ManagedRuntime, Path } from "effect";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 import { FileTreeError, FileTreeService } from "#backend/filesystem/file-tree";
 import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
@@ -32,7 +23,7 @@ const directories: string[] = [];
 type TestStorage = Readonly<{
   measureUsage: (signal?: AbortSignal) => Promise<StorageUsage>;
   deleteArea: (id: StorageAreaId, signal?: AbortSignal) => Promise<StorageDeletion>;
-  deleteCategory: (id: StorageCategoryValue) => Promise<StorageDeletion>;
+  deleteCategory: (id: StorageCategoryValue, signal?: AbortSignal) => Promise<StorageDeletion>;
 }>;
 
 function createUserDataDirectory() {
@@ -86,9 +77,12 @@ async function createTestStorage(
           { signal },
         ),
       ),
-    deleteCategory: (id) =>
+    deleteCategory: (id, signal) =>
       unwrapExit(
-        runtime.runPromiseExit(StorageService.use((storage) => storage.deleteCategory(id))),
+        runtime.runPromiseExit(
+          StorageService.use((storage) => storage.deleteCategory(id)),
+          { signal },
+        ),
       ),
   };
 }
@@ -252,8 +246,8 @@ describe("storage", () => {
     let maximumActive = 0;
     let started = 0;
     const fileTreeLayer = Layer.succeed(FileTreeService, {
-      files: (path) =>
-        Stream.unwrap(
+      measureBytes: () =>
+        Effect.scoped(
           Effect.gen(function* () {
             yield* Effect.acquireRelease(
               Effect.sync(() => {
@@ -270,7 +264,7 @@ describe("storage", () => {
               yield* Deferred.succeed(firstBatchStarted, undefined);
             }
             yield* Deferred.await(release);
-            return Stream.succeed({ path, bytes: 2n });
+            return 2n;
           }),
         ),
     });
@@ -302,11 +296,11 @@ describe("storage", () => {
     const deleteOwner = vi.fn();
     let interrupted = false;
     const fileTreeLayer = Layer.succeed(FileTreeService, {
-      files: () =>
-        Stream.unwrap(
+      measureBytes: () =>
+        Effect.scoped(
           Effect.gen(function* () {
             if (interrupted) {
-              return Stream.empty;
+              return 0n;
             }
             yield* Effect.acquireRelease(Deferred.succeed(started, undefined), () =>
               Effect.gen(function* () {
@@ -362,7 +356,7 @@ describe("storage", () => {
         },
       ],
       Layer.succeed(FileTreeService, {
-        files: (path) => Stream.succeed({ path, bytes: BigInt(Number.MAX_SAFE_INTEGER) }),
+        measureBytes: () => Effect.succeed(BigInt(Number.MAX_SAFE_INTEGER)),
       }),
     );
 
@@ -401,13 +395,11 @@ describe("storage", () => {
         },
       ],
       Layer.succeed(FileTreeService, {
-        files: (path) => {
+        measureBytes: (path) => {
           if (path === failedPath) {
-            return Stream.fromEffect(
-              Deferred.await(peerStarted).pipe(Effect.andThen(Effect.fail(failure))),
-            );
+            return Deferred.await(peerStarted).pipe(Effect.andThen(Effect.fail(failure)));
           }
-          return Stream.unwrap(
+          return Effect.scoped(
             Effect.gen(function* () {
               yield* Effect.acquireRelease(Deferred.succeed(peerStarted, undefined), () =>
                 Effect.sync(cleanup),
@@ -439,7 +431,7 @@ describe("storage", () => {
         },
       ],
       Layer.succeed(FileTreeService, {
-        files: () => Stream.die(defect),
+        measureBytes: () => Effect.die(defect),
       }),
     );
 
@@ -605,6 +597,59 @@ describe("storage", () => {
     expect(started).toBe(7);
     expect(maximumActive).toBe(4);
     expect(active).toBe(0);
+  });
+
+  it("stops pending category deletions and holds the lock until active owners settle", async () => {
+    const firstBatchStarted = Deferred.makeUnsafe<void>();
+    const releaseOwners = Deferred.makeUnsafe<void>();
+    const events: string[] = [];
+    let started = 0;
+    const storage = await createTestStorage([
+      ...Array.from({ length: 7 }, (_, index) => ({
+        id: `owner:${index}`,
+        category: StorageCategory.AppData,
+        paths: [],
+        delete: Effect.gen(function* () {
+          started += 1;
+          events.push(`start:${index}`);
+          if (started === 4) {
+            yield* Deferred.succeed(firstBatchStarted, undefined);
+          }
+          yield* Deferred.await(releaseOwners);
+          events.push(`finish:${index}`);
+        }).pipe(Effect.uninterruptible),
+      })),
+      {
+        id: "content",
+        category: StorageCategory.Content,
+        paths: [],
+        delete: Effect.sync(() => {
+          events.push("content");
+        }),
+      },
+    ]);
+    const controller = new AbortController();
+    const deleting = storage.deleteCategory(StorageCategory.AppData, controller.signal);
+    const interrupted = expect(deleting).rejects.toBeDefined();
+    await Effect.runPromise(Deferred.await(firstBatchStarted));
+    controller.abort();
+    const deletingContent = storage.deleteArea("content");
+
+    try {
+      await setImmediate();
+      expect(events).toEqual(["start:0", "start:1", "start:2", "start:3"]);
+    } finally {
+      await Effect.runPromise(Deferred.succeed(releaseOwners, undefined));
+    }
+
+    await interrupted;
+    await deletingContent;
+    expect(started).toBe(4);
+    expect(events).toHaveLength(9);
+    expect(events.slice(4, -1)).toEqual(
+      expect.arrayContaining(["finish:0", "finish:1", "finish:2", "finish:3"]),
+    );
+    expect(events.at(-1)).toBe("content");
   });
 
   it("interrupts cancellable owners and releases the storage lock after cleanup", async () => {

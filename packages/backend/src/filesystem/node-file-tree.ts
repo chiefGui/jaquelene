@@ -1,70 +1,76 @@
-import type { Dir } from "node:fs";
-import { lstat, opendir } from "node:fs/promises";
-import { Effect, Layer, Path, Predicate, Stream } from "effect";
-import { FileTreeError, FileTreeService, type FileEntry } from "./file-tree";
+import { lstat, type BigIntStats } from "node:fs";
+import { opendir } from "node:fs/promises";
+import { Effect, Layer, Path, Predicate } from "effect";
+import { FileTreeError, FileTreeService } from "./file-tree";
+
+function statEntry(path: string) {
+  return Effect.callback<BigIntStats, FileTreeError>((resume) => {
+    const fail = (cause: unknown) =>
+      resume(Effect.fail(new FileTreeError({ path, operation: "lstat", cause })));
+    try {
+      lstat(path, { bigint: true }, (cause, entry) => {
+        if (cause) {
+          fail(cause);
+          return;
+        }
+        resume(Effect.succeed(entry));
+      });
+    } catch (cause) {
+      fail(cause);
+    }
+  });
+}
 
 // Effect's FileSystem does not expose no-follow stats or streamed directory reads.
 export const nodeFileTreeLayer = Layer.effect(
   FileTreeService,
   Effect.gen(function* () {
     const pathService = yield* Path.Path;
-    // Tracing each entry adds measurable overhead; storage requests carry the trace.
-    const readEntry = Effect.fnUntraced(function* (directory: Dir) {
-      const entry = yield* Effect.tryPromise({
-        try: () => directory.read(),
-        catch: (cause) => new FileTreeError({ path: directory.path, operation: "read", cause }),
-      }).pipe(Effect.uninterruptible);
+    // Fold bytes during traversal; per-file streams and tracing add avoidable overhead.
+    const measureBytes = Effect.fnUntraced(
+      function* (path: string): Effect.fn.Return<bigint, FileTreeError> {
+        const entry = yield* statEntry(path);
+        if (entry.isFile()) {
+          return entry.size;
+        }
+        if (!entry.isDirectory()) {
+          return 0n;
+        }
 
-      if (entry === null) {
-        return undefined;
-      }
-
-      return [pathService.join(directory.path, entry.name), directory] as const;
-    });
-
-    function files(path: string): Stream.Stream<FileEntry, FileTreeError> {
-      return Stream.fromEffect(
-        Effect.tryPromise({
-          try: () => lstat(path, { bigint: true }),
-          catch: (cause) => new FileTreeError({ path, operation: "lstat", cause }),
-        }),
-      ).pipe(
-        Stream.flatMap((entry) => {
-          if (entry.isFile()) {
-            return Stream.succeed({ path, bytes: entry.size });
-          }
-
-          if (!entry.isDirectory()) {
-            return Stream.empty;
-          }
-
-          return Stream.unwrap(
+        return yield* Effect.acquireUseRelease(
+          Effect.tryPromise({
+            try: () => opendir(path),
+            catch: (cause) => new FileTreeError({ path, operation: "opendir", cause }),
+          }),
+          (directory) =>
             Effect.gen(function* () {
-              const directory = yield* Effect.acquireRelease(
-                Effect.tryPromise({
-                  try: () => opendir(path),
-                  catch: (cause) => new FileTreeError({ path, operation: "opendir", cause }),
-                }),
-                (directory) =>
-                  Effect.tryPromise({
-                    try: () => directory.close(),
-                    catch: (cause) => new FileTreeError({ path, operation: "close", cause }),
-                  }).pipe(Effect.orDie),
-              );
-
-              // Depth-first traversal keeps one handle per ancestor, not per discovered directory.
-              // Each read settles before scope cleanup can close its handle.
-              return Stream.unfold(directory, readEntry).pipe(Stream.flatMap(files));
+              let bytes = 0n;
+              // Native reads cannot be cancelled: settle before closing the handle.
+              const readEntry = Effect.tryPromise({
+                try: () => directory.read(),
+                catch: (cause) => new FileTreeError({ path, operation: "read", cause }),
+              }).pipe(Effect.uninterruptible);
+              while (true) {
+                const child = yield* readEntry;
+                if (child === null) {
+                  return bytes;
+                }
+                bytes += yield* measureBytes(pathService.join(path, child.name));
+              }
             }),
-          );
-        }),
-        Stream.catchIf(
-          (error) => Predicate.hasProperty(error.cause, "code") && error.cause.code === "ENOENT",
-          () => Stream.empty,
-        ),
-      );
-    }
+          (directory) =>
+            Effect.tryPromise({
+              try: () => directory.close(),
+              catch: (cause) => new FileTreeError({ path, operation: "close", cause }),
+            }).pipe(Effect.orDie),
+        );
+      },
+      Effect.catchIf(
+        (error) => Predicate.hasProperty(error.cause, "code") && error.cause.code === "ENOENT",
+        () => Effect.succeed(0n),
+      ),
+    );
 
-    return FileTreeService.of({ files });
+    return FileTreeService.of({ measureBytes });
   }),
 );

@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema, Semaphore, Stream } from "effect";
+import { Context, Effect, Layer, Schema, Semaphore } from "effect";
 import { FileTreeService } from "#backend/filesystem/file-tree";
 import {
   StorageAreaDeleteError,
@@ -104,14 +104,11 @@ export class StorageService extends Context.Service<StorageService, StorageServi
           const measurements = yield* Effect.forEach(
             areas,
             Effect.fn(function* (area) {
-              const bytes = yield* Stream.fromIterable(area.paths).pipe(
-                Stream.flatMap((path) => fileTree.files(path)),
-                Stream.runFold(
-                  () => 0n,
-                  (total, file) => total + file.bytes,
-                ),
-                Effect.mapError((cause) => new StorageMeasurementError({ cause })),
-              );
+              const bytes = yield* Effect.reduce(
+                area.paths,
+                () => 0n,
+                (total, path) => Effect.map(fileTree.measureBytes(path), (bytes) => total + bytes),
+              ).pipe(Effect.mapError((cause) => new StorageMeasurementError({ cause })));
               return { area, bytes };
             }),
             { concurrency: 4 },

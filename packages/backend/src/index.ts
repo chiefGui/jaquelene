@@ -1,6 +1,6 @@
 export { BackendService } from "#backend/backend";
 export type { Backend, BackendOptions } from "#backend/backend";
-export { FileTreeError, FileTreeService, type FileEntry } from "#backend/filesystem/file-tree";
+export { FileTreeError, FileTreeService } from "#backend/filesystem/file-tree";
 export { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
 export {
   ThreadTranscriptEntryKind,

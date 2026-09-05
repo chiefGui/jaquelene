@@ -74,9 +74,9 @@ describe("campaign usage", () => {
       .values([
         {
           id: ids.providerAttempt.create(),
-          generationId: ids.generation.create(),
-          threadId: campaign.threadId,
-          campaignId: campaign.id,
+          executionId: ids.generation.create(),
+          attributionKind: "campaign",
+          attributionId: campaign.id,
           providerId: "openrouter",
           requestedModelId: "maker/model-a",
           resolvedModelId: "maker/model-a-v2",
@@ -95,9 +95,9 @@ describe("campaign usage", () => {
         },
         {
           id: ids.providerAttempt.create(),
-          generationId: ids.generation.create(),
-          threadId: campaign.threadId,
-          campaignId: campaign.id,
+          executionId: ids.generation.create(),
+          attributionKind: "campaign",
+          attributionId: campaign.id,
           providerId: "openrouter",
           requestedModelId: "maker/model-a",
           status: "failed",
@@ -107,9 +107,9 @@ describe("campaign usage", () => {
         },
         {
           id: ids.providerAttempt.create(),
-          generationId: ids.generation.create(),
-          threadId: campaign.threadId,
-          campaignId: campaign.id,
+          executionId: ids.generation.create(),
+          attributionKind: "campaign",
+          attributionId: campaign.id,
           providerId: "provider-b",
           requestedModelId: "model-b",
           status: "completed",
@@ -124,9 +124,9 @@ describe("campaign usage", () => {
         },
         {
           id: ids.providerAttempt.create(),
-          generationId: ids.generation.create(),
-          threadId: campaign.threadId,
-          campaignId: campaign.id,
+          executionId: ids.generation.create(),
+          attributionKind: "campaign",
+          attributionId: campaign.id,
           providerId: "openrouter",
           requestedModelId: "maker/model-a",
           status: "pending",
@@ -187,5 +187,70 @@ describe("campaign usage", () => {
       models: [],
     });
     expect(usage.get(ids.campaign.create())).toBeNull();
+  });
+
+  it("counts dispatched replies once and excludes unrelated attribution", () => {
+    const { database, campaigns, threads, usage } = openEnvironment();
+    const campaign = campaigns.start({ title: "Attributed usage", composition: [] });
+    const turn = threads.startTurn(campaign.threadId, "Hello").turn;
+    const generationId = ids.generation.create();
+    database
+      .insert(generationTable)
+      .values({
+        id: generationId,
+        turnId: turn.id,
+        intent: "reply",
+        providerId: "provider-a",
+        modelId: "maker/model",
+        status: "pending",
+        startedAt: 100,
+      })
+      .run();
+    expect(usage.get(campaign.id)?.attempts).toEqual({
+      provider: 0,
+      preparing: 1,
+      pending: 0,
+      completed: 0,
+      failed: 0,
+    });
+
+    const common = {
+      providerId: "provider-a",
+      requestedModelId: "maker/model",
+      status: "pending" as const,
+      startedAt: 101,
+    };
+    database
+      .insert(providerAttemptTable)
+      .values([
+        {
+          ...common,
+          id: ids.providerAttempt.create(),
+          executionId: generationId,
+          attributionKind: "campaign",
+          attributionId: campaign.id,
+        },
+        {
+          ...common,
+          id: ids.providerAttempt.create(),
+          executionId: "different-kind",
+          attributionKind: "document",
+          attributionId: campaign.id,
+        },
+        {
+          ...common,
+          id: ids.providerAttempt.create(),
+          executionId: "different-campaign",
+          attributionKind: "campaign",
+          attributionId: ids.campaign.create(),
+        },
+        { ...common, id: ids.providerAttempt.create(), executionId: "independent-execution" },
+      ])
+      .run();
+
+    expect(usage.get(campaign.id)).toMatchObject({
+      attempts: { provider: 1, preparing: 0, pending: 1, completed: 0, failed: 0 },
+      models: [{ providerId: "provider-a", requestedModelId: "maker/model", attempts: 1 }],
+    });
   });
 });

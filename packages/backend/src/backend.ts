@@ -24,8 +24,7 @@ import {
 import { ThreadService, type Threads } from "#backend/thread/subsystem";
 import { TurnService } from "#backend/turn/subsystem";
 import type { Turns } from "#backend/turn/turns";
-import type { Usage } from "#backend/usage/history";
-import { UsageService } from "#backend/usage/subsystem";
+import { UsageService, type Usage } from "#backend/usage/subsystem";
 
 export type BackendOptions = Readonly<{
   databasePath: string;

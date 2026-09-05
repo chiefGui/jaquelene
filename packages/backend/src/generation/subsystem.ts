@@ -1,16 +1,12 @@
 import { Context, Effect, FiberSet, Layer } from "effect";
-import { DatabaseService, type Database } from "#backend/database/database";
-import {
-  createModelExecutionRunner,
-  ModelExecutionService,
-  type ModelExecutionRunner,
-} from "#backend/model/execution";
+import { getCampaignUsageAttribution } from "#backend/campaign/usage";
+import { DatabaseService } from "#backend/database/database";
+import { createModelExecutionRunner, ModelExecutionService } from "#backend/model/execution";
 import { ModelInputService } from "#backend/model/input-resolver";
 import { ThreadService } from "#backend/thread/subsystem";
-import type { ProviderAttempts } from "#backend/usage/provider-attempts";
 import { UsageService } from "#backend/usage/subsystem";
-import { createGenerations, type GenerationEngine } from "./generations";
-import { createReplyPreparer, type ReplyPreparer } from "./reply-preparation";
+import { createGenerations, type GenerationEngine, type GenerationOptions } from "./generations";
+import { createReplyPreparer } from "./reply-preparation";
 import { superviseGenerations } from "./supervisor";
 
 type ReplyGenerations = Pick<
@@ -27,20 +23,8 @@ type GenerationSubsystem = Readonly<{
   close: () => Promise<void>;
 }>;
 
-type GenerationSubsystemOptions = Readonly<{
-  database: Database;
-  replyPreparer: ReplyPreparer;
-  modelExecutor: ModelExecutionRunner;
-  attempts: ProviderAttempts;
-}>;
-
-function createGenerationSubsystem({
-  database,
-  replyPreparer,
-  modelExecutor,
-  attempts,
-}: GenerationSubsystemOptions): GenerationSubsystem {
-  const engine = createGenerations(database, replyPreparer, modelExecutor, Date.now, attempts);
+function createGenerationSubsystem(options: GenerationOptions): GenerationSubsystem {
+  const engine = createGenerations(options);
   engine.recoverInterrupted();
   const supervised = superviseGenerations(engine);
 
@@ -77,6 +61,7 @@ export class GenerationService extends Context.Service<
             replyPreparer: createReplyPreparer(threads.engine, modelInputs),
             modelExecutor,
             attempts: usage.attempts,
+            getUsageAttribution: (threadId) => getCampaignUsageAttribution(database, threadId),
           }),
         ),
         (generations) => Effect.promise(() => generations.close()),

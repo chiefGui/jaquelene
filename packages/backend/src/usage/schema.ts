@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { check, index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import type { CampaignId, GenerationId, ProviderAttemptId, ThreadId } from "#backend/id";
+import { sqliteWhitespaceCharacters } from "#backend/database/sqlite-text";
+import type { ProviderAttemptId } from "#backend/id";
 import { generationCostSources } from "#backend/provider/provider";
 
 export const providerAttemptStatuses = ["pending", "completed", "failed"] as const;
@@ -10,9 +11,9 @@ export const providerAttemptTable = sqliteTable(
   "provider_attempts",
   {
     id: text().$type<ProviderAttemptId>().notNull(),
-    generationId: text("generation_id").$type<GenerationId>().notNull(),
-    threadId: text("thread_id").$type<ThreadId>().notNull(),
-    campaignId: text("campaign_id").$type<CampaignId>(),
+    executionId: text("execution_id").notNull(),
+    attributionKind: text("attribution_kind"),
+    attributionId: text("attribution_id"),
     providerId: text("provider_id").notNull(),
     requestedModelId: text("requested_model_id").notNull(),
     status: text({ enum: providerAttemptStatuses }).notNull(),
@@ -35,24 +36,30 @@ export const providerAttemptTable = sqliteTable(
   },
   (attempt) => [
     primaryKey({ columns: [attempt.id] }),
-    index("provider_attempts_generation_idx").on(
-      attempt.generationId,
-      attempt.startedAt,
-      attempt.id,
-    ),
+    index("provider_attempts_execution_idx").on(attempt.executionId, attempt.startedAt, attempt.id),
     index("provider_attempts_started_at_idx").on(attempt.startedAt, attempt.id),
-    index("provider_attempts_campaign_started_at_idx").on(
-      attempt.campaignId,
+    index("provider_attempts_attribution_started_at_idx").on(
+      attempt.attributionKind,
+      attempt.attributionId,
       attempt.startedAt,
       attempt.id,
     ),
+    index("provider_attempts_pending_idx")
+      .on(attempt.id)
+      .where(sql`${attempt.status} = 'pending'`),
     check(
       "provider_attempts_references_valid",
-      sql`length(trim(${attempt.generationId})) > 0
-        AND length(trim(${attempt.threadId})) > 0
-        AND (${attempt.campaignId} IS NULL OR length(trim(${attempt.campaignId})) > 0)
-        AND length(trim(${attempt.providerId})) > 0
-        AND length(trim(${attempt.requestedModelId})) > 0`,
+      sql`length(trim(${attempt.executionId}, ${sqliteWhitespaceCharacters})) > 0
+        AND length(trim(${attempt.providerId}, ${sqliteWhitespaceCharacters})) > 0
+        AND length(trim(${attempt.requestedModelId}, ${sqliteWhitespaceCharacters})) > 0`,
+    ),
+    check(
+      "provider_attempts_attribution_valid",
+      sql`(${attempt.attributionKind} IS NULL AND ${attempt.attributionId} IS NULL)
+        OR (${attempt.attributionKind} IS NOT NULL
+          AND ${attempt.attributionId} IS NOT NULL
+          AND length(trim(${attempt.attributionKind}, ${sqliteWhitespaceCharacters})) > 0
+          AND length(trim(${attempt.attributionId}, ${sqliteWhitespaceCharacters})) > 0)`,
     ),
     check(
       "provider_attempts_status_valid",
@@ -100,10 +107,12 @@ export const providerAttemptTable = sqliteTable(
       sql`(${attempt.costCurrency} IS NULL
           AND ${attempt.costAmountNanos} IS NULL
           AND ${attempt.costSource} IS NULL)
-        OR (${attempt.costCurrency} GLOB '[A-Z][A-Z][A-Z]'
+        OR (${attempt.costCurrency} IS NOT NULL
+          AND ${attempt.costCurrency} GLOB '[A-Z][A-Z][A-Z]'
           AND ${attempt.costAmountNanos} IS NOT NULL
           AND ${attempt.costAmountNanos} >= 0
           AND ${attempt.inputTokens} IS NOT NULL
+          AND ${attempt.costSource} IS NOT NULL
           AND ${attempt.costSource} IN ('provider-reported', 'estimated'))`,
     ),
     check("provider_attempts_started_at_nonnegative", sql`${attempt.startedAt} >= 0`),

@@ -2,10 +2,11 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PromptOrigin } from "@jaquelene/domain";
-import { ManagedRuntime } from "effect";
+import { Layer, Logger, ManagedRuntime } from "effect";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
+import { providerAttemptTable } from "#backend/usage/schema";
 import { ids } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import type {
@@ -330,6 +331,59 @@ describe("backend", () => {
     await reopened.close();
   });
 
+  it("completes replies and retains their accounting when usage subscribers throw", async () => {
+    const providerResult = deferred<ProviderGenerationResult>();
+    const provider = providerAdapter("provider-a", { generate: () => providerResult.promise });
+    const log = vi.fn<Logger.Logger<unknown, void>["log"]>();
+    const runtime = ManagedRuntime.make(
+      BackendService.layer(backendOptions(createDatabasePath(), [provider])).pipe(
+        Layer.provide(Logger.layer([Logger.make(log)])),
+      ),
+    );
+
+    try {
+      const backend = await runtime.runPromise(BackendService);
+      backend.usage.subscribe(() => {
+        throw new Error("Usage view failed.");
+      });
+      const changed = vi.fn();
+      backend.usage.subscribe(changed);
+      const campaign = backend.campaigns.start({ title: "Voyage", composition: [] });
+      const operation = await backend.turns.submit({
+        threadId: campaign.threadId,
+        content: "Begin",
+        configuration: { model: { providerId: provider.descriptor.id, modelId: "maker/model" } },
+      });
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledOnce());
+      expect(backend.usage.getOverview("all-time").attempts.pending).toBe(1);
+      providerResult.resolve({
+        text: "The voyage begins.",
+        usage: { tokens: { input: { total: 3 }, output: { total: 2 }, total: 5 } },
+      });
+
+      await expect(operation.settlement).resolves.toMatchObject({
+        outcome: "completed",
+        generation: { status: "completed" },
+        assistantMessage: { content: "The voyage begins." },
+      });
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+      expect(log).toHaveBeenCalledTimes(2);
+      expect(backend.usage.getOverview("all-time")).toMatchObject({
+        attempts: { pending: 0, completed: 1 },
+        tokens: { total: 5 },
+      });
+      expect(backend.campaignUsage.get(campaign.id)).toMatchObject({
+        attempts: { pending: 0, completed: 1 },
+        tokens: { total: 5 },
+      });
+      expect(backend.usage.clear()).toEqual({ deletedAttempts: 1 });
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(3));
+      expect(log).toHaveBeenCalledTimes(3);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it("uses an edited narrator prompt on the next turn of an existing campaign", async () => {
     const inputs: ModelInput[] = [];
     const provider = providerAdapter("provider-a", {
@@ -645,7 +699,7 @@ describe("backend", () => {
     await reopened.close();
   });
 
-  it("recovers pending generations before exposing reopened services", async () => {
+  it("recovers reply state and all provider attempts before exposing reopened services", async () => {
     const databasePath = createDatabasePath();
     const database = openDatabase(databasePath);
     const threads = createThreads(database, () => 100);
@@ -661,9 +715,38 @@ describe("backend", () => {
       startedAt: 102,
     };
     database.insert(generationTable).values(pending).run();
+    database
+      .insert(providerAttemptTable)
+      .values([
+        {
+          id: ids.providerAttempt.create(),
+          executionId: pending.id,
+          providerId: "provider-a",
+          requestedModelId: "maker/model",
+          status: "pending",
+          startedAt: 103,
+        },
+        {
+          id: ids.providerAttempt.create(),
+          executionId: "independent-execution",
+          attributionKind: "document",
+          attributionId: "document-1",
+          providerId: "provider-a",
+          requestedModelId: "maker/model",
+          status: "pending",
+          startedAt: 104,
+        },
+      ])
+      .run();
     closeDatabase(database);
 
     const backend = await openBackend(backendOptions(databasePath));
+    expect(backend.usage.getOverview("all-time").attempts).toEqual({
+      provider: 2,
+      pending: 0,
+      completed: 0,
+      failed: 2,
+    });
     await backend.close();
     const recoveredDatabase = openDatabase(databasePath);
 
@@ -676,6 +759,22 @@ describe("backend", () => {
           finishedAt: expect.any(Number),
         }),
       );
+      expect(recoveredDatabase.select().from(providerAttemptTable).all()).toEqual([
+        expect.objectContaining({
+          executionId: pending.id,
+          status: "failed",
+          failureKind: "interrupted",
+          finishedAt: expect.any(Number),
+        }),
+        expect.objectContaining({
+          executionId: "independent-execution",
+          attributionKind: "document",
+          attributionId: "document-1",
+          status: "failed",
+          failureKind: "interrupted",
+          finishedAt: expect.any(Number),
+        }),
+      ]);
     } finally {
       closeDatabase(recoveredDatabase);
     }

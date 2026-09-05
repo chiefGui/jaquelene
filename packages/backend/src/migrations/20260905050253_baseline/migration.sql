@@ -171,9 +171,9 @@ CREATE TABLE `turns` (
 --> statement-breakpoint
 CREATE TABLE `provider_attempts` (
 	`id` text PRIMARY KEY NOT NULL,
-	`generation_id` text NOT NULL,
-	`thread_id` text NOT NULL,
-	`campaign_id` text,
+	`execution_id` text NOT NULL,
+	`attribution_kind` text,
+	`attribution_id` text,
 	`provider_id` text NOT NULL,
 	`requested_model_id` text NOT NULL,
 	`status` text NOT NULL,
@@ -193,11 +193,14 @@ CREATE TABLE `provider_attempts` (
 	`cost_source` text,
 	`started_at` integer NOT NULL,
 	`finished_at` integer,
-	CONSTRAINT "provider_attempts_references_valid" CHECK(length(trim("generation_id")) > 0
-        AND length(trim("thread_id")) > 0
-        AND ("campaign_id" IS NULL OR length(trim("campaign_id")) > 0)
-        AND length(trim("provider_id")) > 0
-        AND length(trim("requested_model_id")) > 0),
+	CONSTRAINT "provider_attempts_references_valid" CHECK(length(trim("execution_id", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0
+        AND length(trim("provider_id", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0
+        AND length(trim("requested_model_id", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0),
+	CONSTRAINT "provider_attempts_attribution_valid" CHECK(("attribution_kind" IS NULL AND "attribution_id" IS NULL)
+        OR ("attribution_kind" IS NOT NULL
+          AND "attribution_id" IS NOT NULL
+          AND length(trim("attribution_kind", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0
+          AND length(trim("attribution_id", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0)),
 	CONSTRAINT "provider_attempts_status_valid" CHECK("status" IN ('pending', 'completed', 'failed')),
 	CONSTRAINT "provider_attempts_failure_kind_valid" CHECK("failure_kind" IS NULL OR "failure_kind" IN ('provider', 'interrupted')),
 	CONSTRAINT "provider_attempts_provider_result_valid" CHECK(("provider_generation_id" IS NULL OR length(trim("provider_generation_id")) > 0)
@@ -227,10 +230,12 @@ CREATE TABLE `provider_attempts` (
 	CONSTRAINT "provider_attempts_cost_valid" CHECK(("cost_currency" IS NULL
           AND "cost_amount_nanos" IS NULL
           AND "cost_source" IS NULL)
-        OR ("cost_currency" GLOB '[A-Z][A-Z][A-Z]'
+        OR ("cost_currency" IS NOT NULL
+          AND "cost_currency" GLOB '[A-Z][A-Z][A-Z]'
           AND "cost_amount_nanos" IS NOT NULL
           AND "cost_amount_nanos" >= 0
           AND "input_tokens" IS NOT NULL
+          AND "cost_source" IS NOT NULL
           AND "cost_source" IN ('provider-reported', 'estimated'))),
 	CONSTRAINT "provider_attempts_started_at_nonnegative" CHECK("started_at" >= 0),
 	CONSTRAINT "provider_attempts_finished_at_valid" CHECK("finished_at" IS NULL OR "finished_at" >= "started_at"),
@@ -261,6 +266,7 @@ CREATE UNIQUE INDEX `thread_messages_turn_id_unique` ON `thread_messages` (`turn
 CREATE UNIQUE INDEX `thread_messages_turn_user_unique` ON `thread_messages` (`turn_id`) WHERE "thread_messages"."author" = 'user';--> statement-breakpoint
 CREATE INDEX `threads_last_activity_at_index` ON `threads` (`last_activity_at`,`id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `turns_thread_id_unique` ON `turns` (`thread_id`,`id`);--> statement-breakpoint
-CREATE INDEX `provider_attempts_generation_idx` ON `provider_attempts` (`generation_id`,`started_at`,`id`);--> statement-breakpoint
+CREATE INDEX `provider_attempts_execution_idx` ON `provider_attempts` (`execution_id`,`started_at`,`id`);--> statement-breakpoint
 CREATE INDEX `provider_attempts_started_at_idx` ON `provider_attempts` (`started_at`,`id`);--> statement-breakpoint
-CREATE INDEX `provider_attempts_campaign_started_at_idx` ON `provider_attempts` (`campaign_id`,`started_at`,`id`);
+CREATE INDEX `provider_attempts_attribution_started_at_idx` ON `provider_attempts` (`attribution_kind`,`attribution_id`,`started_at`,`id`);--> statement-breakpoint
+CREATE INDEX `provider_attempts_pending_idx` ON `provider_attempts` (`id`) WHERE "provider_attempts"."status" = 'pending';

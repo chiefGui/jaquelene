@@ -158,6 +158,9 @@
   "trustedDependencies": [
     "electron",
   ],
+  "patchedDependencies": {
+    "effect@4.0.0-rc.112": "patches/effect@4.0.0-rc.112.patch",
+  },
   "packages": {
     "@ariakit/components": ["@ariakit/components@0.1.11", "", { "dependencies": { "@ariakit/store": "0.1.9", "@ariakit/utils": "0.2.0" } }, "sha512-hFmfWKkK8jpATf39kNZSMDlG3o+tftfQwyooRhbPl/YCpFur+IGz5ZPA+PGIIfFjfdkAURLNDJPSeWtXO3xssQ=="],
 

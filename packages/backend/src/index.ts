@@ -86,7 +86,7 @@ export type {
   GenerationFailureKind,
   GenerationIntent,
 } from "#backend/generation/schema";
-export type { Usage } from "#backend/usage/history";
+export type { Usage } from "#backend/usage/subsystem";
 export type { UsageOverview, UsageOverviewReader } from "#backend/usage/overview";
 export { usagePeriods, type UsagePeriod } from "#backend/usage/calendar";
 export {

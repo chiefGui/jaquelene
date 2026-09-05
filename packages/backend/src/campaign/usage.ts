@@ -1,11 +1,30 @@
 import { and, count, desc, eq, isNotNull, ne, notExists, sql } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
-import type { CampaignId } from "#backend/id";
+import type { CampaignId, ThreadId } from "#backend/id";
 import { turnTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
-import type { CostUsage, TokenUsage, UsageCoverage } from "#backend/usage/types";
+import type { CostUsage, TokenUsage, UsageAttribution, UsageCoverage } from "#backend/usage/types";
 import { campaignTable } from "./schema";
+
+const campaignAttributionKind = "campaign";
+
+export function getCampaignUsageAttribution(
+  source: Pick<Database, "select">,
+  threadId: ThreadId,
+): UsageAttribution | undefined {
+  const campaign = source
+    .select({ id: campaignTable.id })
+    .from(campaignTable)
+    .where(eq(campaignTable.threadId, threadId))
+    .get();
+
+  if (campaign) {
+    return { kind: campaignAttributionKind, id: campaign.id };
+  }
+
+  return undefined;
+}
 
 export type CampaignUsage = Readonly<{
   campaignId: CampaignId;
@@ -50,6 +69,11 @@ export function createCampaignUsage(database: Database) {
         return null;
       }
 
+      const attributedToCampaign = and(
+        eq(providerAttemptTable.attributionKind, campaignAttributionKind),
+        eq(providerAttemptTable.attributionId, campaignId),
+      );
+
       const preparing = database
         .select({ attempts: count() })
         .from(generationTable)
@@ -62,7 +86,7 @@ export function createCampaignUsage(database: Database) {
               database
                 .select({ id: providerAttemptTable.id })
                 .from(providerAttemptTable)
-                .where(eq(providerAttemptTable.generationId, generationTable.id)),
+                .where(eq(providerAttemptTable.executionId, generationTable.id)),
             ),
           ),
         )
@@ -91,7 +115,7 @@ export function createCampaignUsage(database: Database) {
           unknownCostAttempts: sql<number>`coalesce(sum(CASE WHEN ${settled} AND ${providerAttemptTable.costAmountNanos} IS NULL THEN 1 ELSE 0 END), 0)`,
         })
         .from(providerAttemptTable)
-        .where(eq(providerAttemptTable.campaignId, campaignId))
+        .where(attributedToCampaign)
         .get();
 
       if (!aggregate || !preparing) {
@@ -112,7 +136,7 @@ export function createCampaignUsage(database: Database) {
         .from(providerAttemptTable)
         .where(
           and(
-            eq(providerAttemptTable.campaignId, campaignId),
+            attributedToCampaign,
             ne(providerAttemptTable.status, "pending"),
             isNotNull(providerAttemptTable.costAmountNanos),
           ),
@@ -148,7 +172,7 @@ export function createCampaignUsage(database: Database) {
           attempts: count(),
         })
         .from(providerAttemptTable)
-        .where(eq(providerAttemptTable.campaignId, campaignId))
+        .where(attributedToCampaign)
         .groupBy(
           providerAttemptTable.providerId,
           providerAttemptTable.requestedModelId,

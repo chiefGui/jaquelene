@@ -1,0 +1,44 @@
+diff --git a/dist/PubSub.js b/dist/PubSub.js
+index d6ef07ab7387b35e561d41ea4886b63f9d0bb131..9c7661e7b35c26c6191f6010b17763a32dc96b62 100644
+--- a/dist/PubSub.js
++++ b/dist/PubSub.js
+@@ -1539,7 +1539,7 @@ class BoundedPubSubSingleSubscription {
+     if (this.self.subscribers === 0) {
+       this.self.value = AbsentValue;
+     }
+-    this.subscriberIndex += 1;
++    this.subscriberIndex = this.self.publisherIndex;
+     return elem;
+   }
+   pollUpTo(n) {
+@@ -1551,7 +1551,7 @@ class BoundedPubSubSingleSubscription {
+     if (this.self.subscribers === 0) {
+       this.self.value = AbsentValue;
+     }
+-    this.subscriberIndex += 1;
++    this.subscriberIndex = this.self.publisherIndex;
+     return [a];
+   }
+   unsubscribe() {
+diff --git a/src/PubSub.ts b/src/PubSub.ts
+index f9cc025902e4fd2078d076f949f54df3e9bee100..7ce6cf9ac9eaa153037c3fda3a66d416e85b71a1 100644
+--- a/src/PubSub.ts
++++ b/src/PubSub.ts
+@@ -2364,7 +2364,7 @@ class BoundedPubSubSingleSubscription<in out A> implements PubSub.BackingSubscri
+     if (this.self.subscribers === 0) {
+       this.self.value = AbsentValue as unknown as A
+     }
+-    this.subscriberIndex += 1
++    this.subscriberIndex = this.self.publisherIndex
+     return elem
+   }
+ 
+@@ -2377,7 +2377,7 @@ class BoundedPubSubSingleSubscription<in out A> implements PubSub.BackingSubscri
+     if (this.self.subscribers === 0) {
+       this.self.value = AbsentValue as unknown as A
+     }
+-    this.subscriberIndex += 1
++    this.subscriberIndex = this.self.publisherIndex
+     return [a]
+   }
+ 

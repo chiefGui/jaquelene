@@ -3,7 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
+import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
+import { createThreads } from "#backend/thread/threads";
 import { createUsageHistory } from "./history";
 import { providerAttemptTable } from "./schema";
 
@@ -15,21 +17,26 @@ function openEnvironment() {
   const database = openDatabase(join(directory, "jaquelene.sqlite"));
   directories.push(directory);
   databases.push(database);
-  return { database, usage: createUsageHistory(database) };
+  const changed = vi.fn();
+  return { database, changed, usage: createUsageHistory(database, changed) };
 }
 
 function attempt(status: "pending" | "completed") {
   const startedAt = 100;
-  return {
+  const pending = {
     id: ids.providerAttempt.create(),
-    generationId: ids.generation.create(),
-    threadId: ids.thread.create(),
+    executionId: "execution-1",
     providerId: "openrouter",
     requestedModelId: "maker/model",
     status,
     startedAt,
-    ...(status === "completed" ? { finishedAt: startedAt + 1 } : {}),
   } as const;
+
+  if (status === "completed") {
+    return { ...pending, finishedAt: startedAt + 1 };
+  }
+
+  return pending;
 }
 
 afterEach(() => {
@@ -44,13 +51,31 @@ afterEach(() => {
 
 describe("usage history", () => {
   it("clears settled usage without touching content-owned tables", () => {
-    const { database, usage } = openEnvironment();
-    const changed = vi.fn();
-    usage.subscribe(changed);
+    const { database, usage, changed } = openEnvironment();
     database.insert(providerAttemptTable).values(attempt("completed")).run();
+    const threads = createThreads(database);
+    const thread = threads.create();
+    const { turn } = threads.startTurn(thread.id, "Preparing a reply");
+    database
+      .insert(generationTable)
+      .values({
+        id: ids.generation.create(),
+        turnId: turn.id,
+        intent: "reply",
+        providerId: "provider-a",
+        modelId: "maker/model",
+        status: "pending",
+        startedAt: 100,
+      })
+      .run();
+    const preparing = database.select().from(generationTable).all();
 
     expect(usage.clear()).toEqual({ deletedAttempts: 1 });
     expect(database.select().from(providerAttemptTable).all()).toEqual([]);
+    expect(changed).toHaveBeenCalledOnce();
+    expect(database.select().from(generationTable).all()).toEqual(preparing);
+    expect(threads.get(thread.id)).not.toBeNull();
+    expect(usage.clear()).toEqual({ deletedAttempts: 0 });
     expect(changed).toHaveBeenCalledOnce();
   });
 
@@ -103,6 +128,46 @@ describe("usage history", () => {
           id: ids.providerAttempt.create(),
           inputTokens: 2,
           outputTokens: 1,
+        })
+        .run(),
+    ).toThrow();
+  });
+
+  it.each([
+    { attributionKind: "campaign", attributionId: null },
+    { attributionKind: null, attributionId: "campaign-1" },
+    { attributionKind: " \t", attributionId: "campaign-1" },
+    { attributionKind: "campaign", attributionId: "\u00a0" },
+    { executionId: "\n" },
+  ])("rejects incomplete or blank attribution and execution identity: %j", (invalid) => {
+    const { database } = openEnvironment();
+    expect(() =>
+      database
+        .insert(providerAttemptTable)
+        .values({
+          ...attempt("pending"),
+          ...invalid,
+        })
+        .run(),
+    ).toThrow();
+    expect(database.select().from(providerAttemptTable).all()).toEqual([]);
+  });
+
+  it.each([
+    { costCurrency: null, costSource: "provider-reported" as const },
+    { costCurrency: "USD", costSource: null },
+  ])("rejects costs with missing currency or source: %j", (incomplete) => {
+    const { database } = openEnvironment();
+    expect(() =>
+      database
+        .insert(providerAttemptTable)
+        .values({
+          ...attempt("completed"),
+          inputTokens: 2,
+          outputTokens: 1,
+          totalTokens: 3,
+          costAmountNanos: 10,
+          ...incomplete,
         })
         .run(),
     ).toThrow();

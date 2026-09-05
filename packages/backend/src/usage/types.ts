@@ -1,5 +1,10 @@
 import type { GenerationCostSource } from "#backend/provider/provider";
 
+export type UsageAttribution = Readonly<{
+  kind: string;
+  id: string;
+}>;
+
 export type UsageCoverage = Readonly<{
   reported: number;
   unknown: number;

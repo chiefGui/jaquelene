@@ -243,7 +243,8 @@ describe("storage", () => {
     ]);
 
     await expect(storage.deleteCategory(StorageCategory.AppData)).rejects.toMatchObject({
-      _tag: "StorageDeleteError",
+      _tag: "StorageCategoryDeleteError",
+      category: StorageCategory.AppData,
       message: `Could not delete storage category "${StorageCategory.AppData}".`,
       failures: [{ _tag: "StorageAreaDeleteError", areaId: "favorite-models", cause: failure }],
     });
@@ -275,7 +276,8 @@ describe("storage", () => {
     ]);
 
     await expect(storage.deleteCategory(StorageCategory.AppData)).rejects.toMatchObject({
-      _tag: "StorageDeleteError",
+      _tag: "StorageCategoryDeleteError",
+      category: StorageCategory.AppData,
       failures: [firstFailure, secondFailure],
       cause: expect.objectContaining({ errors: [firstFailure, secondFailure] }),
     });
@@ -459,20 +461,22 @@ describe("storage", () => {
   });
 
   it("preserves area deletion failures", async () => {
-    const failure = new Error("Diagnostics storage failed.");
+    const failure = new StorageAreaDeleteError({
+      areaId: "diagnostics",
+      cause: new Error("Diagnostics storage failed."),
+    });
     const storage = await createTestStorage([
       {
         id: "diagnostics",
         category: StorageCategory.AppData,
         paths: [join(createUserDataDirectory(), "diagnostics")],
-        delete: Effect.fail(new StorageAreaDeleteError({ areaId: "diagnostics", cause: failure })),
+        delete: Effect.fail(failure),
       },
     ]);
 
-    await expect(storage.deleteArea("diagnostics")).rejects.toMatchObject({
-      _tag: "StorageDeleteError",
-      message: 'Could not delete storage area "diagnostics".',
-      failures: [{ _tag: "StorageAreaDeleteError", areaId: "diagnostics", cause: failure }],
+    await expect(storage.deleteArea("diagnostics")).rejects.toBe(failure);
+    await expect(storage.measureUsage()).resolves.toEqual({
+      areas: [{ id: "diagnostics", category: StorageCategory.AppData, bytes: 0 }],
     });
   });
 

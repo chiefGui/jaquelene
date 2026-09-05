@@ -62,10 +62,17 @@ export class StorageAreaDeleteError extends Schema.TaggedError<StorageAreaDelete
   }
 }
 
-export class StorageDeleteError extends Schema.TaggedError<StorageDeleteError>()(
-  "StorageDeleteError",
-  { message: Schema.String, failures: Schema.NonEmptyArray(StorageAreaDeleteError) },
+export class StorageCategoryDeleteError extends Schema.TaggedError<StorageCategoryDeleteError>()(
+  "StorageCategoryDeleteError",
+  {
+    category: Schema.Enum(StorageCategory),
+    failures: Schema.NonEmptyArray(StorageAreaDeleteError),
+  },
 ) {
+  override get message() {
+    return `Could not delete storage category "${this.category}".`;
+  }
+
   override get cause() {
     if (this.failures.length === 1) {
       return this.failures[0];
@@ -236,13 +243,13 @@ type StorageServiceShape = Readonly<{
     id: StorageAreaId,
   ) => Effect.Effect<
     StorageDeletion,
-    StorageDeleteError | StorageMeasurementError | StorageTargetNotFoundError
+    StorageAreaDeleteError | StorageMeasurementError | StorageTargetNotFoundError
   >;
   deleteCategory: (
     id: StorageCategory,
   ) => Effect.Effect<
     StorageDeletion,
-    StorageDeleteError | StorageMeasurementError | StorageTargetNotFoundError
+    StorageCategoryDeleteError | StorageMeasurementError | StorageTargetNotFoundError
   >;
 }>;
 
@@ -272,17 +279,6 @@ export class StorageService extends Context.Service<StorageService, StorageServi
             try: () => measureAreas(measuredAreas),
             catch: (cause) => new StorageMeasurementError({ cause }),
           });
-        const deleteRegisteredAreas = Effect.fn("Storage.deleteRegisteredAreas")(function* (
-          areas: readonly StorageArea[],
-          message: string,
-        ) {
-          yield* Effect.validate(areas, (area) => area.delete, {
-            concurrency: 4,
-            discard: true,
-          }).pipe(Effect.mapError((failures) => new StorageDeleteError({ message, failures })));
-
-          return { areas: yield* measure(areas) };
-        });
 
         const measureUsage = Effect.fn("Storage.measureUsage")(function* () {
           return { areas: yield* measure(registeredAreas) };
@@ -294,7 +290,8 @@ export class StorageService extends Context.Service<StorageService, StorageServi
             return yield* new StorageTargetNotFoundError({ kind: "area", id });
           }
 
-          return yield* deleteRegisteredAreas([area], `Could not delete storage area "${id}".`);
+          yield* area.delete;
+          return { areas: yield* measure([area]) };
         }, semaphore.withPermits(1));
         const deleteCategory = Effect.fn("Storage.deleteCategory")(function* (id: StorageCategory) {
           const areas = areasByCategory.get(id);
@@ -303,7 +300,16 @@ export class StorageService extends Context.Service<StorageService, StorageServi
             return yield* new StorageTargetNotFoundError({ kind: "category", id });
           }
 
-          return yield* deleteRegisteredAreas(areas, `Could not delete storage category "${id}".`);
+          yield* Effect.validate(areas, (area) => area.delete, {
+            concurrency: 4,
+            discard: true,
+          }).pipe(
+            Effect.mapError(
+              (failures) => new StorageCategoryDeleteError({ category: id, failures }),
+            ),
+          );
+
+          return { areas: yield* measure(areas) };
         }, semaphore.withPermits(1));
 
         return StorageService.of({ measureUsage, deleteArea, deleteCategory });

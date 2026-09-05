@@ -102,8 +102,8 @@ export {
   assertStoragePathsAreDisjoint,
   StorageAreaDeleteError,
   StorageCategory,
+  StorageCategoryDeleteError,
   StorageConfigurationError,
-  StorageDeleteError,
   StorageMeasurementError,
   StorageTargetNotFoundError,
 } from "#backend/storage/storage";

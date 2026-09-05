@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import type {
   CachedResource,
   ResourceCache,
@@ -51,12 +52,12 @@ export type Models = Readonly<{
 export type ModelCatalogSource = Readonly<{
   providerId: ProviderId;
   configurationRevision: string;
-  list: (signal: AbortSignal) => Promise<readonly ProviderModel[]>;
 }>;
 
 export type ModelCatalogDependencies = Readonly<{
   listProviders: () => readonly ModelProvider[];
   getSource: (providerId: ProviderId) => ModelCatalogSource;
+  load: (source: ModelCatalogSource) => Effect.Effect<readonly ProviderModel[], unknown>;
 }>;
 
 type ModelCatalogValue = Readonly<{
@@ -201,10 +202,11 @@ export type ModelCatalog = Readonly<{
   close: () => void;
 }>;
 
-export function createModelCatalog(
+export const createModelCatalog = Effect.fnUntraced(function* (
   cache: ResourceCache,
   dependencies: ModelCatalogDependencies,
-): ModelCatalog {
+): Effect.fn.Return<ModelCatalog> {
+  const runPromise = Effect.runPromiseWith(yield* Effect.context());
   const resource: CachedResource<ModelCatalogSource, ModelCatalogValue> = cache.define({
     namespace,
     address: ({ providerId, configurationRevision }) => ({
@@ -233,7 +235,7 @@ export function createModelCatalog(
       maxEntryBytes: 8 * 1_024 * 1_024,
     },
     async load(source, signal) {
-      const models = await source.list(signal);
+      const models = await runPromise(dependencies.load(source), { signal });
       return {
         providerId: source.providerId,
         models: requireModels(source.providerId, models),
@@ -332,4 +334,4 @@ export function createModelCatalog(
       modelIndexes.clear();
     },
   };
-}
+});

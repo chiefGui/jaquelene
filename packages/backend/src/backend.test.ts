@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as NodePath from "@effect/platform-node/NodePath";
 import { PromptOrigin } from "@jaquelene/domain";
-import { Context, Effect, Layer, Logger, ManagedRuntime, Path } from "effect";
+import { Context, Deferred, Effect, Layer, Logger, ManagedRuntime, Path } from "effect";
 import { FileTreeService } from "#backend/filesystem/file-tree";
 import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
@@ -68,7 +68,7 @@ function backendOptions(
       return {
         id: provider.descriptor.id,
         storagePaths,
-        create: () => provider,
+        create: Effect.succeed(provider),
       } satisfies ProviderFactory;
     }),
     storageAreas: [],
@@ -80,9 +80,9 @@ function providerAdapter(id: string, generation?: ProviderGenerationAdapter): Pr
     descriptor: { id, name: id, brandId: id },
     configuration: { kind: "none" },
     models: {
-      list: async () => [{ id: "maker/model", name: "Model", brandId: "maker" }],
+      list: Effect.succeed([{ id: "maker/model", name: "Model", brandId: "maker" }]),
     },
-    generation: generation ?? { generate: async () => ({ text: "Unused" }) },
+    generation: generation ?? { generate: () => Effect.succeed({ text: "Unused" }) },
   };
 }
 
@@ -265,7 +265,7 @@ describe("backend", () => {
       await expect(
         openBackend({
           ...options,
-          providers: [{ id: "provider-a", storagePaths: null, create }],
+          providers: [{ id: "provider-a", storagePaths: null, create: Effect.sync(create) }],
           storageAreas: [storageArea],
         }),
       ).rejects.toMatchObject({ _tag: "StorageConfigurationError" });
@@ -283,7 +283,9 @@ describe("backend", () => {
     await expect(
       openBackend({
         ...options,
-        providers: [{ id: "provider-a", storagePaths: [databasePath], create }],
+        providers: [
+          { id: "provider-a", storagePaths: [databasePath], create: Effect.sync(create) },
+        ],
       }),
     ).rejects.toMatchObject({
       _tag: "StorageConfigurationError",
@@ -306,8 +308,8 @@ describe("backend", () => {
         configuration = {
           kind,
           inspect: () => ({ state: "unconfigured" }),
-          configure: async () => ({ state: "configured", keyLabel: "key...123" }),
-          clear: async () => undefined,
+          configure: () => Effect.succeed({ state: "configured", keyLabel: "key...123" }),
+          clear: Effect.void,
         };
       }
       await expect(
@@ -317,11 +319,10 @@ describe("backend", () => {
             {
               id: "provider-a",
               storagePaths,
-              create: () => ({
-                ...providerAdapter("provider-a"),
-                configuration,
-                [Symbol.dispose]: dispose,
-              }),
+              create: Effect.acquireRelease(
+                Effect.succeed({ ...providerAdapter("provider-a"), configuration }),
+                () => Effect.sync(dispose),
+              ),
             },
           ],
         }),
@@ -334,7 +335,7 @@ describe("backend", () => {
 
   it("serves a persisted model catalog without repeating the remote request after restart", async () => {
     const databasePath = createDatabasePath();
-    const firstList = vi.fn(async () => [
+    const firstList = vi.fn(() => [
       {
         id: "maker/model",
         name: "Model",
@@ -347,7 +348,7 @@ describe("backend", () => {
       backendOptions(databasePath, [
         {
           ...providerAdapter("provider-a"),
-          models: { list: firstList },
+          models: { list: Effect.sync(firstList) },
         },
       ]),
     );
@@ -373,14 +374,14 @@ describe("backend", () => {
     expect(firstList).toHaveBeenCalledOnce();
     await first.close();
 
-    const secondList = vi.fn(async () => {
+    const secondList = vi.fn(() => {
       throw new Error("The remote catalog should not be requested while the snapshot is fresh.");
     });
     const reopened = await openBackend(
       backendOptions(databasePath, [
         {
           ...providerAdapter("provider-a"),
-          models: { list: secondList },
+          models: { list: Effect.sync(secondList) },
         },
       ]),
     );
@@ -403,12 +404,12 @@ describe("backend", () => {
 
   it("clears derived snapshots through the cache storage owner", async () => {
     const databasePath = createDatabasePath();
-    const list = vi.fn(async () => [{ id: "maker/model", name: "Model", brandId: "maker" }]);
+    const list = vi.fn(() => [{ id: "maker/model", name: "Model", brandId: "maker" }]);
     const backend = await openBackend(
       backendOptions(databasePath, [
         {
           ...providerAdapter("provider-a"),
-          models: { list },
+          models: { list: Effect.sync(list) },
         },
       ]),
     );
@@ -431,9 +432,7 @@ describe("backend", () => {
   it("owns durable application services across close and reopen", async () => {
     const databasePath = createDatabasePath();
     const provider = providerAdapter("provider-a", {
-      async generate() {
-        return { text: "The voyage begins." };
-      },
+      generate: () => Effect.succeed({ text: "The voyage begins." }),
     });
     const first = await openBackend(backendOptions(databasePath, [provider]));
     expect(first.prompts.listKinds()).toEqual([narratorPromptKind]);
@@ -499,7 +498,9 @@ describe("backend", () => {
 
   it("completes replies and retains their accounting when usage subscribers throw", async () => {
     const providerResult = deferred<ProviderGenerationResult>();
-    const provider = providerAdapter("provider-a", { generate: () => providerResult.promise });
+    const provider = providerAdapter("provider-a", {
+      generate: () => Effect.promise(() => providerResult.promise),
+    });
     const log = vi.fn<Logger.Logger<unknown, void>["log"]>();
     const runtime = ManagedRuntime.make(
       BackendService.layer(backendOptions(createDatabasePath(), [provider])).pipe(
@@ -555,10 +556,11 @@ describe("backend", () => {
   it("uses an edited narrator prompt on the next turn of an existing campaign", async () => {
     const inputs: ModelInput[] = [];
     const provider = providerAdapter("provider-a", {
-      async generate({ input }) {
-        inputs.push(input);
-        return { text: `Reply ${inputs.length}` };
-      },
+      generate: ({ input }) =>
+        Effect.sync(() => {
+          inputs.push(input);
+          return { text: `Reply ${inputs.length}` };
+        }),
     });
     await using backend = await openBackend(backendOptions(createDatabasePath(), [provider]));
     const prompt = backend.prompts.create({
@@ -615,10 +617,10 @@ describe("backend", () => {
     const providerStarted = deferred<void>();
     const providerResult = deferred<ProviderGenerationResult>();
     const provider = providerAdapter("provider-a", {
-      generate() {
-        providerStarted.resolve();
-        return providerResult.promise;
-      },
+      generate: () =>
+        Effect.sync(() => providerStarted.resolve()).pipe(
+          Effect.andThen(Effect.promise(() => providerResult.promise)),
+        ),
     });
     await using backend = await openBackend(backendOptions(createDatabasePath(), [provider]));
     const campaign = backend.campaigns.start({
@@ -667,19 +669,18 @@ describe("backend", () => {
   it("closes provider adapters in reverse acquisition order", async () => {
     const databasePath = createDatabasePath();
     const closed: string[] = [];
-    const first = {
-      ...providerAdapter("provider-a"),
-      async [Symbol.asyncDispose]() {
-        closed.push("provider-a");
-      },
-    };
-    const second = {
-      ...providerAdapter("provider-b"),
-      async [Symbol.asyncDispose]() {
-        closed.push("provider-b");
-      },
-    };
-    const backend = await openBackend(backendOptions(databasePath, [first, second]));
+    const backend = await openBackend({
+      ...backendOptions(databasePath),
+      providers: ["provider-a", "provider-b"].map((id) => ({
+        id,
+        storagePaths: null,
+        create: Effect.acquireRelease(Effect.succeed(providerAdapter(id)), () =>
+          Effect.sync(() => {
+            closed.push(id);
+          }),
+        ),
+      })),
+    });
 
     await backend.close();
 
@@ -688,50 +689,52 @@ describe("backend", () => {
 
   it("surfaces a finalization failure when the layer closes", async () => {
     const closeFailure = new Error("Provider close failed.");
-    const provider = {
-      ...providerAdapter("provider-a"),
-      async [Symbol.asyncDispose]() {
-        throw closeFailure;
-      },
-    };
-    const backend = await openBackend(backendOptions(createDatabasePath(), [provider]));
+    const backend = await openBackend({
+      ...backendOptions(createDatabasePath()),
+      providers: [
+        {
+          id: "provider-a",
+          storagePaths: null,
+          create: Effect.acquireRelease(Effect.succeed(providerAdapter("provider-a")), () =>
+            Effect.die(closeFailure),
+          ),
+        },
+      ],
+    });
 
     await expect(backend.close()).rejects.toBe(closeFailure);
   });
 
-  it("disposes a provider produced after backend startup was cancelled", async () => {
-    const databasePath = createDatabasePath();
-    const adapter = deferred<ProviderAdapter>();
-    const dispose = vi.fn(async () => undefined);
+  it("finishes owned acquisition and releases its resource after startup is interrupted", async () => {
+    const acquisitionStarted = Deferred.makeUnsafe<void>();
+    const releaseAcquisition = Deferred.makeUnsafe<ProviderAdapter>();
+    const dispose = vi.fn();
     const controller = new AbortController();
-    let factorySignal: AbortSignal | undefined;
-    const options = backendOptions(databasePath);
     const creating = openBackend(
       {
-        ...options,
+        ...backendOptions(createDatabasePath()),
         providers: [
           {
             id: "provider-a",
             storagePaths: null,
-            create(signal) {
-              factorySignal = signal;
-              return adapter.promise;
-            },
+            create: Effect.acquireRelease(
+              Deferred.succeed(acquisitionStarted, undefined).pipe(
+                Effect.andThen(Deferred.await(releaseAcquisition)),
+              ),
+              () => Effect.sync(dispose),
+            ),
           },
         ],
       },
       controller.signal,
     );
     const rejected = expect(creating).rejects.toThrow("Startup left.");
-    await vi.waitFor(() => expect(factorySignal).toBeInstanceOf(AbortSignal));
-
+    await Effect.runPromise(Deferred.await(acquisitionStarted));
     controller.abort(new Error("Startup left."));
+    expect(dispose).not.toHaveBeenCalled();
+    await Effect.runPromise(Deferred.succeed(releaseAcquisition, providerAdapter("provider-a")));
     await rejected;
-    adapter.resolve({
-      ...providerAdapter("provider-a"),
-      [Symbol.asyncDispose]: dispose,
-    });
-    await vi.waitFor(() => expect(dispose).toHaveBeenCalledOnce());
+    expect(dispose).toHaveBeenCalledOnce();
   });
 
   it("includes provider-owned configuration in application storage", async () => {
@@ -753,20 +756,25 @@ describe("backend", () => {
           }
           return { state: "unconfigured" as const };
         },
-        async configure() {
-          configured = true;
-          return { state: "configured" as const, keyLabel: "key...123" };
-        },
-        async clear() {
+        configure: () =>
+          Effect.sync(() => {
+            configured = true;
+            return { state: "configured" as const, keyLabel: "key...123" };
+          }),
+        clear: Effect.sync(() => {
           configured = false;
           rmSync(configurationPath, { force: true });
-        },
+        }),
       },
     } satisfies ProviderAdapter;
     const backend = await openBackend({
       ...backendOptions(databasePath),
       providers: [
-        { id: provider.descriptor.id, storagePaths: [configurationPath], create: () => provider },
+        {
+          id: provider.descriptor.id,
+          storagePaths: [configurationPath],
+          create: Effect.succeed(provider),
+        },
       ],
     });
 
@@ -792,14 +800,14 @@ describe("backend", () => {
 
   it("interrupts and drains active generations before closing SQLite", async () => {
     const databasePath = createDatabasePath();
-    const providerStarted = deferred<void>();
-    let providerSignal: AbortSignal | undefined;
+    const providerStarted = Deferred.makeUnsafe<void>();
+    const providerInterrupted = vi.fn();
     const provider = providerAdapter("provider-a", {
-      generate(_request, signal) {
-        providerSignal = signal;
-        providerStarted.resolve();
-        return new Promise<ProviderGenerationResult>(() => {});
-      },
+      generate: () =>
+        Deferred.succeed(providerStarted, undefined).pipe(
+          Effect.andThen(Effect.never),
+          Effect.onInterrupt(() => Effect.sync(providerInterrupted)),
+        ),
     });
     const backend = await openBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
@@ -810,24 +818,20 @@ describe("backend", () => {
         model: { providerId: provider.descriptor.id, modelId: "maker/model" },
       },
     });
-    await providerStarted.promise;
+    await Effect.runPromise(Deferred.await(providerStarted));
 
     const closing = backend.close();
-
     const interrupted = await pending.settlement;
     await closing;
 
     if (interrupted.outcome !== "failed") {
       throw new Error("Expected the active reply to be interrupted.");
     }
-
-    expect(providerSignal?.aborted).toBe(true);
+    expect(providerInterrupted).toHaveBeenCalledOnce();
     expect(interrupted.generation).toEqual(
       expect.objectContaining({ status: "failed", failureKind: "interrupted" }),
     );
-
     const database = openDatabase(databasePath);
-
     try {
       expect(database.select().from(generationTable).get()).toEqual(
         expect.objectContaining({
@@ -843,7 +847,7 @@ describe("backend", () => {
 
   it("keeps an immediately interrupted turn inspectable after reopening", async () => {
     const databasePath = createDatabasePath();
-    const generate = vi.fn(async () => ({ text: "Too late" }));
+    const generate = vi.fn(() => Effect.succeed({ text: "Too late" }));
     const provider = providerAdapter("provider-a", { generate });
     const backend = await openBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();

@@ -5,6 +5,7 @@ import type {
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
+import { Effect } from "effect";
 import { deleteStoreFile } from "@/storage/delete-store-file";
 
 type StoredApiKeyCredential = {
@@ -25,11 +26,13 @@ export type ApiKeyVerificationResult =
 export type ApiKeyConfigurationDependencies = {
   encrypt: (value: string) => Promise<Buffer>;
   decrypt: (value: Buffer) => Promise<string>;
-  verify: (apiKey: string, signal: AbortSignal) => Promise<ApiKeyVerificationResult>;
+  verify: (apiKey: string) => Effect.Effect<ApiKeyVerificationResult, unknown>;
 };
 
 export type ApiKeyConfiguration = Extract<ProviderConfigurationAdapter, { kind: "api-key" }> & {
-  withApiKey: <Result>(use: (apiKey: string) => Promise<Result>) => Promise<Result>;
+  withApiKey: <Result, Error, Requirements>(
+    use: (apiKey: string) => Effect.Effect<Result, Error, Requirements>,
+  ) => Effect.Effect<Result, unknown, Requirements>;
 };
 
 type ApiKeyProvider = Readonly<{
@@ -113,58 +116,65 @@ export function createApiKeyConfiguration(
     return label;
   }
 
-  async function readApiKey() {
-    const credential = store.get("credential");
-
-    if (!credential) {
-      return undefined;
-    }
-
-    return decrypt(Buffer.from(credential.encryptedApiKey, "base64"));
-  }
-
   return {
     kind: "api-key",
     inspect,
 
-    async withApiKey<Result>(use: (apiKey: string) => Promise<Result>) {
-      const apiKey = await readApiKey();
+    withApiKey: Effect.fn("ApiKeyConfiguration.withApiKey")(function* <Result, Error, Requirements>(
+      use: (apiKey: string) => Effect.Effect<Result, Error, Requirements>,
+    ) {
+      const credential = yield* Effect.try({
+        try: () => store.get("credential"),
+        catch: (cause) => cause,
+      });
 
-      if (apiKey === undefined) {
-        throw new Error(`${provider.name} is not connected.`);
+      if (!credential) {
+        return yield* Effect.fail(new Error(`${provider.name} is not connected.`));
       }
 
-      return use(apiKey);
-    },
+      const apiKey = yield* Effect.tryPromise({
+        try: () => decrypt(Buffer.from(credential.encryptedApiKey, "base64")),
+        catch: (cause) => cause,
+      });
+      return yield* use(apiKey);
+    }),
 
-    async configure(value: string, signal: AbortSignal) {
+    configure: Effect.fn("ApiKeyConfiguration.configure")(function* (value: string) {
       const apiKey = value.trim();
 
       if (!apiKey) {
-        throw new TypeError(`${provider.name} API key must contain text.`);
+        return yield* Effect.fail(new TypeError(`${provider.name} API key must contain text.`));
       }
 
-      signal.throwIfAborted();
-      const verification = await verify(apiKey, signal);
+      const verification = yield* verify(apiKey);
 
       if (verification.state !== "configured") {
         return verification;
       }
 
-      const label = resolveKeyLabel(apiKey, verification.keyLabel);
-      signal.throwIfAborted();
-      const encryptedApiKey = await encrypt(apiKey);
-      signal.throwIfAborted();
-      store.set("credential", {
-        encryptedApiKey: encryptedApiKey.toString("base64"),
-        revision: randomUUID(),
-        keyLabel: label,
+      const label = yield* Effect.try({
+        try: () => resolveKeyLabel(apiKey, verification.keyLabel),
+        catch: (cause) => cause,
       });
-      return { state: "configured", keyLabel: label };
-    },
+      const encryptedApiKey = yield* Effect.tryPromise({
+        try: () => encrypt(apiKey),
+        catch: (cause) => cause,
+      });
+      yield* Effect.try({
+        try: () =>
+          store.set("credential", {
+            encryptedApiKey: encryptedApiKey.toString("base64"),
+            revision: randomUUID(),
+            keyLabel: label,
+          }),
+        catch: (cause) => cause,
+      });
+      return { state: "configured" as const, keyLabel: label };
+    }),
 
-    async clear() {
-      deleteStoreFile(store);
-    },
+    clear: Effect.try({
+      try: () => deleteStoreFile(store),
+      catch: (cause) => cause,
+    }),
   };
 }

@@ -13,10 +13,10 @@ export function createProviderStorageArea(
     category: StorageCategory.AppData,
     paths,
     delete: ProvidersService.use(({ providers }) =>
-      Effect.tryPromise({
-        try: () => providers.clearConfiguration(providerId),
-        catch: (cause) => new StorageAreaDeleteError({ areaId: id, cause }),
-      }).pipe(Effect.uninterruptible),
+      providers.clearConfiguration(providerId).pipe(
+        Effect.mapError((cause) => new StorageAreaDeleteError({ areaId: id, cause })),
+        Effect.uninterruptible,
+      ),
     ),
   };
 }

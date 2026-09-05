@@ -20,7 +20,7 @@ import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
-import type { ProviderGenerationRouter } from "#backend/provider/providers";
+import { ProviderOperationError, type ProviderGenerationRouter } from "#backend/provider/providers";
 import {
   jaqueleneNarratorPromptDefinition,
   narratorPromptKind,
@@ -91,8 +91,20 @@ function generationRouter(provider?: TestGenerationProvider): ProviderGeneration
       }
 
       return {
-        generate: (request, signal) =>
-          provider.generate({ ...request, ...(signal ? { signal } : {}) }),
+        generate: (request) =>
+          Effect.tryPromise({
+            try: (signal) => provider.generate({ ...request, signal }),
+            catch: (cause) => cause,
+          }).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ProviderOperationError({
+                  providerId: provider.id,
+                  operation: "generate",
+                  cause,
+                }),
+            ),
+          ),
       };
     },
   };
@@ -762,7 +774,15 @@ describe("generations", () => {
 
     await expect(providerFailure).rejects.toBeInstanceOf(ModelProviderError);
     await expect(providerFailure).rejects.toEqual(
-      expect.objectContaining({ cause: failure, message: failure.message }),
+      expect.objectContaining({
+        cause: expect.objectContaining({
+          _tag: "ProviderOperationError",
+          providerId: provider.id,
+          operation: "generate",
+          cause: failure,
+        }),
+        message: failure.message,
+      }),
     );
     await expect(
       generations.generateReply({

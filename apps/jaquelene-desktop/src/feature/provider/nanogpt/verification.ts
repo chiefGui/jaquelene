@@ -1,66 +1,44 @@
+import { Effect, Schema } from "effect";
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http";
 import type { ApiKeyVerificationResult } from "../api-key-configuration";
 
-const balanceEndpoint = "https://nano-gpt.com/api/check-balance";
+const balance = Schema.String.check(
+  Schema.makeFilter((value) => value.trim() !== "" && Number.isFinite(Number(value))),
+);
+const balanceResponse = Schema.Struct({ usd_balance: balance, nano_balance: balance });
 
-function isBalance(value: unknown) {
-  return typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value));
-}
-
-export async function verifyNanoGptApiKey(
+export const verifyNanoGptApiKey = Effect.fn("nanogpt.verifyApiKey")(
+  function* (apiKey: string, client: HttpClient.HttpClient) {
+    const response = yield* HttpClientRequest.post("https://nano-gpt.com/api/check-balance").pipe(
+      HttpClientRequest.acceptJson,
+      HttpClientRequest.setHeader("X-API-Key", apiKey),
+      HttpClient.withScope(client).execute,
+    );
+    if ([400, 401, 403].includes(response.status)) {
+      return { state: "rejected" } as const;
+    }
+    if (response.status < 200 || response.status >= 300) {
+      return { state: "unavailable" } as const;
+    }
+    yield* HttpClientResponse.schemaBodyJson(balanceResponse)(response);
+    return { state: "configured" } as const;
+  },
+  Effect.timeout(10_000),
+  Effect.catchTags({
+    TimeoutError: () => Effect.succeed({ state: "unavailable" } as const),
+    SchemaError: () => Effect.succeed({ state: "unavailable" } as const),
+    HttpClientError: (error) => {
+      if (error.reason._tag === "TransportError") {
+        const cause = error.reason.cause;
+        if (!(cause instanceof TypeError) && !(cause instanceof DOMException)) {
+          return Effect.fail(cause);
+        }
+      }
+      return Effect.succeed({ state: "unavailable" } as const);
+    },
+  }),
+  Effect.scoped,
+) satisfies (
   apiKey: string,
-  signal: AbortSignal,
-): Promise<ApiKeyVerificationResult> {
-  let response: Response;
-
-  try {
-    response = await fetch(balanceEndpoint, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "X-API-Key": apiKey,
-      },
-      signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
-    });
-  } catch (cause) {
-    signal.throwIfAborted();
-
-    if (cause instanceof TypeError || cause instanceof DOMException) {
-      return { state: "unavailable" };
-    }
-
-    throw cause;
-  }
-
-  if ([400, 401, 403].includes(response.status)) {
-    return { state: "rejected" };
-  }
-
-  if (!response.ok) {
-    return { state: "unavailable" };
-  }
-
-  let body: unknown;
-
-  try {
-    body = await response.json();
-  } catch (cause) {
-    if (cause instanceof SyntaxError) {
-      return { state: "unavailable" };
-    }
-
-    throw cause;
-  }
-
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("usd_balance" in body) ||
-    !isBalance(body.usd_balance) ||
-    !("nano_balance" in body) ||
-    !isBalance(body.nano_balance)
-  ) {
-    return { state: "unavailable" };
-  }
-
-  return { state: "configured" };
-}
+  client: HttpClient.HttpClient,
+) => Effect.Effect<ApiKeyVerificationResult, unknown>;

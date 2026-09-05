@@ -1,14 +1,16 @@
-import type { ChatResult } from "@openrouter/sdk/models";
+import { Cause, Effect, Exit, Fiber } from "effect";
+import { TestClock } from "effect/testing";
+import { FetchHttpClient, HttpClient } from "effect/unstable/http";
 import { ids, type ProviderGenerationRequest } from "@jaquelene/backend";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { createOpenRouterGeneration } from "./generation";
 
-function chatResult(overrides: Partial<ChatResult> = {}): ChatResult {
+function chatResult(overrides: Record<string, unknown> = {}) {
   return {
     choices: [
       {
         index: 0,
-        finishReason: "stop",
+        finish_reason: "stop",
         message: { role: "assistant", content: "OpenRouter reply" },
       },
     ],
@@ -16,13 +18,13 @@ function chatResult(overrides: Partial<ChatResult> = {}): ChatResult {
     id: "openrouter-generation-1",
     model: "maker/resolved-model",
     object: "chat.completion",
-    systemFingerprint: null,
+    system_fingerprint: null,
     usage: {
-      promptTokens: 10,
-      promptTokensDetails: { cachedTokens: 3, cacheWriteTokens: 2 },
-      completionTokens: 4,
-      completionTokensDetails: { reasoningTokens: 1 },
-      totalTokens: 14,
+      prompt_tokens: 10,
+      prompt_tokens_details: { cached_tokens: 3, cache_write_tokens: 2 },
+      completion_tokens: 4,
+      completion_tokens_details: { reasoning_tokens: 1 },
+      total_tokens: 14,
       cost: 0.000_012_345,
     },
     ...overrides,
@@ -45,42 +47,59 @@ function generationRequest(): ProviderGenerationRequest {
   };
 }
 
-function operationSignal() {
-  return new AbortController().signal;
-}
-
-function routingMetadata(): NonNullable<ChatResult["openrouterMetadata"]> {
-  return {
-    attempt: 2,
-    attempts: [
-      { model: "maker/resolved-model", provider: "upstream-failed", status: 503 },
-      { model: "maker/resolved-model", provider: "upstream-selected", status: 200 },
-    ],
-    endpoints: { available: [], total: 0 },
-    isByok: false,
-    region: null,
-    requested: "maker/requested-model",
-    strategy: "fallback",
-    summary: "Selected the successful fallback.",
-  };
-}
-
 function connection(apiKey = "openrouter-key") {
   return {
-    async withApiKey<Result>(use: (value: string) => Promise<Result>) {
+    withApiKey<Result, Error, Requirements>(
+      use: (value: string) => Effect.Effect<Result, Error, Requirements>,
+    ) {
       return use(apiKey);
     },
   };
 }
 
-describe("OpenRouter generation provider", () => {
-  it("uses the connected credential and normalizes completion metadata", async () => {
-    const signal = new AbortController().signal;
-    const request = generationRequest();
-    const send = vi.fn(async () => chatResult({ openrouterMetadata: routingMetadata() }));
-    const provider = createOpenRouterGeneration(connection(), send);
+function httpClient(request: typeof fetch) {
+  return Effect.runSync(
+    HttpClient.HttpClient.pipe(
+      Effect.provide(FetchHttpClient.layer),
+      Effect.provideService(FetchHttpClient.Fetch, request),
+      Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+    ),
+  );
+}
 
-    await expect(provider.generate(request, signal)).resolves.toEqual({
+function completion(body = chatResult()) {
+  const request = vi.fn<typeof fetch>(async () => Response.json(body));
+  return { request, provider: createOpenRouterGeneration(connection(), httpClient(request)) };
+}
+
+function requestBody(request: ReturnType<typeof completion>["request"]) {
+  const body = request.mock.calls[0]?.[1]?.body;
+  expect(body).toBeInstanceOf(Uint8Array);
+  return JSON.parse(new TextDecoder().decode(body as Uint8Array));
+}
+
+describe("OpenRouter generation provider", () => {
+  it("sends the exact dialogue, credential, and attribution fields and normalizes accounting", async () => {
+    const input = generationRequest();
+    const { provider, request } = completion(
+      chatResult({
+        openrouter_metadata: {
+          attempt: 2,
+          attempts: [
+            { model: "maker/resolved-model", provider: "upstream-failed", status: 503 },
+            { model: "maker/resolved-model", provider: "upstream-selected", status: 200 },
+          ],
+          endpoints: { available: [], total: 0 },
+          is_byok: false,
+          region: null,
+          requested: "maker/requested-model",
+          strategy: "fallback",
+          summary: "Selected the successful fallback.",
+        },
+      }),
+    );
+
+    await expect(Effect.runPromise(provider.generate(input))).resolves.toEqual({
       text: "OpenRouter reply",
       providerGenerationId: "openrouter-generation-1",
       resolvedModelId: "maker/resolved-model",
@@ -92,136 +111,87 @@ describe("OpenRouter generation provider", () => {
           output: { total: 4, reasoning: 1 },
           total: 14,
         },
-        cost: {
-          currency: "USD",
-          amountNanos: 12_345,
-          source: "provider-reported",
-        },
+        cost: { currency: "USD", amountNanos: 12_345, source: "provider-reported" },
       },
     });
-    expect(send).toHaveBeenCalledWith(
-      "openrouter-key",
-      {
-        model: request.modelId,
-        messages: [
-          { role: "system", content: "Instruction" },
-          { role: "user", content: "Earlier message" },
-          { role: "assistant", content: "Earlier reply" },
-          { role: "user", content: "Hello" },
-        ],
-        metadata: { jaquelene_execution_id: request.executionId },
-        session_id: request.groupId,
-        stream: false,
-      },
-      signal,
+    expect(request).toHaveBeenCalledOnce();
+    expect(request).toHaveBeenCalledWith(
+      new URL("https://openrouter.ai/api/v1/chat/completions"),
+      expect.objectContaining({
+        method: "POST",
+        headers: {
+          authorization: "Bearer openrouter-key",
+          "content-type": "application/json",
+          "x-openrouter-metadata": "enabled",
+          "x-openrouter-title": "Jaquelene",
+        },
+        signal: expect.any(AbortSignal),
+      }),
     );
+    expect(requestBody(request)).toEqual({
+      model: input.modelId,
+      messages: [
+        { role: "system", content: "Instruction" },
+        { role: "user", content: "Earlier message" },
+        { role: "assistant", content: "Earlier reply" },
+        { role: "user", content: "Hello" },
+      ],
+      metadata: { jaquelene_execution_id: input.executionId },
+      session_id: input.groupId,
+      stream: false,
+    });
   });
 
   it("does not invent a group for an independent execution", async () => {
-    const signal = operationSignal();
-    const request = generationRequest();
-    const independentRequest: ProviderGenerationRequest = {
-      executionId: request.executionId,
-      modelId: request.modelId,
-      input: request.input,
-    };
-    const send = vi.fn(async () => chatResult());
-    const provider = createOpenRouterGeneration(connection(), send);
-
-    await provider.generate(independentRequest, signal);
-
-    expect(send).toHaveBeenCalledWith(
-      "openrouter-key",
-      expect.not.objectContaining({ session_id: expect.anything() }),
-      signal,
-    );
+    const { groupId: _, ...input } = generationRequest();
+    const { provider, request } = completion();
+    await Effect.runPromise(provider.generate(input));
+    expect(requestBody(request)).not.toHaveProperty("session_id");
   });
 
   it.each(["max", "xhigh", "high", "medium", "low", "minimal"] as const)(
-    "sends an explicitly selected %s reasoning preset without inventing a token budget",
+    "sends explicit %s reasoning without inventing a token budget",
     async (preset) => {
-      const signal = operationSignal();
-      const request = {
-        ...generationRequest(),
-        reasoning: { preset, source: "selection" as const },
-      };
-      const send = vi.fn(async () => chatResult());
-      const provider = createOpenRouterGeneration(connection(), send);
-
-      await provider.generate(request, signal);
-
-      expect(send).toHaveBeenCalledWith(
-        "openrouter-key",
-        expect.objectContaining({ reasoning: { effort: preset } }),
-        signal,
+      const { provider, request } = completion();
+      await Effect.runPromise(
+        provider.generate({ ...generationRequest(), reasoning: { preset, source: "selection" } }),
       );
+      expect(requestBody(request).reasoning).toEqual({ effort: preset });
     },
   );
 
   it.each([
     ["on", { enabled: true }],
     ["off", { effort: "none" }],
-  ] as const)("encodes an explicit %s reasoning preset", async (preset, expected) => {
-    const signal = operationSignal();
-    const request = {
-      ...generationRequest(),
-      reasoning: { preset, source: "selection" as const },
-    };
-    const send = vi.fn(async () => chatResult());
-    const provider = createOpenRouterGeneration(connection(), send);
-
-    await provider.generate(request, signal);
-
-    expect(send).toHaveBeenCalledWith(
-      "openrouter-key",
-      expect.objectContaining({ reasoning: expected }),
-      signal,
+  ] as const)("encodes explicit %s reasoning", async (preset, expected) => {
+    const { provider, request } = completion();
+    await Effect.runPromise(
+      provider.generate({ ...generationRequest(), reasoning: { preset, source: "selection" } }),
     );
+    expect(requestBody(request).reasoning).toEqual(expected);
   });
 
-  it("omits an explicit automatic reasoning preset", async () => {
-    const signal = operationSignal();
-    const request = {
-      ...generationRequest(),
-      reasoning: { preset: "automatic" as const, source: "selection" as const },
-    };
-    const send = vi.fn(async () => chatResult());
-    const provider = createOpenRouterGeneration(connection(), send);
-
-    await provider.generate(request, signal);
-
-    expect(send).toHaveBeenCalledWith(
-      "openrouter-key",
-      expect.not.objectContaining({ reasoning: expect.anything() }),
-      signal,
-    );
+  it.each([
+    { preset: "automatic", source: "selection" },
+    { preset: "high", source: "model-default" },
+  ] as const)("omits provider-managed reasoning %j", async (reasoning) => {
+    const { provider, request } = completion();
+    await Effect.runPromise(provider.generate({ ...generationRequest(), reasoning }));
+    expect(requestBody(request)).not.toHaveProperty("reasoning");
   });
 
-  it("omits a model-default reasoning preset", async () => {
-    const signal = operationSignal();
-    const request = {
-      ...generationRequest(),
-      reasoning: { preset: "high" as const, source: "model-default" as const },
-    };
-    const send = vi.fn(async () => chatResult());
-    const provider = createOpenRouterGeneration(connection(), send);
-
-    await provider.generate(request, signal);
-
-    expect(send).toHaveBeenCalledWith(
-      "openrouter-key",
-      expect.not.objectContaining({ reasoning: expect.anything() }),
-      signal,
-    );
-  });
-
-  it("combines text content parts and falls back to refusal text", async () => {
-    const sendParts = vi.fn(async () =>
+  it("prefers choice index zero and preserves text parts and missing usage", async () => {
+    const { provider } = completion(
       chatResult({
         choices: [
           {
+            index: 1,
+            finish_reason: "stop",
+            message: { role: "assistant", content: "Wrong choice" },
+          },
+          {
             index: 0,
-            finishReason: null,
+            finish_reason: null,
             message: {
               role: "assistant",
               content: [
@@ -234,85 +204,120 @@ describe("OpenRouter generation provider", () => {
         usage: undefined,
       }),
     );
-    const partsProvider = createOpenRouterGeneration(connection(), sendParts);
-
-    await expect(partsProvider.generate(generationRequest(), operationSignal())).resolves.toEqual({
+    await expect(Effect.runPromise(provider.generate(generationRequest()))).resolves.toEqual({
       text: "First second",
       providerGenerationId: "openrouter-generation-1",
       resolvedModelId: "maker/resolved-model",
     });
+  });
 
-    const sendRefusal = vi.fn(async () =>
+  it("uses refusal text and preserves the raw finish reason", async () => {
+    const { provider } = completion(
       chatResult({
         choices: [
           {
             index: 0,
-            finishReason: "content_filter",
+            finish_reason: "content_filter",
             message: { role: "assistant", content: null, refusal: "Request refused" },
           },
         ],
       }),
     );
-    const refusalProvider = createOpenRouterGeneration(connection(), sendRefusal);
-
-    await expect(refusalProvider.generate(generationRequest(), operationSignal())).resolves.toEqual(
+    await expect(Effect.runPromise(provider.generate(generationRequest()))).resolves.toEqual(
       expect.objectContaining({ text: "Request refused", finishReason: "content_filter" }),
     );
   });
 
-  it("rejects malformed completions", async () => {
-    const noChoiceProvider = createOpenRouterGeneration(
-      connection(),
-      vi.fn(async () => chatResult({ choices: [] })),
-    );
-    await expect(noChoiceProvider.generate(generationRequest(), operationSignal())).rejects.toThrow(
-      "OpenRouter returned no generation choice.",
-    );
-
-    const noTextProvider = createOpenRouterGeneration(
-      connection(),
-      vi.fn(async () =>
-        chatResult({
-          choices: [
-            {
-              index: 0,
-              finishReason: "stop",
-              message: { role: "assistant", content: null },
-            },
-          ],
-        }),
-      ),
-    );
-    await expect(noTextProvider.generate(generationRequest(), operationSignal())).rejects.toThrow(
+  it.each([
+    [[], "OpenRouter returned no generation choice."],
+    [
+      [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: null } }],
       "OpenRouter returned no assistant text.",
+    ],
+  ])("rejects unusable completions", async (choices, message) => {
+    const { provider } = completion(chatResult({ choices }));
+    await expect(Effect.runPromise(provider.generate(generationRequest()))).rejects.toThrow(
+      String(message),
     );
   });
 
-  it("preserves credential and transport failures", async () => {
-    const credentialFailure = new Error("Credential unavailable");
-    const failedConnection = {
-      async withApiKey<Result>(_use: (value: string) => Promise<Result>): Promise<Result> {
-        throw credentialFailure;
-      },
-    };
-    const send = vi.fn(async () => chatResult());
-    const credentialProvider = createOpenRouterGeneration(failedConnection, send);
-
-    await expect(credentialProvider.generate(generationRequest(), operationSignal())).rejects.toBe(
-      credentialFailure,
+  it("preserves credential failures without dispatching HTTP", async () => {
+    const failure = new Error("Credential unavailable");
+    const request = vi.fn<typeof fetch>();
+    const provider = createOpenRouterGeneration(
+      { withApiKey: () => Effect.fail(failure) },
+      httpClient(request),
     );
-    expect(send).not.toHaveBeenCalled();
+    await expect(Effect.runPromise(provider.generate(generationRequest()))).rejects.toBe(failure);
+    expect(request).not.toHaveBeenCalled();
+  });
 
-    const transportFailure = new Error("Transport unavailable");
-    const transportProvider = createOpenRouterGeneration(
-      connection(),
-      vi.fn(async () => {
-        throw transportFailure;
-      }),
+  it("preserves transport failure causes without retrying", async () => {
+    const cause = new Error("Transport unavailable");
+    const request = vi.fn<typeof fetch>(async () => {
+      throw cause;
+    });
+    const provider = createOpenRouterGeneration(connection(), httpClient(request));
+    await expect(Effect.runPromise(provider.generate(generationRequest()))).rejects.toMatchObject({
+      reason: { _tag: "TransportError", cause },
+    });
+    expect(request).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    Response.json({ error: "Unavailable" }, { status: 503 }),
+    new Response("Unavailable", { status: 503 }),
+  ])("reports rejected HTTP requests with the response body", async (response) => {
+    const request = vi.fn<typeof fetch>(async () => response);
+    const provider = createOpenRouterGeneration(connection(), httpClient(request));
+    await expect(Effect.runPromise(provider.generate(generationRequest()))).rejects.toThrow(
+      "OpenRouter rejected the generation request with status 503.",
     );
+    expect(request).toHaveBeenCalledOnce();
+  });
 
-    await expect(transportProvider.generate(generationRequest(), operationSignal())).rejects.toBe(
-      transportFailure,
+  it("rejects invalid response JSON", async () => {
+    const request = vi.fn<typeof fetch>(async () => new Response("not JSON"));
+    const provider = createOpenRouterGeneration(connection(), httpClient(request));
+    await expect(Effect.runPromise(provider.generate(generationRequest()))).rejects.toThrow();
+  });
+
+  it("interrupts an outstanding request and aborts its HTTP signal", async () => {
+    const started = Promise.withResolvers<AbortSignal>();
+    const request = vi.fn<typeof fetch>((_url, options) => {
+      started.resolve(options!.signal!);
+      return new Promise<Response>(() => {});
+    });
+    const provider = createOpenRouterGeneration(connection(), httpClient(request));
+    const fiber = Effect.runFork(provider.generate(generationRequest()));
+    const signal = await started.promise;
+    await Effect.runPromise(Fiber.interrupt(fiber));
+    const exit = await Effect.runPromise(Fiber.await(fiber));
+    expect(signal.aborted).toBe(true);
+    expect(Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)).toBe(true);
+  });
+
+  it("times out body consumption after headers have arrived", async () => {
+    const reading = Promise.withResolvers<void>();
+    const response = new Response();
+    vi.spyOn(response, "arrayBuffer").mockImplementation(() => {
+      reading.resolve();
+      return new Promise<ArrayBuffer>(() => {});
+    });
+    const request = vi.fn<typeof fetch>(async () => response);
+    const provider = createOpenRouterGeneration(connection(), httpClient(request));
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(provider.generate(generationRequest()));
+        yield* Effect.promise(() => reading.promise);
+        yield* TestClock.adjust(300_000);
+        const exit = yield* Fiber.await(fiber);
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          expect(Cause.squash(exit.cause)).toMatchObject({ _tag: "TimeoutError" });
+        }
+        expect(request.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+      }).pipe(Effect.provide(TestClock.layer())),
     );
   });
 });

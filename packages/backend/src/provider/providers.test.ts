@@ -672,8 +672,11 @@ describe("provider subsystem", () => {
       );
     } finally {
       release.resolve();
-      await subsystem.close();
-      await cache.close();
+      try {
+        await subsystem.close();
+      } finally {
+        await cache.close();
+      }
     }
   });
 
@@ -717,8 +720,11 @@ describe("provider subsystem", () => {
       ).resolves.toEqual({ text: "Generated reply" });
       expect(list).toHaveBeenCalledTimes(2);
     } finally {
-      await subsystem.close();
-      await cache.close();
+      try {
+        await subsystem.close();
+      } finally {
+        await cache.close();
+      }
     }
   });
 
@@ -757,8 +763,11 @@ describe("provider subsystem", () => {
       await expect(surviving).resolves.toEqual({ text: "Reply" });
     } finally {
       release.resolve();
-      await subsystem.close();
-      await cache.close();
+      try {
+        await subsystem.close();
+      } finally {
+        await cache.close();
+      }
     }
   });
 

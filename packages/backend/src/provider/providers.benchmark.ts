@@ -259,7 +259,6 @@ async function benchmarkProviders() {
         }
       }
     }
-    assert.deepEqual(cacheFailures, []);
     return {
       node: process.version,
       platform: process.platform,
@@ -282,6 +281,8 @@ async function benchmarkProviders() {
     };
   } finally {
     await runtime.dispose();
+    assert.equal(observed.acquisitions, observed.releases);
+    assert.deepEqual(cacheFailures, []);
   }
 }
 

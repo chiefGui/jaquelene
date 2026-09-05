@@ -54,9 +54,9 @@ describe("content storage area", () => {
       .insert(providerAttemptTable)
       .values({
         id: ids.providerAttempt.create(),
-        generationId: ids.generation.create(),
-        threadId: campaign.threadId,
-        campaignId: campaign.id,
+        executionId: ids.generation.create(),
+        attributionKind: "campaign",
+        attributionId: campaign.id,
         providerId: "provider-a",
         requestedModelId: "model-a",
         status: "completed",
@@ -119,7 +119,7 @@ describe("content storage area", () => {
     expect(database.select().from(generationTable).all()).toHaveLength(1);
   });
 
-  it("preserves content while an orphaned provider attempt is active", () => {
+  it("preserves content while an independent provider attempt is active", () => {
     const { database, path } = createTestDatabase();
     createPrompts(database, [narratorPromptModule]);
     const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
@@ -128,9 +128,7 @@ describe("content storage area", () => {
       .insert(providerAttemptTable)
       .values({
         id: ids.providerAttempt.create(),
-        generationId: ids.generation.create(),
-        threadId: campaign.threadId,
-        campaignId: campaign.id,
+        executionId: "independent-execution",
         providerId: "provider-a",
         requestedModelId: "model-a",
         status: "pending",
@@ -165,9 +163,9 @@ describe("content storage area", () => {
       .insert(providerAttemptTable)
       .values({
         id: ids.providerAttempt.create(),
-        generationId: ids.generation.create(),
-        threadId: campaign.threadId,
-        campaignId: campaign.id,
+        executionId: ids.generation.create(),
+        attributionKind: "campaign",
+        attributionId: campaign.id,
         providerId: "provider-a",
         requestedModelId: "model-a",
         status: "completed",

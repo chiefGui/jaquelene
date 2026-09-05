@@ -39,6 +39,9 @@
     "vite-plus": "^0.3.0"
   },
   "packageManager": "bun@1.4.0",
+  "patchedDependencies": {
+    "effect@4.0.0-rc.112": "patches/effect@4.0.0-rc.112.patch"
+  },
   "trustedDependencies": [
     "electron"
   ]

@@ -42,6 +42,17 @@ describe("database migrations", () => {
       expect(tables).toContain("campaign_prompt_selections");
       expect(tables).not.toContain("scenarios");
       expect(tables).not.toContain("roleplay_instructions");
+
+      const attemptColumns = client
+        .prepare("PRAGMA table_info(provider_attempts)")
+        .all()
+        .map(({ name }) => name);
+      expect(attemptColumns).toEqual(
+        expect.arrayContaining(["execution_id", "attribution_kind", "attribution_id"]),
+      );
+      expect(attemptColumns).not.toContain("generation_id");
+      expect(attemptColumns).not.toContain("thread_id");
+      expect(attemptColumns).not.toContain("campaign_id");
     } finally {
       client.close();
     }

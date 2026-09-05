@@ -104,7 +104,7 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
   ]);
   const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
-  const usage = createUsageHistory(database);
+  const usage = createUsageHistory(database, vi.fn());
   const generationEngine = createGenerations({
     database,
     replyPreparer: createReplyPreparer(

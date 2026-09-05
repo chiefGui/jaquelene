@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PromptOrigin } from "@jaquelene/domain";
-import { ManagedRuntime } from "effect";
+import { Layer, Logger, ManagedRuntime } from "effect";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
@@ -329,6 +329,59 @@ describe("backend", () => {
       ...threadPageMetadata([submitted.userMessage, submitted.assistantMessage]),
     });
     await reopened.close();
+  });
+
+  it("completes replies and retains their accounting when usage subscribers throw", async () => {
+    const providerResult = deferred<ProviderGenerationResult>();
+    const provider = providerAdapter("provider-a", { generate: () => providerResult.promise });
+    const log = vi.fn<Logger.Logger<unknown, void>["log"]>();
+    const runtime = ManagedRuntime.make(
+      BackendService.layer(backendOptions(createDatabasePath(), [provider])).pipe(
+        Layer.provide(Logger.layer([Logger.make(log)])),
+      ),
+    );
+
+    try {
+      const backend = await runtime.runPromise(BackendService);
+      backend.usage.subscribe(() => {
+        throw new Error("Usage view failed.");
+      });
+      const changed = vi.fn();
+      backend.usage.subscribe(changed);
+      const campaign = backend.campaigns.start({ title: "Voyage", composition: [] });
+      const operation = await backend.turns.submit({
+        threadId: campaign.threadId,
+        content: "Begin",
+        configuration: { model: { providerId: provider.descriptor.id, modelId: "maker/model" } },
+      });
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledOnce());
+      expect(backend.usage.getOverview("all-time").attempts.pending).toBe(1);
+      providerResult.resolve({
+        text: "The voyage begins.",
+        usage: { tokens: { input: { total: 3 }, output: { total: 2 }, total: 5 } },
+      });
+
+      await expect(operation.settlement).resolves.toMatchObject({
+        outcome: "completed",
+        generation: { status: "completed" },
+        assistantMessage: { content: "The voyage begins." },
+      });
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+      expect(log).toHaveBeenCalledTimes(2);
+      expect(backend.usage.getOverview("all-time")).toMatchObject({
+        attempts: { pending: 0, completed: 1 },
+        tokens: { total: 5 },
+      });
+      expect(backend.campaignUsage.get(campaign.id)).toMatchObject({
+        attempts: { pending: 0, completed: 1 },
+        tokens: { total: 5 },
+      });
+      expect(backend.usage.clear()).toEqual({ deletedAttempts: 1 });
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(3));
+      expect(log).toHaveBeenCalledTimes(3);
+    } finally {
+      await runtime.dispose();
+    }
   });
 
   it("uses an edited narrator prompt on the next turn of an existing campaign", async () => {

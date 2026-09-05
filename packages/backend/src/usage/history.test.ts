@@ -17,7 +17,8 @@ function openEnvironment() {
   const database = openDatabase(join(directory, "jaquelene.sqlite"));
   directories.push(directory);
   databases.push(database);
-  return { database, usage: createUsageHistory(database) };
+  const changed = vi.fn();
+  return { database, changed, usage: createUsageHistory(database, changed) };
 }
 
 function attempt(status: "pending" | "completed") {
@@ -50,9 +51,7 @@ afterEach(() => {
 
 describe("usage history", () => {
   it("clears settled usage without touching content-owned tables", () => {
-    const { database, usage } = openEnvironment();
-    const changed = vi.fn();
-    usage.subscribe(changed);
+    const { database, usage, changed } = openEnvironment();
     database.insert(providerAttemptTable).values(attempt("completed")).run();
     const threads = createThreads(database);
     const thread = threads.create();

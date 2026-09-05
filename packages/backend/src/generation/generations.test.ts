@@ -112,7 +112,8 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   ]);
   const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
-  const usage = createUsageHistory(database);
+  const changed = vi.fn();
+  const usage = createUsageHistory(database, changed);
   const generationOptions: GenerationOptions = {
     database,
     replyPreparer: createReplyPreparer(
@@ -128,6 +129,7 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   databases.push(database);
   return {
     campaigns,
+    changed,
     database,
     generations,
     generationOptions,
@@ -278,19 +280,18 @@ describe("generations", () => {
     });
   });
 
-  it("records caller-owned attribution and notifies through the shared usage ledger", async () => {
+  it("records caller-owned attribution and publishes through the shared usage ledger", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { database, generationOptions, threads, usage } = openGenerationEnvironment(provider);
+    const { database, generationOptions, threads, changed } = openGenerationEnvironment(provider);
     const attribution = { kind: "test-owner", id: "owner-1" };
     const getUsageAttribution = vi.fn(() => attribution);
     const generations = createGenerations({ ...generationOptions, getUsageAttribution });
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
-    const changed = vi.fn(() => ({
+    changed.mockImplementation(() => ({
       attempt: database.select().from(providerAttemptTable).get(),
       generation: database.select().from(generationTable).get(),
     }));
-    const unsubscribe = usage.subscribe(changed);
 
     const result = await generations.generateReply({
       intent: "reply",
@@ -322,12 +323,11 @@ describe("generations", () => {
         }),
       },
     ]);
-    unsubscribe();
   });
 
   it("records attribution failures without starting a provider attempt", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { database, generationOptions, threads, usage } = openGenerationEnvironment(provider);
+    const { database, generationOptions, threads, changed } = openGenerationEnvironment(provider);
     const failure = new Error("Could not resolve usage attribution.");
     const generations = createGenerations({
       ...generationOptions,
@@ -337,8 +337,6 @@ describe("generations", () => {
     });
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
-    const changed = vi.fn();
-    const unsubscribe = usage.subscribe(changed);
 
     await expect(
       generations.generateReply({
@@ -356,7 +354,6 @@ describe("generations", () => {
       failureKind: "storage",
     });
     expect(changed).not.toHaveBeenCalled();
-    unsubscribe();
   });
 
   it("resolves and snapshots the selected model's reasoning default", async () => {

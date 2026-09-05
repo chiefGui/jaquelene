@@ -226,6 +226,7 @@ const MarkdownEditorInputPart = forwardRef<HTMLElement, MarkdownEditorInputPartP
         autoFocus={configuration.autoFocus && !hidden}
         disabled={configuration.disabled}
         hidden={hidden}
+        historyKey={configuration.historyKey}
         {...(configuration.id === undefined ? {} : { id: configuration.id })}
         initialSelection={configuration.initialSelection}
         {...(configuration.maxLength === undefined ? {} : { maxLength: configuration.maxLength })}

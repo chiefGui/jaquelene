@@ -1,7 +1,7 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdownKeymap } from "@codemirror/lang-markdown";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
-import { Annotation, Compartment, EditorState, Transaction } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import {
   drawSelection,
   dropCursor,
@@ -26,6 +26,7 @@ import {
   type MarkdownEditorCommand as EditorCommand,
 } from "./markdown-editor-command";
 import { markdownEditorLanguage } from "./markdown-editor-language";
+import { externalDocument, synchronizeMarkdownDocument } from "./markdown-editor-document";
 import { markdownEditorTheme } from "./markdown-editor-theme";
 
 export type MarkdownEditorCommand = EditorCommand;
@@ -42,6 +43,7 @@ export type MarkdownEditorInputProps = MarkdownEditorAccessibleNameProps & {
   autoFocus?: boolean;
   disabled?: boolean;
   hidden?: boolean;
+  historyKey?: number;
   id?: string;
   initialSelection?: MarkdownEditorInitialSelection;
   maxLength?: number;
@@ -56,6 +58,7 @@ export type MarkdownEditorInputProps = MarkdownEditorAccessibleNameProps & {
 
 type EditorRuntime = Readonly<{
   configuration: Compartment;
+  history: Compartment;
   view: EditorView;
 }>;
 
@@ -71,7 +74,6 @@ type DynamicOptions = Readonly<{
   readOnly: boolean;
 }>;
 
-const externalValue = Annotation.define<boolean>();
 // Keep public refs DOM-native for form libraries while retaining command access internally.
 const editorViews = new WeakMap<HTMLElement, EditorView>();
 
@@ -170,6 +172,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
       autoFocus = false,
       disabled = false,
       hidden = false,
+      historyKey = 0,
       id,
       initialSelection = "start",
       maxLength,
@@ -188,6 +191,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
     const initialValueRef = useRef(value);
     const initialSelectionRef = useRef(initialSelection);
     const documentValueRef = useRef(value);
+    const historyKeyRef = useRef(historyKey);
     const autoFocusRef = useRef(autoFocus && !hidden);
     const onChangeRef = useRef(onChange);
     const dynamicOptionsRef = useRef<DynamicOptions>({
@@ -227,6 +231,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
       }
 
       const configuration = new Compartment();
+      const historyCompartment = new Compartment();
       const options = dynamicOptionsRef.current;
       const initialDocument = initialValueRef.current;
       let initialSelectionAnchor = 0;
@@ -245,7 +250,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
           EditorState.changeFilter.of((transaction) => {
             if (
               !transaction.docChanged ||
-              transaction.annotation(externalValue) === true ||
+              transaction.annotation(externalDocument) === true ||
               allowsDocumentChange(
                 transaction.startState.doc.length,
                 transaction.newDoc.length,
@@ -260,7 +265,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             const synchronizedExternally = update.transactions.some(
-              (transaction) => transaction.annotation(externalValue) === true,
+              (transaction) => transaction.annotation(externalDocument) === true,
             );
 
             if (update.docChanged && !synchronizedExternally) {
@@ -270,7 +275,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
             }
           }),
           highlightSpecialChars(),
-          history(),
+          historyCompartment.of(history()),
           drawSelection(),
           dropCursor(),
           highlightSelectionMatches(),
@@ -286,7 +291,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
         ],
       });
 
-      runtimeRef.current = { configuration, view };
+      runtimeRef.current = { configuration, history: historyCompartment, view };
       editorViews.set(view.contentDOM, view);
 
       if (autoFocusRef.current) {
@@ -324,18 +329,19 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
     ]);
 
     useLayoutEffect(() => {
-      const view = runtimeRef.current?.view;
+      const runtime = runtimeRef.current;
+      const resetHistory = historyKeyRef.current !== historyKey;
 
-      if (!view || documentValueRef.current === value) {
+      if (!runtime || (documentValueRef.current === value && !resetHistory)) {
         return;
       }
 
       documentValueRef.current = value;
-      view.dispatch({
-        annotations: [externalValue.of(true), Transaction.addToHistory.of(false)],
-        changes: { from: 0, to: view.state.doc.length, insert: value },
-      });
-    }, [value]);
+      historyKeyRef.current = historyKey;
+      runtime.view.update(
+        synchronizeMarkdownDocument(runtime.view.state, value, runtime.history, resetHistory),
+      );
+    }, [historyKey, value]);
 
     useLayoutEffect(() => {
       if (!hidden) {

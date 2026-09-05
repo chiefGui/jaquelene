@@ -23,12 +23,10 @@ export function useAiAction({
   const definitions = useQuery({ ...aiActionsQuery(target ?? ""), enabled: target !== undefined });
   const model = useQuery({ ...aiActionModelQuery, enabled: target !== undefined });
   const [state, setState] = useState<ActionState>({ status: "idle" });
-  const [change, setChange] = useState<{ before: string; after: string } | null>(null);
   const pending = useRef<{ id: string; cancelled: boolean } | null>(null);
 
   useEffect(() => {
     setState({ status: "idle" });
-    setChange(null);
     return () => {
       const operation = pending.current;
       pending.current = null;
@@ -67,7 +65,6 @@ export function useAiAction({
           setState({ status: "idle" });
           return;
         }
-        setChange({ before: value, after: result.text });
         onValueChange(result.text);
         setState({ status: "idle" });
       } catch (cause) {
@@ -103,24 +100,12 @@ export function useAiAction({
   }
 
   const busy = state.status === "running" || state.status === "cancelling";
-  let undoLabel: string | undefined;
-  let undoValue: string | undefined;
-  if (change && change.before !== change.after) {
-    if (value === change.after) {
-      undoLabel = "Undo AI change";
-      undoValue = change.before;
-    } else if (value === change.before) {
-      undoLabel = "Redo AI change";
-      undoValue = change.after;
-    }
-  }
-  function undo() {
-    if (!busy && !disabled && undoValue !== undefined) {
-      onValueChange(undoValue);
+  function clear() {
+    if (!pending.current) {
       setState({ status: "idle" });
     }
   }
-  return { busy, cancel, definitions, disabled, model, run, state, target, undo, undoLabel, value };
+  return { busy, cancel, clear, definitions, disabled, model, run, state, target, value };
 }
 
 export type AiActionControl = ReturnType<typeof useAiAction>;

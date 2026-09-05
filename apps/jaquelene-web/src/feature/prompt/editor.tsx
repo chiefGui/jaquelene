@@ -10,6 +10,8 @@ import {
   useFormValue,
 } from "@ariakit/react/form";
 import { useStoreState } from "@ariakit/react/store";
+import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
+import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
 import {
   PROMPT_BODY_MAX_UTF16_LENGTH,
   PROMPT_TITLE_MAX_UTF16_LENGTH,
@@ -25,13 +27,20 @@ import { AiActionMenu, AiActionStatus } from "@/feature/ai-action/menu";
 import { useAiAction } from "@/feature/ai-action/use-ai-action";
 import { useFormStatus } from "@/feature/form/status";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
+import { IconAction } from "@/primitive/icon-action";
+import {
+  appendTextVersion,
+  emptyTextVersions,
+  nextTextVersion,
+  previousTextVersion,
+  type TextVersionChange,
+} from "@/primitive/text-versions";
 import { usePromptFormValidation } from "./form";
 import { useCreatePrompt, useUpdatePrompt } from "./query";
 
 type PromptEditorProps = {
   aiActionTarget?: string;
   "aria-labelledby": string;
-  onCancel?: () => void | Promise<void>;
 } & (
   | {
       kind: string;
@@ -54,11 +63,16 @@ function promptValuesEqual(left: UpdatePromptInput, right: UpdatePromptInput) {
 }
 
 export function PromptEditor(props: PromptEditorProps) {
-  const { "aria-labelledby": ariaLabelledBy, onCancel, onSaved, prompt } = props;
+  const { "aria-labelledby": ariaLabelledBy, onSaved, prompt } = props;
   const createPrompt = useCreatePrompt();
   const updatePrompt = useUpdatePrompt();
-  const form = useFormStore({ defaultValues: getEditorValues(prompt) });
+  const [baseline, setBaseline] = useState(() => getEditorValues(prompt));
+  const form = useFormStore({ defaultValues: baseline });
   const body = useFormValue<string>(form, form.names.body);
+  const title = useFormValue<string>(form, form.names.title);
+  const [versions, setVersions] = useState(emptyTextVersions);
+  const [historyKey, setHistoryKey] = useState(0);
+  const bodyInputRef = useRef<HTMLElement>(null);
   const hasSubmitted = useStoreState(
     form,
     ["submitFailed", "submitSucceed"],
@@ -72,8 +86,16 @@ export function PromptEditor(props: PromptEditorProps) {
   const savingRef = useRef(false);
   const editing = Boolean(prompt);
   const awaitingCreatedPrompt = !editing && Boolean(savedPrompt);
-  const editorReadOnly = !editing && (saving || awaitingCreatedPrompt);
-  const submitLabel = awaitingCreatedPrompt ? "Open prompt" : editing ? "Save" : "Create";
+  const editorReadOnly = saving || awaitingCreatedPrompt;
+  const dirty = !promptValuesEqual({ body, title }, baseline);
+  const versionNumber = versions.previous.length + 1;
+  const versionCount = versionNumber + versions.next.length;
+  let submitLabel = "Create";
+  if (awaitingCreatedPrompt) {
+    submitLabel = "Open prompt";
+  } else if (editing) {
+    submitLabel = "Save";
+  }
   const setBody = useCallback(
     (value: string) => {
       clearStatus();
@@ -81,12 +103,63 @@ export function PromptEditor(props: PromptEditorProps) {
     },
     [clearStatus, form],
   );
+  const applyVersion = useCallback(
+    (change: TextVersionChange) => {
+      setVersions(change.versions);
+      setHistoryKey((key) => key + 1);
+      setBody(change.text);
+    },
+    [setBody],
+  );
+  const addVersion = useCallback(
+    (text: string) => {
+      const change = appendTextVersion(versions, form.getState().values.body, text);
+      if (change.versions !== versions) {
+        applyVersion(change);
+      }
+    },
+    [applyVersion, form, versions],
+  );
   const aiAction = useAiAction({
     target: props.aiActionTarget,
     value: body,
-    onValueChange: setBody,
+    onValueChange: addVersion,
     disabled: saving || awaitingCreatedPrompt,
   });
+
+  function resetVersions() {
+    setVersions(emptyTextVersions());
+    setHistoryKey((key) => key + 1);
+    aiAction.clear();
+  }
+
+  function cancelChanges() {
+    if (savingRef.current || awaitingCreatedPrompt || aiAction.busy) {
+      return;
+    }
+    form.reset();
+    form.setValues(baseline);
+    resetVersions();
+    clearStatus();
+    bodyInputRef.current?.focus();
+  }
+
+  function moveVersion(direction: "previous" | "next") {
+    if (savingRef.current || awaitingCreatedPrompt || aiAction.busy) {
+      return;
+    }
+    const current = form.getState().values.body;
+    let change: TextVersionChange;
+    if (direction === "next") {
+      change = nextTextVersion(versions, current);
+    } else {
+      change = previousTextVersion(versions, current);
+    }
+    if (change.versions !== versions) {
+      applyVersion(change);
+      aiAction.clear();
+    }
+  }
 
   useEffect(() => {
     active.current = true;
@@ -107,15 +180,14 @@ export function PromptEditor(props: PromptEditorProps) {
 
     try {
       let result = savedPrompt;
-      let submittedValues: UpdatePromptInput | null = null;
-
       if (!result) {
         try {
           const input = updatePromptInputSchema.parse(state.values);
-          submittedValues = input;
-          result = props.prompt
-            ? await updatePrompt.mutateAsync({ key: props.prompt.key, input })
-            : await createPrompt.mutateAsync({ kind: props.kind, ...input });
+          if (props.prompt) {
+            result = await updatePrompt.mutateAsync({ key: props.prompt.key, input });
+          } else {
+            result = await createPrompt.mutateAsync({ kind: props.kind, ...input });
+          }
 
           if (!active.current) {
             return;
@@ -124,10 +196,20 @@ export function PromptEditor(props: PromptEditorProps) {
           if (!editing) {
             setSavedPrompt(result);
           }
+          const savedValues = getEditorValues(result);
+          setBaseline(savedValues);
+          form.setValues(savedValues);
+          resetVersions();
         } catch (cause) {
-          reportError(editing ? "prompt.update" : "prompt.create", cause);
+          let operation = "prompt.create";
+          let message = "Couldn't create this prompt.";
+          if (editing) {
+            operation = "prompt.update";
+            message = "Couldn't save this prompt.";
+          }
+          reportError(operation, cause);
           if (active.current) {
-            showError(editing ? "Couldn't save this prompt." : "Couldn't create this prompt.");
+            showError(message);
           }
           return;
         }
@@ -141,9 +223,7 @@ export function PromptEditor(props: PromptEditorProps) {
         await onSaved?.(result);
         if (active.current) {
           setSavedPrompt(null);
-          if (!submittedValues || promptValuesEqual(form.getState().values, submittedValues)) {
-            showSuccess("Saved");
-          }
+          showSuccess("Saved");
         }
       } catch (cause) {
         reportError("prompt.after-save", cause);
@@ -159,11 +239,21 @@ export function PromptEditor(props: PromptEditorProps) {
     }
   });
 
+  let statusRole: "alert" | "status" | undefined;
+  let describedBy: string | undefined;
+  if (status) {
+    describedBy = operationStatusId;
+    statusRole = "status";
+    if (status.tone === "danger") {
+      statusRole = "alert";
+    }
+  }
+
   return (
     <AriakitForm
       store={form}
       aria-busy={saving || undefined}
-      aria-describedby={status ? operationStatusId : undefined}
+      aria-describedby={describedBy}
       aria-labelledby={ariaLabelledBy}
       onSubmit={clearStatus}
       render={<FormLayout.Root />}
@@ -204,12 +294,41 @@ export function PromptEditor(props: PromptEditorProps) {
           name={form.names.body}
           render={
             <MarkdownEditor
+              ref={bodyInputRef}
               value={body}
+              historyKey={historyKey}
               onValueChange={setBody}
               maxLength={PROMPT_BODY_MAX_UTF16_LENGTH}
               readOnly={editorReadOnly || aiAction.busy}
               toolbarActions={<AiActionMenu control={aiAction} />}
-              statusContent={<AiActionStatus control={aiAction} />}
+              statusContent={
+                <>
+                  <AiActionStatus control={aiAction} />
+                  {versionCount > 1 && (
+                    <div role="group" aria-label="Text versions" {...stylex.props(styles.versions)}>
+                      <IconAction
+                        icon={ArrowLeft01Icon}
+                        label="Previous version"
+                        disabled={editorReadOnly || aiAction.busy || versions.previous.length === 0}
+                        onClick={() => moveVersion("previous")}
+                      />
+                      <span
+                        role="status"
+                        aria-label={`Version ${versionNumber} of ${versionCount}`}
+                        {...stylex.props(styles.versionNumber)}
+                      >
+                        {versionNumber} / {versionCount}
+                      </span>
+                      <IconAction
+                        icon={ArrowRight01Icon}
+                        label="Next version"
+                        disabled={editorReadOnly || aiAction.busy || versions.next.length === 0}
+                        onClick={() => moveVersion("next")}
+                      />
+                    </div>
+                  )}
+                </>
+              }
             />
           }
         />
@@ -219,19 +338,24 @@ export function PromptEditor(props: PromptEditorProps) {
       <div {...stylex.props(styles.actions)}>
         <FormLayout.Status
           id={operationStatusId}
-          role={status?.tone === "danger" ? "alert" : status ? "status" : undefined}
+          role={statusRole}
           tone={status?.tone ?? "neutral"}
         >
           {status?.message}
         </FormLayout.Status>
 
-        {onCancel ? (
-          <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>
+        {dirty && (
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={editorReadOnly || aiAction.busy}
+            onClick={cancelChanges}
+          >
             Cancel
           </Button>
-        ) : null}
+        )}
 
-        <Button type="submit" disabled={aiAction.busy} aria-busy={saving || undefined}>
+        <Button type="submit" disabled={saving || aiAction.busy} aria-busy={saving || undefined}>
           {submitLabel}
         </Button>
       </div>
@@ -240,6 +364,18 @@ export function PromptEditor(props: PromptEditorProps) {
 }
 
 const styles = stylex.create({
+  versions: {
+    alignItems: "center",
+    display: "flex",
+    flexShrink: 0,
+    gap: "0.125rem",
+    marginInlineEnd: "0.75rem",
+  },
+  versionNumber: {
+    fontVariantNumeric: "tabular-nums",
+    minWidth: "5ch",
+    textAlign: "center",
+  },
   titleInput: { width: "100%" },
   promptField: {
     gap: 0,

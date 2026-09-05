@@ -54,6 +54,8 @@ export type MarkdownEditorRootProps = MarkdownEditorAccessibleNameProps &
     autoFocus?: boolean;
     children: ReactNode;
     disabled?: boolean;
+    /** Changing this clears keyboard undo/redo without remounting the editor. */
+    historyKey?: number;
     id?: string;
     initialSelection?: MarkdownEditorInitialSelection;
     maxLength?: number;
@@ -71,6 +73,7 @@ export type MarkdownEditorConfiguration = Readonly<{
   autoFocus: boolean;
   controlRef: Ref<HTMLElement>;
   disabled: boolean;
+  historyKey: number;
   id: string | undefined;
   initialSelection: MarkdownEditorInitialSelection;
   inputRef: RefObject<HTMLElement | null>;
@@ -154,6 +157,7 @@ export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProp
       defaultMode = "edit",
       defaultValue = "",
       disabled = false,
+      historyKey = 0,
       id,
       initialSelection = "start",
       maxLength,
@@ -196,6 +200,7 @@ export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProp
         autoFocus,
         controlRef: ref,
         disabled,
+        historyKey,
         id,
         initialSelection,
         inputRef,
@@ -215,6 +220,7 @@ export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProp
         ariaLabelledBy,
         autoFocus,
         disabled,
+        historyKey,
         id,
         initialSelection,
         invalid,

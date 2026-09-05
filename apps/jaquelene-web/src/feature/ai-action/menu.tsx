@@ -1,8 +1,7 @@
-import { Menu, MenuButton, MenuItem, MenuProvider } from "@ariakit/react/menu";
 import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import SparklesIcon from "@hugeicons/core-free-icons/SparklesIcon";
-import { Button } from "@jaquelene/ui";
-import { colors, radii, shadows } from "@jaquelene/ui/tokens.stylex";
+import { Menu } from "@jaquelene/ui/menu";
+import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { IconAction } from "@/primitive/icon-action";
 import type { AiActionControl } from "./use-ai-action";
@@ -22,27 +21,23 @@ export function AiActionMenu({ control }: { control: AiActionControl }) {
     );
   }
   return (
-    <MenuProvider placement="bottom-start">
-      <MenuButton
+    <Menu.Root>
+      <Menu.Trigger
         disabled={control.disabled}
         render={<IconAction icon={SparklesIcon} label="AI actions" />}
       />
-      <Menu gutter={6} portal {...stylex.props(styles.menu)}>
+      <Menu>
         {control.definitions.isPending && (
-          <span {...stylex.props(styles.hint)}>Loading actions…</span>
+          <Menu.Description role="status">Loading actions…</Menu.Description>
         )}
         {control.definitions.isError && (
-          <MenuItem
-            render={<Button variant="ghost" size="small" style={styles.item} />}
-            onClick={() => void control.definitions.refetch()}
-          >
+          <Menu.Item onClick={() => void control.definitions.refetch()}>
             Retry loading actions
-          </MenuItem>
+          </Menu.Item>
         )}
         {control.definitions.data?.map((action) => (
-          <MenuItem
+          <Menu.Item
             key={action.id}
-            render={<Button variant="ghost" size="small" style={styles.item} />}
             disabled={
               control.disabled ||
               !control.model.data ||
@@ -51,29 +46,19 @@ export function AiActionMenu({ control }: { control: AiActionControl }) {
             onClick={() => void control.run(action.id)}
           >
             {action.label}
-          </MenuItem>
+          </Menu.Item>
         ))}
         {control.model.isError && (
-          <MenuItem
-            render={<Button variant="ghost" size="small" style={styles.item} />}
-            onClick={() => void control.model.refetch()}
-          >
-            Retry loading model
-          </MenuItem>
+          <Menu.Item onClick={() => void control.model.refetch()}>Retry loading model</Menu.Item>
         )}
         {control.model.isPending && (
-          <span role="status" {...stylex.props(styles.hint)}>
-            Loading model…
-          </span>
+          <Menu.Description role="status">Loading model…</Menu.Description>
         )}
         {control.model.isSuccess && !control.model.data && (
-          <span {...stylex.props(styles.hint)}>Select an AI model in Settings → General.</span>
-        )}
-        {control.model.data && (
-          <span {...stylex.props(styles.hint)}>Model: {control.model.data.name}</span>
+          <Menu.Description>Select an AI model in Settings → General.</Menu.Description>
         )}
       </Menu>
-    </MenuProvider>
+    </Menu.Root>
   );
 }
 
@@ -99,47 +84,11 @@ export function AiActionStatus({ control }: { control: AiActionControl }) {
       <span role={role} {...stylex.props(control.state.status === "failed" && styles.error)}>
         {message}
       </span>
-      {!control.busy && control.undoLabel && (
-        <Button
-          type="button"
-          size="small"
-          variant="ghost"
-          disabled={control.disabled}
-          onClick={control.undo}
-        >
-          {control.undoLabel}
-        </Button>
-      )}
     </span>
   );
 }
 
 const styles = stylex.create({
-  menu: {
-    backgroundColor: colors.backgroundSurfaceRaised,
-    borderColor: colors.borderOverlay,
-    borderStyle: "solid",
-    borderWidth: 1,
-    borderRadius: radii.surface,
-    boxShadow: shadows.floating,
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.125rem",
-    minWidth: "10rem",
-    padding: "0.25rem",
-    zIndex: 50,
-  },
-  item: {
-    justifyContent: "flex-start",
-    backgroundColor: { default: null, ":is([data-active-item])": colors.backgroundInteractive },
-  },
-  hint: {
-    color: colors.foregroundSecondary,
-    fontSize: "0.75rem",
-    padding: "0.5rem",
-    maxWidth: "18rem",
-    overflowWrap: "anywhere",
-  },
   status: {
     alignItems: "center",
     display: "flex",

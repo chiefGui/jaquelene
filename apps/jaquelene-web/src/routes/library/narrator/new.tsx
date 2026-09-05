@@ -31,10 +31,6 @@ function NewPromptRoute() {
     });
   }
 
-  function openNarrator() {
-    return navigate({ to: "/library/narrator", replace: true });
-  }
-
   return (
     <>
       <ContentPane.Header>
@@ -68,7 +64,6 @@ function NewPromptRoute() {
               aiActionTarget={narratorPromptActionTarget}
               aria-labelledby={pageHeadingId}
               kind={narratorPromptKindKey}
-              onCancel={openNarrator}
               onSaved={openPrompt}
             />
           ) : (

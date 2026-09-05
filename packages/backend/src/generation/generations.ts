@@ -16,13 +16,13 @@ import {
 import { ids, type MessageId, type ThreadId, type TurnId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import {
-  requireModelExecutionRequest,
+  requireInferenceRequest,
   requireResolvedModelConfiguration,
-  type ModelExecutionRequest,
-  type ModelExecutionRunner,
-  type ModelExecutionResult,
+  type InferenceRequest,
+  type InferenceRunner,
+  type InferenceResult,
   type ResolvedModelConfiguration,
-} from "#backend/model/execution";
+} from "#backend/model/inference";
 import type { ProviderAccounting } from "#backend/provider/accounting";
 import {
   settleProviderAttemptInTransaction,
@@ -70,7 +70,7 @@ export type AcceptedReplyGeneration = Readonly<{
 export type GenerationOptions = Readonly<{
   database: Database;
   replyPreparer: ReplyPreparer;
-  modelExecutor: ModelExecutionRunner;
+  inference: InferenceRunner;
   attempts: Pick<ProviderAttempts, "start" | "changed">;
   getUsageAttribution: (threadId: ThreadId) => UsageAttribution | undefined;
   now?: () => number;
@@ -156,7 +156,7 @@ function waitForOperation<Result>(operation: Promise<Result>, signal?: AbortSign
 export function createGenerations({
   database,
   replyPreparer,
-  modelExecutor,
+  inference,
   attempts,
   getUsageAttribution,
   now = Date.now,
@@ -454,10 +454,10 @@ export function createGenerations({
       return recordFailure(generation, failureKind, cause);
     }
 
-    let executionRequest: ModelExecutionRequest;
+    let executionRequest: InferenceRequest;
 
     try {
-      executionRequest = requireModelExecutionRequest({
+      executionRequest = requireInferenceRequest({
         executionId: generation.id,
         groupId: anchor.threadId,
         configuration: modelConfigurationFromGeneration(generation),
@@ -487,10 +487,10 @@ export function createGenerations({
       return recordFailure(generation, "storage", cause);
     }
 
-    let modelExecution: ModelExecutionResult;
+    let inferenceResult: InferenceResult;
 
     try {
-      modelExecution = await modelExecutor.execute(executionRequest, signal);
+      inferenceResult = await inference.execute(executionRequest, signal);
     } catch (cause) {
       let failureKind: GenerationFailureKind = "provider";
 
@@ -501,20 +501,20 @@ export function createGenerations({
       return recordFailure(generation, failureKind, cause, attempt);
     }
 
-    if (modelExecution.outcome === "invalid-accounting") {
+    if (inferenceResult.outcome === "invalid-accounting") {
       return recordFailure(
         generation,
         "invalid-output",
-        modelExecution.cause,
+        inferenceResult.cause,
         attempt,
-        modelExecution.accounting,
+        inferenceResult.accounting,
       );
     }
-    const { accounting } = modelExecution;
+    const { accounting } = inferenceResult;
     let text: string;
 
     try {
-      text = requireThreadMessageContent(modelExecution.text);
+      text = requireThreadMessageContent(inferenceResult.text);
     } catch (cause) {
       return recordFailure(generation, "invalid-output", cause, attempt, accounting);
     }
@@ -582,7 +582,7 @@ export function createGenerations({
     requestedConfiguration: RequestedModelConfiguration,
     signal?: AbortSignal,
   ): Promise<ResolvedModelConfiguration> {
-    return modelExecutor.resolveConfiguration(requestedConfiguration, signal);
+    return inference.resolveConfiguration(requestedConfiguration, signal);
   }
 
   return {

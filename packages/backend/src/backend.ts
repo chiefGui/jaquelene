@@ -1,10 +1,12 @@
 import { Context, Effect, Layer } from "effect";
+import { AiActionRunnerService, type AiActionRunner } from "#backend/ai-action/runner";
+import { narratorAiActions } from "#backend/narrator/ai-actions";
 import type { Campaigns } from "#backend/campaign/campaigns";
 import { CampaignService } from "#backend/campaign/subsystem";
 import type { CampaignUsageReader } from "#backend/campaign/usage";
 import { DatabaseService } from "#backend/database/database";
 import { GenerationService } from "#backend/generation/subsystem";
-import { ModelExecutionService } from "#backend/model/execution";
+import { InferenceService } from "#backend/model/inference";
 import { ModelInputService } from "#backend/model/input-resolver";
 import { narratorPromptModule } from "#backend/narrator/module";
 import { PromptService } from "#backend/prompt/subsystem";
@@ -35,6 +37,7 @@ export type BackendOptions<StorageRequirements = never> = Readonly<{
 }>;
 
 export type Backend = Readonly<{
+  aiActionRunner: AiActionRunner;
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
   usage: Usage;
@@ -53,6 +56,7 @@ export class BackendService extends Context.Service<BackendService, Backend>()(
 }
 
 const readBackend = Effect.gen(function* () {
+  const aiActionRunner = yield* AiActionRunnerService;
   const campaigns = yield* CampaignService;
   const prompts = yield* PromptService;
   const providers = yield* ProvidersService;
@@ -83,6 +87,7 @@ const readBackend = Effect.gen(function* () {
   };
 
   return BackendService.of({
+    aiActionRunner,
     campaigns: managedCampaigns,
     campaignUsage: campaigns.usage,
     prompts: prompts.prompts,
@@ -112,19 +117,16 @@ function createConfiguredBackendLayer<StorageRequirements>(
   const modelInputsLayer = ModelInputService.layer.pipe(
     Layer.provide(Layer.merge(campaignsLayer, promptsLayer)),
   );
-  const modelExecutionsLayer = ModelExecutionService.layer.pipe(Layer.provide(providersLayer));
+  const inferenceLayer = InferenceService.layer.pipe(Layer.provide(providersLayer));
+  const aiActionsLayer = AiActionRunnerService.layer([narratorAiActions]).pipe(
+    Layer.provide(Layer.merge(inferenceLayer, usageLayer)),
+  );
   const threadsLayer = ThreadService.layer().pipe(
     Layer.provide(Layer.merge(databaseLayer, modelInputsLayer)),
   );
   const generationsLayer = GenerationService.layer.pipe(
     Layer.provide(
-      Layer.mergeAll(
-        databaseLayer,
-        modelExecutionsLayer,
-        modelInputsLayer,
-        threadsLayer,
-        usageLayer,
-      ),
+      Layer.mergeAll(databaseLayer, inferenceLayer, modelInputsLayer, threadsLayer, usageLayer),
     ),
   );
   const turnsLayer = TurnService.layer.pipe(
@@ -134,6 +136,7 @@ function createConfiguredBackendLayer<StorageRequirements>(
     Layer.provide(Layer.mergeAll(databaseLayer, providersLayer, resourceCacheLayer)),
   );
   const backendDependencies = Layer.mergeAll(
+    aiActionsLayer,
     campaignsLayer,
     promptsLayer,
     providersLayer,

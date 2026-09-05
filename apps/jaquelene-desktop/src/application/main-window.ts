@@ -18,6 +18,7 @@ import {
   type ApplicationDiagnostics,
 } from "../diagnostics/diagnostics";
 import { exposeDiagnostics, exposeDiagnosticsPreferences } from "../diagnostics/ipc";
+import { exposeAiActions } from "../feature/ai-action/ipc";
 import { exposeUserInterfacePreferences } from "../feature/appearance/user-interface/ipc";
 import { createInterfaceScaleWebPreferences } from "../feature/appearance/user-interface/zoom";
 import {
@@ -43,7 +44,10 @@ const preloadPath = join(import.meta.dirname, "../preload/preload.cjs");
 
 type WindowState = "absent" | "opening" | "open" | "closing";
 
-type EffectRunner = <Success, Failure>(effect: Effect.Effect<Success, Failure>) => Promise<Success>;
+type EffectRunner = <Success, Failure>(
+  effect: Effect.Effect<Success, Failure>,
+  options?: { signal?: AbortSignal },
+) => Promise<Success>;
 
 type OpenWindow = {
   browserWindow: BrowserWindow;
@@ -108,6 +112,7 @@ export class MainWindowService extends Context.Service<MainWindowService, MainWi
             preferences,
             providers: backend.providers,
             storage: backend.storage,
+            aiActionRunner: backend.aiActionRunner,
             runEffect,
             usage: backend.usage,
           }),
@@ -181,6 +186,7 @@ function createMainWindowManager({
   preferences,
   providers,
   storage,
+  aiActionRunner,
   runEffect,
   usage,
 }: {
@@ -197,6 +203,7 @@ function createMainWindowManager({
   preferences: Preferences;
   providers: Providers;
   storage: Backend["storage"];
+  aiActionRunner: Backend["aiActionRunner"];
   runEffect: EffectRunner;
   usage: Usage;
 }): MainWindowManager {
@@ -207,8 +214,13 @@ function createMainWindowManager({
   let opening: Promise<OpenWindow> | undefined;
   let closePromise: Promise<void> | undefined;
 
-  function addFinalizer(scope: Scope.Closeable, finalize: () => void) {
-    return runEffect(Scope.addFinalizer(scope, Effect.sync(finalize)));
+  function addFinalizer(scope: Scope.Closeable, finalize: () => void | Promise<void>) {
+    return runEffect(
+      Scope.addFinalizer(
+        scope,
+        Effect.promise(async () => finalize()),
+      ),
+    );
   }
 
   function requireOpen() {
@@ -257,6 +269,7 @@ function createMainWindowManager({
           ...createInterfaceScaleWebPreferences(preferences.appearance.userInterface.get().scale),
         },
       });
+      const webContents = browserWindow.webContents;
       await addFinalizer(scope, () => {
         if (!browserWindow.isDestroyed()) {
           browserWindow.destroy();
@@ -284,27 +297,30 @@ function createMainWindowManager({
         });
       };
       browserWindow.once("closed", onClosed);
-      await addFinalizer(scope, () => browserWindow.off("closed", onClosed));
+      await addFinalizer(scope, () => {
+        browserWindow.off("closed", onClosed);
+      });
 
-      exposePrompts(browserWindow.webContents.mainFrame, prompts);
-      exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
-      exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
-      exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);
-      exposeCampaignUsage(browserWindow.webContents.mainFrame, campaignUsage);
-      await addFinalizer(scope, threadMessaging.expose(browserWindow.webContents.mainFrame));
-      exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);
-      await addFinalizer(scope, exposeModelCatalog(browserWindow.webContents, modelCatalog));
-      exposeFavoriteModels(browserWindow.webContents.mainFrame, favoriteModels);
+      exposePrompts(webContents.mainFrame, prompts);
       await addFinalizer(
         scope,
-        exposeUserInterfacePreferences(
-          browserWindow.webContents,
-          preferences.appearance.userInterface,
-        ),
+        exposeAiActions(webContents, aiActionRunner, preferences.aiAction, runEffect, diagnostics),
       );
-      exposeProviders(browserWindow.webContents.mainFrame, providers);
-      exposeStorage(browserWindow.webContents.mainFrame, storage, runEffect);
-      await addFinalizer(scope, exposeUsage(browserWindow.webContents, usage));
+      exposeDiagnostics(webContents.mainFrame, diagnostics);
+      exposeDiagnosticsPreferences(webContents.mainFrame, preferences.diagnostics);
+      exposeCampaigns(webContents.mainFrame, campaigns);
+      exposeCampaignUsage(webContents.mainFrame, campaignUsage);
+      await addFinalizer(scope, threadMessaging.expose(webContents.mainFrame));
+      exposeCampaignPreferences(webContents.mainFrame, preferences.campaign);
+      await addFinalizer(scope, exposeModelCatalog(webContents, modelCatalog));
+      exposeFavoriteModels(webContents.mainFrame, favoriteModels);
+      await addFinalizer(
+        scope,
+        exposeUserInterfacePreferences(webContents, preferences.appearance.userInterface),
+      );
+      exposeProviders(webContents.mainFrame, providers);
+      exposeStorage(webContents.mainFrame, storage, runEffect);
+      await addFinalizer(scope, exposeUsage(webContents, usage));
 
       const saveWindowState = () => {
         localState.saveMainWindowState({
@@ -313,10 +329,12 @@ function createMainWindowManager({
         });
       };
       browserWindow.on("close", saveWindowState);
-      await addFinalizer(scope, () => browserWindow.off("close", saveWindowState));
+      await addFinalizer(scope, () => {
+        browserWindow.off("close", saveWindowState);
+      });
       browserWindow.removeMenu();
 
-      browserWindow.webContents.setWindowOpenHandler(({ url }) => {
+      webContents.setWindowOpenHandler(({ url }) => {
         if (isSafeExternalUrl(url)) {
           void shell.openExternal(url).catch((error: unknown) => {
             diagnostics.report({
@@ -331,14 +349,14 @@ function createMainWindowManager({
       });
 
       const preventExternalNavigation = (event: Electron.Event, url: string) => {
-        if (url !== browserWindow.webContents.getURL()) {
+        if (url !== webContents.getURL()) {
           event.preventDefault();
         }
       };
-      browserWindow.webContents.on("will-navigate", preventExternalNavigation);
-      await addFinalizer(scope, () =>
-        browserWindow.webContents.off("will-navigate", preventExternalNavigation),
-      );
+      webContents.on("will-navigate", preventExternalNavigation);
+      await addFinalizer(scope, () => {
+        webContents.off("will-navigate", preventExternalNavigation);
+      });
 
       openedWindow.loaded = browserWindow.loadURL(rendererUrl);
       return openedWindow;

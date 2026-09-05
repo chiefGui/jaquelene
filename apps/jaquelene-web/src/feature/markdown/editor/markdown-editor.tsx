@@ -1,10 +1,9 @@
 import CodeIcon from "@hugeicons/core-free-icons/CodeIcon";
 import EyeIcon from "@hugeicons/core-free-icons/EyeIcon";
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { formatPluralizedCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
+import type { IconSvgElement } from "@hugeicons/react";
+import { formatPluralizedCount, Skeleton } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
-import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import {
@@ -20,6 +19,7 @@ import {
   type Ref,
 } from "react";
 import { BoldIcon, EditIcon, ItalicIcon } from "@/primitive/icons";
+import { IconAction, type IconActionProps } from "@/primitive/icon-action";
 import {
   MarkdownEditorInput,
   runMarkdownEditorCommand,
@@ -51,6 +51,9 @@ export {
 type WithoutChildren<Props> = Props extends unknown ? Omit<Props, "children"> : never;
 
 export type MarkdownEditorProps = WithoutChildren<MarkdownEditorRootProps> & {
+  toolbarActions?: ReactNode;
+  toolbarEnd?: ReactNode;
+  statusContent?: ReactNode;
   style?: StyleXStyles;
 };
 
@@ -114,37 +117,8 @@ function MarkdownEditorToolbar({ "aria-label": ariaLabel, style, ...props }: Sty
   );
 }
 
-type MarkdownEditorActionProps = Omit<
-  IconButtonProps,
-  "aria-label" | "children" | "shape" | "size" | "type"
-> & {
-  icon: IconSvgElement;
-  label: string;
-};
-
-function MarkdownEditorAction({ icon, label, ...props }: MarkdownEditorActionProps) {
-  return (
-    <Tooltip.Root>
-      <Tooltip.Anchor
-        render={
-          <IconButton.Root
-            {...props}
-            type="button"
-            aria-label={label}
-            shape="squircle"
-            size="small"
-          >
-            <IconButton.Icon render={<HugeiconsIcon icon={icon} />} />
-          </IconButton.Root>
-        }
-      />
-      <Tooltip>{label}</Tooltip>
-    </Tooltip.Root>
-  );
-}
-
 type MarkdownEditorFormatActionProps = Omit<
-  MarkdownEditorActionProps,
+  IconActionProps,
   "disabled" | "icon" | "label" | "onClick" | "onMouseDown"
 > & {
   command: MarkdownEditorCommand;
@@ -162,7 +136,7 @@ function MarkdownEditorFormatAction({
   const action = formattingActions[command];
 
   return (
-    <MarkdownEditorAction
+    <IconAction
       {...props}
       label={label ?? action.label}
       icon={icon ?? action.icon}
@@ -182,7 +156,7 @@ function MarkdownEditorFormattingActions({
 }
 
 type MarkdownEditorPreviewToggleProps = Omit<
-  MarkdownEditorActionProps,
+  IconActionProps,
   "aria-pressed" | "disabled" | "icon" | "label" | "onClick"
 >;
 
@@ -199,7 +173,7 @@ function MarkdownEditorPreviewToggle({ style, ...props }: MarkdownEditorPreviewT
   }
 
   return (
-    <MarkdownEditorAction
+    <IconAction
       {...props}
       style={style}
       label={label}
@@ -253,6 +227,7 @@ const MarkdownEditorInputPart = forwardRef<HTMLElement, MarkdownEditorInputPartP
         autoFocus={configuration.autoFocus && !hidden}
         disabled={configuration.disabled}
         hidden={hidden}
+        historyKey={configuration.historyKey}
         {...(configuration.id === undefined ? {} : { id: configuration.id })}
         initialSelection={configuration.initialSelection}
         {...(configuration.maxLength === undefined ? {} : { maxLength: configuration.maxLength })}
@@ -322,7 +297,7 @@ function MarkdownEditorStatus({ "aria-label": ariaLabel, style, ...props }: Styl
     <div
       {...props}
       role="group"
-      aria-label={ariaLabel ?? "Document statistics"}
+      aria-label={ariaLabel ?? "Editor status"}
       {...stylex.props(styles.status, style, stylex.defaultMarker())}
     />
   );
@@ -352,17 +327,28 @@ function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsP
 
 const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent({
   style,
+  toolbarActions,
+  toolbarEnd,
+  statusContent,
 }: {
   style: StyleXStyles | undefined;
+  toolbarActions: ReactNode;
+  toolbarEnd: ReactNode;
+  statusContent: ReactNode;
 }) {
   return (
     <MarkdownEditorFrame style={style}>
       <MarkdownEditorToolbar>
         <MarkdownEditorFormattingActions />
-        <MarkdownEditorPreviewToggle style={styles.previewTogglePlacement} />
+        {toolbarActions}
+        <div {...stylex.props(styles.toolbarEnd)}>
+          {toolbarEnd}
+          <MarkdownEditorPreviewToggle />
+        </div>
       </MarkdownEditorToolbar>
       <MarkdownEditorContent />
       <MarkdownEditorStatus>
+        {statusContent}
         <MarkdownEditorStatistics />
       </MarkdownEditorStatus>
     </MarkdownEditorFrame>
@@ -370,10 +356,18 @@ const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent(
 });
 
 const MarkdownEditorDefault = forwardRef<HTMLElement, MarkdownEditorProps>(
-  function MarkdownEditorDefault({ style, ...props }, ref) {
+  function MarkdownEditorDefault(
+    { style, toolbarActions, toolbarEnd, statusContent, ...props },
+    ref,
+  ) {
     return (
       <MarkdownEditorRoot {...props} ref={ref}>
-        <MarkdownEditorDefaultContent style={style} />
+        <MarkdownEditorDefaultContent
+          style={style}
+          toolbarActions={toolbarActions}
+          toolbarEnd={toolbarEnd}
+          statusContent={statusContent}
+        />
       </MarkdownEditorRoot>
     );
   },
@@ -383,7 +377,6 @@ export const MarkdownEditor = Object.assign(MarkdownEditorDefault, {
   Root: MarkdownEditorRoot,
   Frame: MarkdownEditorFrame,
   Toolbar: MarkdownEditorToolbar,
-  Action: MarkdownEditorAction,
   FormatAction: MarkdownEditorFormatAction,
   FormattingActions: MarkdownEditorFormattingActions,
   PreviewToggle: MarkdownEditorPreviewToggle,
@@ -399,9 +392,10 @@ const styles = stylex.create({
     backgroundColor: colors.backgroundNeutralSubtlest,
     borderColor: {
       default: colors.borderSubtle,
-      ":focus-within": colors.borderFocus,
+      ":has([data-markdown-editor-input]:focus)": colors.borderFocus,
       ':is([data-invalid="true"])': colors.borderDanger,
-      ':is([data-invalid="true"]):focus-within': colors.borderDangerFocus,
+      ':is([data-invalid="true"]):has([data-markdown-editor-input]:focus)':
+        colors.borderDangerFocus,
     },
     borderRadius: radii.control,
     borderStyle: "solid",
@@ -429,8 +423,11 @@ const styles = stylex.create({
     gap: "0.125rem",
     padding: "0.25rem",
   },
-  previewTogglePlacement: {
-    marginLeft: "auto",
+  toolbarEnd: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.125rem",
+    marginInlineStart: "auto",
   },
   preview: {
     flexGrow: 1,

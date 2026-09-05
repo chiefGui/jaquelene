@@ -40,6 +40,7 @@ describe("preferences storage", () => {
     preferences.appearance.userInterface.setScale(InterfaceScale.Percent125);
     preferences.appearance.userInterface.setMotion(MotionPreference.Full);
     preferences.campaign.setDefaultModel(defaultCampaignModel);
+    preferences.aiAction.setModel({ ...defaultCampaignModel, modelId: "editor-model" });
     preferences.diagnostics.setWriteToDisk(false);
 
     const restored = createPreferences(directory);
@@ -50,6 +51,13 @@ describe("preferences storage", () => {
       motion: MotionPreference.Full,
     });
     expect(restored.campaign.getDefaultModel()).toEqual(defaultCampaignModel);
+    expect(restored.aiAction.getModel()).toEqual({
+      ...defaultCampaignModel,
+      modelId: "editor-model",
+    });
+    restored.aiAction.setModel(null);
+    expect(createPreferences(directory).aiAction.getModel()).toBeNull();
+    expect(createPreferences(directory).campaign.getDefaultModel()).toEqual(defaultCampaignModel);
     expect(restored.diagnostics.get()).toEqual({ writeToDisk: false });
   });
 

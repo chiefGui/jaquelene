@@ -120,11 +120,14 @@ const styles = stylex.create({
       ":not(:disabled):hover": colors.backgroundInteractive,
       ":not(:disabled):active": colors.backgroundSelected,
       ":is([data-focus-visible])": colors.backgroundInteractive,
+      ':is([aria-expanded="true"])': colors.backgroundSelected,
+      ':is([aria-expanded="true"]):not(:disabled):hover': colors.backgroundSelectedHover,
     },
     color: {
       default: colors.foregroundSecondary,
       ":not(:disabled):hover": colors.foregroundPrimary,
       ":is([data-focus-visible])": colors.foregroundPrimary,
+      ':is([aria-expanded="true"])': colors.foregroundPrimary,
     },
   },
   soft: {

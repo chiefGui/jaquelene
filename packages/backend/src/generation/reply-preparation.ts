@@ -17,7 +17,7 @@ export function requireReplyInput(prepared: ModelInput, anchor: ReplyAnchor): Mo
   const input = requireModelInput(prepared);
   const currentInput = input.dialogue.at(-1);
 
-  if (currentInput?.role !== "user" || currentInput.messageId !== anchor.inputMessageId) {
+  if (currentInput?.role !== "user" || currentInput.sourceKey !== anchor.inputMessageId) {
     throw new TypeError("A prepared reply must end with its accepted user input.");
   }
 

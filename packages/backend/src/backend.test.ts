@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as NodePath from "@effect/platform-node/NodePath";
-import { PromptOrigin } from "@jaquelene/domain";
+import { narratorPromptActionTarget, PromptOrigin } from "@jaquelene/domain";
 import { Context, Effect, Layer, Logger, ManagedRuntime, Path } from "effect";
 import { FileTreeService } from "#backend/filesystem/file-tree";
 import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
@@ -165,6 +165,35 @@ afterEach(() => {
 });
 
 describe("backend", () => {
+  it("runs narrator actions without creating conversations or saving prompt content", async () => {
+    const generate = vi.fn(async () => ({
+      text: "Preserve player agency.",
+      usage: { tokens: { input: { total: 3 }, output: { total: 2 }, total: 5 } },
+    }));
+    await using backend = await openBackend(
+      backendOptions(createDatabasePath(), [providerAdapter("provider-a", { generate })]),
+    );
+    const before = backend.prompts.list({ kind: narratorPromptKind.key });
+    expect(backend.aiActionRunner.list(narratorPromptActionTarget)).toHaveLength(2);
+    await expect(
+      Effect.runPromise(
+        backend.aiActionRunner.run({
+          executionId: "editor-operation",
+          target: narratorPromptActionTarget,
+          actionId: "write",
+          text: "Ignored existing text",
+          configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+        }),
+      ),
+    ).resolves.toBe("Preserve player agency.");
+    expect(backend.prompts.list({ kind: narratorPromptKind.key })).toEqual(before);
+    expect(backend.campaigns.list({}).campaigns).toEqual([]);
+    expect(backend.usage.getOverview("all-time")).toMatchObject({
+      attempts: { provider: 1, completed: 1, pending: 0, failed: 0 },
+      tokens: { input: 3, output: 2, total: 5 },
+    });
+  });
+
   it("shares host storage owners for the runtime lifetime and reacquires them on restart", async () => {
     class HostOwner extends Context.Service<HostOwner, { readonly clear: Effect.Effect<void> }>()(
       "test/BackendHostOwner",

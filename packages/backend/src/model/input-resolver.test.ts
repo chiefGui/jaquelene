@@ -17,8 +17,8 @@ describe("model input resolver", () => {
     expect(resolver.resolve({ threadId, messages })).toEqual({
       instructions: [{ sourceKey: "narrator", content: "Narrate clearly." }],
       dialogue: [
-        { messageId: messages[0]!.id, role: "user", content: "Hello" },
-        { messageId: messages[1]!.id, role: "assistant", content: "Hi" },
+        { sourceKey: messages[0]!.id, role: "user", content: "Hello" },
+        { sourceKey: messages[1]!.id, role: "assistant", content: "Hi" },
       ],
     });
     expect(getContextForThread).toHaveBeenCalledWith(threadId);

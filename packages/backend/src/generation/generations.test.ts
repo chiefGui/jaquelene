@@ -9,11 +9,11 @@ import { closeDatabase, openDatabase, type Database } from "#backend/database/da
 import { ids } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import {
-  createModelExecutionRunner,
-  createModelExecutor,
+  createInferenceRunner,
+  createInference,
   ModelProviderError,
-  type ModelExecutionRunner,
-} from "#backend/model/execution";
+  type InferenceRunner,
+} from "#backend/model/inference";
 import { createModelInputResolver } from "#backend/model/input-resolver";
 import type { ModelReasoningCapability } from "#backend/model/reasoning";
 import type {
@@ -98,11 +98,9 @@ function generationRouter(provider?: TestGenerationProvider): ProviderGeneration
   };
 }
 
-function modelExecutionRunner(provider?: TestGenerationProvider): ModelExecutionRunner {
-  const executor = createModelExecutor(modelResolver(provider), generationRouter(provider));
-  return createModelExecutionRunner(executor, (effect, options) =>
-    Effect.runPromise(effect, options),
-  );
+function inferenceRunner(provider?: TestGenerationProvider): InferenceRunner {
+  const executor = createInference(modelResolver(provider), generationRouter(provider));
+  return createInferenceRunner(executor, (effect, options) => Effect.runPromise(effect, options));
 }
 
 function openGenerationEnvironment(provider: TestGenerationProvider, now: () => number = Date.now) {
@@ -120,7 +118,7 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
       threads,
       createModelInputResolver(campaigns, promptApplications),
     ),
-    modelExecutor: modelExecutionRunner(provider),
+    inference: inferenceRunner(provider),
     attempts: usage.attempts,
     getUsageAttribution: (threadId) => getCampaignUsageAttribution(database, threadId),
     now,
@@ -209,7 +207,7 @@ describe("generations", () => {
       modelId: "maker/requested-model",
       input: {
         instructions: [],
-        dialogue: [{ messageId: started.message.id, role: "user", content: "Hello" }],
+        dialogue: [{ sourceKey: started.message.id, role: "user", content: "Hello" }],
       },
       reasoning: { preset: "high", source: "selection" },
       signal: expect.any(AbortSignal),
@@ -440,7 +438,7 @@ describe("generations", () => {
             content: jaqueleneNarratorPromptDefinition.body,
           },
         ],
-        dialogue: [{ messageId: started.message.id, role: "user", content: "Begin" }],
+        dialogue: [{ sourceKey: started.message.id, role: "user", content: "Begin" }],
       },
       signal: expect.any(AbortSignal),
     });
@@ -473,13 +471,13 @@ describe("generations", () => {
         input: {
           instructions: [],
           dialogue: [
-            { messageId: first.message.id, role: "user", content: "First user message" },
+            { sourceKey: first.message.id, role: "user", content: "First user message" },
             {
-              messageId: firstReply.message.id,
+              sourceKey: firstReply.message.id,
               role: "assistant",
               content: "First reply",
             },
-            { messageId: second.message.id, role: "user", content: "Second user message" },
+            { sourceKey: second.message.id, role: "user", content: "Second user message" },
           ],
         },
       }),
@@ -514,7 +512,7 @@ describe("generations", () => {
       expect.objectContaining({
         input: {
           instructions: [],
-          dialogue: [{ messageId: started.message.id, role: "user", content: "Hello" }],
+          dialogue: [{ sourceKey: started.message.id, role: "user", content: "Hello" }],
         },
       }),
     );
@@ -640,7 +638,7 @@ describe("generations", () => {
       instructions: [],
       dialogue: [
         {
-          messageId: first.message.id,
+          sourceKey: first.message.id,
           role: "user",
           content: "First user message",
         },
@@ -1081,7 +1079,7 @@ describe("generations", () => {
     const started = threads.startTurn(thread.id, "Hello");
     const generations = createGenerations({
       ...generationOptions,
-      modelExecutor: modelExecutionRunner(),
+      inference: inferenceRunner(),
     });
     await expect(
       generations.generateReply({
@@ -1159,7 +1157,7 @@ describe("generations", () => {
       replyPreparer: {
         prepare: () => ({
           instructions: [],
-          dialogue: [{ messageId: ids.message.create(), role: "user", content: "Hello" }],
+          dialogue: [{ sourceKey: ids.message.create(), role: "user", content: "Hello" }],
         }),
       },
     });

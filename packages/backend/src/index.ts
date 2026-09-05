@@ -1,4 +1,10 @@
 export { BackendService } from "#backend/backend";
+export type { AiActionDefinition, AiActionSet } from "#backend/ai-action/definition";
+export {
+  AiActionError,
+  type AiActionRunner,
+  type RunAiActionRequest,
+} from "#backend/ai-action/runner";
 export type { Backend, BackendOptions } from "#backend/backend";
 export { FileTreeError, FileTreeService } from "#backend/filesystem/file-tree";
 export { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";

@@ -21,14 +21,14 @@ export type ResolvedModelConfiguration = Readonly<{
   reasoning?: ResolvedReasoning;
 }>;
 
-export type ModelExecutionRequest = Readonly<{
+export type InferenceRequest = Readonly<{
   executionId: string;
   groupId?: string;
   configuration: ResolvedModelConfiguration;
   input: ModelInput;
 }>;
 
-export type ModelExecutionResult =
+export type InferenceResult =
   | Readonly<{
       outcome: "completed";
       text: string;
@@ -40,22 +40,22 @@ export type ModelExecutionResult =
       accounting: ProviderAccounting;
     }>;
 
-const modelExecutionErrorFields = {
+const inferenceErrorFields = {
   cause: Schema.Defect(),
 };
 
 export class ModelConfigurationError extends Schema.TaggedError<ModelConfigurationError>()(
   "ModelConfigurationError",
-  modelExecutionErrorFields,
+  inferenceErrorFields,
 ) {
   override get message() {
     return messageForCause(this.cause, "Could not resolve model configuration.");
   }
 }
 
-export class ModelExecutionRequestError extends Schema.TaggedError<ModelExecutionRequestError>()(
-  "ModelExecutionRequestError",
-  modelExecutionErrorFields,
+export class InferenceRequestError extends Schema.TaggedError<InferenceRequestError>()(
+  "InferenceRequestError",
+  inferenceErrorFields,
 ) {
   override get message() {
     return messageForCause(this.cause, "The model execution request is invalid.");
@@ -64,30 +64,28 @@ export class ModelExecutionRequestError extends Schema.TaggedError<ModelExecutio
 
 export class ModelProviderError extends Schema.TaggedError<ModelProviderError>()(
   "ModelProviderError",
-  modelExecutionErrorFields,
+  inferenceErrorFields,
 ) {
   override get message() {
     return messageForCause(this.cause, "The model provider failed.");
   }
 }
 
-export type ModelExecutionError = ModelExecutionRequestError | ModelProviderError;
+export type InferenceError = InferenceRequestError | ModelProviderError;
 
-export type ModelExecutor = Readonly<{
+export type Inference = Readonly<{
   resolveConfiguration: (
     configuration: RequestedModelConfiguration,
   ) => Effect.Effect<ResolvedModelConfiguration, ModelConfigurationError>;
-  execute: (
-    request: ModelExecutionRequest,
-  ) => Effect.Effect<ModelExecutionResult, ModelExecutionError>;
+  execute: (request: InferenceRequest) => Effect.Effect<InferenceResult, InferenceError>;
 }>;
 
-export type ModelExecutionRunner = Readonly<{
+export type InferenceRunner = Readonly<{
   resolveConfiguration: (
     configuration: RequestedModelConfiguration,
     signal?: AbortSignal,
   ) => Promise<ResolvedModelConfiguration>;
-  execute: (request: ModelExecutionRequest, signal?: AbortSignal) => Promise<ModelExecutionResult>;
+  execute: (request: InferenceRequest, signal?: AbortSignal) => Promise<InferenceResult>;
 }>;
 
 type RunModelEffect = <Success, Failure>(
@@ -116,17 +114,17 @@ function configurationError(cause: unknown) {
 }
 
 function requestError(cause: unknown) {
-  return new ModelExecutionRequestError({ cause });
+  return new InferenceRequestError({ cause });
 }
 
 function providerError(cause: unknown) {
   return new ModelProviderError({ cause });
 }
 
-export function createModelExecutionRunner(
-  executor: ModelExecutor,
+export function createInferenceRunner(
+  executor: Inference,
   runModelEffect: RunModelEffect,
-): ModelExecutionRunner {
+): InferenceRunner {
   function run<Success, Failure>(effect: Effect.Effect<Success, Failure>, signal?: AbortSignal) {
     const running = runModelEffect(effect, { signal });
 
@@ -206,9 +204,7 @@ export function requireResolvedModelConfiguration(
   return copy;
 }
 
-function requireExecutionCorrelation(
-  request: Pick<ModelExecutionRequest, "executionId" | "groupId">,
-) {
+function requireExecutionCorrelation(request: Pick<InferenceRequest, "executionId" | "groupId">) {
   if (!request.executionId.trim()) {
     throw new TypeError("A model execution requires an execution identity.");
   }
@@ -218,9 +214,7 @@ function requireExecutionCorrelation(
   }
 }
 
-export function requireModelExecutionRequest(
-  request: ModelExecutionRequest,
-): ModelExecutionRequest {
+export function requireInferenceRequest(request: InferenceRequest): InferenceRequest {
   requireExecutionCorrelation(request);
   const validated: {
     executionId: string;
@@ -240,7 +234,7 @@ export function requireModelExecutionRequest(
   return validated;
 }
 
-function toProviderRequest(request: ModelExecutionRequest): ProviderGenerationRequest {
+function toProviderRequest(request: InferenceRequest): ProviderGenerationRequest {
   const providerRequest: {
     executionId: string;
     groupId?: string;
@@ -264,11 +258,11 @@ function toProviderRequest(request: ModelExecutionRequest): ProviderGenerationRe
   return providerRequest;
 }
 
-export function createModelExecutor(
+export function createInference(
   models: Pick<Models, "getModel">,
   providers: ProviderGenerationRouter,
-): ModelExecutor {
-  const resolveConfiguration = Effect.fn("ModelExecutor.resolveConfiguration")(function* (
+): Inference {
+  const resolveConfiguration = Effect.fn("Inference.resolveConfiguration")(function* (
     requestedConfiguration: RequestedModelConfiguration,
   ) {
     const configuration = yield* Effect.try({
@@ -308,9 +302,9 @@ export function createModelExecutor(
     });
   });
 
-  const execute = Effect.fn("ModelExecutor.execute")(function* (request: ModelExecutionRequest) {
+  const execute = Effect.fn("Inference.execute")(function* (request: InferenceRequest) {
     const validated = yield* Effect.try({
-      try: () => requireModelExecutionRequest(request),
+      try: () => requireInferenceRequest(request),
       catch: requestError,
     });
     const provider = yield* Effect.try({
@@ -341,14 +335,14 @@ export function createModelExecutor(
   return { resolveConfiguration, execute };
 }
 
-export class ModelExecutionService extends Context.Service<ModelExecutionService, ModelExecutor>()(
-  "@jaquelene/backend/ModelExecution",
+export class InferenceService extends Context.Service<InferenceService, Inference>()(
+  "@jaquelene/backend/Inference",
 ) {
   static readonly layer = Layer.effect(
     this,
     Effect.gen(function* () {
       const providers = yield* ProvidersService;
-      return ModelExecutionService.of(createModelExecutor(providers.models, providers.generations));
+      return InferenceService.of(createInference(providers.models, providers.generations));
     }),
   );
 }

@@ -1,12 +1,10 @@
-import type { MessageId } from "#backend/id";
-
 export type ResolvedInstruction = Readonly<{
   sourceKey: string;
   content: string;
 }>;
 
 export type DialogueMessage = Readonly<{
-  messageId: MessageId;
+  sourceKey: string;
   role: "user" | "assistant";
   content: string;
 }>;
@@ -37,21 +35,21 @@ export function requireModelInput(input: ModelInput): ModelInput {
     instructionSourceKeys.add(sourceKey);
     return { sourceKey, content };
   });
-  const messageIds = new Set<MessageId>();
-  const dialogue = input.dialogue.map(({ messageId, role, content }) => {
-    requireText(messageId, "a dialogue message identity");
+  const sourceKeys = new Set<string>();
+  const dialogue = input.dialogue.map(({ sourceKey, role, content }) => {
+    requireText(sourceKey, "a dialogue source key");
     requireText(content, "dialogue content");
 
     if (role !== "user" && role !== "assistant") {
       throw new TypeError(`A model input contains unsupported dialogue role "${role}".`);
     }
 
-    if (messageIds.has(messageId)) {
-      throw new TypeError(`A model input cannot contain duplicate message "${messageId}".`);
+    if (sourceKeys.has(sourceKey)) {
+      throw new TypeError(`A model input cannot contain duplicate message "${sourceKey}".`);
     }
 
-    messageIds.add(messageId);
-    return { messageId, role, content };
+    sourceKeys.add(sourceKey);
+    return { sourceKey, role, content };
   });
 
   return { instructions, dialogue };

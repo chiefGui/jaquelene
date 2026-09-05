@@ -1,6 +1,5 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { ids } from "#backend/id";
 import type { ModelReasoningCapability } from "#backend/model/reasoning";
 import type {
   ProviderGenerationRequest,
@@ -8,11 +7,11 @@ import type {
 } from "#backend/provider/provider";
 import type { ProviderGenerationRouter } from "#backend/provider/providers";
 import {
-  createModelExecutor,
+  createInference,
   ModelConfigurationError,
-  ModelExecutionRequestError,
+  InferenceRequestError,
   ModelProviderError,
-} from "./execution";
+} from "./inference";
 
 function modelCatalog(reasoning?: ModelReasoningCapability) {
   return {
@@ -57,17 +56,17 @@ function generationRouter(
 function modelInput() {
   return {
     instructions: [{ sourceKey: "test.instruction", content: "Be concise." }],
-    dialogue: [{ messageId: ids.message.create(), role: "user" as const, content: "Hello" }],
+    dialogue: [{ sourceKey: "editor-input", role: "user" as const, content: "Hello" }],
   };
 }
 
-describe("model executor", () => {
+describe("inference", () => {
   it("resolves model capabilities before execution", async () => {
     const models = modelCatalog({
       defaultPreset: "medium",
       supportedPresets: ["high", "medium", "low"],
     });
-    const executor = createModelExecutor(
+    const executor = createInference(
       models,
       generationRouter(vi.fn(async () => ({ text: "Reply" }))),
     );
@@ -97,7 +96,7 @@ describe("model executor", () => {
         tokens: { input: { total: 3 }, output: { total: 2 }, total: 5 },
       },
     }));
-    const executor = createModelExecutor(modelCatalog(), generationRouter(generate));
+    const executor = createInference(modelCatalog(), generationRouter(generate));
     const input = modelInput();
 
     await expect(
@@ -134,7 +133,7 @@ describe("model executor", () => {
   });
 
   it("returns usable accounting when provider accounting is invalid", async () => {
-    const executor = createModelExecutor(
+    const executor = createInference(
       modelCatalog(),
       generationRouter(
         vi.fn(async () => ({
@@ -172,7 +171,7 @@ describe("model executor", () => {
 
   it("classifies invalid configuration before model lookup", async () => {
     const models = modelCatalog();
-    const executor = createModelExecutor(
+    const executor = createInference(
       models,
       generationRouter(vi.fn(async () => ({ text: "Reply" }))),
     );
@@ -198,7 +197,7 @@ describe("model executor", () => {
 
   it("classifies invalid execution requests before provider invocation", async () => {
     const generate = vi.fn(async () => ({ text: "Reply" }));
-    const executor = createModelExecutor(modelCatalog(), generationRouter(generate));
+    const executor = createInference(modelCatalog(), generationRouter(generate));
     const error = await Effect.runPromise(
       Effect.flip(
         executor.execute({
@@ -211,10 +210,10 @@ describe("model executor", () => {
       ),
     );
 
-    expect(error).toBeInstanceOf(ModelExecutionRequestError);
+    expect(error).toBeInstanceOf(InferenceRequestError);
     expect(error).toEqual(
       expect.objectContaining({
-        _tag: "ModelExecutionRequestError",
+        _tag: "InferenceRequestError",
         cause: expect.any(TypeError),
         message: "A model execution requires an execution identity.",
       }),
@@ -224,7 +223,7 @@ describe("model executor", () => {
 
   it("classifies provider failures in the Effect error channel", async () => {
     const failure = new Error("Provider unavailable");
-    const executor = createModelExecutor(
+    const executor = createInference(
       modelCatalog(),
       generationRouter(
         vi.fn(async () => {

@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
-import { ids } from "#backend/id";
 import { requireModelInput, type ModelInput } from "./input";
 
 function validInput(): ModelInput {
   return {
     instructions: [{ sourceKey: "test.instruction", content: "Instruction" }],
-    dialogue: [{ messageId: ids.message.create(), role: "user", content: "Hello" }],
+    dialogue: [{ sourceKey: "editor-input", role: "user", content: "Hello" }],
   };
 }
 
@@ -42,22 +41,22 @@ describe("model input", () => {
 
   it("rejects invalid dialogue", () => {
     const input = validInput();
-    const messageId = ids.message.create();
+    const sourceKey = "editor-input";
 
     expect(() =>
       requireModelInput({
         ...input,
-        dialogue: [{ messageId, role: "system", content: "Not dialogue" }],
+        dialogue: [{ sourceKey, role: "system", content: "Not dialogue" }],
       } as unknown as ModelInput),
     ).toThrow('unsupported dialogue role "system"');
     expect(() =>
       requireModelInput({
         ...input,
         dialogue: [
-          { messageId, role: "user", content: "First" },
-          { messageId, role: "assistant", content: "Second" },
+          { sourceKey, role: "user", content: "First" },
+          { sourceKey, role: "assistant", content: "Second" },
         ],
       }),
-    ).toThrow(`duplicate message "${messageId}"`);
+    ).toThrow(`duplicate message "${sourceKey}"`);
   });
 });

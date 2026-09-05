@@ -12,11 +12,11 @@ import { generationTable } from "#backend/generation/schema";
 import { superviseGenerations } from "#backend/generation/supervisor";
 import { ids } from "#backend/id";
 import {
-  createModelExecutionRunner,
-  createModelExecutor,
+  createInferenceRunner,
+  createInference,
   ModelProviderError,
-  type ModelExecutionRunner,
-} from "#backend/model/execution";
+  type InferenceRunner,
+} from "#backend/model/inference";
 import { createModelInputResolver } from "#backend/model/input-resolver";
 import type {
   ProviderGenerationRequest,
@@ -58,8 +58,8 @@ function createDatabasePath() {
   return join(directory, "jaquelene.sqlite");
 }
 
-function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
-  const executor = createModelExecutor(
+function inferenceRunner(generate: TestGenerate): InferenceRunner {
+  const executor = createInference(
     {
       async getModel(reference) {
         if (reference.providerId !== "provider-a") {
@@ -92,9 +92,7 @@ function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
     },
   );
 
-  return createModelExecutionRunner(executor, (effect, options) =>
-    Effect.runPromise(effect, options),
-  );
+  return createInferenceRunner(executor, (effect, options) => Effect.runPromise(effect, options));
 }
 
 function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
@@ -111,7 +109,7 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
       threads,
       createModelInputResolver(campaigns, promptApplications),
     ),
-    modelExecutor: modelExecutionRunner(generate),
+    inference: inferenceRunner(generate),
     attempts: usage.attempts,
     getUsageAttribution: (threadId) => getCampaignUsageAttribution(database, threadId),
     now,

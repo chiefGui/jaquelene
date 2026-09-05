@@ -4,7 +4,7 @@ import { CampaignService } from "#backend/campaign/subsystem";
 import type { CampaignUsageReader } from "#backend/campaign/usage";
 import { DatabaseService } from "#backend/database/database";
 import { GenerationService } from "#backend/generation/subsystem";
-import { ModelExecutionService } from "#backend/model/execution";
+import { InferenceService } from "#backend/model/inference";
 import { ModelInputService } from "#backend/model/input-resolver";
 import { narratorPromptModule } from "#backend/narrator/module";
 import { PromptService } from "#backend/prompt/subsystem";
@@ -112,19 +112,13 @@ function createConfiguredBackendLayer<StorageRequirements>(
   const modelInputsLayer = ModelInputService.layer.pipe(
     Layer.provide(Layer.merge(campaignsLayer, promptsLayer)),
   );
-  const modelExecutionsLayer = ModelExecutionService.layer.pipe(Layer.provide(providersLayer));
+  const inferenceLayer = InferenceService.layer.pipe(Layer.provide(providersLayer));
   const threadsLayer = ThreadService.layer().pipe(
     Layer.provide(Layer.merge(databaseLayer, modelInputsLayer)),
   );
   const generationsLayer = GenerationService.layer.pipe(
     Layer.provide(
-      Layer.mergeAll(
-        databaseLayer,
-        modelExecutionsLayer,
-        modelInputsLayer,
-        threadsLayer,
-        usageLayer,
-      ),
+      Layer.mergeAll(databaseLayer, inferenceLayer, modelInputsLayer, threadsLayer, usageLayer),
     ),
   );
   const turnsLayer = TurnService.layer.pipe(

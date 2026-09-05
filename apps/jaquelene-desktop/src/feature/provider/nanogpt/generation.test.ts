@@ -42,9 +42,9 @@ function generationRequest(): ProviderGenerationRequest {
     input: {
       instructions: [{ sourceKey: "test.instruction", content: "Instruction" }],
       dialogue: [
-        { messageId: ids.message.create(), role: "user", content: "Earlier message" },
-        { messageId: ids.message.create(), role: "assistant", content: "Earlier reply" },
-        { messageId: ids.message.create(), role: "user", content: "Hello" },
+        { sourceKey: ids.message.create(), role: "user", content: "Earlier message" },
+        { sourceKey: ids.message.create(), role: "assistant", content: "Earlier reply" },
+        { sourceKey: ids.message.create(), role: "user", content: "Hello" },
       ],
     },
   };

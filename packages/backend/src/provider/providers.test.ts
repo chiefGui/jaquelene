@@ -145,7 +145,7 @@ function generationRequest() {
     modelId: "maker/model",
     input: {
       instructions: [],
-      dialogue: [{ messageId: ids.message.create(), role: "user" as const, content: "Hello" }],
+      dialogue: [{ sourceKey: ids.message.create(), role: "user" as const, content: "Hello" }],
     },
   };
 }

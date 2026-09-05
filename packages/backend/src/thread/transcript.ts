@@ -24,7 +24,7 @@ export function createThreadTranscriptReader(
             sourceKey,
             content,
           })),
-          ...input.dialogue.map(({ messageId, role: author, content }) => ({
+          ...input.dialogue.map(({ sourceKey: messageId, role: author, content }) => ({
             kind: ThreadTranscriptEntryKind.Message,
             messageId,
             author,

@@ -32,8 +32,8 @@ export function createModelInputResolver(
           threadId,
           campaign: campaigns.getContextForThread(threadId),
         }),
-        dialogue: messages.map(({ id: messageId, author: role, content }) => ({
-          messageId,
+        dialogue: messages.map(({ id: sourceKey, author: role, content }) => ({
+          sourceKey,
           role,
           content,
         })),

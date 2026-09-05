@@ -1,7 +1,7 @@
 import { Context, Effect, FiberSet, Layer } from "effect";
 import { getCampaignUsageAttribution } from "#backend/campaign/usage";
 import { DatabaseService } from "#backend/database/database";
-import { createModelExecutionRunner, ModelExecutionService } from "#backend/model/execution";
+import { createInferenceRunner, InferenceService } from "#backend/model/inference";
 import { ModelInputService } from "#backend/model/input-resolver";
 import { ThreadService } from "#backend/thread/subsystem";
 import { UsageService } from "#backend/usage/subsystem";
@@ -48,18 +48,18 @@ export class GenerationService extends Context.Service<
     this,
     Effect.gen(function* () {
       const database = yield* DatabaseService;
-      const modelExecutions = yield* ModelExecutionService;
+      const inference = yield* InferenceService;
       const modelInputs = yield* ModelInputService;
       const threads = yield* ThreadService;
       const usage = yield* UsageService;
       const runModelEffect = yield* FiberSet.makeRuntimePromise();
-      const modelExecutor = createModelExecutionRunner(modelExecutions, runModelEffect);
+      const inferenceRunner = createInferenceRunner(inference, runModelEffect);
       const subsystem = yield* Effect.acquireRelease(
         Effect.sync(() =>
           createGenerationSubsystem({
             database,
             replyPreparer: createReplyPreparer(threads.engine, modelInputs),
-            modelExecutor,
+            inference: inferenceRunner,
             attempts: usage.attempts,
             getUsageAttribution: (threadId) => getCampaignUsageAttribution(database, threadId),
           }),

@@ -10,8 +10,6 @@ import {
   useFormValue,
 } from "@ariakit/react/form";
 import { useStoreState } from "@ariakit/react/store";
-import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
-import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
 import {
   PROMPT_BODY_MAX_UTF16_LENGTH,
   PROMPT_TITLE_MAX_UTF16_LENGTH,
@@ -27,14 +25,8 @@ import { AiActionMenu, AiActionStatus } from "@/feature/ai-action/menu";
 import { useAiAction } from "@/feature/ai-action/use-ai-action";
 import { useFormStatus } from "@/feature/form/status";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
-import { IconAction } from "@/primitive/icon-action";
-import {
-  appendTextVersion,
-  emptyTextVersions,
-  nextTextVersion,
-  previousTextVersion,
-  type TextVersionChange,
-} from "@/primitive/text-versions";
+import { TextVersionControls } from "@/primitive/text-version-controls";
+import { useTextVersions } from "@/primitive/use-text-versions";
 import { usePromptFormValidation } from "./form";
 import { useCreatePrompt, useUpdatePrompt } from "./query";
 
@@ -70,8 +62,6 @@ export function PromptEditor(props: PromptEditorProps) {
   const form = useFormStore({ defaultValues: baseline });
   const body = useFormValue<string>(form, form.names.body);
   const title = useFormValue<string>(form, form.names.title);
-  const [versions, setVersions] = useState(emptyTextVersions);
-  const [historyKey, setHistoryKey] = useState(0);
   const bodyInputRef = useRef<HTMLElement>(null);
   const hasSubmitted = useStoreState(
     form,
@@ -88,8 +78,6 @@ export function PromptEditor(props: PromptEditorProps) {
   const awaitingCreatedPrompt = !editing && Boolean(savedPrompt);
   const editorReadOnly = saving || awaitingCreatedPrompt;
   const dirty = !promptValuesEqual({ body, title }, baseline);
-  const versionNumber = versions.previous.length + 1;
-  const versionCount = versionNumber + versions.next.length;
   let submitLabel = "Create";
   if (awaitingCreatedPrompt) {
     submitLabel = "Open prompt";
@@ -103,33 +91,16 @@ export function PromptEditor(props: PromptEditorProps) {
     },
     [clearStatus, form],
   );
-  const applyVersion = useCallback(
-    (change: TextVersionChange) => {
-      setVersions(change.versions);
-      setHistoryKey((key) => key + 1);
-      setBody(change.text);
-    },
-    [setBody],
-  );
-  const addVersion = useCallback(
-    (text: string) => {
-      const change = appendTextVersion(versions, form.getState().values.body, text);
-      if (change.versions !== versions) {
-        applyVersion(change);
-      }
-    },
-    [applyVersion, form, versions],
-  );
+  const versions = useTextVersions({ value: body, onValueChange: setBody });
   const aiAction = useAiAction({
     target: props.aiActionTarget,
     value: body,
-    onValueChange: addVersion,
+    onValueChange: versions.append,
     disabled: saving || awaitingCreatedPrompt,
   });
 
   function resetVersions() {
-    setVersions(emptyTextVersions());
-    setHistoryKey((key) => key + 1);
+    versions.reset();
     aiAction.clear();
   }
 
@@ -148,17 +119,12 @@ export function PromptEditor(props: PromptEditorProps) {
     if (savingRef.current || awaitingCreatedPrompt || aiAction.busy) {
       return;
     }
-    const current = form.getState().values.body;
-    let change: TextVersionChange;
     if (direction === "next") {
-      change = nextTextVersion(versions, current);
+      versions.next();
     } else {
-      change = previousTextVersion(versions, current);
+      versions.previous();
     }
-    if (change.versions !== versions) {
-      applyVersion(change);
-      aiAction.clear();
-    }
+    aiAction.clear();
   }
 
   useEffect(() => {
@@ -296,39 +262,21 @@ export function PromptEditor(props: PromptEditorProps) {
             <MarkdownEditor
               ref={bodyInputRef}
               value={body}
-              historyKey={historyKey}
+              historyKey={versions.revision}
               onValueChange={setBody}
               maxLength={PROMPT_BODY_MAX_UTF16_LENGTH}
               readOnly={editorReadOnly || aiAction.busy}
               toolbarActions={<AiActionMenu control={aiAction} />}
-              statusContent={
-                <>
-                  <AiActionStatus control={aiAction} />
-                  {versionCount > 1 && (
-                    <div role="group" aria-label="Text versions" {...stylex.props(styles.versions)}>
-                      <IconAction
-                        icon={ArrowLeft01Icon}
-                        label="Previous version"
-                        disabled={editorReadOnly || aiAction.busy || versions.previous.length === 0}
-                        onClick={() => moveVersion("previous")}
-                      />
-                      <span
-                        role="status"
-                        aria-label={`Version ${versionNumber} of ${versionCount}`}
-                        {...stylex.props(styles.versionNumber)}
-                      >
-                        {versionNumber} / {versionCount}
-                      </span>
-                      <IconAction
-                        icon={ArrowRight01Icon}
-                        label="Next version"
-                        disabled={editorReadOnly || aiAction.busy || versions.next.length === 0}
-                        onClick={() => moveVersion("next")}
-                      />
-                    </div>
-                  )}
-                </>
+              toolbarEnd={
+                <TextVersionControls
+                  count={versions.count}
+                  index={versions.index}
+                  disabled={editorReadOnly || aiAction.busy}
+                  onPrevious={() => moveVersion("previous")}
+                  onNext={() => moveVersion("next")}
+                />
               }
+              statusContent={<AiActionStatus control={aiAction} />}
             />
           }
         />
@@ -364,18 +312,6 @@ export function PromptEditor(props: PromptEditorProps) {
 }
 
 const styles = stylex.create({
-  versions: {
-    alignItems: "center",
-    display: "flex",
-    flexShrink: 0,
-    gap: "0.125rem",
-    marginInlineEnd: "0.75rem",
-  },
-  versionNumber: {
-    fontVariantNumeric: "tabular-nums",
-    minWidth: "5ch",
-    textAlign: "center",
-  },
   titleInput: { width: "100%" },
   promptField: {
     gap: 0,

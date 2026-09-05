@@ -52,6 +52,7 @@ type WithoutChildren<Props> = Props extends unknown ? Omit<Props, "children"> : 
 
 export type MarkdownEditorProps = WithoutChildren<MarkdownEditorRootProps> & {
   toolbarActions?: ReactNode;
+  toolbarEnd?: ReactNode;
   statusContent?: ReactNode;
   style?: StyleXStyles;
 };
@@ -327,10 +328,12 @@ function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsP
 const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent({
   style,
   toolbarActions,
+  toolbarEnd,
   statusContent,
 }: {
   style: StyleXStyles | undefined;
   toolbarActions: ReactNode;
+  toolbarEnd: ReactNode;
   statusContent: ReactNode;
 }) {
   return (
@@ -338,7 +341,10 @@ const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent(
       <MarkdownEditorToolbar>
         <MarkdownEditorFormattingActions />
         {toolbarActions}
-        <MarkdownEditorPreviewToggle style={styles.previewTogglePlacement} />
+        <div {...stylex.props(styles.toolbarEnd)}>
+          {toolbarEnd}
+          <MarkdownEditorPreviewToggle />
+        </div>
       </MarkdownEditorToolbar>
       <MarkdownEditorContent />
       <MarkdownEditorStatus>
@@ -350,12 +356,16 @@ const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent(
 });
 
 const MarkdownEditorDefault = forwardRef<HTMLElement, MarkdownEditorProps>(
-  function MarkdownEditorDefault({ style, toolbarActions, statusContent, ...props }, ref) {
+  function MarkdownEditorDefault(
+    { style, toolbarActions, toolbarEnd, statusContent, ...props },
+    ref,
+  ) {
     return (
       <MarkdownEditorRoot {...props} ref={ref}>
         <MarkdownEditorDefaultContent
           style={style}
           toolbarActions={toolbarActions}
+          toolbarEnd={toolbarEnd}
           statusContent={statusContent}
         />
       </MarkdownEditorRoot>
@@ -382,9 +392,10 @@ const styles = stylex.create({
     backgroundColor: colors.backgroundNeutralSubtlest,
     borderColor: {
       default: colors.borderSubtle,
-      ":focus-within": colors.borderFocus,
+      ":has([data-markdown-editor-input]:focus)": colors.borderFocus,
       ':is([data-invalid="true"])': colors.borderDanger,
-      ':is([data-invalid="true"]):focus-within': colors.borderDangerFocus,
+      ':is([data-invalid="true"]):has([data-markdown-editor-input]:focus)':
+        colors.borderDangerFocus,
     },
     borderRadius: radii.control,
     borderStyle: "solid",
@@ -412,8 +423,11 @@ const styles = stylex.create({
     gap: "0.125rem",
     padding: "0.25rem",
   },
-  previewTogglePlacement: {
-    marginLeft: "auto",
+  toolbarEnd: {
+    alignItems: "center",
+    display: "flex",
+    gap: "0.125rem",
+    marginInlineStart: "auto",
   },
   preview: {
     flexGrow: 1,

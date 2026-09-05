@@ -87,6 +87,7 @@ const formattingKeymap: readonly KeyBinding[] = [
 function contentAttributes(options: DynamicOptions) {
   const attributes: Record<string, string> = {
     "aria-multiline": "true",
+    "data-markdown-editor-input": "",
     autocapitalize: "sentences",
     autocorrect: "off",
     role: "textbox",

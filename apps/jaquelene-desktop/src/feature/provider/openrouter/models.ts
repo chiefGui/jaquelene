@@ -1,5 +1,6 @@
-import { OpenRouterCore } from "@openrouter/sdk/core.js";
-import { modelsListForUser } from "@openrouter/sdk/funcs/modelsListForUser.js";
+import { modelsListResponseFromJSON } from "@openrouter/sdk/models";
+import { Effect } from "effect";
+import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import {
   createProviderModel,
   requireContextWindowTokens,
@@ -25,31 +26,38 @@ type OpenRouterCatalogModel = {
   reasoning?: OpenRouterReasoningMetadata | undefined;
 };
 
-type LoadOpenRouterModels = (
-  apiKey: string,
-  signal: AbortSignal,
-) => Promise<readonly OpenRouterCatalogModel[]>;
+const modelPageSize = 500;
 
-const client = new OpenRouterCore({
-  appTitle: "Jaquelene",
-  retryConfig: { strategy: "none" },
-  timeoutMs: 10_000,
-});
+const loadOpenRouterPage = Effect.fn("OpenRouter.loadModelPage")(
+  function* (apiKey: string, client: HttpClient.HttpClient, offset: number) {
+    const response = yield* HttpClientRequest.get("https://openrouter.ai/api/v1/models/user").pipe(
+      HttpClientRequest.bearerToken(apiKey),
+      HttpClientRequest.acceptJson,
+      HttpClientRequest.setHeader("X-OpenRouter-Title", "Jaquelene"),
+      HttpClientRequest.setUrlParams({ offset, limit: modelPageSize }),
+      HttpClient.withScope(client).execute,
+    );
+    const body = yield* response.text;
 
-async function loadOpenRouterModels(apiKey: string, signal: AbortSignal) {
-  const pages = await modelsListForUser(client, { bearer: apiKey }, undefined, { signal });
-  const models: OpenRouterCatalogModel[] = [];
-
-  for await (const page of pages) {
-    if (!page.ok) {
-      throw page.error;
+    if (response.status < 200 || response.status >= 300) {
+      return yield* Effect.fail(
+        new Error(`OpenRouter rejected the model request with status ${response.status}.`, {
+          cause: body,
+        }),
+      );
     }
 
-    models.push(...page.value.result.data);
-  }
+    const result = modelsListResponseFromJSON(body);
 
-  return models;
-}
+    if (!result.ok) {
+      return yield* Effect.fail(result.error);
+    }
+
+    return result.value.data;
+  },
+  Effect.scoped,
+  Effect.timeout(10_000),
+);
 
 function normalizeTokenPricing(
   id: string,
@@ -139,18 +147,37 @@ function normalizeModel({ contextLength, id, name, pricing, reasoning }: OpenRou
 
 export function createOpenRouterModels(
   configuration: Pick<ApiKeyConfiguration, "withApiKey">,
-  loadModels: LoadOpenRouterModels = loadOpenRouterModels,
+  client: HttpClient.HttpClient,
 ): ProviderModelsAdapter {
   return {
-    list: (signal) =>
-      configuration.withApiKey(async (apiKey) =>
-        (await loadModels(apiKey, signal))
-          .filter(
-            ({ architecture }) =>
-              architecture.inputModalities.includes("text") &&
-              architecture.outputModalities.includes("text"),
-          )
-          .map(normalizeModel),
-      ),
+    list: configuration.withApiKey(
+      Effect.fnUntraced(function* (apiKey) {
+        const models: OpenRouterCatalogModel[] = [];
+        let offset = 0;
+
+        while (true) {
+          const page = yield* loadOpenRouterPage(apiKey, client, offset);
+          models.push(...page);
+
+          if (page.length < modelPageSize) {
+            break;
+          }
+
+          offset += page.length;
+        }
+
+        return yield* Effect.try({
+          try: () =>
+            models
+              .filter(
+                ({ architecture }) =>
+                  architecture.inputModalities.includes("text") &&
+                  architecture.outputModalities.includes("text"),
+              )
+              .map(normalizeModel),
+          catch: (cause) => cause,
+        });
+      }),
+    ),
   };
 }

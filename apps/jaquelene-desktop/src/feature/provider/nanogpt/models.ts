@@ -1,3 +1,5 @@
+import { Effect, Schema } from "effect";
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http";
 import {
   createProviderModel,
   requireContextWindowTokens,
@@ -7,7 +9,7 @@ import type { ApiKeyConfiguration } from "../api-key-configuration";
 import { removeKnownAuthorPrefix, resolveModelAuthor } from "../model-author";
 import { normalizeNanoGptReasoning } from "./reasoning";
 
-type LoadNanoGptModels = (apiKey: string, signal: AbortSignal) => Promise<readonly unknown[]>;
+const catalogSchema = Schema.Struct({ data: Schema.Array(Schema.Unknown) });
 
 type JsonObject = Record<string, unknown>;
 
@@ -102,50 +104,42 @@ function normalizeModel(candidate: unknown) {
   });
 }
 
-async function loadNanoGptModels(apiKey: string, signal: AbortSignal) {
-  const response = await fetch("https://nano-gpt.com/api/v1/models?detailed=true", {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
-  });
-  const responseBody = await response.text();
-  let body: unknown;
-
-  try {
-    body = JSON.parse(responseBody);
-  } catch (cause) {
-    if (response.ok) {
-      throw new TypeError("NanoGPT returned an invalid JSON model catalog.", { cause });
-    }
-
-    body = responseBody;
-  }
-
-  if (!response.ok) {
-    throw new Error(`NanoGPT rejected the model request with status ${response.status}.`, {
-      cause: body,
-    });
-  }
-
-  const catalog = requireObject(body, "The NanoGPT model catalog");
-
-  if (!Array.isArray(catalog.data)) {
-    throw new TypeError("The NanoGPT model catalog must contain a model list.");
-  }
-
-  return catalog.data;
-}
-
 export function createNanoGptModels(
   configuration: Pick<ApiKeyConfiguration, "withApiKey">,
-  loadModels: LoadNanoGptModels = loadNanoGptModels,
+  client: HttpClient.HttpClient,
 ): ProviderModelsAdapter {
+  const scopedClient = HttpClient.withScope(client);
   return {
-    list: (signal) =>
-      configuration.withApiKey(async (apiKey) =>
-        (await loadModels(apiKey, signal)).map(normalizeModel),
+    list: configuration.withApiKey(
+      Effect.fn("nanogpt.models")(
+        function* (apiKey: string) {
+          const response = yield* HttpClientRequest.get("https://nano-gpt.com/api/v1/models").pipe(
+            HttpClientRequest.setUrlParam("detailed", "true"),
+            HttpClientRequest.acceptJson,
+            HttpClientRequest.bearerToken(apiKey),
+            scopedClient.execute,
+          );
+          if (response.status < 200 || response.status >= 300) {
+            return yield* Effect.fail(
+              new Error(`NanoGPT rejected the model request with status ${response.status}.`, {
+                cause: yield* response.text,
+              }),
+            );
+          }
+          const catalog = yield* HttpClientResponse.schemaBodyJson(catalogSchema)(response).pipe(
+            Effect.mapError(
+              (cause) =>
+                new TypeError("NanoGPT returned an invalid JSON model catalog.", { cause }),
+            ),
+          );
+          return yield* Effect.try({
+            try: () => catalog.data.map(normalizeModel),
+            catch: (cause) => cause,
+          });
+        },
+        Effect.timeout(10_000),
+        Effect.scoped,
       ),
+    ),
   };
 }

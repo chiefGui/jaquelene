@@ -317,10 +317,9 @@ export function createModelExecutor(
       try: () => requireProvider(providers, validated.configuration.model),
       catch: providerError,
     });
-    const providerResult = yield* Effect.tryPromise({
-      try: (signal) => provider.generate(toProviderRequest(validated), signal),
-      catch: providerError,
-    });
+    const providerResult = yield* provider
+      .generate(toProviderRequest(validated))
+      .pipe(Effect.mapError(providerError));
     const normalized = normalizeProviderAccounting(providerResult);
 
     if (normalized.outcome === "invalid") {

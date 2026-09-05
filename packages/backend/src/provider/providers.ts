@@ -1,4 +1,16 @@
-import { Context, Effect, Layer, Schema } from "effect";
+import {
+  Cause,
+  Context,
+  Effect,
+  Exit,
+  Fiber,
+  FiberSet,
+  Layer,
+  Predicate,
+  Queue,
+  Schema,
+  Scope,
+} from "effect";
 import { providerConfigureResultSchema, providerKeyLabelSchema } from "@jaquelene/domain";
 import type { ResourceCache } from "#backend/resource-cache/resource-cache";
 import { ResourceCacheService } from "#backend/resource-cache/service";
@@ -17,67 +29,6 @@ import { createModelCatalog, type Models, type ModelProvider } from "./model-cat
 
 export type { Models, ModelProvider } from "./model-catalog";
 
-export type ProviderSummary = ProviderDescriptor &
-  Readonly<{
-    configuration: ProviderConfiguration;
-  }>;
-
-export type Providers = Readonly<{
-  list: () => readonly ProviderSummary[];
-  inspectConfiguration: (providerId: ProviderId) => ProviderConfiguration;
-  configureApiKey: (
-    providerId: ProviderId,
-    apiKey: string,
-    signal?: AbortSignal,
-  ) => Promise<ProviderConfigureResult>;
-  clearConfiguration: (providerId: ProviderId) => Promise<void>;
-}>;
-
-export type ProviderGenerationRoute = Readonly<{
-  generate: (
-    request: ProviderGenerationRequest,
-    signal?: AbortSignal,
-  ) => Promise<ProviderGenerationResult>;
-}>;
-
-export type ProviderGenerationRouter = Readonly<{
-  get: (providerId: ProviderId) => ProviderGenerationRoute | undefined;
-}>;
-
-type ActiveOperation = Readonly<{
-  controller: AbortController;
-  result: Promise<unknown>;
-}>;
-
-type RegisteredProvider = {
-  adapter: ProviderAdapter;
-  activeUses: Set<ActiveOperation>;
-  pendingClears: number;
-  configurationTail: Promise<void>;
-};
-
-type InspectedProviderConfiguration =
-  | Readonly<{ kind: "none"; state: "configured" }>
-  | (ApiKeyProviderConfigurationSnapshot & Readonly<{ kind: "api-key" }>);
-
-type ProviderSubsystem = Readonly<{
-  providers: Providers;
-  models: Models;
-  generations: ProviderGenerationRouter;
-  close: () => Promise<void>;
-}>;
-
-async function disposeProvider(adapter: ProviderAdapter) {
-  const disposeAsync = adapter[Symbol.asyncDispose];
-
-  if (disposeAsync) {
-    await disposeAsync.call(adapter);
-    return;
-  }
-
-  adapter[Symbol.dispose]?.call(adapter);
-}
-
 export class ProviderAcquisitionError extends Schema.TaggedError<ProviderAcquisitionError>()(
   "ProviderAcquisitionError",
   { providerId: Schema.String, cause: Schema.Defect() },
@@ -87,37 +38,73 @@ export class ProviderAcquisitionError extends Schema.TaggedError<ProviderAcquisi
   }
 }
 
-const acquireProvider = Effect.fnUntraced(function* (factory: ProviderFactory) {
-  const adapter = yield* Effect.acquireRelease(
-    Effect.tryPromise({
-      async try(signal) {
-        const adapter = await factory.create(signal);
-        // A foreign Promise may deliver its resource after the acquisition was interrupted.
-        if (signal.aborted) {
-          await disposeProvider(adapter);
-          signal.throwIfAborted();
-        }
-        return adapter;
-      },
-      catch: (cause) => new ProviderAcquisitionError({ providerId: factory.id, cause }),
-    }),
-    (adapter) => Effect.promise(() => disposeProvider(adapter)),
-    { interruptible: true },
-  );
+export class ProviderOperationError extends Schema.TaggedError<ProviderOperationError>()(
+  "ProviderOperationError",
+  {
+    providerId: Schema.String,
+    operation: Schema.Literals(["configure", "clear", "models", "generate"]),
+    cause: Schema.Defect(),
+  },
+) {
+  override get message() {
+    if (Predicate.isError(this.cause)) {
+      return this.cause.message;
+    }
+    return `Provider "${this.providerId}" could not complete ${this.operation}.`;
+  }
+}
 
+export type ProviderSummary = ProviderDescriptor &
+  Readonly<{ configuration: ProviderConfiguration }>;
+
+export type Providers = Readonly<{
+  list: () => readonly ProviderSummary[];
+  inspectConfiguration: (providerId: ProviderId) => ProviderConfiguration;
+  configureApiKey: (
+    providerId: ProviderId,
+    apiKey: string,
+  ) => Effect.Effect<ProviderConfigureResult, ProviderOperationError>;
+  clearConfiguration: (providerId: ProviderId) => Effect.Effect<void, ProviderOperationError>;
+}>;
+
+export type ProviderGenerationRoute = Readonly<{
+  generate: (
+    request: ProviderGenerationRequest,
+  ) => Effect.Effect<ProviderGenerationResult, ProviderOperationError>;
+}>;
+
+export type ProviderGenerationRouter = Readonly<{
+  get: (providerId: ProviderId) => ProviderGenerationRoute | undefined;
+}>;
+
+type OperationFiber = Fiber.Fiber<unknown, ProviderOperationError>;
+
+type RegisteredProvider = {
+  adapter: ProviderAdapter;
+  uses: FiberSet.FiberSet<unknown, ProviderOperationError>;
+  configurations: Queue.Queue<Fiber.Fiber<unknown, unknown>>;
+  pendingClears: number;
+};
+
+type InspectedProviderConfiguration =
+  | Readonly<{ kind: "none"; state: "configured" }>
+  | (ApiKeyProviderConfigurationSnapshot & Readonly<{ kind: "api-key" }>);
+
+const acquireProvider = Effect.fnUntraced(function* (factory: ProviderFactory) {
+  const adapter = yield* factory.create.pipe(
+    Effect.mapError((cause) => new ProviderAcquisitionError({ providerId: factory.id, cause })),
+  );
   requireAdapter(adapter);
   if (adapter.descriptor.id !== factory.id) {
     throw new TypeError(
       `Provider factory "${factory.id}" created provider "${adapter.descriptor.id}".`,
     );
   }
-
   if ((factory.storagePaths !== null) !== (adapter.configuration.kind === "api-key")) {
     throw new TypeError(
       `Provider factory "${factory.id}" storage does not match its configuration capability.`,
     );
   }
-
   return adapter;
 });
 
@@ -136,7 +123,7 @@ function requireAdapter(adapter: ProviderAdapter) {
     if (
       typeof adapter.configuration.inspect !== "function" ||
       typeof adapter.configuration.configure !== "function" ||
-      typeof adapter.configuration.clear !== "function"
+      !Effect.isEffect(adapter.configuration.clear)
     ) {
       throw new TypeError(
         `API-key provider "${adapter.descriptor.id}" has an invalid configuration adapter.`,
@@ -146,10 +133,7 @@ function requireAdapter(adapter: ProviderAdapter) {
     throw new TypeError(`Provider "${adapter.descriptor.id}" has an unknown configuration kind.`);
   }
 
-  if (
-    typeof adapter.models.list !== "function" ||
-    typeof adapter.generation.generate !== "function"
-  ) {
+  if (!Effect.isEffect(adapter.models.list) || typeof adapter.generation.generate !== "function") {
     throw new TypeError(`Provider "${adapter.descriptor.id}" has incomplete capabilities.`);
   }
 }
@@ -200,69 +184,79 @@ function requireConfigureResult(
   throw new TypeError(`Provider "${providerId}" returned an invalid configuration result.`);
 }
 
-function interruption(signal: AbortSignal) {
-  if (signal.reason instanceof Error) {
-    return signal.reason;
-  }
-
-  return new Error("Provider operation was interrupted.", { cause: signal.reason });
-}
-
-function combineSignals(external: AbortSignal | undefined, internal: AbortSignal) {
-  if (external) {
-    return AbortSignal.any([external, internal]);
-  }
-
-  return internal;
-}
-
-function waitForOperation<Result>(operation: Promise<Result>, signal: AbortSignal) {
-  if (signal.aborted) {
-    operation.catch(() => undefined);
-    return Promise.reject(interruption(signal));
-  }
-
-  let stopWaiting: (() => void) | undefined;
-  const interrupted = new Promise<never>((_resolve, reject) => {
-    const onAbort = () => reject(interruption(signal));
-    signal.addEventListener("abort", onAbort, { once: true });
-    stopWaiting = () => signal.removeEventListener("abort", onAbort);
-
-    if (signal.aborted) {
-      onAbort();
+const interruptOperations = Effect.fnUntraced(function* (fibers: Iterable<OperationFiber>) {
+  const active = [...fibers];
+  yield* Fiber.interruptAll(active);
+  const exits = yield* Effect.forEach(active, Fiber.await);
+  const reasons = exits.flatMap((exit) => {
+    if (Exit.isSuccess(exit)) {
+      return [];
     }
+    return exit.cause.reasons.filter((reason) => !Cause.isInterruptReason(reason));
   });
+  if (reasons.length > 0) {
+    return yield* Effect.failCause(Cause.fromReasons(reasons));
+  }
+}, Effect.uninterruptible);
 
-  return Promise.race([operation, interrupted]).finally(stopWaiting);
-}
+const runOwned = Effect.fnUntraced(function* <Result>(
+  owner: FiberSet.FiberSet<unknown, ProviderOperationError>,
+  operation: Effect.Effect<Result, ProviderOperationError>,
+) {
+  const exit = yield* Effect.acquireUseRelease(
+    FiberSet.run(owner, operation),
+    Fiber.await,
+    (fiber, exit) => {
+      if (Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)) {
+        return interruptOperations([fiber]);
+      }
+      return Effect.void;
+    },
+  );
+  return yield* exit;
+});
 
-function createProviderSubsystem(
+const createProviders = Effect.fnUntraced(function* (
   adapters: readonly ProviderAdapter[],
   resourceCache: ResourceCache,
-): ProviderSubsystem {
+) {
+  const operationScope = yield* Scope.fork(yield* Effect.scope, "parallel");
+  const configurations = yield* FiberSet.make<unknown, ProviderOperationError>().pipe(
+    Effect.provideService(Scope.Scope, operationScope),
+  );
   const providersById = new Map<ProviderId, RegisteredProvider>();
-
   for (const adapter of adapters) {
-    const { id } = adapter.descriptor;
-    providersById.set(id, {
+    const uses = yield* FiberSet.make<unknown, ProviderOperationError>().pipe(
+      Effect.provideService(Scope.Scope, operationScope),
+    );
+    const queue = yield* Effect.acquireRelease(
+      Queue.bounded<Fiber.Fiber<unknown, unknown>>(0),
+      Queue.shutdown,
+    ).pipe(Effect.provideService(Scope.Scope, operationScope));
+    yield* Effect.forever(Effect.flatMap(Queue.take(queue), Fiber.await)).pipe(
+      Effect.forkIn(operationScope),
+    );
+    providersById.set(adapter.descriptor.id, {
       adapter,
-      activeUses: new Set(),
+      uses,
+      configurations: queue,
       pendingClears: 0,
-      configurationTail: Promise.resolve(),
     });
   }
 
-  let state: "open" | "closing" | "closed" = "open";
-  let closePromise: Promise<void> | undefined;
-  const activeOperations = new Set<ActiveOperation>();
+  let open = true;
+
+  function requireOpen() {
+    if (!open) {
+      throw new Error("Providers are closed.");
+    }
+  }
 
   function requireProvider(providerId: ProviderId) {
     const provider = providersById.get(providerId);
-
     if (!provider) {
       throw new RangeError(`Unknown provider "${providerId}".`);
     }
-
     return provider;
   }
 
@@ -270,7 +264,6 @@ function createProviderSubsystem(
     if (adapter.configuration.kind === "none") {
       return { kind: "none", state: "configured" };
     }
-
     return {
       kind: "api-key",
       ...requireApiKeyConfiguration(adapter.descriptor.id, adapter.configuration.inspect()),
@@ -279,175 +272,264 @@ function createProviderSubsystem(
 
   function inspectConfiguration(adapter: ProviderAdapter): ProviderConfiguration {
     const configuration = inspectAdapterConfiguration(adapter);
-
-    if (configuration.kind === "none") {
+    if (configuration.kind === "none" || configuration.state === "unconfigured") {
       return configuration;
     }
+    return { kind: "api-key", state: "configured", keyLabel: configuration.keyLabel };
+  }
 
-    if (configuration.state === "unconfigured") {
-      return { kind: "api-key", state: "unconfigured" };
+  function requireAdmission(provider: RegisteredProvider) {
+    requireOpen();
+    if (provider.pendingClears > 0) {
+      throw new Error(`Provider "${provider.adapter.descriptor.id}" is disconnecting.`);
     }
-
-    return {
-      kind: "api-key",
-      state: "configured",
-      keyLabel: configuration.keyLabel,
-    };
   }
 
-  function trackOperation<Result>(
-    controller: AbortController,
-    signal: AbortSignal,
-    operation: Promise<Result>,
-    providerOperations?: Set<ActiveOperation>,
-  ) {
-    const result = waitForOperation(operation, signal);
-    const active = { controller, result } satisfies ActiveOperation;
-    activeOperations.add(active);
-    providerOperations?.add(active);
-    void result
-      .finally(() => {
-        activeOperations.delete(active);
-        providerOperations?.delete(active);
-      })
-      .catch(() => undefined);
-    return result;
-  }
-
-  function runOperation<Result>(
-    signal: AbortSignal | undefined,
-    operation: (operationSignal: AbortSignal) => Promise<Result>,
-    providerOperations?: Set<ActiveOperation>,
-  ) {
-    if (state !== "open") {
-      return Promise.reject(new Error("Providers are closed."));
+  function requireAvailable(provider: RegisteredProvider) {
+    requireAdmission(provider);
+    if (inspectConfiguration(provider.adapter).state !== "configured") {
+      throw new Error(`Provider "${provider.adapter.descriptor.id}" is not configured.`);
     }
-
-    const controller = new AbortController();
-    const operationSignal = combineSignals(signal, controller.signal);
-    return trackOperation(
-      controller,
-      operationSignal,
-      Promise.resolve().then(() => operation(operationSignal)),
-      providerOperations,
-    );
   }
 
-  function runProviderUse<Result>(
+  function operationError(providerId: ProviderId, operation: ProviderOperationError["operation"]) {
+    return (cause: unknown) => new ProviderOperationError({ providerId, operation, cause });
+  }
+
+  const useProvider = Effect.fnUntraced(function* <Result>(
     provider: RegisteredProvider,
-    signal: AbortSignal | undefined,
-    operation: (operationSignal: AbortSignal) => Promise<Result>,
+    operation: "models" | "generate",
+    effect: Effect.Effect<Result, unknown>,
   ) {
-    return runOperation(
-      signal,
-      async (operationSignal) => {
-        operationSignal.throwIfAborted();
-
-        if (provider.pendingClears > 0) {
-          throw new Error(`Provider "${provider.adapter.descriptor.id}" is disconnecting.`);
-        }
-
-        if (inspectConfiguration(provider.adapter).state !== "configured") {
-          throw new Error(`Provider "${provider.adapter.descriptor.id}" is not configured.`);
-        }
-
-        return operation(operationSignal);
-      },
-      provider.activeUses,
+    const fail = operationError(provider.adapter.descriptor.id, operation);
+    yield* Effect.try({ try: requireOpen, catch: fail });
+    return yield* runOwned(
+      provider.uses,
+      Effect.try({ try: () => requireAvailable(provider), catch: fail }).pipe(
+        Effect.andThen(effect.pipe(Effect.mapError(fail))),
+      ),
     );
-  }
-
-  function changeConfiguration<Result>(
-    provider: RegisteredProvider,
-    signal: AbortSignal | undefined,
-    operation: (operationSignal: AbortSignal) => Promise<Result>,
-    afterCompletion?: () => void,
-  ) {
-    if (state !== "open") {
-      return Promise.reject(new Error("Providers are closed."));
-    }
-
-    const controller = new AbortController();
-    const operationSignal = combineSignals(signal, controller.signal);
-    const operationResult = provider.configurationTail.then(() => {
-      operationSignal.throwIfAborted();
-      return operation(operationSignal);
-    });
-    let finalizedResult = operationResult;
-
-    if (afterCompletion) {
-      finalizedResult = operationResult.finally(afterCompletion);
-    }
-
-    provider.configurationTail = finalizedResult.then(
-      () => undefined,
-      () => undefined,
-    );
-    return trackOperation(controller, operationSignal, finalizedResult);
-  }
+  });
 
   function configurationRevision(provider: RegisteredProvider) {
     const configuration = inspectAdapterConfiguration(provider.adapter);
-
     if (configuration.state !== "configured") {
       throw new Error(`Provider "${provider.adapter.descriptor.id}" is not configured.`);
     }
-
     if (configuration.kind === "none") {
       return "configuration-free-v1";
     }
-
     return configuration.revision;
   }
 
-  const modelCatalog = createModelCatalog(resourceCache, {
+  const modelCatalog = yield* createModelCatalog(resourceCache, {
     listProviders: () =>
       [...providersById.values()].flatMap<ModelProvider>((provider) => {
         if (inspectAdapterConfiguration(provider.adapter).state !== "configured") {
           return [];
         }
-
         return [
-          {
-            id: provider.adapter.descriptor.id,
-            brandId: provider.adapter.descriptor.brandId,
-          },
+          { id: provider.adapter.descriptor.id, brandId: provider.adapter.descriptor.brandId },
         ];
       }),
     getSource(providerId) {
-      if (state !== "open") {
-        throw new Error("Providers are closed.");
-      }
-
       const provider = requireProvider(providerId);
-
-      if (provider.pendingClears > 0) {
-        throw new Error(`Provider "${providerId}" is disconnecting.`);
-      }
-
+      requireAdmission(provider);
       const expectedRevision = configurationRevision(provider);
-
       return {
         providerId,
         configurationRevision: expectedRevision,
-        async list(signal) {
-          if (configurationRevision(provider) !== expectedRevision) {
-            throw new Error(`Provider "${providerId}" configuration changed before model loading.`);
-          }
-
-          const models = await runProviderUse(provider, signal, (operationSignal) =>
-            provider.adapter.models.list(operationSignal),
-          );
-
-          if (configurationRevision(provider) !== expectedRevision) {
-            throw new Error(`Provider "${providerId}" configuration changed during model loading.`);
-          }
-
-          return models;
-        },
       };
     },
+    load({ providerId, configurationRevision: expectedRevision }) {
+      const provider = requireProvider(providerId);
+      const readRevision = Effect.try({
+        try: () => configurationRevision(provider),
+        catch: (cause) => cause,
+      });
+      return useProvider(
+        provider,
+        "models",
+        Effect.gen(function* () {
+          if ((yield* readRevision) !== expectedRevision) {
+            throw new Error(`Provider "${providerId}" configuration changed before model loading.`);
+          }
+          const models = yield* provider.adapter.models.list;
+          if ((yield* readRevision) !== expectedRevision) {
+            throw new Error(`Provider "${providerId}" configuration changed during model loading.`);
+          }
+          return models;
+        }),
+      );
+    },
   });
+
+  const changeConfiguration = Effect.fnUntraced(function* <Result>(
+    provider: RegisteredProvider,
+    effect: Effect.Effect<Result, unknown>,
+  ) {
+    const inspect = Effect.try({
+      try: () => inspectAdapterConfiguration(provider.adapter),
+      catch: (cause) => cause,
+    });
+    const before = yield* inspect;
+    return yield* effect.pipe(
+      Effect.onExit(() =>
+        Effect.gen(function* () {
+          const after = yield* inspect;
+          if (before.state === after.state) {
+            if (before.state === "unconfigured" || after.state === "unconfigured") {
+              return;
+            }
+            if (
+              before.kind === "none" ||
+              after.kind === "none" ||
+              before.revision === after.revision
+            ) {
+              return;
+            }
+          }
+          yield* Effect.tryPromise({
+            try: () => modelCatalog.invalidateProvider(provider.adapter.descriptor.id),
+            catch: (cause) => cause,
+          });
+        }),
+      ),
+    );
+  });
+
+  const admitConfiguration = (provider: RegisteredProvider) =>
+    Effect.withFiber((fiber) => Queue.offer(provider.configurations, fiber)).pipe(
+      Effect.flatMap((accepted) => {
+        if (!accepted) {
+          return Effect.interrupt;
+        }
+        return Effect.void;
+      }),
+    );
+
+  const configureApiKey = Effect.fn("Providers.configureApiKey")(function* (
+    providerId: ProviderId,
+    apiKey: string,
+  ) {
+    const fail = operationError(providerId, "configure");
+    const provider = yield* Effect.try({
+      try: () => {
+        requireOpen();
+        return requireProvider(providerId);
+      },
+      catch: fail,
+    });
+    const configuration = provider.adapter.configuration;
+    if (configuration.kind !== "api-key") {
+      return yield* Effect.fail(
+        fail(new TypeError(`Provider "${providerId}" does not use an API key.`)),
+      );
+    }
+    return yield* runOwned(
+      configurations,
+      Effect.gen(function* () {
+        requireOpen();
+        yield* admitConfiguration(provider);
+        requireOpen();
+        return yield* changeConfiguration(
+          provider,
+          configuration.configure(apiKey).pipe(
+            Effect.flatMap((result): Effect.Effect<ProviderConfigureResult, unknown> => {
+              const configured = requireConfigureResult(providerId, result);
+              if (configured.state === "configured") {
+                return Effect.try({
+                  try: () => configurationRevision(provider),
+                  catch: (cause) => cause,
+                }).pipe(Effect.as(configured));
+              }
+              return Effect.succeed(configured);
+            }),
+          ),
+        );
+      }).pipe(Effect.mapError(fail)),
+    );
+  });
+
+  const clearConfiguration = Effect.fn("Providers.clearConfiguration")(function* (
+    providerId: ProviderId,
+  ) {
+    const fail = operationError(providerId, "clear");
+    const provider = yield* Effect.try({
+      try: () => {
+        requireOpen();
+        return requireProvider(providerId);
+      },
+      catch: fail,
+    });
+    const configuration = provider.adapter.configuration;
+    if (configuration.kind !== "api-key") {
+      return yield* Effect.fail(
+        fail(new TypeError(`Provider "${providerId}" has no configuration to clear.`)),
+      );
+    }
+    return yield* runOwned(
+      configurations,
+      Effect.acquireUseRelease(
+        Effect.sync(() => {
+          requireOpen();
+          provider.pendingClears += 1;
+        }),
+        () =>
+          Effect.acquireUseRelease(
+            interruptOperations([...provider.uses]).pipe(
+              Effect.forkChild({ startImmediately: true }),
+            ),
+            (draining) =>
+              Effect.gen(function* () {
+                yield* admitConfiguration(provider);
+                requireOpen();
+                yield* Fiber.join(draining);
+                yield* changeConfiguration(
+                  provider,
+                  configuration.clear.pipe(
+                    Effect.tap(() =>
+                      Effect.try({
+                        try: () => inspectAdapterConfiguration(provider.adapter),
+                        catch: (cause) => cause,
+                      }).pipe(
+                        Effect.map((configuration) => {
+                          if (configuration.state !== "unconfigured") {
+                            throw new Error(
+                              `Provider "${providerId}" remained configured after clearing it.`,
+                            );
+                          }
+                        }),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            (draining, exit) => {
+              if (Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)) {
+                return Fiber.join(draining);
+              }
+              return Effect.void;
+            },
+          ),
+        () =>
+          Effect.sync(() => {
+            provider.pendingClears -= 1;
+          }),
+      ).pipe(Effect.mapError(fail)),
+    );
+  });
+
+  yield* Effect.addFinalizer(() =>
+    Effect.gen(function* () {
+      open = false;
+      modelCatalog.close();
+      yield* interruptOperations([
+        ...configurations,
+        ...[...providersById.values()].flatMap((provider) => [...provider.uses]),
+      ]).pipe(Effect.orDie);
+    }),
+  );
 
   const providers: Providers = {
     list: () =>
@@ -455,131 +537,43 @@ function createProviderSubsystem(
         ...adapter.descriptor,
         configuration: inspectConfiguration(adapter),
       })),
-
     inspectConfiguration: (providerId) => inspectConfiguration(requireProvider(providerId).adapter),
-
-    configureApiKey(providerId, apiKey, signal) {
-      const provider = requireProvider(providerId);
-      const { adapter } = provider;
-      const { configuration } = adapter;
-
-      if (configuration.kind !== "api-key") {
-        return Promise.reject(new TypeError(`Provider "${providerId}" does not use an API key.`));
-      }
-
-      return changeConfiguration(provider, signal, async (operationSignal) => {
-        const result = requireConfigureResult(
-          providerId,
-          await configuration.configure(apiKey, operationSignal),
-        );
-
-        if (result.state === "configured") {
-          configurationRevision(provider);
-          await modelCatalog.invalidateProvider(providerId);
-        }
-
-        return result;
-      });
-    },
-
-    clearConfiguration(providerId) {
-      const provider = requireProvider(providerId);
-      const { adapter } = provider;
-      const { configuration } = adapter;
-
-      if (configuration.kind !== "api-key") {
-        return Promise.reject(
-          new TypeError(`Provider "${providerId}" has no configuration to clear.`),
-        );
-      }
-
-      if (state !== "open") {
-        return Promise.reject(new Error("Providers are closed."));
-      }
-
-      provider.pendingClears += 1;
-      const reason = new Error(`Provider "${providerId}" is disconnecting.`);
-      const activeUses = [...provider.activeUses];
-
-      for (const { controller } of activeUses) {
-        controller.abort(reason);
-      }
-
-      return changeConfiguration(
-        provider,
-        undefined,
-        async (signal) => {
-          await Promise.allSettled(activeUses.map(({ result }) => result));
-          signal.throwIfAborted();
-          await configuration.clear();
-
-          if (inspectAdapterConfiguration(adapter).state !== "unconfigured") {
-            throw new Error(`Provider "${providerId}" remained configured after clearing it.`);
-          }
-
-          await modelCatalog.invalidateProvider(providerId);
-        },
-        () => {
-          provider.pendingClears -= 1;
-        },
-      );
-    },
+    configureApiKey,
+    clearConfiguration,
   };
-
-  const models = modelCatalog.models;
-
   const generationRoutes = new Map<ProviderId, ProviderGenerationRoute>(
     [...providersById.values()].map((provider) => [
       provider.adapter.descriptor.id,
       {
-        generate(request, signal) {
-          return runProviderUse(provider, signal, (operationSignal) =>
-            provider.adapter.generation.generate(request, operationSignal),
-          );
-        },
+        generate: (request) =>
+          useProvider(
+            provider,
+            "generate",
+            Effect.suspend(() => provider.adapter.generation.generate(request)),
+          ),
       },
     ]),
   );
-  const generations: ProviderGenerationRouter = {
-    get: (providerId) => generationRoutes.get(providerId),
-  };
-
   return {
     providers,
-    models,
-    generations,
-    close() {
-      if (!closePromise) {
-        state = "closing";
-        modelCatalog.close();
-        const reason = new Error("Providers are closing.");
-
-        for (const { controller } of activeOperations) {
-          controller.abort(reason);
-        }
-
-        closePromise = Promise.allSettled([...activeOperations].map(({ result }) => result)).then(
-          () => {
-            state = "closed";
-          },
-        );
-      }
-
-      return closePromise;
-    },
+    models: modelCatalog.models,
+    generations: { get: (providerId: ProviderId) => generationRoutes.get(providerId) },
   };
-}
+});
 
 export class ProvidersService extends Context.Service<
   ProvidersService,
-  Omit<ProviderSubsystem, "close">
+  {
+    readonly providers: Providers;
+    readonly models: Models;
+    readonly generations: ProviderGenerationRouter;
+  }
 >()("@jaquelene/backend/Providers") {
   static readonly layer = (factories: readonly ProviderFactory[]) =>
     Layer.effect(
       ProvidersService,
       Effect.gen(function* () {
         const resourceCache = yield* ResourceCacheService;
-
         const identities = new Set<ProviderId>();
         for (const factory of factories) {
           if (identities.has(factory.id)) {
@@ -587,21 +581,11 @@ export class ProvidersService extends Context.Service<
           }
           identities.add(factory.id);
         }
-
         const adapters: ProviderAdapter[] = [];
         for (const factory of factories) {
           adapters.push(yield* acquireProvider(factory));
         }
-
-        const subsystem = yield* Effect.acquireRelease(
-          Effect.sync(() => createProviderSubsystem(adapters, resourceCache)),
-          (providers) => Effect.promise(() => providers.close()),
-        );
-        return ProvidersService.of({
-          providers: subsystem.providers,
-          models: subsystem.models,
-          generations: subsystem.generations,
-        });
+        return ProvidersService.of(yield* createProviders(adapters, resourceCache));
       }),
     );
 }

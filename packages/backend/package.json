@@ -11,7 +11,6 @@
     "./build": "./src/build.ts"
   },
   "scripts": {
-    "bench:providers": "bun build ./src/provider/providers.benchmark.ts --target node --external effect --external drizzle-orm --external typeid-js --outfile ./node_modules/.cache/providers-benchmark.mjs && node ./node_modules/.cache/providers-benchmark.mjs",
     "db:check": "drizzle-kit check --config drizzle.config.ts",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts"
   },

@@ -1,3 +1,4 @@
+import { Effect, Fiber } from "effect";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,10 +15,6 @@ function createUserDataDirectory() {
   const directory = mkdtempSync(join(tmpdir(), "jaquelene-api-key-configuration-"));
   directories.push(directory);
   return directory;
-}
-
-function operationSignal() {
-  return new AbortController().signal;
 }
 
 function dependencies(
@@ -45,10 +42,10 @@ describe("API-key configuration", () => {
     const configuration = createApiKeyConfiguration(
       directory,
       { id: "provider", name: "Provider", apiKeyPrefixes: ["sk-nano-"] },
-      dependencies(async () => ({ state: "configured" })),
+      dependencies(() => Effect.succeed({ state: "configured" })),
     );
 
-    await expect(configuration.configure(apiKey, operationSignal())).resolves.toEqual({
+    await expect(Effect.runPromise(configuration.configure(apiKey))).resolves.toEqual({
       state: "configured",
       keyLabel: "sk-nano-...4000",
     });
@@ -66,11 +63,11 @@ describe("API-key configuration", () => {
     const configuration = createApiKeyConfiguration(
       createUserDataDirectory(),
       { id: "provider", name: "Provider", apiKeyPrefixes: ["sk-provider-"] },
-      dependencies(async () => ({ state: "configured", keyLabel: " provider...1234 " })),
+      dependencies(() => Effect.succeed({ state: "configured", keyLabel: " provider...1234 " })),
     );
 
     await expect(
-      configuration.configure("sk-provider-secret-1234", operationSignal()),
+      Effect.runPromise(configuration.configure("sk-provider-secret-1234")),
     ).resolves.toEqual({ state: "configured", keyLabel: "provider...1234" });
   });
 
@@ -81,10 +78,10 @@ describe("API-key configuration", () => {
     const configuration = createApiKeyConfiguration(
       createUserDataDirectory(),
       { id: "provider", name: "Provider", apiKeyPrefixes: ["sk-provider-"] },
-      dependencies(async () => ({ state: "configured" })),
+      dependencies(() => Effect.succeed({ state: "configured" })),
     );
 
-    await expect(configuration.configure(apiKey, operationSignal())).resolves.toEqual({
+    await expect(Effect.runPromise(configuration.configure(apiKey))).resolves.toEqual({
       state: "configured",
       keyLabel: expectedLabel,
     });
@@ -98,13 +95,13 @@ describe("API-key configuration", () => {
         createUserDataDirectory(),
         { id: "provider", name: "Provider", apiKeyPrefixes: [] },
         {
-          ...dependencies(async () => ({ state: "configured", keyLabel })),
+          ...dependencies(() => Effect.succeed({ state: "configured", keyLabel })),
           encrypt,
         },
       );
 
       await expect(
-        configuration.configure("sk-provider-secret-1234", operationSignal()),
+        Effect.runPromise(configuration.configure("sk-provider-secret-1234")),
       ).rejects.toThrow("Provider returned an unsafe API-key label.");
       expect(encrypt).not.toHaveBeenCalled();
       expect(configuration.inspect()).toEqual({ state: "unconfigured" });
@@ -129,13 +126,13 @@ describe("API-key configuration", () => {
       directory,
       { id: "provider", name: "Provider", apiKeyPrefixes: ["sk-nano-"] },
       {
-        ...dependencies(async () => ({ state: "configured" })),
+        ...dependencies(() => Effect.succeed({ state: "configured" })),
         decrypt,
       },
     );
 
     expect(configuration.inspect()).toEqual({ state: "unconfigured" });
-    await expect(configuration.withApiKey(async (value) => value)).rejects.toThrow(
+    await expect(Effect.runPromise(configuration.withApiKey(Effect.succeed))).rejects.toThrow(
       "Provider is not connected.",
     );
     expect(decrypt).not.toHaveBeenCalled();
@@ -147,14 +144,14 @@ describe("API-key configuration", () => {
     const keyLabel = "provider...1234";
     const encrypt = vi.fn(async (value: string) => Buffer.from(`encrypted:${value}`));
     const decrypt = vi.fn(async (value: Buffer) => value.toString().replace("encrypted:", ""));
-    const verify = vi.fn(async () => ({ state: "configured" as const, keyLabel }));
+    const verify = vi.fn(() => Effect.succeed({ state: "configured" as const, keyLabel }));
     const configuration = createApiKeyConfiguration(
       directory,
       { id: "provider", name: "Provider", apiKeyPrefixes: [] },
       { encrypt, decrypt, verify },
     );
 
-    await configuration.configure(apiKey, operationSignal());
+    await Effect.runPromise(configuration.configure(apiKey));
     const configured = configuration.inspect();
     const reopened = createApiKeyConfiguration(
       directory,
@@ -165,31 +162,37 @@ describe("API-key configuration", () => {
     expect(reopened.inspect()).toEqual(configured);
     expect(verify).toHaveBeenCalledOnce();
     expect(decrypt).not.toHaveBeenCalled();
-    await expect(reopened.withApiKey(async (value) => value)).resolves.toBe(apiKey);
+    await expect(Effect.runPromise(reopened.withApiKey(Effect.succeed))).resolves.toBe(apiKey);
   });
 
   it("keeps credential use inside the configuration boundary", async () => {
-    const useApiKey = vi.fn(async (value: string) => `used:${value}`);
+    const useApiKey = vi.fn((value: string) => Effect.succeed(`used:${value}`));
     const configuration = createApiKeyConfiguration(
       createUserDataDirectory(),
       { id: "provider", name: "Provider", apiKeyPrefixes: [] },
-      dependencies(async () => ({ state: "configured", keyLabel: "provider...1234" })),
+      dependencies(() => Effect.succeed({ state: "configured", keyLabel: "provider...1234" })),
     );
 
-    await expect(configuration.withApiKey(useApiKey)).rejects.toThrow("Provider is not connected.");
+    await expect(Effect.runPromise(configuration.withApiKey(useApiKey))).rejects.toThrow(
+      "Provider is not connected.",
+    );
     expect(useApiKey).not.toHaveBeenCalled();
 
-    await configuration.configure("provider-key", operationSignal());
+    await Effect.runPromise(configuration.configure("provider-key"));
 
-    await expect(configuration.withApiKey(useApiKey)).resolves.toBe("used:provider-key");
+    await expect(Effect.runPromise(configuration.withApiKey(useApiKey))).resolves.toBe(
+      "used:provider-key",
+    );
     expect(useApiKey).toHaveBeenCalledWith("provider-key");
   });
 
   it("rejects an empty API key before verification", async () => {
-    const verify = vi.fn(async () => ({
-      state: "configured" as const,
-      keyLabel: "provider...1234",
-    }));
+    const verify = vi.fn(() =>
+      Effect.succeed({
+        state: "configured" as const,
+        keyLabel: "provider...1234",
+      }),
+    );
     const encrypt = vi.fn(async (value: string) => Buffer.from(value));
     const configuration = createApiKeyConfiguration(
       createUserDataDirectory(),
@@ -200,7 +203,7 @@ describe("API-key configuration", () => {
       },
     );
 
-    await expect(configuration.configure(" \t ", operationSignal())).rejects.toThrow(TypeError);
+    await expect(Effect.runPromise(configuration.configure(" \t "))).rejects.toThrow(TypeError);
     expect(verify).not.toHaveBeenCalled();
     expect(encrypt).not.toHaveBeenCalled();
   });
@@ -213,13 +216,13 @@ describe("API-key configuration", () => {
         createUserDataDirectory(),
         { id: "provider", name: "Provider", apiKeyPrefixes: [] },
         {
-          ...dependencies(async () => ({ state })),
+          ...dependencies(() => Effect.succeed({ state })),
           encrypt,
         },
       );
 
       await expect(
-        configuration.configure(`provider-${state}-key`, operationSignal()),
+        Effect.runPromise(configuration.configure(`provider-${state}-key`)),
       ).resolves.toEqual({ state });
       expect(encrypt).not.toHaveBeenCalled();
       expect(configuration.inspect()).toEqual({ state: "unconfigured" });
@@ -228,12 +231,12 @@ describe("API-key configuration", () => {
 
   it("preserves a working credential when its replacement is rejected", async () => {
     const encrypt = vi.fn(async (value: string) => Buffer.from(`encrypted:${value}`));
-    const verify = vi.fn(async (apiKey: string) => {
+    const verify = vi.fn((apiKey: string) => {
       if (apiKey === "replacement-key") {
-        return { state: "rejected" as const };
+        return Effect.succeed({ state: "rejected" as const });
       }
 
-      return { state: "configured" as const, keyLabel: "provider...1234" };
+      return Effect.succeed({ state: "configured" as const, keyLabel: "provider...1234" });
     });
     const configuration = createApiKeyConfiguration(
       createUserDataDirectory(),
@@ -245,12 +248,14 @@ describe("API-key configuration", () => {
       },
     );
 
-    await configuration.configure("current-key", operationSignal());
-    await expect(configuration.configure("replacement-key", operationSignal())).resolves.toEqual({
+    await Effect.runPromise(configuration.configure("current-key"));
+    await expect(Effect.runPromise(configuration.configure("replacement-key"))).resolves.toEqual({
       state: "rejected",
     });
     expect(encrypt).not.toHaveBeenCalledWith("replacement-key");
-    await expect(configuration.withApiKey(async (value) => value)).resolves.toBe("current-key");
+    await expect(Effect.runPromise(configuration.withApiKey(Effect.succeed))).resolves.toBe(
+      "current-key",
+    );
   });
 
   it("preserves encryption failures without changing the credential", async () => {
@@ -261,19 +266,116 @@ describe("API-key configuration", () => {
       createUserDataDirectory(),
       { id: "provider", name: "Provider", apiKeyPrefixes: [] },
       {
-        ...dependencies(async () => ({
-          state: "configured",
-          keyLabel: "provider...1234",
-        })),
+        ...dependencies(() =>
+          Effect.succeed({
+            state: "configured",
+            keyLabel: "provider...1234",
+          }),
+        ),
         encrypt,
       },
     );
 
-    await expect(configuration.configure("first-key", operationSignal())).rejects.toBe(failure);
+    await expect(Effect.runPromise(configuration.configure("first-key"))).rejects.toBe(failure);
     expect(configuration.inspect()).toEqual({ state: "unconfigured" });
-    await expect(configuration.configure("second-key", operationSignal())).resolves.toEqual({
+    await expect(Effect.runPromise(configuration.configure("second-key"))).resolves.toEqual({
       state: "configured",
       keyLabel: "provider...1234",
     });
+  });
+
+  it("does not commit a credential when interrupted encryption completes later", async () => {
+    const started = Promise.withResolvers<void>();
+    const encrypted = Promise.withResolvers<Buffer>();
+    const encrypt = vi.fn<ApiKeyConfigurationDependencies["encrypt"]>(async (value) =>
+      Buffer.from(`encrypted:${value}`),
+    );
+    const configuration = createApiKeyConfiguration(
+      createUserDataDirectory(),
+      { id: "provider", name: "Provider", apiKeyPrefixes: [] },
+      {
+        ...dependencies(() => Effect.succeed({ state: "configured", keyLabel: "provider...1234" })),
+        encrypt,
+      },
+    );
+    await Effect.runPromise(configuration.configure("current-key"));
+    const current = configuration.inspect();
+    encrypt.mockImplementationOnce(() => {
+      started.resolve();
+      return encrypted.promise;
+    });
+
+    const operation = Effect.runFork(configuration.configure("replacement-key"));
+    await started.promise;
+    await Effect.runPromise(Fiber.interrupt(operation));
+    encrypted.resolve(Buffer.from("encrypted:replacement-key"));
+    await encrypted.promise;
+    await Promise.resolve();
+
+    expect(configuration.inspect()).toEqual(current);
+    await expect(Effect.runPromise(configuration.withApiKey(Effect.succeed))).resolves.toBe(
+      "current-key",
+    );
+  });
+
+  it("does not dispatch a request when interrupted decryption completes later", async () => {
+    const started = Promise.withResolvers<void>();
+    const decrypted = Promise.withResolvers<string>();
+    const useApiKey = vi.fn((value: string) => Effect.succeed(`used:${value}`));
+    const configuration = createApiKeyConfiguration(
+      createUserDataDirectory(),
+      { id: "provider", name: "Provider", apiKeyPrefixes: [] },
+      {
+        ...dependencies(() => Effect.succeed({ state: "configured", keyLabel: "provider...1234" })),
+        decrypt() {
+          started.resolve();
+          return decrypted.promise;
+        },
+      },
+    );
+    await Effect.runPromise(configuration.configure("current-key"));
+
+    const operation = Effect.runFork(configuration.withApiKey(useApiKey));
+    await started.promise;
+    await Effect.runPromise(Fiber.interrupt(operation));
+    decrypted.resolve("current-key");
+    await decrypted.promise;
+    await Promise.resolve();
+
+    expect(useApiKey).not.toHaveBeenCalled();
+    expect(configuration.inspect().state).toBe("configured");
+  });
+
+  it("aborts verification and ignores a successful result delivered after interruption", async () => {
+    const started = Promise.withResolvers<AbortSignal>();
+    const verified = Promise.withResolvers<{ state: "configured" }>();
+    const encrypt = vi.fn(async (value: string) => Buffer.from(value));
+    const configuration = createApiKeyConfiguration(
+      createUserDataDirectory(),
+      { id: "provider", name: "Provider", apiKeyPrefixes: [] },
+      {
+        ...dependencies(() =>
+          Effect.tryPromise({
+            try: (signal) => {
+              started.resolve(signal);
+              return verified.promise;
+            },
+            catch: (cause) => cause,
+          }),
+        ),
+        encrypt,
+      },
+    );
+
+    const operation = Effect.runFork(configuration.configure("current-key"));
+    const signal = await started.promise;
+    await Effect.runPromise(Fiber.interrupt(operation));
+    verified.resolve({ state: "configured" });
+    await verified.promise;
+    await Promise.resolve();
+
+    expect(signal.aborted).toBe(true);
+    expect(encrypt).not.toHaveBeenCalled();
+    expect(configuration.inspect()).toEqual({ state: "unconfigured" });
   });
 });

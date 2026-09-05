@@ -1,3 +1,5 @@
+import { Effect } from "effect";
+import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import {
   createGenerationUsage,
   createProviderGenerationResult,
@@ -24,12 +26,6 @@ type NanoGptChatRequest = Readonly<{
 type MutableNanoGptChatRequest = {
   -readonly [Key in keyof NanoGptChatRequest]: NanoGptChatRequest[Key];
 };
-
-type SendNanoGptChat = (
-  apiKey: string,
-  request: NanoGptChatRequest,
-  signal: AbortSignal,
-) => Promise<unknown>;
 
 type JsonObject = Record<string, unknown>;
 
@@ -87,43 +83,6 @@ function toNanoGptMessages({ instructions, dialogue }: ModelInput): NanoGptChatM
     ...instructions.map(({ content }) => ({ role: "system" as const, content })),
     ...dialogue.map(toNanoGptDialogue),
   ];
-}
-
-async function sendNanoGptChat(
-  apiKey: string,
-  request: NanoGptChatRequest,
-  signal: AbortSignal,
-): Promise<unknown> {
-  const response = await fetch("https://nano-gpt.com/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-    signal: AbortSignal.any([signal, AbortSignal.timeout(300_000)]),
-  });
-  const body = await response.text();
-  let result: unknown;
-
-  try {
-    result = JSON.parse(body);
-  } catch (cause) {
-    if (response.ok) {
-      throw new TypeError("NanoGPT returned an invalid JSON generation response.", { cause });
-    }
-
-    result = body;
-  }
-
-  if (!response.ok) {
-    throw new Error(`NanoGPT rejected the generation request with status ${response.status}.`, {
-      cause: result,
-    });
-  }
-
-  return result;
 }
 
 function getResponseChoice(result: JsonObject) {
@@ -279,26 +238,59 @@ function normalizeResult(candidate: unknown) {
 
 export function createNanoGptGeneration(
   configuration: Pick<ApiKeyConfiguration, "withApiKey">,
-  send: SendNanoGptChat = sendNanoGptChat,
+  client: HttpClient.HttpClient,
 ): ProviderGenerationAdapter {
+  const scopedClient = HttpClient.withScope(client);
   return {
-    generate: (request, signal) =>
-      configuration.withApiKey(async (apiKey) => {
-        const reasoningEffort = encodeNanoGptReasoning(request.reasoning);
-        const chatRequest: MutableNanoGptChatRequest = {
-          model: request.modelId,
-          messages: toNanoGptMessages(request.input),
-          include_usage: true,
-          stream: false,
-        };
+    generate: Effect.fn("nanogpt.generate")((request) =>
+      configuration.withApiKey(
+        Effect.fn("nanogpt.request")(
+          function* (apiKey: string) {
+            const reasoningEffort = encodeNanoGptReasoning(request.reasoning);
+            const chatRequest: MutableNanoGptChatRequest = {
+              model: request.modelId,
+              messages: toNanoGptMessages(request.input),
+              include_usage: true,
+              stream: false,
+            };
 
-        if (reasoningEffort !== undefined) {
-          chatRequest.reasoning_effort = reasoningEffort;
-        }
+            if (reasoningEffort !== undefined) {
+              chatRequest.reasoning_effort = reasoningEffort;
+            }
 
-        const result = await send(apiKey, chatRequest, signal);
-
-        return normalizeResult(result);
-      }),
+            const response = yield* HttpClientRequest.post(
+              "https://nano-gpt.com/api/v1/chat/completions",
+            ).pipe(
+              HttpClientRequest.acceptJson,
+              HttpClientRequest.bearerToken(apiKey),
+              HttpClientRequest.bodyJsonUnsafe(chatRequest),
+              scopedClient.execute,
+            );
+            if (response.status < 200 || response.status >= 300) {
+              return yield* Effect.fail(
+                new Error(
+                  `NanoGPT rejected the generation request with status ${response.status}.`,
+                  {
+                    cause: yield* response.text,
+                  },
+                ),
+              );
+            }
+            const result = yield* response.json.pipe(
+              Effect.mapError(
+                (cause) =>
+                  new TypeError("NanoGPT returned an invalid JSON generation response.", { cause }),
+              ),
+            );
+            return yield* Effect.try({
+              try: () => normalizeResult(result),
+              catch: (cause) => cause,
+            });
+          },
+          Effect.timeout(300_000),
+          Effect.scoped,
+        ),
+      ),
+    ),
   };
 }

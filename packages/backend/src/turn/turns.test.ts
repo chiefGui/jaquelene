@@ -22,6 +22,7 @@ import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
+import { ProviderOperationError } from "#backend/provider/providers";
 import { narratorPromptModule } from "#backend/narrator/module";
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import { threadTable } from "#backend/thread/schema";
@@ -76,17 +77,20 @@ function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
         }
 
         return {
-          generate: (request, signal) => {
-            const testRequest: ProviderGenerationRequest & { signal?: AbortSignal } = {
-              ...request,
-            };
-
-            if (signal !== undefined) {
-              testRequest.signal = signal;
-            }
-
-            return generate(testRequest);
-          },
+          generate: (request) =>
+            Effect.tryPromise({
+              try: (signal) => generate({ ...request, signal }),
+              catch: (cause) => cause,
+            }).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProviderOperationError({
+                    providerId,
+                    operation: "generate",
+                    cause,
+                  }),
+              ),
+            ),
         };
       },
     },
@@ -278,7 +282,15 @@ describe("turns", () => {
     );
     expect(failed.failure.cause).toBeInstanceOf(ModelProviderError);
     expect(failed.failure.cause).toEqual(
-      expect.objectContaining({ cause: providerFailure, message: providerFailure.message }),
+      expect.objectContaining({
+        cause: expect.objectContaining({
+          _tag: "ProviderOperationError",
+          providerId: "provider-a",
+          operation: "generate",
+          cause: providerFailure,
+        }),
+        message: providerFailure.message,
+      }),
     );
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
 
@@ -448,7 +460,12 @@ describe("turns", () => {
         outcome: "failed",
         failure: {
           cause: expect.objectContaining({
-            cause: regenerationFailure,
+            cause: expect.objectContaining({
+              _tag: "ProviderOperationError",
+              providerId: "provider-a",
+              operation: "generate",
+              cause: regenerationFailure,
+            }),
             message: regenerationFailure.message,
           }),
         },

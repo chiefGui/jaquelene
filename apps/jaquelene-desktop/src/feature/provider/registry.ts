@@ -1,3 +1,4 @@
+import type { HttpClient } from "effect/unstable/http";
 import {
   createApiKeyProviderFactory,
   type ApiKeyCredentialProtection,
@@ -14,8 +15,9 @@ const apiKeyProviderDefinitions = [
 export function createProviderFactories(
   userDataDirectory: string,
   credentialProtection: ApiKeyCredentialProtection,
+  client: HttpClient.HttpClient,
 ) {
   return apiKeyProviderDefinitions.map((definition) =>
-    createApiKeyProviderFactory(userDataDirectory, definition, credentialProtection),
+    createApiKeyProviderFactory(userDataDirectory, definition, credentialProtection, client),
   );
 }

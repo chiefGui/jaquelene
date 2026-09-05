@@ -1,18 +1,57 @@
-import { StorageCategory } from "@jaquelene/backend";
-import { Effect, Fiber, Result } from "effect";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import * as NodePath from "@effect/platform-node/NodePath";
+import { BackendService, StorageCategory, nodeFileTreeLayer } from "@jaquelene/backend";
+import { Effect, Fiber, Layer, ManagedRuntime, Result } from "effect";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import type { ApplicationDiagnostics } from "@/diagnostics/diagnostics";
+import { DesktopConfigurationService } from "@/application/configuration";
+import { getApplicationDatabasePaths } from "@/application/database-paths";
+import {
+  ApplicationDiagnosticsService,
+  type ApplicationDiagnostics,
+} from "@/diagnostics/diagnostics";
 import { createDiagnosticsStorageArea } from "@/diagnostics/storage";
-import { createFavoriteModels } from "@/feature/model/favorite-models";
-import { createFavoriteModelsStorage } from "@/feature/model/favorite-models-store";
-import { createLocalState } from "@/local-state";
-import { createPreferences } from "@/preferences/preferences";
+import { FavoriteModelsService } from "@/feature/model/favorite-models-service";
+import { LocalStateService } from "@/local-state";
+import { PreferencesService, createPreferences } from "@/preferences/preferences";
 import { createStorageAreas } from "./areas";
 
 const directories: string[] = [];
+const closeRuntimes: Array<() => Promise<void>> = [];
+
+function createDirectory() {
+  const directory = mkdtempSync(join(tmpdir(), "jaquelene-storage-areas-"));
+  directories.push(directory);
+  return directory;
+}
+
+function createStorageRuntime(userDataDirectory: string, diagnostics: ApplicationDiagnostics) {
+  const ownersLayer = Layer.merge(LocalStateService.layer, FavoriteModelsService.layer).pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(
+        DesktopConfigurationService.layer({ userDataDirectory, developmentServerUrl: undefined }),
+        ApplicationDiagnosticsService.layer(diagnostics),
+        PreferencesService.layer(createPreferences(userDataDirectory)),
+      ),
+    ),
+  );
+  const { databasePath, cachePath } = getApplicationDatabasePaths(userDataDirectory);
+  const runtime = ManagedRuntime.make(
+    BackendService.layer({
+      databasePath,
+      cache: { path: cachePath, reportFailure: () => undefined },
+      providers: [],
+      storageAreas: createStorageAreas(userDataDirectory),
+    }).pipe(
+      Layer.provideMerge(ownersLayer),
+      Layer.provide(nodeFileTreeLayer),
+      Layer.provide(NodePath.layer),
+    ),
+  );
+  closeRuntimes.push(() => runtime.dispose());
+  return runtime;
+}
 
 function createDiagnostics(
   deleteAll: () => Promise<void> = async () => undefined,
@@ -30,28 +69,17 @@ function createDiagnostics(
   };
 }
 
-afterEach(() => {
+afterEach(async () => {
+  await Promise.all(closeRuntimes.splice(0).map((close) => close()));
   for (const directory of directories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
   }
 });
 
 describe("storage areas", () => {
-  it("registers every persistence owner under a stable identity", () => {
-    const userDataDirectory = mkdtempSync(join(tmpdir(), "jaquelene-storage-areas-"));
-    const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
-    const diagnostics = createDiagnostics();
-    const localState = createLocalState(userDataDirectory, diagnostics);
-    const preferences = createPreferences(userDataDirectory);
-    directories.push(userDataDirectory);
-
-    const areas = createStorageAreas({
-      diagnostics,
-      favoriteModels,
-      localState,
-      preferences,
-      userDataDirectory,
-    });
+  it("declares every persistence owner without opening its services", () => {
+    const userDataDirectory = createDirectory();
+    const areas = createStorageAreas(userDataDirectory);
 
     expect(
       areas.map(({ id, category, paths, delete: deleteArea }) => ({
@@ -89,16 +117,18 @@ describe("storage areas", () => {
         deletable: true,
       },
     ]);
+    expect(readdirSync(userDataDirectory)).toEqual([]);
   });
 
   it("deletes every app-data owner through one category", async () => {
-    const userDataDirectory = mkdtempSync(join(tmpdir(), "jaquelene-storage-areas-"));
-    const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
+    const userDataDirectory = createDirectory();
     const deleteDiagnostics = vi.fn(async () => undefined);
     const diagnostics = createDiagnostics(deleteDiagnostics);
-    const localState = createLocalState(userDataDirectory, diagnostics);
-    const preferences = createPreferences(userDataDirectory);
-    directories.push(userDataDirectory);
+    const runtime = createStorageRuntime(userDataDirectory, diagnostics);
+    const favoriteModels = await runtime.runPromise(FavoriteModelsService);
+    const localState = await runtime.runPromise(LocalStateService);
+    const preferences = await runtime.runPromise(PreferencesService);
+    const backend = await runtime.runPromise(BackendService);
     favoriteModels.set({ providerId: "provider-a", modelId: "model-a" }, true);
     localState.saveMainWindowState({
       bounds: { x: 0, y: 0, width: 1280, height: 720 },
@@ -110,20 +140,12 @@ describe("storage areas", () => {
       name: "Model A",
       brandId: "brand-a",
     });
-    const areas = createStorageAreas({
-      diagnostics,
-      favoriteModels,
-      localState,
-      preferences,
-      userDataDirectory,
+    const areas = createStorageAreas(userDataDirectory);
+    await expect(
+      runtime.runPromise(backend.storage.deleteCategory(StorageCategory.AppData)),
+    ).resolves.toEqual({
+      areas: areas.map(({ id, category }) => ({ id, category, bytes: 0 })),
     });
-    await Effect.runPromise(
-      Effect.forEach(
-        areas.filter(({ category }) => category === StorageCategory.AppData),
-        (area) => area.delete,
-        { discard: true },
-      ),
-    );
 
     expect(favoriteModels.list()).toEqual([]);
     expect(
@@ -138,12 +160,13 @@ describe("storage areas", () => {
   });
 
   it("identifies each owner when its deletion operation fails", async () => {
-    const userDataDirectory = mkdtempSync(join(tmpdir(), "jaquelene-storage-areas-"));
-    directories.push(userDataDirectory);
-    const favoriteModels = createFavoriteModels(createFavoriteModelsStorage(userDataDirectory));
+    const userDataDirectory = createDirectory();
     const diagnostics = createDiagnostics();
-    const localState = createLocalState(userDataDirectory, diagnostics);
-    const preferences = createPreferences(userDataDirectory);
+    const runtime = createStorageRuntime(userDataDirectory, diagnostics);
+    const favoriteModels = await runtime.runPromise(FavoriteModelsService);
+    const localState = await runtime.runPromise(LocalStateService);
+    const preferences = await runtime.runPromise(PreferencesService);
+    const backend = await runtime.runPromise(BackendService);
     const failure = new Error("Could not remove the owned data.");
     const fail = () => {
       throw failure;
@@ -152,16 +175,12 @@ describe("storage areas", () => {
     vi.spyOn(favoriteModels, "deleteAll").mockImplementation(fail);
     vi.spyOn(localState, "deleteAll").mockImplementation(fail);
     vi.spyOn(preferences, "deleteAll").mockImplementation(fail);
-    const areas = createStorageAreas({
-      diagnostics,
-      favoriteModels,
-      localState,
-      preferences,
-      userDataDirectory,
-    });
+    const areas = createStorageAreas(userDataDirectory);
 
     for (const area of areas) {
-      await expect(Effect.runPromise(Effect.result(area.delete))).resolves.toEqual(
+      await expect(
+        runtime.runPromise(Effect.result(backend.storage.deleteArea(area.id))),
+      ).resolves.toEqual(
         Result.fail(
           expect.objectContaining({
             _tag: "StorageAreaDeleteError",
@@ -183,7 +202,7 @@ describe("storage areas", () => {
       await release.promise;
       events.push("deletion:finish");
     });
-    const area = createDiagnosticsStorageArea("unused", diagnostics);
+    const area = createDiagnosticsStorageArea("unused");
 
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -199,7 +218,7 @@ describe("storage areas", () => {
 
         expect(beforeCompletion).toEqual(["deletion:start"]);
         expect(events).toEqual(["deletion:start", "deletion:finish", "caller:release"]);
-      }),
+      }).pipe(Effect.provideService(ApplicationDiagnosticsService, diagnostics)),
     );
   });
 });

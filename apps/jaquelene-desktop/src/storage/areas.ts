@@ -1,30 +1,22 @@
 import type { StorageArea } from "@jaquelene/backend";
-import type { ApplicationDiagnostics } from "@/diagnostics/diagnostics";
+import type { ApplicationDiagnosticsService } from "@/diagnostics/diagnostics";
 import { createDiagnosticsStorageArea } from "@/diagnostics/storage";
-import type { FavoriteModels } from "@/feature/model/favorite-models";
-import { createFavoriteModelsStorageArea } from "@/feature/model/favorite-models-store";
-import { createLocalStateStorageArea, type LocalState } from "@/local-state";
-import { createPreferencesStorageArea, type Preferences } from "@/preferences/preferences";
+import {
+  createFavoriteModelsStorageArea,
+  type FavoriteModelsService,
+} from "@/feature/model/favorite-models-service";
+import { createLocalStateStorageArea, type LocalStateService } from "@/local-state";
+import { createPreferencesStorageArea, type PreferencesService } from "@/preferences/preferences";
 
-type StorageOwners = {
-  diagnostics: ApplicationDiagnostics;
-  favoriteModels: FavoriteModels;
-  localState: LocalState;
-  preferences: Preferences;
-  userDataDirectory: string;
-};
-
-export function createStorageAreas({
-  diagnostics,
-  favoriteModels,
-  localState,
-  preferences,
-  userDataDirectory,
-}: StorageOwners): readonly StorageArea[] {
+export function createStorageAreas(
+  userDataDirectory: string,
+): readonly StorageArea<
+  ApplicationDiagnosticsService | FavoriteModelsService | LocalStateService | PreferencesService
+>[] {
   return [
-    createDiagnosticsStorageArea(userDataDirectory, diagnostics),
-    createFavoriteModelsStorageArea(userDataDirectory, favoriteModels),
-    createPreferencesStorageArea(userDataDirectory, preferences),
-    createLocalStateStorageArea(userDataDirectory, localState),
+    createDiagnosticsStorageArea(userDataDirectory),
+    createFavoriteModelsStorageArea(userDataDirectory),
+    createPreferencesStorageArea(userDataDirectory),
+    createLocalStateStorageArea(userDataDirectory),
   ];
 }

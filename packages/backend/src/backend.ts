@@ -25,14 +25,14 @@ import type { Turns } from "#backend/turn/turns";
 import type { Usage } from "#backend/usage/history";
 import { UsageService } from "#backend/usage/subsystem";
 
-export type BackendOptions = Readonly<{
+export type BackendOptions<StorageRequirements = never> = Readonly<{
   databasePath: string;
   cache: Readonly<{
     path: string;
     reportFailure: (failure: ResourceCacheFailure) => void;
   }>;
   providers: readonly ProviderFactory[];
-  storageAreas: readonly StorageArea[];
+  storageAreas: readonly StorageArea<StorageRequirements>[];
 }>;
 
 export type Backend = Readonly<{
@@ -96,9 +96,11 @@ const readBackend = Effect.gen(function* () {
   });
 });
 
-function createConfiguredBackendLayer(
-  { databasePath, cache: cacheOptions, providers }: BackendOptions,
-  registry: StorageRegistry<DatabaseService | ResourceCacheService | ProvidersService>,
+function createConfiguredBackendLayer<StorageRequirements>(
+  { databasePath, cache: cacheOptions, providers }: BackendOptions<StorageRequirements>,
+  registry: StorageRegistry<
+    StorageRequirements | DatabaseService | ResourceCacheService | ProvidersService
+  >,
 ) {
   const databaseLayer = DatabaseService.layer(databasePath);
   const resourceCacheLayer = ResourceCacheService.layer(cacheOptions);
@@ -145,10 +147,12 @@ function createConfiguredBackendLayer(
   return Layer.effect(BackendService, readBackend).pipe(Layer.provide(backendDependencies));
 }
 
-function createBackendLayer(options: BackendOptions) {
+function createBackendLayer<StorageRequirements>(options: BackendOptions<StorageRequirements>) {
   return Layer.unwrap(
     Effect.gen(function* () {
-      const areas: StorageArea<DatabaseService | ResourceCacheService | ProvidersService>[] = [
+      const areas: StorageArea<
+        StorageRequirements | DatabaseService | ResourceCacheService | ProvidersService
+      >[] = [
         createContentStorageArea(options.databasePath),
         createCacheStorageArea(options.cache.path),
         ...options.providers.flatMap((provider) => {

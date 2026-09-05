@@ -58,16 +58,18 @@ export function getLocalStateStoragePaths(userDataDirectory: string) {
 
 export function createLocalStateStorageArea(
   userDataDirectory: string,
-  localState: LocalState,
-): StorageArea {
+): StorageArea<LocalStateService> {
+  const id = "local-state";
   return {
-    id: "local-state",
+    id,
     category: StorageCategory.AppData,
     paths: getLocalStateStoragePaths(userDataDirectory),
-    delete: Effect.try({
-      try: () => localState.deleteAll(),
-      catch: (cause) => new StorageAreaDeleteError({ areaId: "local-state", cause }),
-    }),
+    delete: LocalStateService.use((localState) =>
+      Effect.try({
+        try: () => localState.deleteAll(),
+        catch: (cause) => new StorageAreaDeleteError({ areaId: id, cause }),
+      }),
+    ),
   };
 }
 

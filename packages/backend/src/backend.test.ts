@@ -3,9 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as NodePath from "@effect/platform-node/NodePath";
 import { PromptOrigin } from "@jaquelene/domain";
-import { Effect, Layer, ManagedRuntime } from "effect";
+import { Context, Effect, Layer, ManagedRuntime, Path } from "effect";
+import { FileTreeService } from "#backend/filesystem/file-tree";
 import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
@@ -163,6 +164,68 @@ afterEach(() => {
 });
 
 describe("backend", () => {
+  it("shares host storage owners for the runtime lifetime and reacquires them on restart", async () => {
+    class HostOwner extends Context.Service<HostOwner, { readonly clear: Effect.Effect<void> }>()(
+      "test/BackendHostOwner",
+    ) {}
+    let acquisitions = 0;
+    let releases = 0;
+    const deletions: number[] = [];
+    const ownerLayer = Layer.effect(
+      HostOwner,
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const instance = ++acquisitions;
+          return HostOwner.of({
+            clear: Effect.sync(() => {
+              deletions.push(instance);
+            }),
+          });
+        }),
+        () =>
+          Effect.sync(() => {
+            releases += 1;
+          }),
+      ),
+    );
+    const options: BackendOptions<HostOwner> = {
+      ...backendOptions(createDatabasePath()),
+      storageAreas: [
+        {
+          id: "host",
+          category: StorageCategory.AppData,
+          paths: [],
+          delete: HostOwner.use((owner) => owner.clear),
+        },
+      ],
+    };
+    const backendLayer = BackendService.layer(options);
+    expectTypeOf<Layer.Services<typeof backendLayer>>().toEqualTypeOf<
+      HostOwner | FileTreeService | Path.Path
+    >();
+    const applicationLayer = backendLayer.pipe(
+      Layer.provideMerge(ownerLayer),
+      Layer.provide(nodeFileTreeLayer),
+      Layer.provide(NodePath.layer),
+    );
+
+    for (let iteration = 1; iteration <= 2; iteration += 1) {
+      const runtime = ManagedRuntime.make(applicationLayer);
+      try {
+        const backend = await runtime.runPromise(BackendService);
+        const owner = await runtime.runPromise(HostOwner);
+        expect(acquisitions).toBe(iteration);
+        expect(releases).toBe(iteration - 1);
+        await runtime.runPromise(backend.storage.deleteArea("host"));
+        await runtime.runPromise(owner.clear);
+      } finally {
+        await runtime.dispose();
+      }
+      expect(releases).toBe(iteration);
+    }
+    expect(deletions).toEqual([1, 1, 2, 2]);
+  });
+
   it("rejects cache storage that overlaps authoritative content before opening it", async () => {
     const databasePath = createDatabasePath();
     const options = backendOptions(databasePath);

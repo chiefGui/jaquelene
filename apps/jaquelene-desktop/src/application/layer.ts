@@ -34,9 +34,6 @@ function createBackendLayer() {
     Effect.gen(function* () {
       const configuration = yield* DesktopConfigurationService;
       const diagnostics = yield* ApplicationDiagnosticsService;
-      const favoriteModels = yield* FavoriteModelsService;
-      const localState = yield* LocalStateService;
-      const preferences = yield* PreferencesService;
       const { databasePath, cachePath } = getApplicationDatabasePaths(
         configuration.userDataDirectory,
       );
@@ -68,13 +65,7 @@ function createBackendLayer() {
             }),
         },
         providers,
-        storageAreas: createStorageAreas({
-          diagnostics,
-          favoriteModels,
-          localState,
-          preferences,
-          userDataDirectory: configuration.userDataDirectory,
-        }),
+        storageAreas: createStorageAreas(configuration.userDataDirectory),
       });
     }),
   );

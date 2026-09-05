@@ -2,21 +2,24 @@ import * as z from "zod/mini";
 
 export const AI_ACTION_TEXT_MAX_UTF16_LENGTH = 40_000;
 
-export type AiActionDescriptor = Readonly<{
-  id: string;
-  label: string;
-  requiresText: boolean;
-}>;
-
-const identitySchema = z.string().check(
+export const aiActionIdentitySchema = z.string().check(
   z.minLength(1),
   z.maxLength(120),
   z.refine((value) => value.trim() === value),
 );
+export type AiActionIdentity = z.output<typeof aiActionIdentitySchema>;
+
+export const aiActionDescriptorSchema = z.strictObject({
+  id: aiActionIdentitySchema,
+  label: aiActionIdentitySchema,
+  requiresText: z.boolean(),
+});
+export type AiActionDescriptor = Readonly<z.output<typeof aiActionDescriptorSchema>>;
+
 export const aiActionInputSchema = z.strictObject({
-  executionId: identitySchema,
-  target: identitySchema,
-  actionId: identitySchema,
+  executionId: aiActionIdentitySchema,
+  target: aiActionIdentitySchema,
+  actionId: aiActionIdentitySchema,
   text: z.string().check(z.maxLength(AI_ACTION_TEXT_MAX_UTF16_LENGTH)),
 });
 export type AiActionInput = z.output<typeof aiActionInputSchema>;

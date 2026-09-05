@@ -1,14 +1,15 @@
 module jaquelene
 
-subtype AiActionIdentity = string(
-  minLength: 1
-  maxLength: 120
-)
+zod_reference AiActionIdentity {
+  import = "@jaquelene/domain"
+  type = "AiActionIdentity"
+  schema = "aiActionIdentitySchema"
+}
 
-structure AiActionDescriptor {
-  id: string
-  label: string
-  requiresText: boolean
+zod_reference AiActionDescriptor {
+  import = "@jaquelene/domain"
+  type = "AiActionDescriptor"
+  schema = "aiActionDescriptorSchema"
 }
 
 zod_reference AiActionInput {

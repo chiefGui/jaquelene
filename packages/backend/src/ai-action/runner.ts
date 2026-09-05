@@ -1,4 +1,6 @@
 import {
+  aiActionDescriptorSchema,
+  aiActionIdentitySchema,
   aiActionInputSchema,
   aiActionTextResultSchema,
   type AiActionDescriptor,
@@ -11,19 +13,6 @@ import { requireModelInput } from "#backend/model/input";
 import type { ProviderAttempts } from "#backend/usage/provider-attempts";
 import { UsageService } from "#backend/usage/subsystem";
 import type { AiActionDefinition, AiActionSet } from "./definition";
-
-const identitySchema = Schema.String.check(
-  Schema.isMinLength(1),
-  Schema.isMaxLength(120),
-  Schema.isTrimmed(),
-);
-const descriptorSchema = Schema.Struct({
-  id: identitySchema,
-  label: identitySchema,
-  requiresText: Schema.Boolean,
-});
-const decodeDescriptor = Schema.decodeUnknownSync(descriptorSchema);
-const decodeIdentity = Schema.decodeUnknownSync(identitySchema);
 
 export class AiActionError extends Schema.TaggedError<AiActionError>()("AiActionError", {
   kind: Schema.Literals([
@@ -52,21 +41,18 @@ export type AiActionRunner = Readonly<{
 function indexActions(sets: readonly AiActionSet[]) {
   const targets = new Map<string, ReadonlyMap<string, AiActionDefinition>>();
   for (const set of sets) {
-    const target = decodeIdentity(set.target);
+    const target = aiActionIdentitySchema.parse(set.target);
     if (targets.has(target)) {
       throw new TypeError(`Duplicate AI action target "${target}".`);
     }
     const actions = new Map<string, AiActionDefinition>();
     for (const definition of set.actions) {
-      const descriptor = decodeDescriptor(definition);
+      const { prepare, parseResult, ...metadata } = definition;
+      const descriptor = aiActionDescriptorSchema.parse(metadata);
       if (actions.has(descriptor.id)) {
         throw new TypeError(`Duplicate AI action "${descriptor.id}" for "${target}".`);
       }
-      actions.set(descriptor.id, {
-        ...descriptor,
-        prepare: definition.prepare,
-        parseResult: definition.parseResult,
-      });
+      actions.set(descriptor.id, { ...descriptor, prepare, parseResult });
     }
     targets.set(target, actions);
   }

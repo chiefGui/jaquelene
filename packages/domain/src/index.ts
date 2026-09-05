@@ -83,10 +83,13 @@ export {
 } from "./thread/transcript";
 export {
   AI_ACTION_TEXT_MAX_UTF16_LENGTH,
+  aiActionDescriptorSchema,
+  aiActionIdentitySchema,
   aiActionInputSchema,
   aiActionResultSchema,
   aiActionTextResultSchema,
   type AiActionDescriptor,
+  type AiActionIdentity,
   type AiActionInput,
   type AiActionResult,
 } from "./ai-action/action";

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { Effect } from "effect";
 import { createCampaigns } from "#backend/campaign/campaigns";
+import { getCampaignUsageAttribution } from "#backend/campaign/usage";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createGenerations } from "#backend/generation/generations";
 import { createReplyPreparer } from "#backend/generation/reply-preparation";
@@ -31,6 +32,7 @@ import {
   THREAD_MESSAGE_PAGE_MAX_COUNT,
 } from "#backend/thread/threads";
 import { providerAttemptTable } from "#backend/usage/schema";
+import { createUsageHistory } from "#backend/usage/history";
 import { createTurns } from "./turns";
 
 const directories: string[] = [];
@@ -102,12 +104,18 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
   ]);
   const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
-  const generationEngine = createGenerations(
+  const usage = createUsageHistory(database);
+  const generationEngine = createGenerations({
     database,
-    createReplyPreparer(threads, createModelInputResolver(campaigns, promptApplications)),
-    modelExecutionRunner(generate),
+    replyPreparer: createReplyPreparer(
+      threads,
+      createModelInputResolver(campaigns, promptApplications),
+    ),
+    modelExecutor: modelExecutionRunner(generate),
+    attempts: usage.attempts,
+    getUsageAttribution: (threadId) => getCampaignUsageAttribution(database, threadId),
     now,
-  );
+  });
   const supervised = superviseGenerations(generationEngine);
   const turns = createTurns(database, threads, {
     acceptRegenerationInTransaction: generationEngine.acceptRegenerationInTransaction,

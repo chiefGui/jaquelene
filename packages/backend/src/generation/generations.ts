@@ -1,6 +1,5 @@
 import { and, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
-import { getCampaignUsageAttribution } from "#backend/campaign/usage";
 import type { Database } from "#backend/database/database";
 import type { RequestedModelConfiguration } from "#backend/model/configuration";
 import {
@@ -14,7 +13,7 @@ import {
   turnTable,
   type ThreadMessage,
 } from "#backend/thread/schema";
-import { ids, type MessageId, type TurnId } from "#backend/id";
+import { ids, type MessageId, type ThreadId, type TurnId } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import {
   requireModelExecutionRequest,
@@ -26,12 +25,12 @@ import {
 } from "#backend/model/execution";
 import type { ProviderAccounting } from "#backend/provider/accounting";
 import {
-  createProviderAttempts,
   settleProviderAttemptInTransaction,
   type ProviderAttempts,
   type StartProviderAttempt,
 } from "#backend/usage/provider-attempts";
 import type { ProviderAttempt } from "#backend/usage/schema";
+import type { UsageAttribution } from "#backend/usage/types";
 import { requireReplyInput, type ReplyAnchor, type ReplyPreparer } from "./reply-preparation";
 import {
   generationTable,
@@ -66,6 +65,15 @@ export type AcceptedReplyGeneration = Readonly<{
   generation: Generation;
   anchor: ReplyAnchor;
   activeMessageId: MessageId | null;
+}>;
+
+export type GenerationOptions = Readonly<{
+  database: Database;
+  replyPreparer: ReplyPreparer;
+  modelExecutor: ModelExecutionRunner;
+  attempts: Pick<ProviderAttempts, "start" | "changed">;
+  getUsageAttribution: (threadId: ThreadId) => UsageAttribution | undefined;
+  now?: () => number;
 }>;
 
 function modelConfigurationFromGeneration(
@@ -145,13 +153,14 @@ function waitForOperation<Result>(operation: Promise<Result>, signal?: AbortSign
   });
 }
 
-export function createGenerations(
-  database: Database,
-  replyPreparer: ReplyPreparer,
-  modelExecutor: ModelExecutionRunner,
-  now: () => number = Date.now,
-  attempts: ProviderAttempts = createProviderAttempts(database, () => undefined),
-) {
+export function createGenerations({
+  database,
+  replyPreparer,
+  modelExecutor,
+  attempts,
+  getUsageAttribution,
+  now = Date.now,
+}: GenerationOptions) {
   function finishedAt(generation: Pick<Generation, "startedAt">, attempt?: ProviderAttempt) {
     return Math.max(generation.startedAt, attempt?.startedAt ?? 0, now());
   }
@@ -467,7 +476,7 @@ export function createGenerations(
         requestedModelId: generation.modelId,
         startedAt: Math.max(generation.startedAt, now()),
       };
-      const attribution = getCampaignUsageAttribution(database, anchor.threadId);
+      const attribution = getUsageAttribution(anchor.threadId);
 
       if (attribution) {
         attemptInput = { ...attemptInput, attribution };

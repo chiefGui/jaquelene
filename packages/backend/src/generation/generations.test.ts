@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { Effect } from "effect";
 import { createCampaigns } from "#backend/campaign/campaigns";
+import { getCampaignUsageAttribution } from "#backend/campaign/usage";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
@@ -28,13 +29,14 @@ import {
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import { threadMessageTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
+import { createUsageHistory } from "#backend/usage/history";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
   THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
   THREAD_MESSAGE_PAGE_MAX_COUNT,
 } from "#backend/thread/threads";
-import { createGenerations } from "./generations";
+import { createGenerations, type GenerationOptions } from "./generations";
 import { createReplyPreparer, type ReplyAnchor } from "./reply-preparation";
 import { generationTable } from "./schema";
 
@@ -110,14 +112,30 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   ]);
   const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
-  const generations = createGenerations(
+  const usage = createUsageHistory(database);
+  const generationOptions: GenerationOptions = {
     database,
-    createReplyPreparer(threads, createModelInputResolver(campaigns, promptApplications)),
-    modelExecutionRunner(provider),
+    replyPreparer: createReplyPreparer(
+      threads,
+      createModelInputResolver(campaigns, promptApplications),
+    ),
+    modelExecutor: modelExecutionRunner(provider),
+    attempts: usage.attempts,
+    getUsageAttribution: (threadId) => getCampaignUsageAttribution(database, threadId),
     now,
-  );
+  };
+  const generations = createGenerations(generationOptions);
   databases.push(database);
-  return { campaigns, database, generations, promptApplications, prompts, threads };
+  return {
+    campaigns,
+    database,
+    generations,
+    generationOptions,
+    promptApplications,
+    prompts,
+    threads,
+    usage,
+  };
 }
 
 function deferred<Result>() {
@@ -258,6 +276,87 @@ describe("generations", () => {
       messages: [started.message, result.message],
       ...threadPageMetadata([started.message, result.message]),
     });
+  });
+
+  it("records caller-owned attribution and notifies through the shared usage ledger", async () => {
+    const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
+    const { database, generationOptions, threads, usage } = openGenerationEnvironment(provider);
+    const attribution = { kind: "test-owner", id: "owner-1" };
+    const getUsageAttribution = vi.fn(() => attribution);
+    const generations = createGenerations({ ...generationOptions, getUsageAttribution });
+    const thread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
+    const changed = vi.fn(() => ({
+      attempt: database.select().from(providerAttemptTable).get(),
+      generation: database.select().from(generationTable).get(),
+    }));
+    const unsubscribe = usage.subscribe(changed);
+
+    const result = await generations.generateReply({
+      intent: "reply",
+      turnId: started.turn.id,
+      configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
+    });
+
+    expect(getUsageAttribution).toHaveBeenCalledExactlyOnceWith(thread.id);
+    expect(changed.mock.results.map(({ value }) => value)).toEqual([
+      {
+        attempt: expect.objectContaining({
+          executionId: result.generation.id,
+          attributionKind: attribution.kind,
+          attributionId: attribution.id,
+          status: "pending",
+        }),
+        generation: expect.objectContaining({ status: "pending", outputMessageId: null }),
+      },
+      {
+        attempt: expect.objectContaining({
+          executionId: result.generation.id,
+          attributionKind: attribution.kind,
+          attributionId: attribution.id,
+          status: "completed",
+        }),
+        generation: expect.objectContaining({
+          status: "completed",
+          outputMessageId: result.message.id,
+        }),
+      },
+    ]);
+    unsubscribe();
+  });
+
+  it("records attribution failures without starting a provider attempt", async () => {
+    const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
+    const { database, generationOptions, threads, usage } = openGenerationEnvironment(provider);
+    const failure = new Error("Could not resolve usage attribution.");
+    const generations = createGenerations({
+      ...generationOptions,
+      getUsageAttribution() {
+        throw failure;
+      },
+    });
+    const thread = threads.create();
+    const started = threads.startTurn(thread.id, "Hello");
+    const changed = vi.fn();
+    const unsubscribe = usage.subscribe(changed);
+
+    await expect(
+      generations.generateReply({
+        intent: "reply",
+        turnId: started.turn.id,
+        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
+      }),
+    ).rejects.toBe(failure);
+
+    expect(provider.generate).not.toHaveBeenCalled();
+    expect(database.select().from(providerAttemptTable).all()).toEqual([]);
+    expect(database.select().from(generationTable).get()).toMatchObject({
+      turnId: started.turn.id,
+      status: "failed",
+      failureKind: "storage",
+    });
+    expect(changed).not.toHaveBeenCalled();
+    unsubscribe();
   });
 
   it("resolves and snapshots the selected model's reasoning default", async () => {
@@ -510,17 +609,16 @@ describe("generations", () => {
       id: "provider-a",
       generate: vi.fn(async () => ({ text: "Late reply" })),
     };
-    const { database, threads } = openGenerationEnvironment(provider);
-    const generations = createGenerations(
-      database,
-      {
+    const { generationOptions, threads } = openGenerationEnvironment(provider);
+    const generations = createGenerations({
+      ...generationOptions,
+      replyPreparer: {
         prepare(anchor) {
           anchors.push(anchor);
           return preparedInput.promise;
         },
       },
-      modelExecutionRunner(provider),
-    );
+    });
     const thread = threads.create();
     const first = threads.startTurn(thread.id, "First user message");
     const model = { providerId: provider.id, modelId: "maker/model" };
@@ -981,16 +1079,13 @@ describe("generations", () => {
 
   it("rejects an unknown provider identity before persisting an attempt", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { campaigns, database, promptApplications, threads } =
-      openGenerationEnvironment(provider);
+    const { database, generationOptions, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
-    const preparer = createReplyPreparer(
-      threads,
-      createModelInputResolver(campaigns, promptApplications),
-    );
-
-    const generations = createGenerations(database, preparer, modelExecutionRunner());
+    const generations = createGenerations({
+      ...generationOptions,
+      modelExecutor: modelExecutionRunner(),
+    });
     await expect(
       generations.generateReply({
         intent: "reply",
@@ -1006,11 +1101,14 @@ describe("generations", () => {
 
   it("stops waiting for uncooperative reply preparation when interrupted", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { database, threads } = openGenerationEnvironment(provider);
+    const { database, generationOptions, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
     const prepare = vi.fn(() => new Promise<never>(() => {}));
-    const generations = createGenerations(database, { prepare }, modelExecutionRunner(provider));
+    const generations = createGenerations({
+      ...generationOptions,
+      replyPreparer: { prepare },
+    });
     const controller = new AbortController();
     const interruption = new Error("Reply preparation interrupted by test.");
     const pending = generations.generateReply({
@@ -1045,7 +1143,8 @@ describe("generations", () => {
 
   it("rejects missing turns and records malformed preparation before provider work", async () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
-    const { database, generations, threads } = openGenerationEnvironment(provider);
+    const { database, generations, generationOptions, threads } =
+      openGenerationEnvironment(provider);
     const missingTurnId = ids.turn.create();
 
     await expect(
@@ -1058,16 +1157,15 @@ describe("generations", () => {
 
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
-    const malformed = createGenerations(
-      database,
-      {
+    const malformed = createGenerations({
+      ...generationOptions,
+      replyPreparer: {
         prepare: () => ({
           instructions: [],
           dialogue: [{ messageId: ids.message.create(), role: "user", content: "Hello" }],
         }),
       },
-      modelExecutionRunner(provider),
-    );
+    });
 
     await expect(
       malformed.generateReply({

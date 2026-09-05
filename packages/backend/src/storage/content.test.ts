@@ -13,9 +13,9 @@ import {
 } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
-import { narratorPromptKind, narratorPromptModule } from "#backend/narrator/module";
-import { createPrompts } from "#backend/prompt/prompts";
-import { promptTable } from "#backend/prompt/schema";
+import { narratorSkillKind, narratorSkillRegistration } from "#backend/narrator/module";
+import { createSkills } from "#backend/skill/skills";
+import { skillTable } from "#backend/skill/schema";
 import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
 import { providerAttemptTable } from "#backend/usage/schema";
@@ -46,9 +46,9 @@ afterEach(() => {
 describe("content storage area", () => {
   it("deletes every content record through one transaction", async () => {
     const { database, path } = createTestDatabase();
-    const prompts = createPrompts(database, [narratorPromptModule]);
+    const skills = createSkills(database, [narratorSkillRegistration]);
     const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
-    prompts.create({ kind: narratorPromptKind.key, title: "Noir", body: "Keep it dark." });
+    skills.create({ kind: narratorSkillKind.key, title: "Noir", prompt: "Keep it dark." });
     const { turn } = createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
       .insert(providerAttemptTable)
@@ -73,7 +73,7 @@ describe("content storage area", () => {
     expect(database.select().from(generationTable).all()).toEqual([]);
     expect(database.select().from(providerAttemptTable).all()).toEqual([]);
     expect(database.select().from(campaignTable).all()).toEqual([]);
-    expect(database.select().from(promptTable).all()).toHaveLength(1);
+    expect(database.select().from(skillTable).all()).toHaveLength(1);
     expect(database.select().from(threadMessageTable).all()).toEqual([]);
     expect(database.select().from(turnTable).all()).toEqual([]);
     expect(database.select().from(threadTable).all()).toEqual([]);
@@ -82,9 +82,9 @@ describe("content storage area", () => {
 
   it("preserves content while a reply is being generated", () => {
     const { database, path } = createTestDatabase();
-    const prompts = createPrompts(database, [narratorPromptModule]);
+    const skills = createSkills(database, [narratorSkillRegistration]);
     const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
-    prompts.create({ kind: narratorPromptKind.key, title: "Noir", body: "Keep it dark." });
+    skills.create({ kind: narratorSkillKind.key, title: "Noir", prompt: "Keep it dark." });
     const { turn } = createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
       .insert(generationTable)
@@ -114,14 +114,14 @@ describe("content storage area", () => {
       ),
     );
     expect(database.select().from(campaignTable).all()).toHaveLength(1);
-    expect(database.select().from(promptTable).all()).toHaveLength(2);
+    expect(database.select().from(skillTable).all()).toHaveLength(2);
     expect(database.select().from(threadTable).all()).toHaveLength(1);
     expect(database.select().from(generationTable).all()).toHaveLength(1);
   });
 
   it("preserves content while an independent provider attempt is active", () => {
     const { database, path } = createTestDatabase();
-    createPrompts(database, [narratorPromptModule]);
+    createSkills(database, [narratorSkillRegistration]);
     const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
     createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database
@@ -156,7 +156,7 @@ describe("content storage area", () => {
 
   it("rolls back every content deletion when an owner operation fails", () => {
     const { database, path } = createTestDatabase();
-    createPrompts(database, [narratorPromptModule]);
+    createSkills(database, [narratorSkillRegistration]);
     const campaign = createCampaigns(database).start({ title: "The Long Night", composition: [] });
     createThreads(database).startTurn(campaign.threadId, "Begin the story.");
     database

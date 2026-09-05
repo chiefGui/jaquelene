@@ -1,8 +1,8 @@
-import type { CustomPrompt } from "@jaquelene/domain";
+import type { CustomSkill } from "@jaquelene/domain";
 import { Item, Timestamp } from "@jaquelene/ui";
 import { useId } from "react";
 
-export function PromptMetadata({ prompt }: { prompt: CustomPrompt }) {
+export function SkillMetadata({ skill }: { skill: CustomSkill }) {
   const headingId = useId();
 
   return (
@@ -20,7 +20,7 @@ export function PromptMetadata({ prompt }: { prompt: CustomPrompt }) {
           </Item.Content>
           <Item.Value>
             <Item.ValueText>
-              <Timestamp value={prompt.createdAt} />
+              <Timestamp value={skill.createdAt} />
             </Item.ValueText>
           </Item.Value>
         </Item.Root>
@@ -31,7 +31,7 @@ export function PromptMetadata({ prompt }: { prompt: CustomPrompt }) {
           </Item.Content>
           <Item.Value>
             <Item.ValueText>
-              <Timestamp value={prompt.updatedAt} />
+              <Timestamp value={skill.updatedAt} />
             </Item.ValueText>
           </Item.Value>
         </Item.Root>

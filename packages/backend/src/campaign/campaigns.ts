@@ -1,11 +1,11 @@
 import {
   parseCampaignTitleInput,
-  parsePromptKey,
-  promptKindKeySchema,
+  parseSkillKey,
+  skillKindKeySchema,
   type CampaignGenerationPreferences as ComposableCampaignGenerationPreferences,
   type CampaignTitle,
-  type PromptKey,
-  type PromptKindKey,
+  type SkillKey,
+  type SkillKindKey,
 } from "@jaquelene/domain";
 import { and, desc, eq, getTableColumns, lt, or } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
@@ -13,11 +13,15 @@ import { generationTable } from "#backend/generation/schema";
 import { ids, type CampaignId, type ThreadId } from "#backend/id";
 import { requireReasoningPreset, type ReasoningPreset } from "#backend/model/reasoning";
 import { decodeCursor, encodeCursor } from "#backend/pagination/cursor";
-import { campaignPromptSelectionTable, promptKindTable, promptTable } from "#backend/prompt/schema";
+import { skillKindTable, skillTable } from "#backend/skill/schema";
 import { requireModelSelection, type ModelSelection } from "#backend/provider/provider";
 import { threadTable, turnTable } from "#backend/thread/schema";
 import { insertThread } from "#backend/thread/threads";
-import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
+import {
+  campaignGenerationPreferencesTable,
+  campaignSkillSelectionTable,
+  campaignTable,
+} from "./schema";
 
 export const campaignPageSize = 50;
 const campaignCompositionLimit = 32;
@@ -27,14 +31,14 @@ export type CampaignGenerationPreferences = ComposableCampaignGenerationPreferen
   ReasoningPreset
 >;
 
-export type CampaignPromptSelectionInput = Readonly<{
-  kind: PromptKindKey;
-  promptKey?: PromptKey;
+export type CampaignSkillSelectionInput = Readonly<{
+  kind: SkillKindKey;
+  skillKey?: SkillKey;
 }>;
 
 export type StartCampaignInput = Readonly<{
   title: string;
-  composition: readonly CampaignPromptSelectionInput[];
+  composition: readonly CampaignSkillSelectionInput[];
 }>;
 
 export type CampaignPageRequest = Readonly<{
@@ -82,40 +86,42 @@ function requireCampaignGenerationPreferences(preferences: CampaignGenerationPre
   }
 }
 
-function parseComposition(value: unknown): readonly CampaignPromptSelectionInput[] {
+function parseComposition(value: unknown): readonly CampaignSkillSelectionInput[] {
   if (!Array.isArray(value) || value.length > campaignCompositionLimit) {
     throw new TypeError("Campaign composition is invalid.");
   }
 
-  const seenKinds = new Set<PromptKindKey>();
+  const seenKinds = new Set<SkillKindKey>();
 
   return value.map((selection) => {
     if (!selection || typeof selection !== "object" || Array.isArray(selection)) {
-      throw new TypeError("Campaign prompt selection is invalid.");
+      throw new TypeError("Campaign skill selection is invalid.");
     }
 
     const keys = Object.keys(selection);
 
-    if (!keys.every((key) => key === "kind" || key === "promptKey") || !("kind" in selection)) {
-      throw new TypeError("Campaign prompt selection is invalid.");
+    if (!keys.every((key) => key === "kind" || key === "skillKey") || !("kind" in selection)) {
+      throw new TypeError("Campaign skill selection is invalid.");
     }
 
-    const kindResult = promptKindKeySchema.safeParse(selection.kind);
+    const kindResult = skillKindKeySchema.safeParse(selection.kind);
 
     if (!kindResult.success) {
-      throw new TypeError("Campaign prompt kind is invalid.", { cause: kindResult.error });
+      throw new TypeError("Campaign skill kind is invalid.", { cause: kindResult.error });
     }
 
     if (seenKinds.has(kindResult.data)) {
-      throw new TypeError(`Campaign composition contains prompt kind "${kindResult.data}" twice.`);
+      throw new TypeError(`Campaign composition contains skill kind "${kindResult.data}" twice.`);
     }
 
     seenKinds.add(kindResult.data);
-    const promptKey = "promptKey" in selection ? selection.promptKey : undefined;
+    if (!("skillKey" in selection) || selection.skillKey === undefined) {
+      return { kind: kindResult.data };
+    }
 
     return {
       kind: kindResult.data,
-      ...(promptKey === undefined ? {} : { promptKey: parsePromptKey(promptKey) }),
+      skillKey: parseSkillKey(selection.skillKey),
     };
   });
 }
@@ -224,26 +230,26 @@ export function createCampaigns(database: Database, now: () => number = Date.now
       const startedAt = now();
 
       return database.transaction((transaction) => {
-        for (const { kind, promptKey } of composition) {
-          const promptKind = transaction
-            .select({ key: promptKindTable.key })
-            .from(promptKindTable)
-            .where(eq(promptKindTable.key, kind))
+        for (const { kind, skillKey } of composition) {
+          const skillKind = transaction
+            .select({ key: skillKindTable.key })
+            .from(skillKindTable)
+            .where(eq(skillKindTable.key, kind))
             .get();
 
-          if (!promptKind) {
-            throw new RangeError(`Prompt kind "${kind}" does not exist.`);
+          if (!skillKind) {
+            throw new RangeError(`Skill kind "${kind}" does not exist.`);
           }
 
-          if (promptKey !== undefined) {
-            const prompt = transaction
-              .select({ key: promptTable.key })
-              .from(promptTable)
-              .where(and(eq(promptTable.kind, kind), eq(promptTable.key, promptKey)))
+          if (skillKey !== undefined) {
+            const skill = transaction
+              .select({ key: skillTable.key })
+              .from(skillTable)
+              .where(and(eq(skillTable.kind, kind), eq(skillTable.key, skillKey)))
               .get();
 
-            if (!prompt) {
-              throw new RangeError(`Prompt "${promptKey}" does not exist for kind "${kind}".`);
+            if (!skill) {
+              throw new RangeError(`Skill "${skillKey}" does not exist for kind "${kind}".`);
             }
           }
         }
@@ -257,13 +263,13 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         };
         transaction.insert(campaignTable).values(campaign).run();
 
-        for (const { kind, promptKey } of composition) {
-          if (promptKey === undefined) {
+        for (const { kind, skillKey } of composition) {
+          if (skillKey === undefined) {
             continue;
           }
           transaction
-            .insert(campaignPromptSelectionTable)
-            .values({ campaignId: campaign.id, kind, promptKey })
+            .insert(campaignSkillSelectionTable)
+            .values({ campaignId: campaign.id, kind, skillKey })
             .run();
         }
 

@@ -20,7 +20,7 @@ export type {
   CampaignPage,
   CampaignPageRequest,
   CampaignSummary,
-  CampaignPromptSelectionInput,
+  CampaignSkillSelectionInput,
   CampaignGenerationPreferences,
   Campaigns,
   StartCampaignInput,
@@ -113,22 +113,24 @@ export {
   type StorageAreaId,
 } from "#backend/storage/area";
 export { StorageConfigurationError } from "#backend/storage/registry";
-export type { Instruction, PromptApplication } from "#backend/prompt/application-registry";
 export type {
-  BuiltInPrompt,
-  CampaignPromptSelection,
-  CustomPrompt,
-  Prompt,
-  PromptCatalog,
-  PromptDefault,
-  PromptDeletion,
-  PromptKind,
-  PromptManagement,
-  PromptPage,
-  PromptPageRequest,
-  Prompts,
-  SetCampaignPromptSelectionInput,
-} from "#backend/prompt/types";
+  CampaignSkills,
+  CampaignSkillSelection,
+  SetCampaignSkillSelectionInput,
+} from "#backend/campaign/skills";
+export type {
+  BuiltInSkill,
+  CustomSkill,
+  Skill,
+  SkillCatalog,
+  SkillDefault,
+  SkillDeletion,
+  SkillKind,
+  SkillManagement,
+  SkillPage,
+  SkillPageRequest,
+  Skills,
+} from "#backend/skill/types";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export type { Threads } from "#backend/thread/subsystem";
 export type { ThreadActivity } from "#backend/thread/threads";

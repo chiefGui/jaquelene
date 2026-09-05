@@ -1,6 +1,10 @@
 import { sql } from "drizzle-orm";
+import type { SkillKey, SkillKindKey } from "@jaquelene/domain";
+import { skillKindTable, skillTable } from "#backend/skill/schema";
 import {
   check,
+  foreignKey,
+  index,
   integer,
   primaryKey,
   sqliteTable,
@@ -72,5 +76,29 @@ export const campaignGenerationPreferencesTable = sqliteTable(
         AND (${preferences.providerId} IS NOT NULL OR ${preferences.reasoningPreset} IS NOT NULL)
         AND (${preferences.reasoningPreset} IS NULL OR ${preferences.reasoningPreset} IN ('automatic', 'on', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'))`,
     ),
+  ],
+);
+
+export const campaignSkillSelectionTable = sqliteTable(
+  "campaign_skill_selections",
+  {
+    campaignId: text("campaign_id")
+      .$type<CampaignId>()
+      .notNull()
+      .references(() => campaignTable.id, { onDelete: "cascade" }),
+    kind: text()
+      .$type<SkillKindKey>()
+      .notNull()
+      .references(() => skillKindTable.key, { onDelete: "cascade" }),
+    skillKey: text("skill_key").$type<SkillKey>().notNull(),
+  },
+  (selection) => [
+    primaryKey({ columns: [selection.campaignId, selection.kind] }),
+    foreignKey({
+      columns: [selection.kind, selection.skillKey],
+      foreignColumns: [skillTable.kind, skillTable.key],
+      name: "campaign_skill_selections_skill_fk",
+    }).onDelete("cascade"),
+    index("campaign_skill_selections_skill_index").on(selection.skillKey),
   ],
 );

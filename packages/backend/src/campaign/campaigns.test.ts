@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { parsePromptKey } from "@jaquelene/domain";
+import { parseSkillKey } from "@jaquelene/domain";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
@@ -10,12 +10,11 @@ import { generationTable } from "#backend/generation/schema";
 import { ids } from "#backend/id";
 import type { ReasoningPreset } from "#backend/model/reasoning";
 import {
-  jaqueleneNarratorPromptDefinition,
-  narratorPromptKind,
-  narratorPromptModule,
+  jaqueleneNarratorSkillDefinition,
+  narratorSkillKind,
+  narratorSkillRegistration,
 } from "#backend/narrator/module";
-import { createPrompts } from "#backend/prompt/prompts";
-import { campaignPromptSelectionTable } from "#backend/prompt/schema";
+import { createSkills } from "#backend/skill/skills";
 import type { ModelSelection } from "#backend/provider/provider";
 import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
 import { createThreads } from "#backend/thread/threads";
@@ -27,7 +26,11 @@ import {
   type CampaignGenerationPreferences,
   type CampaignSummary,
 } from "./campaigns";
-import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
+import {
+  campaignSkillSelectionTable,
+  campaignGenerationPreferencesTable,
+  campaignTable,
+} from "./schema";
 
 const directories: string[] = [];
 const databases: Database[] = [];
@@ -41,17 +44,17 @@ function createDatabasePath() {
 function openCampaigns(path: string, now?: () => number, threadNow?: () => number) {
   const database = openDatabase(path);
   databases.push(database);
-  const prompts = createPrompts(database, [narratorPromptModule]);
+  const skills = createSkills(database, [narratorSkillRegistration]);
   return {
     database,
     campaigns: createCampaigns(database, now),
-    prompts,
+    skills,
     threads: createThreads(database, threadNow),
   };
 }
 
 function start(campaigns: ReturnType<typeof createCampaigns>, title: string) {
-  return campaigns.start({ title, composition: [{ kind: narratorPromptKind.key }] });
+  return campaigns.start({ title, composition: [{ kind: narratorSkillKind.key }] });
 }
 
 function summary(campaign: Campaign, lastActivityAt = campaign.lastActivityAt): CampaignSummary {
@@ -171,27 +174,25 @@ describe("campaigns", () => {
   });
 
   it("creates the campaign, thread, and explicit composition atomically", () => {
-    const { campaigns, database, prompts } = openCampaigns(createDatabasePath());
-    const custom = prompts.create({
-      kind: narratorPromptKind.key,
+    const { campaigns, database, skills } = openCampaigns(createDatabasePath());
+    const custom = skills.create({
+      kind: narratorSkillKind.key,
       title: "Observer",
-      body: "Describe only observable facts.",
+      prompt: "Describe only observable facts.",
     });
     const campaign = campaigns.start({
       title: "Observed",
-      composition: [{ kind: narratorPromptKind.key, promptKey: custom.key }],
+      composition: [{ kind: narratorSkillKind.key, skillKey: custom.key }],
     });
 
-    expect(database.select().from(campaignPromptSelectionTable).all()).toEqual([
-      { campaignId: campaign.id, kind: narratorPromptKind.key, promptKey: custom.key },
+    expect(database.select().from(campaignSkillSelectionTable).all()).toEqual([
+      { campaignId: campaign.id, kind: narratorSkillKind.key, skillKey: custom.key },
     ]);
 
     expect(() =>
       campaigns.start({
         title: "Invalid",
-        composition: [
-          { kind: narratorPromptKind.key, promptKey: parsePromptKey(ids.prompt.create()) },
-        ],
+        composition: [{ kind: narratorSkillKind.key, skillKey: parseSkillKey(ids.skill.create()) }],
       }),
     ).toThrow(RangeError);
     expect(database.select().from(campaignTable).all()).toHaveLength(1);
@@ -202,19 +203,19 @@ describe("campaigns", () => {
     const { campaigns, database } = openCampaigns(createDatabasePath());
     campaigns.start({
       title: "Inherited",
-      composition: [{ kind: narratorPromptKind.key }],
+      composition: [{ kind: narratorSkillKind.key }],
     });
     const pinned = campaigns.start({
       title: "Pinned",
       composition: [
-        { kind: narratorPromptKind.key, promptKey: jaqueleneNarratorPromptDefinition.key },
+        { kind: narratorSkillKind.key, skillKey: jaqueleneNarratorSkillDefinition.key },
       ],
     });
-    expect(database.select().from(campaignPromptSelectionTable).all()).toEqual([
+    expect(database.select().from(campaignSkillSelectionTable).all()).toEqual([
       {
         campaignId: pinned.id,
-        kind: narratorPromptKind.key,
-        promptKey: jaqueleneNarratorPromptDefinition.key,
+        kind: narratorSkillKind.key,
+        skillKey: jaqueleneNarratorSkillDefinition.key,
       },
     ]);
   });
@@ -316,15 +317,15 @@ describe("campaigns", () => {
   });
 
   it("hard-deletes campaign content while preserving usage history", () => {
-    const { campaigns, database, prompts, threads } = openCampaigns(createDatabasePath());
-    const customPrompt = prompts.create({
-      kind: narratorPromptKind.key,
+    const { campaigns, database, skills, threads } = openCampaigns(createDatabasePath());
+    const customSkill = skills.create({
+      kind: narratorSkillKind.key,
       title: "Observer",
-      body: "Describe only observable facts.",
+      prompt: "Describe only observable facts.",
     });
     const campaign = campaigns.start({
       title: "Owned content",
-      composition: [{ kind: narratorPromptKind.key, promptKey: customPrompt.key }],
+      composition: [{ kind: narratorSkillKind.key, skillKey: customSkill.key }],
     });
     campaigns.setGenerationPreferences(campaign.id, generationPreferences("owned", "high"));
     const { turn } = threads.startTurn(campaign.threadId, "Begin the story.");
@@ -373,7 +374,7 @@ describe("campaigns", () => {
       },
     ]);
     expect(database.select().from(campaignGenerationPreferencesTable).all()).toEqual([]);
-    expect(database.select().from(campaignPromptSelectionTable).all()).toEqual([]);
+    expect(database.select().from(campaignSkillSelectionTable).all()).toEqual([]);
     expect(database.select().from(generationTable).all()).toEqual([]);
     expect(database.select().from(threadMessageTable).all()).toEqual([]);
     expect(database.select().from(turnTable).all()).toEqual([]);

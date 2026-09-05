@@ -42,7 +42,7 @@ import {
   updateCampaignActivity,
 } from "./query";
 import {
-  campaignPromptSelectionPrefix,
+  campaignSkillSelectionPrefix,
   campaignUsageRecordQueryKey,
   threadQueryPrefix,
 } from "@/feature/cache-keys";
@@ -215,8 +215,8 @@ describe("campaign deletion mutation", () => {
     queryClient.setQueryData([...threadQueryPrefix(deleted.threadId), "messages"], {
       pages: [],
     });
-    queryClient.setQueryData([...campaignPromptSelectionPrefix(deleted.id), "test"], {
-      promptKey: "prompt-a",
+    queryClient.setQueryData([...campaignSkillSelectionPrefix(deleted.id), "test"], {
+      skillKey: "skill-a",
     });
     const mutation = new MutationObserver(
       queryClient,
@@ -239,7 +239,7 @@ describe("campaign deletion mutation", () => {
       [],
     );
     expect(
-      queryClient.getQueriesData({ queryKey: campaignPromptSelectionPrefix(deleted.id) }),
+      queryClient.getQueriesData({ queryKey: campaignSkillSelectionPrefix(deleted.id) }),
     ).toEqual([]);
     expect(queryClient.getQueryState(campaignPagesQuery.queryKey)?.isInvalidated).toBe(true);
   });

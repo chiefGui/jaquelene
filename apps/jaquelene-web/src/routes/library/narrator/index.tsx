@@ -2,8 +2,8 @@ import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
 import Bookmark02Icon from "@hugeicons/core-free-icons/Bookmark02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PromptOrigin, narratorPromptKindKey } from "@jaquelene/domain";
-import type { CustomPrompt, Prompt, PromptKind } from "@jaquelene/ipc/renderer";
+import { SkillOrigin, narratorSkillKindKey } from "@jaquelene/domain";
+import type { CustomSkill, Skill, SkillKind } from "@jaquelene/ipc/renderer";
 import { Badge, Button, IconButton, Item } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
@@ -11,31 +11,31 @@ import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { NarratorPromptDeleteAction } from "@/feature/narrator/delete-action";
+import { NarratorSkillDeleteAction } from "@/feature/narrator/delete-action";
 import {
-  promptDefaultQuery,
-  promptKindsQuery,
-  promptPagesQuery,
-  useSetPromptDefault,
-} from "@/feature/prompt/query";
+  skillDefaultQuery,
+  skillKindsQuery,
+  skillPagesQuery,
+  useSetSkillDefault,
+} from "@/feature/skill/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EditIcon } from "@/primitive/icons";
 
-type SetPromptDefaultMutation = ReturnType<typeof useSetPromptDefault>;
+type SetSkillDefaultMutation = ReturnType<typeof useSetSkillDefault>;
 
 export const Route = createFileRoute("/library/narrator/")({
   loader: async ({ context }) => {
-    const kinds = await context.queryClient.query(promptKindsQuery);
-    const kind = kinds.find(({ key }) => key === narratorPromptKindKey) ?? null;
+    const kinds = await context.queryClient.query(skillKindsQuery);
+    const kind = kinds.find(({ key }) => key === narratorSkillKindKey) ?? null;
 
     if (!kind) {
       return null;
     }
 
     await Promise.all([
-      context.queryClient.query(promptDefaultQuery(narratorPromptKindKey)),
-      context.queryClient.infiniteQuery(promptPagesQuery(narratorPromptKindKey)),
+      context.queryClient.query(skillDefaultQuery(narratorSkillKindKey)),
+      context.queryClient.infiniteQuery(skillPagesQuery(narratorSkillKindKey)),
     ]);
 
     return kind;
@@ -43,7 +43,7 @@ export const Route = createFileRoute("/library/narrator/")({
   component: NarratorRoute,
 });
 
-function NarratorPromptEditAction({ prompt }: { prompt: CustomPrompt }) {
+function NarratorSkillEditAction({ skill }: { skill: CustomSkill }) {
   return (
     <Tooltip.Root>
       <Tooltip.Anchor
@@ -51,13 +51,13 @@ function NarratorPromptEditAction({ prompt }: { prompt: CustomPrompt }) {
           <IconButton.Root
             render={
               <Link
-                to="/library/narrator/$promptKey/edit"
-                params={{ promptKey: prompt.key }}
+                to="/library/narrator/$skillKey/edit"
+                params={{ skillKey: skill.key }}
                 replace
               />
             }
-            aria-label={`Edit ${prompt.title}`}
-            style={styles.promptAction}
+            aria-label={`Edit ${skill.title}`}
+            style={styles.skillAction}
           >
             <IconButton.Icon render={<HugeiconsIcon icon={EditIcon} />} />
           </IconButton.Root>
@@ -68,19 +68,19 @@ function NarratorPromptEditAction({ prompt }: { prompt: CustomPrompt }) {
   );
 }
 
-function NarratorPromptDefaultAction({
-  defaultPromptKey,
-  prompt,
+function NarratorSkillDefaultAction({
+  defaultSkillKey,
+  skill,
   setDefault,
 }: {
-  defaultPromptKey: string | undefined;
-  prompt: Prompt;
-  setDefault: SetPromptDefaultMutation;
+  defaultSkillKey: string | undefined;
+  skill: Skill;
+  setDefault: SetSkillDefaultMutation;
 }) {
-  const displayedDefaultPromptKey = setDefault.isPending ? setDefault.variables : defaultPromptKey;
-  const isDefault = prompt.key === displayedDefaultPromptKey;
-  const defaultPending = setDefault.isPending && setDefault.variables === prompt.key;
-  const defaultFailed = setDefault.isError && setDefault.variables === prompt.key;
+  const displayedDefaultSkillKey = setDefault.isPending ? setDefault.variables : defaultSkillKey;
+  const isDefault = skill.key === displayedDefaultSkillKey;
+  const defaultPending = setDefault.isPending && setDefault.variables === skill.key;
+  const defaultFailed = setDefault.isError && setDefault.variables === skill.key;
   const defaultTooltip = defaultFailed
     ? "Couldn't set default"
     : isDefault
@@ -89,9 +89,9 @@ function NarratorPromptDefaultAction({
 
   function setAsDefault() {
     setDefault.reset();
-    setDefault.mutate(prompt.key, {
+    setDefault.mutate(skill.key, {
       onError(cause) {
-        reportError("prompt.default.update", cause);
+        reportError("skill.default.update", cause);
       },
     });
   }
@@ -106,14 +106,14 @@ function NarratorPromptDefaultAction({
               aria-busy={defaultPending || undefined}
               aria-label={
                 isDefault
-                  ? `${prompt.title} is the default narrator`
-                  : `Set ${prompt.title} as the default narrator`
+                  ? `${skill.title} is the default narrator`
+                  : `Set ${skill.title} as the default narrator`
               }
               aria-pressed={isDefault}
               disabled={isDefault || defaultPending}
               onClick={setAsDefault}
               style={[
-                styles.promptAction,
+                styles.skillAction,
                 styles.defaultAction,
                 isDefault && styles.defaultActionOn,
                 defaultFailed && styles.defaultActionError,
@@ -132,68 +132,68 @@ function NarratorPromptDefaultAction({
 
       {defaultFailed ? (
         <VisuallyHidden role="alert">
-          Couldn't set {prompt.title} as the default narrator
+          Couldn't set {skill.title} as the default narrator
         </VisuallyHidden>
       ) : null}
     </>
   );
 }
 
-function NarratorPromptItem({
-  defaultPromptKey,
-  prompt,
+function NarratorSkillItem({
+  defaultSkillKey,
+  skill,
   setDefault,
 }: {
-  defaultPromptKey: string | undefined;
-  prompt: Prompt;
-  setDefault: SetPromptDefaultMutation;
+  defaultSkillKey: string | undefined;
+  skill: Skill;
+  setDefault: SetSkillDefaultMutation;
 }) {
-  const custom = prompt.origin === PromptOrigin.Custom;
+  const custom = skill.origin === SkillOrigin.Custom;
 
   return (
     <Item.Root
       render={<li {...stylex.props(stylex.defaultMarker())} />}
       inset="none"
-      style={styles.prompt}
+      style={styles.skill}
     >
-      <div {...stylex.props(styles.promptContent)}>
-        <NarratorPromptDefaultAction
-          defaultPromptKey={defaultPromptKey}
-          prompt={prompt}
+      <div {...stylex.props(styles.skillContent)}>
+        <NarratorSkillDefaultAction
+          defaultSkillKey={defaultSkillKey}
+          skill={skill}
           setDefault={setDefault}
         />
 
-        <div {...stylex.props(styles.promptIdentity)}>
-          <Item.Label render={<h3 />} style={styles.promptTitle}>
-            {prompt.title}
+        <div {...stylex.props(styles.skillIdentity)}>
+          <Item.Label render={<h3 />} style={styles.skillTitle}>
+            {skill.title}
           </Item.Label>
-          {prompt.origin === PromptOrigin.BuiltIn ? <Badge>Built-in</Badge> : null}
+          {skill.origin === SkillOrigin.BuiltIn ? <Badge>Built-in</Badge> : null}
         </div>
 
         {custom ? (
-          <div {...stylex.props(styles.promptActions)}>
-            <NarratorPromptEditAction prompt={prompt} />
-            <NarratorPromptDeleteAction
-              isDefault={prompt.key === defaultPromptKey}
-              prompt={prompt}
-              style={styles.promptAction}
+          <div {...stylex.props(styles.skillActions)}>
+            <NarratorSkillEditAction skill={skill} />
+            <NarratorSkillDeleteAction
+              isDefault={skill.key === defaultSkillKey}
+              skill={skill}
+              style={styles.skillAction}
             />
           </div>
         ) : null}
 
-        <p {...stylex.props(styles.promptBody)}>{prompt.body}</p>
+        <p {...stylex.props(styles.prompt)}>{skill.prompt}</p>
       </div>
     </Item.Root>
   );
 }
 
-function NarratorSection({ kind }: { kind: PromptKind }) {
-  const pages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
-  const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
-  const setDefault = useSetPromptDefault(narratorPromptKindKey);
-  const prompts = pages.data.pages.flatMap((page) => page.prompts);
-  const headingId = `prompt-kind-${kind.key}`;
-  const descriptionId = `prompt-kind-description-${kind.key}`;
+function NarratorSection({ kind }: { kind: SkillKind }) {
+  const pages = useSuspenseInfiniteQuery(skillPagesQuery(narratorSkillKindKey));
+  const { data: defaultSelection } = useSuspenseQuery(skillDefaultQuery(narratorSkillKindKey));
+  const setDefault = useSetSkillDefault(narratorSkillKindKey);
+  const skills = pages.data.pages.flatMap((page) => page.skills);
+  const headingId = `skill-kind-${kind.key}`;
+  const descriptionId = `skill-kind-description-${kind.key}`;
 
   return (
     <Item.Section aria-labelledby={headingId} aria-describedby={descriptionId}>
@@ -213,11 +213,11 @@ function NarratorSection({ kind }: { kind: PromptKind }) {
       </Item.SectionHeader>
 
       <Item.Group render={<ul />} variant="separated">
-        {prompts.map((prompt) => (
-          <NarratorPromptItem
-            key={prompt.key}
-            defaultPromptKey={defaultSelection.promptKey}
-            prompt={prompt}
+        {skills.map((skill) => (
+          <NarratorSkillItem
+            key={skill.key}
+            defaultSkillKey={defaultSelection.skillKey}
+            skill={skill}
             setDefault={setDefault}
           />
         ))}
@@ -277,8 +277,8 @@ const styles = stylex.create({
     justifyContent: "space-between",
   },
   createAction: { alignSelf: "flex-start" },
-  prompt: { display: "block", minHeight: 0 },
-  promptContent: {
+  skill: { display: "block", minHeight: 0 },
+  skillContent: {
     alignItems: "center",
     columnGap: "0.75rem",
     display: "grid",
@@ -287,7 +287,7 @@ const styles = stylex.create({
     padding: "1rem",
     rowGap: "0.75rem",
   },
-  promptIdentity: {
+  skillIdentity: {
     alignItems: "center",
     display: "flex",
     gap: "0.75rem",
@@ -295,8 +295,8 @@ const styles = stylex.create({
     gridRow: "1",
     minWidth: 0,
   },
-  promptTitle: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  promptActions: {
+  skillTitle: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  skillActions: {
     alignItems: "center",
     display: "flex",
     gap: "0.25rem",
@@ -304,7 +304,7 @@ const styles = stylex.create({
     gridRow: "1",
     justifySelf: "end",
   },
-  promptAction: {
+  skillAction: {
     height: "2rem",
     opacity: {
       default: 0,
@@ -325,7 +325,7 @@ const styles = stylex.create({
     color: colors.foregroundDanger,
     opacity: 1,
   },
-  promptBody: {
+  prompt: {
     color: colors.foregroundSecondary,
     display: "-webkit-box",
     fontSize: tokens.fontSizeSmall,

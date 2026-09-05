@@ -28,7 +28,7 @@ import { Route as SettingsUsageRouteImport } from "./routes/settings/usage";
 import { Route as CampaignsCampaignIdTranscriptRouteImport } from "./routes/campaigns/$campaignId_.transcript";
 import { Route as LibraryNarratorIndexRouteImport } from "./routes/library/narrator/index";
 import { Route as LibraryNarratorNewRouteImport } from "./routes/library/narrator/new";
-import { Route as LibraryNarratorPromptKeyEditRouteImport } from "./routes/library/narrator/$promptKey/edit";
+import { Route as LibraryNarratorSkillKeyEditRouteImport } from "./routes/library/narrator/$skillKey/edit";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -126,10 +126,10 @@ const LibraryNarratorNewRoute = LibraryNarratorNewRouteImport.update({
   path: "/new",
   getParentRoute: () => LibraryNarratorRouteRoute,
 } as any);
-const LibraryNarratorPromptKeyEditRoute =
-  LibraryNarratorPromptKeyEditRouteImport.update({
-    id: "/$promptKey/edit",
-    path: "/$promptKey/edit",
+const LibraryNarratorSkillKeyEditRoute =
+  LibraryNarratorSkillKeyEditRouteImport.update({
+    id: "/$skillKey/edit",
+    path: "/$skillKey/edit",
     getParentRoute: () => LibraryNarratorRouteRoute,
   } as any);
 
@@ -153,7 +153,7 @@ export interface FileRoutesByFullPath {
   "/campaigns/$campaignId/transcript": typeof CampaignsCampaignIdTranscriptRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
   "/library/narrator/": typeof LibraryNarratorIndexRoute;
-  "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
+  "/library/narrator/$skillKey/edit": typeof LibraryNarratorSkillKeyEditRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
@@ -172,7 +172,7 @@ export interface FileRoutesByTo {
   "/campaigns/$campaignId/transcript": typeof CampaignsCampaignIdTranscriptRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
   "/library/narrator": typeof LibraryNarratorIndexRoute;
-  "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
+  "/library/narrator/$skillKey/edit": typeof LibraryNarratorSkillKeyEditRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -195,7 +195,7 @@ export interface FileRoutesById {
   "/campaigns/$campaignId_/transcript": typeof CampaignsCampaignIdTranscriptRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
   "/library/narrator/": typeof LibraryNarratorIndexRoute;
-  "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
+  "/library/narrator/$skillKey/edit": typeof LibraryNarratorSkillKeyEditRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -219,7 +219,7 @@ export interface FileRouteTypes {
     | "/campaigns/$campaignId/transcript"
     | "/library/narrator/new"
     | "/library/narrator/"
-    | "/library/narrator/$promptKey/edit";
+    | "/library/narrator/$skillKey/edit";
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
@@ -238,7 +238,7 @@ export interface FileRouteTypes {
     | "/campaigns/$campaignId/transcript"
     | "/library/narrator/new"
     | "/library/narrator"
-    | "/library/narrator/$promptKey/edit";
+    | "/library/narrator/$skillKey/edit";
   id:
     | "__root__"
     | "/"
@@ -260,7 +260,7 @@ export interface FileRouteTypes {
     | "/campaigns/$campaignId_/transcript"
     | "/library/narrator/new"
     | "/library/narrator/"
-    | "/library/narrator/$promptKey/edit";
+    | "/library/narrator/$skillKey/edit";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -405,11 +405,11 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof LibraryNarratorNewRouteImport;
       parentRoute: typeof LibraryNarratorRouteRoute;
     };
-    "/library/narrator/$promptKey/edit": {
-      id: "/library/narrator/$promptKey/edit";
-      path: "/$promptKey/edit";
-      fullPath: "/library/narrator/$promptKey/edit";
-      preLoaderRoute: typeof LibraryNarratorPromptKeyEditRouteImport;
+    "/library/narrator/$skillKey/edit": {
+      id: "/library/narrator/$skillKey/edit";
+      path: "/$skillKey/edit";
+      fullPath: "/library/narrator/$skillKey/edit";
+      preLoaderRoute: typeof LibraryNarratorSkillKeyEditRouteImport;
       parentRoute: typeof LibraryNarratorRouteRoute;
     };
   }
@@ -436,13 +436,13 @@ const CampaignsRouteRouteWithChildren = CampaignsRouteRoute._addFileChildren(
 interface LibraryNarratorRouteRouteChildren {
   LibraryNarratorNewRoute: typeof LibraryNarratorNewRoute;
   LibraryNarratorIndexRoute: typeof LibraryNarratorIndexRoute;
-  LibraryNarratorPromptKeyEditRoute: typeof LibraryNarratorPromptKeyEditRoute;
+  LibraryNarratorSkillKeyEditRoute: typeof LibraryNarratorSkillKeyEditRoute;
 }
 
 const LibraryNarratorRouteRouteChildren: LibraryNarratorRouteRouteChildren = {
   LibraryNarratorNewRoute: LibraryNarratorNewRoute,
   LibraryNarratorIndexRoute: LibraryNarratorIndexRoute,
-  LibraryNarratorPromptKeyEditRoute: LibraryNarratorPromptKeyEditRoute,
+  LibraryNarratorSkillKeyEditRoute: LibraryNarratorSkillKeyEditRoute,
 };
 
 const LibraryNarratorRouteRouteWithChildren =

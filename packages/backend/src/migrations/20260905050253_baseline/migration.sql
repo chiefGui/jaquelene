@@ -76,53 +76,53 @@ CREATE TABLE `generations` (
           AND "output_message_id" IS NULL))
 );
 --> statement-breakpoint
-CREATE TABLE `campaign_prompt_selections` (
+CREATE TABLE `campaign_skill_selections` (
 	`campaign_id` text NOT NULL,
 	`kind` text NOT NULL,
-	`prompt_key` text NOT NULL,
-	CONSTRAINT `campaign_prompt_selections_pk` PRIMARY KEY(`campaign_id`, `kind`),
-	CONSTRAINT `fk_campaign_prompt_selections_campaign_id_campaigns_id_fk` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns`(`id`) ON DELETE CASCADE,
-	CONSTRAINT `fk_campaign_prompt_selections_kind_prompt_kinds_key_fk` FOREIGN KEY (`kind`) REFERENCES `prompt_kinds`(`key`) ON DELETE CASCADE,
-	CONSTRAINT `campaign_prompt_selections_prompt_fk` FOREIGN KEY (`kind`,`prompt_key`) REFERENCES `prompts`(`kind`,`key`) ON DELETE CASCADE
+	`skill_key` text NOT NULL,
+	CONSTRAINT `campaign_skill_selections_pk` PRIMARY KEY(`campaign_id`, `kind`),
+	CONSTRAINT `fk_campaign_skill_selections_campaign_id_campaigns_id_fk` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns`(`id`) ON DELETE CASCADE,
+	CONSTRAINT `fk_campaign_skill_selections_kind_skill_kinds_key_fk` FOREIGN KEY (`kind`) REFERENCES `skill_kinds`(`key`) ON DELETE CASCADE,
+	CONSTRAINT `campaign_skill_selections_skill_fk` FOREIGN KEY (`kind`,`skill_key`) REFERENCES `skills`(`kind`,`key`) ON DELETE CASCADE
 );
 --> statement-breakpoint
-CREATE TABLE `prompt_default_overrides` (
+CREATE TABLE `skill_default_overrides` (
 	`kind` text PRIMARY KEY NOT NULL,
-	`prompt_key` text NOT NULL,
-	CONSTRAINT `fk_prompt_default_overrides_kind_prompt_kinds_key_fk` FOREIGN KEY (`kind`) REFERENCES `prompt_kinds`(`key`) ON DELETE CASCADE,
-	CONSTRAINT `prompt_default_overrides_prompt_fk` FOREIGN KEY (`kind`,`prompt_key`) REFERENCES `prompts`(`kind`,`key`) ON DELETE CASCADE
+	`skill_key` text NOT NULL,
+	CONSTRAINT `fk_skill_default_overrides_kind_skill_kinds_key_fk` FOREIGN KEY (`kind`) REFERENCES `skill_kinds`(`key`) ON DELETE CASCADE,
+	CONSTRAINT `skill_default_overrides_skill_fk` FOREIGN KEY (`kind`,`skill_key`) REFERENCES `skills`(`kind`,`key`) ON DELETE CASCADE
 );
 --> statement-breakpoint
-CREATE TABLE `prompt_kind_fallbacks` (
+CREATE TABLE `skill_kind_fallbacks` (
 	`kind` text PRIMARY KEY NOT NULL,
-	`prompt_key` text NOT NULL,
-	CONSTRAINT `fk_prompt_kind_fallbacks_kind_prompt_kinds_key_fk` FOREIGN KEY (`kind`) REFERENCES `prompt_kinds`(`key`) ON DELETE CASCADE,
-	CONSTRAINT `prompt_kind_fallbacks_prompt_fk` FOREIGN KEY (`kind`,`prompt_key`) REFERENCES `prompts`(`kind`,`key`) ON DELETE RESTRICT
+	`skill_key` text NOT NULL,
+	CONSTRAINT `fk_skill_kind_fallbacks_kind_skill_kinds_key_fk` FOREIGN KEY (`kind`) REFERENCES `skill_kinds`(`key`) ON DELETE CASCADE,
+	CONSTRAINT `skill_kind_fallbacks_skill_fk` FOREIGN KEY (`kind`,`skill_key`) REFERENCES `skills`(`kind`,`key`) ON DELETE RESTRICT
 );
 --> statement-breakpoint
-CREATE TABLE `prompt_kinds` (
+CREATE TABLE `skill_kinds` (
 	`key` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`description` text NOT NULL,
-	CONSTRAINT "prompt_kinds_key_valid" CHECK(length("key") > 0 AND length("key") <= 64 AND "key" NOT GLOB '*[^a-z0-9-]*' AND "key" GLOB '[a-z]*'),
-	CONSTRAINT "prompt_kinds_name_valid" CHECK("name" = trim("name", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length("name") > 0),
-	CONSTRAINT "prompt_kinds_description_valid" CHECK("description" = trim("description", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length("description") > 0)
+	CONSTRAINT "skill_kinds_key_valid" CHECK(length("key") > 0 AND length("key") <= 64 AND "key" NOT GLOB '*[^a-z0-9-]*' AND "key" GLOB '[a-z]*'),
+	CONSTRAINT "skill_kinds_name_valid" CHECK("name" = trim("name", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length("name") > 0),
+	CONSTRAINT "skill_kinds_description_valid" CHECK("description" = trim("description", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length("description") > 0)
 );
 --> statement-breakpoint
-CREATE TABLE `prompts` (
+CREATE TABLE `skills` (
 	`key` text PRIMARY KEY NOT NULL,
 	`kind` text NOT NULL,
 	`origin` text NOT NULL,
 	`title` text NOT NULL,
-	`body` text NOT NULL,
+	`prompt` text NOT NULL,
 	`created_at` integer,
 	`updated_at` integer,
-	CONSTRAINT `fk_prompts_kind_prompt_kinds_key_fk` FOREIGN KEY (`kind`) REFERENCES `prompt_kinds`(`key`),
-	CONSTRAINT "prompts_key_valid" CHECK(length("key") > 0 AND length("key") <= 128),
-	CONSTRAINT "prompts_origin_valid" CHECK("origin" IN ('built-in', 'custom')),
-	CONSTRAINT "prompts_title_valid" CHECK("title" = trim("title", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length("title") > 0 AND length("title") <= 120),
-	CONSTRAINT "prompts_body_valid" CHECK(length(trim("body", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0 AND length("body") <= 20000),
-	CONSTRAINT "prompts_lifecycle_valid" CHECK(("origin" = 'built-in' AND "created_at" IS NULL AND "updated_at" IS NULL) OR ("origin" = 'custom' AND "created_at" IS NOT NULL AND "updated_at" IS NOT NULL AND "created_at" >= 0 AND "updated_at" >= "created_at"))
+	CONSTRAINT `fk_skills_kind_skill_kinds_key_fk` FOREIGN KEY (`kind`) REFERENCES `skill_kinds`(`key`),
+	CONSTRAINT "skills_key_valid" CHECK(length("key") > 0 AND length("key") <= 128),
+	CONSTRAINT "skills_origin_valid" CHECK("origin" IN ('built-in', 'custom')),
+	CONSTRAINT "skills_title_valid" CHECK("title" = trim("title", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length("title") > 0 AND length("title") <= 120),
+	CONSTRAINT "skills_prompt_valid" CHECK(length(trim("prompt", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0 AND length("prompt") <= 20000),
+	CONSTRAINT "skills_lifecycle_valid" CHECK(("origin" = 'built-in' AND "created_at" IS NULL AND "updated_at" IS NULL) OR ("origin" = 'custom' AND "created_at" IS NOT NULL AND "updated_at" IS NOT NULL AND "created_at" >= 0 AND "updated_at" >= "created_at"))
 );
 --> statement-breakpoint
 CREATE TABLE `thread_messages` (
@@ -254,11 +254,11 @@ CREATE UNIQUE INDEX `campaigns_thread_unique` ON `campaigns` (`thread_id`);--> s
 CREATE INDEX `generations_turn_started_at_idx` ON `generations` (`turn_id`,`started_at`,`id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `generations_pending_turn_unique` ON `generations` (`turn_id`) WHERE "generations"."status" = 'pending';--> statement-breakpoint
 CREATE UNIQUE INDEX `generations_output_message_unique` ON `generations` (`output_message_id`);--> statement-breakpoint
-CREATE INDEX `campaign_prompt_selections_prompt_index` ON `campaign_prompt_selections` (`prompt_key`);--> statement-breakpoint
-CREATE INDEX `prompt_default_overrides_prompt_index` ON `prompt_default_overrides` (`prompt_key`);--> statement-breakpoint
-CREATE UNIQUE INDEX `prompt_kind_fallbacks_prompt_unique` ON `prompt_kind_fallbacks` (`prompt_key`);--> statement-breakpoint
-CREATE UNIQUE INDEX `prompts_kind_key_unique` ON `prompts` (`kind`,`key`);--> statement-breakpoint
-CREATE INDEX `prompts_kind_created_at_index` ON `prompts` (`kind`,`created_at`,`key`);--> statement-breakpoint
+CREATE INDEX `campaign_skill_selections_skill_index` ON `campaign_skill_selections` (`skill_key`);--> statement-breakpoint
+CREATE INDEX `skill_default_overrides_skill_index` ON `skill_default_overrides` (`skill_key`);--> statement-breakpoint
+CREATE UNIQUE INDEX `skill_kind_fallbacks_skill_unique` ON `skill_kind_fallbacks` (`skill_key`);--> statement-breakpoint
+CREATE UNIQUE INDEX `skills_kind_key_unique` ON `skills` (`kind`,`key`);--> statement-breakpoint
+CREATE INDEX `skills_kind_created_at_index` ON `skills` (`kind`,`created_at`,`key`);--> statement-breakpoint
 CREATE UNIQUE INDEX `thread_messages_thread_sequence_unique` ON `thread_messages` (`thread_id`,`sequence`);--> statement-breakpoint
 CREATE UNIQUE INDEX `thread_messages_thread_id_unique` ON `thread_messages` (`thread_id`,`id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `thread_messages_thread_parent_id_unique` ON `thread_messages` (`thread_id`,`parent_message_id`,`id`);--> statement-breakpoint

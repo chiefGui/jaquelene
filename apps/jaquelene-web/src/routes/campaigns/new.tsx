@@ -10,7 +10,7 @@ import { useStoreState } from "@ariakit/react/store";
 import {
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,
   campaignTitleInputSchema,
-  narratorPromptKindKey,
+  narratorSkillKindKey,
   type CampaignTitleInput,
 } from "@jaquelene/domain";
 import type { Campaign } from "@jaquelene/ipc/renderer";
@@ -22,23 +22,23 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useCampaignTitleFormValidation } from "@/feature/campaign/form";
 import { useStartCampaign } from "@/feature/campaign/query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { promptDefaultQuery, promptPagesQuery, promptQuery } from "@/feature/prompt/query";
-import { PromptSelect, type PromptSelectOption } from "@/feature/prompt/select";
+import { skillDefaultQuery, skillPagesQuery, skillQuery } from "@/feature/skill/query";
+import { SkillSelect, type SkillSelectOption } from "@/feature/skill/select";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/campaigns/new")({
   loader: async ({ context }) => {
     const defaultSelection = await context.queryClient.query(
-      promptDefaultQuery(narratorPromptKindKey),
+      skillDefaultQuery(narratorSkillKindKey),
     );
     await Promise.all([
       context.queryClient.infiniteQuery({
-        ...promptPagesQuery(narratorPromptKindKey),
+        ...skillPagesQuery(narratorSkillKindKey),
         staleTime: "static",
       }),
-      defaultSelection.promptKey
-        ? context.queryClient.query(promptQuery(defaultSelection.promptKey))
+      defaultSelection.skillKey
+        ? context.queryClient.query(skillQuery(defaultSelection.skillKey))
         : undefined,
     ]);
   },
@@ -46,13 +46,13 @@ export const Route = createFileRoute("/campaigns/new")({
 });
 
 function NewCampaignRoute() {
-  const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
-  const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
-  const defaultPromptKey = defaultSelection.promptKey;
-  const { data: defaultPrompt } = useSuspenseQuery(
-    promptQuery(defaultPromptKey ?? "missing-narrator-prompt"),
+  const skillPages = useSuspenseInfiniteQuery(skillPagesQuery(narratorSkillKindKey));
+  const { data: defaultSelection } = useSuspenseQuery(skillDefaultQuery(narratorSkillKindKey));
+  const defaultSkillKey = defaultSelection.skillKey;
+  const { data: defaultSkill } = useSuspenseQuery(
+    skillQuery(defaultSkillKey ?? "missing-narrator-prompt"),
   );
-  const [narratorPromptKey, setNarratorPromptKey] = useState(defaultPromptKey ?? "");
+  const [narratorSkillKey, setNarratorSkillKey] = useState(defaultSkillKey ?? "");
   const startCampaign = useStartCampaign();
   const navigate = useNavigate({ from: "/campaigns/new" });
   const active = useRef(true);
@@ -68,21 +68,21 @@ function NewCampaignRoute() {
   const narratorLabelId = useId();
   const narratorControlId = useId();
 
-  if (!defaultPromptKey || !defaultPrompt) {
+  if (!defaultSkillKey || !defaultSkill) {
     throw new Error("The narrator prompt kind has no available default.");
   }
 
-  const loadedPrompts = promptPages.data.pages.flatMap((page) => page.prompts);
-  const prompts = loadedPrompts.some(({ key }) => key === defaultPrompt.key)
-    ? loadedPrompts
-    : [defaultPrompt, ...loadedPrompts];
-  const options = prompts.map(
-    (prompt) =>
+  const loadedSkills = skillPages.data.pages.flatMap((page) => page.skills);
+  const skills = loadedSkills.some(({ key }) => key === defaultSkill.key)
+    ? loadedSkills
+    : [defaultSkill, ...loadedSkills];
+  const options = skills.map(
+    (skill) =>
       ({
-        description: prompt.body,
-        title: prompt.title,
-        value: prompt.key,
-      }) satisfies PromptSelectOption,
+        description: skill.prompt,
+        title: skill.title,
+        value: skill.key,
+      }) satisfies SkillSelectOption,
   );
 
   useCampaignTitleFormValidation(form);
@@ -121,8 +121,8 @@ function NewCampaignRoute() {
           title,
           composition: [
             {
-              kind: narratorPromptKindKey,
-              ...(narratorPromptKey === defaultPromptKey ? {} : { promptKey: narratorPromptKey }),
+              kind: narratorSkillKindKey,
+              ...(narratorSkillKey === defaultSkillKey ? {} : { skillKey: narratorSkillKey }),
             },
           ],
         });
@@ -202,16 +202,16 @@ function NewCampaignRoute() {
               <Field.Label id={narratorLabelId} htmlFor={narratorControlId}>
                 Narrator
               </Field.Label>
-              <PromptSelect
+              <SkillSelect
                 id={narratorControlId}
                 aria-labelledby={narratorLabelId}
                 disabled={submitting || Boolean(createdCampaign)}
-                hasMore={promptPages.hasNextPage}
-                loadingMore={promptPages.isFetchingNextPage}
-                onLoadMore={() => void promptPages.fetchNextPage()}
-                value={narratorPromptKey}
+                hasMore={skillPages.hasNextPage}
+                loadingMore={skillPages.isFetchingNextPage}
+                onLoadMore={() => void skillPages.fetchNextPage()}
+                value={narratorSkillKey}
                 options={options}
-                onValueChange={setNarratorPromptKey}
+                onValueChange={setNarratorSkillKey}
               />
             </Field.Root>
 

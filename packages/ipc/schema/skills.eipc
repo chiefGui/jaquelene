@@ -1,0 +1,105 @@
+module jaquelene
+
+subtype SkillKindKey = string(
+  minLength: 1
+  maxLength: 64
+)
+
+subtype SkillKey = string(
+  minLength: 1
+  maxLength: 128
+)
+
+subtype SkillPageCursor = string(
+  minLength: 1
+  maxLength: 512
+)
+
+subtype SkillTitleInput = string(
+  minLength: 1
+  maxLength: 240
+)
+
+subtype PromptInput = string(
+  minLength: 1
+  maxLength: 40000
+)
+
+zod_reference Skill {
+  import = "@jaquelene/domain"
+  type = "Skill"
+  schema = "skillSchema"
+}
+
+zod_reference CustomSkill {
+  import = "@jaquelene/domain"
+  type = "CustomSkill"
+  schema = "customSkillSchema"
+}
+
+enum SkillDefaultSource {
+  Override = "override"
+  Fallback = "fallback"
+  None = "none"
+}
+
+structure SkillKind {
+  key: SkillKindKey
+  name: string
+  description: string
+}
+
+structure SkillPageRequest {
+  kind: SkillKindKey
+  cursor?: SkillPageCursor
+}
+
+structure SkillPage {
+  skills: Skill[]
+  nextCursor?: SkillPageCursor
+}
+
+structure CreateSkillRequest {
+  kind: SkillKindKey
+  title: SkillTitleInput
+  prompt: PromptInput
+}
+
+structure UpdateSkillInput {
+  title: SkillTitleInput
+  prompt: PromptInput
+}
+
+structure UpdateSkillRequest {
+  key: SkillKey
+  input: UpdateSkillInput
+}
+
+structure SkillDeletion {
+  kind: SkillKindKey
+}
+
+structure SkillDefault {
+  kind: SkillKindKey
+  skillKey?: SkillKey
+  source: SkillDefaultSource
+}
+
+structure SetSkillDefaultRequest {
+  kind: SkillKindKey
+  skillKey?: SkillKey
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Skills {
+  listKinds() -> SkillKind[]
+  list(request: SkillPageRequest) -> SkillPage
+  get(key: SkillKey) -> Skill?
+  create(request: CreateSkillRequest) -> CustomSkill
+  update(request: UpdateSkillRequest) -> CustomSkill?
+  delete(key: SkillKey) -> SkillDeletion?
+  getDefault(kind: SkillKindKey) -> SkillDefault
+  setDefault(request: SetSkillDefaultRequest) -> SkillDefault
+}

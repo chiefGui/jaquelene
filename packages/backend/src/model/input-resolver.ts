@@ -2,8 +2,7 @@ import { Context, Effect, Layer } from "effect";
 import type { CampaignEngine } from "#backend/campaign/campaigns";
 import { CampaignService } from "#backend/campaign/subsystem";
 import type { MessageId, ThreadId } from "#backend/id";
-import type { PromptApplicationRegistry } from "#backend/prompt/application-registry";
-import { PromptService } from "#backend/prompt/subsystem";
+import type { CampaignInstructionRegistry } from "#backend/campaign/instructions";
 import { requireModelInput, type DialogueMessage, type ModelInput } from "#backend/model/input";
 
 export type ModelInputSourceMessage = Readonly<{
@@ -23,12 +22,12 @@ export type ModelInputResolver = Readonly<{
 
 export function createModelInputResolver(
   campaigns: Pick<CampaignEngine, "getContextForThread">,
-  promptApplications: Pick<PromptApplicationRegistry, "resolve">,
+  instructions: Pick<CampaignInstructionRegistry, "resolve">,
 ): ModelInputResolver {
   return {
     resolve({ threadId, messages }) {
       return requireModelInput({
-        instructions: promptApplications.resolve({
+        instructions: instructions.resolve({
           threadId,
           campaign: campaigns.getContextForThread(threadId),
         }),
@@ -49,9 +48,8 @@ export class ModelInputService extends Context.Service<ModelInputService, ModelI
     this,
     Effect.gen(function* () {
       const campaigns = yield* CampaignService;
-      const prompts = yield* PromptService;
       return ModelInputService.of(
-        createModelInputResolver(campaigns.campaigns, prompts.applications),
+        createModelInputResolver(campaigns.campaigns, campaigns.instructions),
       );
     }),
   );

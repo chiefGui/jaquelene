@@ -10,7 +10,7 @@ import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interfa
 import { defaultCampaignModelQuery } from "@/feature/campaign/preferences";
 import {
   campaignQueryKey,
-  promptQueryKey,
+  skillQueryKey,
   threadQueryKey,
   usageQueryKey,
 } from "@/feature/cache-keys";
@@ -50,7 +50,7 @@ function applyStorageDeletion(
   });
 }
 
-const contentQueryKeys = [campaignQueryKey, promptQueryKey, threadQueryKey, usageQueryKey] as const;
+const contentQueryKeys = [campaignQueryKey, skillQueryKey, threadQueryKey, usageQueryKey] as const;
 const appDataQueryKeys = [
   favoriteModelsQuery.queryKey,
   userInterfacePreferencesQuery.queryKey,

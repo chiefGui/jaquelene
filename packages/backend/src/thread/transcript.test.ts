@@ -8,11 +8,14 @@ import { closeDatabase, openDatabase, type Database } from "#backend/database/da
 import { ids } from "#backend/id";
 import { createModelInputResolver } from "#backend/model/input-resolver";
 import {
-  jaqueleneNarratorPromptDefinition,
-  narratorPromptKind,
-  narratorPromptModule,
+  jaqueleneNarratorSkillDefinition,
+  narratorSkillKind,
+  narratorSkillRegistration,
 } from "#backend/narrator/module";
-import { createPromptSubsystem } from "#backend/prompt/subsystem";
+import { createSkills } from "#backend/skill/skills";
+import { createCampaignSkills } from "#backend/campaign/skills";
+import { createCampaignInstructionRegistry } from "#backend/campaign/instructions";
+import { createNarratorApplication } from "#backend/narrator/module";
 import { createThreadTranscriptReader } from "./transcript";
 import {
   appendAssistantMessageInTransaction,
@@ -29,12 +32,15 @@ function openTranscriptEnvironment(now: () => number = Date.now) {
   directories.push(directory);
   const database = openDatabase(join(directory, "jaquelene.sqlite"));
   databases.push(database);
-  const { applications } = createPromptSubsystem(database, [narratorPromptModule]);
+  const skills = createSkills(database, [narratorSkillRegistration]);
+  const instructions = createCampaignInstructionRegistry([
+    createNarratorApplication(createCampaignSkills(database, skills)),
+  ]);
   const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
   const transcripts = createThreadTranscriptReader(
     threads,
-    createModelInputResolver(campaigns, applications),
+    createModelInputResolver(campaigns, instructions),
   );
 
   return { campaigns, database, threads, transcripts };
@@ -58,7 +64,7 @@ describe("thread transcripts", () => {
     );
     const campaign = campaigns.start({
       title: "The Long Night",
-      composition: [{ kind: narratorPromptKind.key }],
+      composition: [{ kind: narratorSkillKind.key }],
     });
     const first = threads.startTurn(campaign.threadId, "Begin");
     const firstReply = database.transaction((transaction) =>
@@ -89,8 +95,8 @@ describe("thread transcripts", () => {
       entries: [
         {
           kind: ThreadTranscriptEntryKind.Instruction,
-          sourceKey: jaqueleneNarratorPromptDefinition.key,
-          content: jaqueleneNarratorPromptDefinition.body,
+          sourceKey: jaqueleneNarratorSkillDefinition.key,
+          content: jaqueleneNarratorSkillDefinition.prompt,
         },
         {
           kind: ThreadTranscriptEntryKind.Message,
@@ -120,7 +126,7 @@ describe("thread transcripts", () => {
     ).toEqual([
       {
         kind: ThreadTranscriptEntryKind.Instruction,
-        content: jaqueleneNarratorPromptDefinition.body,
+        content: jaqueleneNarratorSkillDefinition.prompt,
       },
       { kind: ThreadTranscriptEntryKind.Message, content: "Begin" },
       { kind: ThreadTranscriptEntryKind.Message, content: "The road opens ahead." },

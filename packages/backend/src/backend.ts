@@ -6,9 +6,10 @@ import { DatabaseService } from "#backend/database/database";
 import { GenerationService } from "#backend/generation/subsystem";
 import { ModelExecutionService } from "#backend/model/execution";
 import { ModelInputService } from "#backend/model/input-resolver";
-import { narratorPromptModule } from "#backend/narrator/module";
-import { PromptService } from "#backend/prompt/subsystem";
-import type { Prompts } from "#backend/prompt/types";
+import { createNarratorApplication, narratorSkillRegistration } from "#backend/narrator/module";
+import type { CampaignSkills } from "#backend/campaign/skills";
+import { SkillService } from "#backend/skill/subsystem";
+import type { Skills } from "#backend/skill/types";
 import type { ProviderFactory } from "#backend/provider/provider";
 import { ProvidersService, type Models, type Providers } from "#backend/provider/providers";
 import { createProviderStorageArea } from "#backend/provider/storage";
@@ -37,8 +38,9 @@ export type BackendOptions<StorageRequirements = never> = Readonly<{
 export type Backend = Readonly<{
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
+  campaignSkills: CampaignSkills;
   usage: Usage;
-  prompts: Prompts;
+  skills: Skills;
   threads: Threads;
   turns: Turns;
   providers: Providers;
@@ -54,7 +56,7 @@ export class BackendService extends Context.Service<BackendService, Backend>()(
 
 const readBackend = Effect.gen(function* () {
   const campaigns = yield* CampaignService;
-  const prompts = yield* PromptService;
+  const skills = yield* SkillService;
   const providers = yield* ProvidersService;
   const storage = yield* StorageService;
   const threads = yield* ThreadService;
@@ -85,7 +87,8 @@ const readBackend = Effect.gen(function* () {
   return BackendService.of({
     campaigns: managedCampaigns,
     campaignUsage: campaigns.usage,
-    prompts: prompts.prompts,
+    campaignSkills: campaigns.skills,
+    skills,
     providers: providers.providers,
     models: providers.models,
     storage,
@@ -103,15 +106,15 @@ function createConfiguredBackendLayer<StorageRequirements>(
 ) {
   const databaseLayer = DatabaseService.layer(databasePath);
   const resourceCacheLayer = ResourceCacheService.layer(cacheOptions);
-  const campaignsLayer = CampaignService.layer().pipe(Layer.provide(databaseLayer));
-  const promptsLayer = PromptService.layer([narratorPromptModule]).pipe(
+  const skillsLayer = SkillService.layer([narratorSkillRegistration]).pipe(
     Layer.provide(databaseLayer),
+  );
+  const campaignsLayer = CampaignService.layer([createNarratorApplication]).pipe(
+    Layer.provide(Layer.merge(databaseLayer, skillsLayer)),
   );
   const usageLayer = UsageService.layer.pipe(Layer.provide(databaseLayer));
   const providersLayer = ProvidersService.layer(providers).pipe(Layer.provide(resourceCacheLayer));
-  const modelInputsLayer = ModelInputService.layer.pipe(
-    Layer.provide(Layer.merge(campaignsLayer, promptsLayer)),
-  );
+  const modelInputsLayer = ModelInputService.layer.pipe(Layer.provide(campaignsLayer));
   const modelExecutionsLayer = ModelExecutionService.layer.pipe(Layer.provide(providersLayer));
   const threadsLayer = ThreadService.layer().pipe(
     Layer.provide(Layer.merge(databaseLayer, modelInputsLayer)),
@@ -135,7 +138,7 @@ function createConfiguredBackendLayer<StorageRequirements>(
   );
   const backendDependencies = Layer.mergeAll(
     campaignsLayer,
-    promptsLayer,
+    skillsLayer,
     providersLayer,
     storageLayer,
     threadsLayer,

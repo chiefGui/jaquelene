@@ -6,7 +6,7 @@ import {
   type CampaignUsage as BackendCampaignUsage,
   type CampaignUsageReader,
 } from "@jaquelene/backend";
-import { promptKeySchema, promptKindKeySchema } from "@jaquelene/domain";
+import { skillKeySchema, skillKindKeySchema } from "@jaquelene/domain";
 import {
   CampaignPreferences as CampaignPreferencesIpc,
   Campaigns as CampaignsIpc,
@@ -82,9 +82,9 @@ export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
       return toIpcCampaign(
         campaigns.start({
           title,
-          composition: composition.map(({ kind, promptKey }) => ({
-            kind: promptKindKeySchema.parse(kind),
-            ...(promptKey ? { promptKey: promptKeySchema.parse(promptKey) } : {}),
+          composition: composition.map(({ kind, skillKey }) => ({
+            kind: skillKindKeySchema.parse(kind),
+            ...(skillKey ? { skillKey: skillKeySchema.parse(skillKey) } : {}),
           })),
         }),
       );

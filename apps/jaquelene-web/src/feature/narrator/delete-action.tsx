@@ -1,46 +1,46 @@
 import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { narratorPromptKindKey } from "@jaquelene/domain";
-import type { CustomPrompt } from "@jaquelene/ipc/renderer";
+import { narratorSkillKindKey } from "@jaquelene/domain";
+import type { CustomSkill } from "@jaquelene/ipc/renderer";
 import { IconButton } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { useDeletePrompt } from "@/feature/prompt/query";
+import { useDeleteSkill } from "@/feature/skill/query";
 
-type NarratorPromptDeleteActionProps = {
+type NarratorSkillDeleteActionProps = {
   isDefault: boolean;
   onDeleted?: () => Promise<void>;
-  prompt: CustomPrompt;
+  skill: CustomSkill;
   style?: StyleXStyles;
 };
 
-export function NarratorPromptDeleteAction({
+export function NarratorSkillDeleteAction({
   isDefault,
   onDeleted,
-  prompt,
+  skill,
   style,
-}: NarratorPromptDeleteActionProps) {
-  const deletePrompt = useDeletePrompt(narratorPromptKindKey);
+}: NarratorSkillDeleteActionProps) {
+  const deleteSkill = useDeleteSkill(narratorSkillKindKey);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function setDeleteConfirmationOpen(open: boolean) {
     if (open) {
-      deletePrompt.reset();
+      deleteSkill.reset();
     }
 
-    if (!deletePrompt.isPending) {
+    if (!deleteSkill.isPending) {
       setConfirmingDelete(open);
     }
   }
 
   async function remove() {
     try {
-      await deletePrompt.mutateAsync(prompt.key);
+      await deleteSkill.mutateAsync(skill.key);
     } catch (cause) {
-      reportError("prompt.delete", cause);
+      reportError("skill.delete", cause);
       return;
     }
 
@@ -51,7 +51,7 @@ export function NarratorPromptDeleteAction({
     try {
       await onDeleted();
     } catch (cause) {
-      reportError("prompt.open-list", cause);
+      reportError("skill.open-list", cause);
     }
   }
 
@@ -64,8 +64,8 @@ export function NarratorPromptDeleteAction({
           <Tooltip.Anchor
             render={
               <IconButton.Root
-                aria-label={`Delete ${prompt.title}`}
-                disabled={deletePrompt.isPending}
+                aria-label={`Delete ${skill.title}`}
+                disabled={deleteSkill.isPending}
                 style={style}
               >
                 <IconButton.Icon render={<HugeiconsIcon icon={TrashIcon} />} />
@@ -73,15 +73,15 @@ export function NarratorPromptDeleteAction({
             }
           />
         }
-        heading={`Delete "${prompt.title}"?`}
+        heading={`Delete "${skill.title}"?`}
         description={
           isDefault
             ? "The built-in narrator will replace it as the default. This can't be undone."
             : "Campaigns using this narrator will use the default instead. This can't be undone."
         }
         confirmLabel="Delete"
-        pending={deletePrompt.isPending}
-        error={deletePrompt.isError ? "Couldn't delete this prompt." : undefined}
+        pending={deleteSkill.isPending}
+        error={deleteSkill.isError ? "Couldn't delete this prompt." : undefined}
         onConfirm={() => void remove()}
       />
 

@@ -1,32 +1,32 @@
-import { narratorPromptKindKey } from "@jaquelene/domain";
-import type { CustomPrompt } from "@jaquelene/ipc/renderer";
+import { narratorSkillKindKey } from "@jaquelene/domain";
+import type { CustomSkill } from "@jaquelene/ipc/renderer";
 import { Item, Switch } from "@jaquelene/ui";
 import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useId } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { promptDefaultQuery, useSetPromptDefault } from "@/feature/prompt/query";
-import { NarratorPromptDeleteAction } from "./delete-action";
+import { skillDefaultQuery, useSetSkillDefault } from "@/feature/skill/query";
+import { NarratorSkillDeleteAction } from "./delete-action";
 
-type NarratorPromptManagementProps = {
+type NarratorSkillManagementProps = {
   onDeleted: () => Promise<void>;
-  prompt: CustomPrompt;
+  skill: CustomSkill;
 };
 
-export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptManagementProps) {
-  const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
-  const setDefault = useSetPromptDefault(narratorPromptKindKey);
+export function NarratorSkillManagement({ onDeleted, skill }: NarratorSkillManagementProps) {
+  const { data: defaultSelection } = useSuspenseQuery(skillDefaultQuery(narratorSkillKindKey));
+  const setDefault = useSetSkillDefault(narratorSkillKindKey);
   const defaultLabelId = useId();
   const defaultDescriptionId = useId();
   const defaultErrorId = useId();
-  const isDefault = defaultSelection.promptKey === prompt.key;
+  const isDefault = defaultSelection.skillKey === skill.key;
 
   function changeDefault(checked: boolean) {
     setDefault.reset();
-    setDefault.mutate(checked ? prompt.key : undefined, {
+    setDefault.mutate(checked ? skill.key : undefined, {
       onError(cause) {
-        reportError("prompt.default.update", cause);
+        reportError("skill.default.update", cause);
       },
     });
   }
@@ -71,7 +71,7 @@ export function NarratorPromptManagement({ onDeleted, prompt }: NarratorPromptMa
           <Item.Description>Permanently remove this narrator prompt.</Item.Description>
         </Item.Content>
 
-        <NarratorPromptDeleteAction isDefault={isDefault} onDeleted={onDeleted} prompt={prompt} />
+        <NarratorSkillDeleteAction isDefault={isDefault} onDeleted={onDeleted} skill={skill} />
       </Item.Root>
     </Item.Group>
   );

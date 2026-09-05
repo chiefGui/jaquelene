@@ -8,7 +8,7 @@ function LibrarySidebar() {
   const matchRoute = useMatchRoute();
   const narratorEditorActive = Boolean(
     matchRoute({ to: "/library/narrator/new" }) ||
-    matchRoute({ to: "/library/narrator/$promptKey/edit" }),
+    matchRoute({ to: "/library/narrator/$skillKey/edit" }),
   );
 
   return (

@@ -22,8 +22,11 @@ import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
-import { narratorPromptModule } from "#backend/narrator/module";
-import { createPromptSubsystem } from "#backend/prompt/subsystem";
+import { narratorSkillRegistration } from "#backend/narrator/module";
+import { createSkills } from "#backend/skill/skills";
+import { createCampaignSkills } from "#backend/campaign/skills";
+import { createCampaignInstructionRegistry } from "#backend/campaign/instructions";
+import { createNarratorApplication } from "#backend/narrator/module";
 import { threadTable } from "#backend/thread/schema";
 import {
   createThreads,
@@ -99,18 +102,16 @@ function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
 
 function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
-  const { applications: promptApplications } = createPromptSubsystem(database, [
-    narratorPromptModule,
+  const skills = createSkills(database, [narratorSkillRegistration]);
+  const instructions = createCampaignInstructionRegistry([
+    createNarratorApplication(createCampaignSkills(database, skills)),
   ]);
   const campaigns = createCampaigns(database, now);
   const threads = createThreads(database, now);
   const usage = createUsageHistory(database, vi.fn());
   const generationEngine = createGenerations({
     database,
-    replyPreparer: createReplyPreparer(
-      threads,
-      createModelInputResolver(campaigns, promptApplications),
-    ),
+    replyPreparer: createReplyPreparer(threads, createModelInputResolver(campaigns, instructions)),
     modelExecutor: modelExecutionRunner(generate),
     attempts: usage.attempts,
     getUsageAttribution: (threadId) => getCampaignUsageAttribution(database, threadId),

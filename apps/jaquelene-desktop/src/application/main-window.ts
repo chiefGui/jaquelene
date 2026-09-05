@@ -2,8 +2,9 @@ import {
   BackendService,
   type Backend,
   type Campaigns,
+  type CampaignSkills,
   type CampaignUsageReader,
-  type Prompts,
+  type Skills,
   type Providers,
   type Threads,
   type Turns,
@@ -31,7 +32,8 @@ import type { FavoriteModels } from "../feature/model/favorite-models";
 import { FavoriteModelsService } from "../feature/model/favorite-models-service";
 import { exposeFavoriteModels } from "../feature/model/favorite-models-ipc";
 import { exposeProviders } from "../feature/provider/ipc";
-import { exposePrompts } from "../feature/prompt/ipc";
+import { exposeCampaignSkills } from "../feature/campaign/skills-ipc";
+import { exposeSkills } from "../feature/skill/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
 import { exposeUsage } from "../feature/usage/ipc";
 import { LocalStateService, type LocalState } from "../local-state";
@@ -100,7 +102,8 @@ export class MainWindowService extends Context.Service<MainWindowService, MainWi
             localState,
             campaigns: backend.campaigns,
             campaignUsage: backend.campaignUsage,
-            prompts: backend.prompts,
+            skills: backend.skills,
+            campaignSkills: backend.campaignSkills,
             threads: backend.threads,
             turns: backend.turns,
             modelCatalog: backend.models,
@@ -173,7 +176,8 @@ function createMainWindowManager({
   localState,
   campaigns,
   campaignUsage,
-  prompts,
+  skills,
+  campaignSkills,
   threads,
   turns,
   modelCatalog,
@@ -189,7 +193,8 @@ function createMainWindowManager({
   localState: LocalState;
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
-  prompts: Prompts;
+  skills: Skills;
+  campaignSkills: CampaignSkills;
   threads: Threads;
   turns: Turns;
   modelCatalog: ModelCatalog;
@@ -286,7 +291,8 @@ function createMainWindowManager({
       browserWindow.once("closed", onClosed);
       await addFinalizer(scope, () => browserWindow.off("closed", onClosed));
 
-      exposePrompts(browserWindow.webContents.mainFrame, prompts);
+      exposeSkills(browserWindow.webContents.mainFrame, skills);
+      exposeCampaignSkills(browserWindow.webContents.mainFrame, campaignSkills);
       exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
       exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
       exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);

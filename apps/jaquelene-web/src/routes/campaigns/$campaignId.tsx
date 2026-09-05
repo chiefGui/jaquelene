@@ -80,7 +80,7 @@ function CampaignRoute() {
         </ContentPane.HeaderTrailing>
       </ContentPane.Header>
 
-      <ContentPane.Viewport fade={false} style={styles.threadViewport}>
+      <ContentPane.Viewport style={styles.threadViewport}>
         <ThreadView
           threadId={campaign.threadId}
           configuration={effectiveConfiguration}

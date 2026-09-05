@@ -5,10 +5,8 @@ import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { useRouter } from "@tanstack/react-router";
-import { useImperativeHandle, useRef, type ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import { navigateBack, type NavigationDestination } from "@/application/navigation";
-import { useScrollFade } from "@/hook/use-scroll-fade";
-import { scrollFade } from "@/primitive/scroll-fade.stylex";
 import {
   ContentPaneAside,
   ContentPaneAsideBody,
@@ -82,22 +80,8 @@ function ContentPaneHeaderTrailing({ style, ...props }: StyleableProps<Component
   return <div {...props} {...stylex.props(styles.headerTrailing, style)} />;
 }
 
-function ContentPaneViewport({
-  fade = true,
-  ref,
-  style,
-  ...props
-}: StyleableProps<ComponentProps<"div">> & { fade?: boolean }) {
-  const viewport = useRef<HTMLDivElement>(null);
-  useImperativeHandle(ref, () => viewport.current!, []);
-  useScrollFade(viewport, fade);
-  return (
-    <div
-      {...props}
-      ref={viewport}
-      {...stylex.props(styles.viewport, fade && scrollFade.start, style)}
-    />
-  );
+function ContentPaneViewport({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
+  return <div {...props} {...stylex.props(styles.viewport, style)} />;
 }
 
 function ContentPaneBody({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
@@ -152,6 +136,18 @@ const styles = stylex.create({
     gridColumn: "1 / -1",
     gridRow: 1,
     paddingInlineStart: "0.75rem",
+    position: "relative",
+    "::before": {
+      backgroundImage: `linear-gradient(to bottom in oklch, ${colors.backgroundSurface}, color-mix(in oklch, ${colors.backgroundSurface} 90%, transparent) 20%, color-mix(in oklch, ${colors.backgroundSurface} 65%, transparent) 40%, color-mix(in oklch, ${colors.backgroundSurface} 35%, transparent) 60%, color-mix(in oklch, ${colors.backgroundSurface} 10%, transparent) 80%, transparent)`,
+      content: '""',
+      height: "2.5rem",
+      insetBlockStart: "100%",
+      insetInlineStart: 0,
+      insetInlineEnd: contentPaneLayout.headerInsetEnd,
+      pointerEvents: "none",
+      position: "absolute",
+      zIndex: 1,
+    },
   },
   centeredHeader: {
     display: "grid",
@@ -191,6 +187,7 @@ const styles = stylex.create({
     flex: 1,
     gridColumn: 1,
     gridRow: 2,
+    isolation: "isolate",
     minHeight: 0,
     minWidth: 0,
     overflow: "auto",

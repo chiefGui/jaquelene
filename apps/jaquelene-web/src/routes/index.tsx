@@ -21,7 +21,7 @@ function HomeRoute() {
         </Breadcrumb.Root>
       </ContentPane.Header>
 
-      <ContentPane.Viewport fade={false} style={styles.viewport}>
+      <ContentPane.Viewport style={styles.viewport}>
         <Button render={<Link to="/campaigns/new" />}>Start campaign</Button>
       </ContentPane.Viewport>
     </>

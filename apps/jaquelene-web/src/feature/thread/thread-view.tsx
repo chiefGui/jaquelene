@@ -21,8 +21,6 @@ import {
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { Composer } from "@/feature/composer/composer";
-import { scrollFade } from "@/primitive/scroll-fade.stylex";
-import { useScrollFade } from "@/hook/use-scroll-fade";
 import {
   retainLoadedThreadMessages,
   threadMessagesQuery,
@@ -320,7 +318,6 @@ function ThreadViewInstance({
   const threadOperationPending = useIsThreadOperationPending(threadId);
   const pendingSubmission = usePendingTurnSubmission(threadId);
   const viewport = useRef<HTMLDivElement>(null);
-  useScrollFade(viewport);
   const pinnedToEnd = useRef(true);
   const [timelineBottomInset, setTimelineBottomInset] = useState(0);
   const retryTurnId = retryTurnMutation.variables?.turnId;
@@ -580,7 +577,7 @@ function ThreadViewInstance({
         onScroll={(event) => {
           pinnedToEnd.current = isScrolledToEnd(event.currentTarget);
         }}
-        {...stylex.props(styles.viewport, scrollFade.start)}
+        {...stylex.props(styles.viewport)}
       >
         <ThreadTimeline
           view={threadView}

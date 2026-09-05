@@ -1,12 +1,25 @@
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { IconButton, type IconButtonProps } from "@jaquelene/ui";
-import { colors } from "@jaquelene/ui/tokens.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { useRouter } from "@tanstack/react-router";
-import type { ComponentProps } from "react";
+import { useImperativeHandle, useRef, type ComponentProps } from "react";
 import { navigateBack, type NavigationDestination } from "@/application/navigation";
+import { useScrollFade } from "@/hook/use-scroll-fade";
+import { scrollFade } from "@/primitive/scroll-fade.stylex";
+import {
+  ContentPaneAside,
+  ContentPaneAsideBody,
+  ContentPaneAsideFooter,
+  ContentPaneAsideProvider,
+  ContentPaneAsideStateProvider,
+  ContentPaneAsideToggle,
+  ContentPaneAsideViewport,
+  ContentPaneSplit,
+} from "./content-pane-aside";
+import { contentPaneLayout, shellLayout } from "./layout-tokens.stylex";
 import { paneSurface } from "./pane-surface.stylex";
 import { shellChrome } from "./shell-chrome.stylex";
 
@@ -28,20 +41,64 @@ function ContentPaneRoot({
   ...props
 }: StyleableProps<ComponentProps<"main">>) {
   return (
-    <main
+    <ContentPaneAsideStateProvider>
+      <main
+        {...props}
+        aria-label={ariaLabel}
+        {...stylex.props(paneSurface.root, styles.root, style)}
+      />
+    </ContentPaneAsideStateProvider>
+  );
+}
+
+function ContentPaneHeader({
+  layout = "inline",
+  style,
+  ...props
+}: StyleableProps<ComponentProps<"header">> & {
+  layout?: "inline" | "centered";
+}) {
+  return (
+    <header
       {...props}
-      aria-label={ariaLabel}
-      {...stylex.props(paneSurface.root, styles.root, style)}
+      {...stylex.props(
+        shellChrome.header,
+        styles.header,
+        layout === "centered" && styles.centeredHeader,
+        style,
+      )}
     />
   );
 }
 
-function ContentPaneHeader({ style, ...props }: StyleableProps<ComponentProps<"header">>) {
-  return <header {...props} {...stylex.props(shellChrome.header, styles.header, style)} />;
+function ContentPaneHeaderLeading({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
+  return <div {...props} {...stylex.props(styles.headerLeading, style)} />;
 }
 
-function ContentPaneViewport({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
-  return <div {...props} {...stylex.props(styles.viewport, style)} />;
+function ContentPaneHeaderTitle({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
+  return <div {...props} {...stylex.props(styles.headerTitle, style)} />;
+}
+
+function ContentPaneHeaderTrailing({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
+  return <div {...props} {...stylex.props(styles.headerTrailing, style)} />;
+}
+
+function ContentPaneViewport({
+  fade = true,
+  ref,
+  style,
+  ...props
+}: StyleableProps<ComponentProps<"div">> & { fade?: boolean }) {
+  const viewport = useRef<HTMLDivElement>(null);
+  useImperativeHandle(ref, () => viewport.current!, []);
+  useScrollFade(viewport, fade);
+  return (
+    <div
+      {...props}
+      ref={viewport}
+      {...stylex.props(styles.viewport, fade && scrollFade.start, style)}
+    />
+  );
 }
 
 function ContentPaneBody({ style, ...props }: StyleableProps<ComponentProps<"div">>) {
@@ -71,10 +128,20 @@ function ContentPaneHistoryBack({ fallback, ...props }: ContentPaneHistoryBackPr
 export const ContentPane = {
   Root: ContentPaneRoot,
   Header: ContentPaneHeader,
+  HeaderLeading: ContentPaneHeaderLeading,
+  HeaderTitle: ContentPaneHeaderTitle,
+  HeaderTrailing: ContentPaneHeaderTrailing,
   Viewport: ContentPaneViewport,
   Body: ContentPaneBody,
   Back: ContentPaneBack,
   HistoryBack: ContentPaneHistoryBack,
+  AsideProvider: ContentPaneAsideProvider,
+  AsideToggle: ContentPaneAsideToggle,
+  Split: ContentPaneSplit,
+  Aside: ContentPaneAside,
+  AsideViewport: ContentPaneAsideViewport,
+  AsideBody: ContentPaneAsideBody,
+  AsideFooter: ContentPaneAsideFooter,
 } as const;
 
 const styles = stylex.create({
@@ -83,10 +150,40 @@ const styles = stylex.create({
     flexDirection: "column",
   },
   header: {
-    borderBottomColor: colors.borderSubtle,
-    borderBottomStyle: "solid",
-    borderBottomWidth: 1,
+    backgroundColor: colors.backgroundSurface,
+    gridColumn: "1 / -1",
+    gridRow: 1,
     paddingInlineStart: "0.75rem",
+  },
+  centeredHeader: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    paddingInlineStart: 0,
+    paddingInlineEnd: 0,
+  },
+  headerLeading: {
+    gridColumn: 1,
+    gridRow: 1,
+    justifySelf: "start",
+    marginInlineStart: "0.75rem",
+    zIndex: 1,
+  },
+  headerTitle: {
+    display: "flex",
+    gridColumn: 1,
+    gridRow: 1,
+    justifyContent: "center",
+    justifySelf: "start",
+    marginInlineStart: shellLayout.headerHeight,
+    minWidth: 0,
+    width: `max(0px, calc(100% - ${contentPaneLayout.headerInsetEnd} - ${shellLayout.headerHeight} - ${shellLayout.headerHeight}))`,
+    zIndex: 1,
+  },
+  headerTrailing: {
+    gridColumn: 1,
+    gridRow: 1,
+    justifySelf: "end",
+    marginInlineEnd: `calc((${shellLayout.headerHeight} - ${tokens.controlHeight}) / 2)`,
   },
   back: {
     marginInlineEnd: "0.5rem",
@@ -94,7 +191,10 @@ const styles = stylex.create({
   },
   viewport: {
     flex: 1,
+    gridColumn: 1,
+    gridRow: 2,
     minHeight: 0,
+    minWidth: 0,
     overflow: "auto",
   },
   body: {

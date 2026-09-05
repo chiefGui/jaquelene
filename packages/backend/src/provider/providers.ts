@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
 import { providerConfigureResultSchema, providerKeyLabelSchema } from "@jaquelene/domain";
 import type { ResourceCache } from "#backend/resource-cache/resource-cache";
 import { ResourceCacheService } from "#backend/resource-cache/service";
@@ -78,68 +78,48 @@ async function disposeProvider(adapter: ProviderAdapter) {
   adapter[Symbol.dispose]?.call(adapter);
 }
 
-async function disposeProviders(adapters: readonly ProviderAdapter[]) {
-  const failures: unknown[] = [];
-
-  for (const adapter of adapters.toReversed()) {
-    try {
-      await disposeProvider(adapter);
-    } catch (error) {
-      failures.push(error);
-    }
-  }
-
-  if (failures.length === 1) {
-    throw failures[0];
-  }
-
-  if (failures.length > 1) {
-    throw new AggregateError(failures, "Multiple provider adapters failed to close.");
-  }
-}
-
-async function createOwnedProviderSubsystem(
-  factories: readonly ProviderFactory[],
-  resourceCache: ResourceCache,
-  signal: AbortSignal,
+export class ProviderAcquisitionError extends Schema.TaggedError<ProviderAcquisitionError>()(
+  "ProviderAcquisitionError",
+  { providerId: Schema.String, cause: Schema.Defect() },
 ) {
-  const adapters: ProviderAdapter[] = [];
-
-  try {
-    for (const factory of factories) {
-      signal.throwIfAborted();
-      const adapter = await factory.create(signal);
-      adapters.push(adapter);
-
-      if (adapter.descriptor.id !== factory.id) {
-        throw new TypeError(
-          `Provider factory "${factory.id}" created provider "${adapter.descriptor.id}".`,
-        );
-      }
-
-      if ((factory.storagePaths !== null) !== (adapter.configuration.kind === "api-key")) {
-        throw new TypeError(
-          `Provider factory "${factory.id}" storage does not match its configuration capability.`,
-        );
-      }
-
-      signal.throwIfAborted();
-    }
-
-    return createProviderSubsystem(adapters, resourceCache);
-  } catch (error) {
-    try {
-      await disposeProviders(adapters);
-    } catch (closeError) {
-      throw new AggregateError(
-        [error, closeError],
-        "Could not close provider adapters after acquisition failed.",
-      );
-    }
-
-    throw error;
+  override get message() {
+    return `Could not acquire provider "${this.providerId}".`;
   }
 }
+
+const acquireProvider = Effect.fnUntraced(function* (factory: ProviderFactory) {
+  const adapter = yield* Effect.acquireRelease(
+    Effect.tryPromise({
+      async try(signal) {
+        const adapter = await factory.create(signal);
+        // A foreign Promise may deliver its resource after the acquisition was interrupted.
+        if (signal.aborted) {
+          await disposeProvider(adapter);
+          signal.throwIfAborted();
+        }
+        return adapter;
+      },
+      catch: (cause) => new ProviderAcquisitionError({ providerId: factory.id, cause }),
+    }),
+    (adapter) => Effect.promise(() => disposeProvider(adapter)),
+    { interruptible: true },
+  );
+
+  requireAdapter(adapter);
+  if (adapter.descriptor.id !== factory.id) {
+    throw new TypeError(
+      `Provider factory "${factory.id}" created provider "${adapter.descriptor.id}".`,
+    );
+  }
+
+  if ((factory.storagePaths !== null) !== (adapter.configuration.kind === "api-key")) {
+    throw new TypeError(
+      `Provider factory "${factory.id}" storage does not match its configuration capability.`,
+    );
+  }
+
+  return adapter;
+});
 
 function requireText(value: string, description: string) {
   if (!value.trim()) {
@@ -256,20 +236,14 @@ function waitForOperation<Result>(operation: Promise<Result>, signal: AbortSigna
   return Promise.race([operation, interrupted]).finally(stopWaiting);
 }
 
-export function createProviderSubsystem(
+function createProviderSubsystem(
   adapters: readonly ProviderAdapter[],
   resourceCache: ResourceCache,
 ): ProviderSubsystem {
   const providersById = new Map<ProviderId, RegisteredProvider>();
 
   for (const adapter of adapters) {
-    requireAdapter(adapter);
     const { id } = adapter.descriptor;
-
-    if (providersById.has(id)) {
-      throw new Error(`Provider "${id}" is registered more than once.`);
-    }
-
     providersById.set(id, {
       adapter,
       activeUses: new Set(),
@@ -584,11 +558,11 @@ export function createProviderSubsystem(
           controller.abort(reason);
         }
 
-        closePromise = Promise.allSettled([...activeOperations].map(({ result }) => result))
-          .then(() => disposeProviders(adapters))
-          .finally(() => {
+        closePromise = Promise.allSettled([...activeOperations].map(({ result }) => result)).then(
+          () => {
             state = "closed";
-          });
+          },
+        );
       }
 
       return closePromise;
@@ -596,29 +570,38 @@ export function createProviderSubsystem(
   };
 }
 
-export class ProvidersService extends Context.Service<ProvidersService, ProviderSubsystem>()(
-  "@jaquelene/backend/Providers",
-) {
+export class ProvidersService extends Context.Service<
+  ProvidersService,
+  Omit<ProviderSubsystem, "close">
+>()("@jaquelene/backend/Providers") {
   static readonly layer = (factories: readonly ProviderFactory[]) =>
     Layer.effect(
       ProvidersService,
       Effect.gen(function* () {
         const resourceCache = yield* ResourceCacheService;
 
-        return yield* Effect.acquireRelease(
-          Effect.tryPromise({
-            try: (signal) => createOwnedProviderSubsystem(factories, resourceCache, signal),
-            catch: (error) => {
-              if (error instanceof Error) {
-                return error;
-              }
+        const identities = new Set<ProviderId>();
+        for (const factory of factories) {
+          if (identities.has(factory.id)) {
+            throw new Error(`Provider "${factory.id}" is registered more than once.`);
+          }
+          identities.add(factory.id);
+        }
 
-              return new Error("Could not create provider adapters.", { cause: error });
-            },
-          }),
+        const adapters: ProviderAdapter[] = [];
+        for (const factory of factories) {
+          adapters.push(yield* acquireProvider(factory));
+        }
+
+        const subsystem = yield* Effect.acquireRelease(
+          Effect.sync(() => createProviderSubsystem(adapters, resourceCache)),
           (providers) => Effect.promise(() => providers.close()),
-          { interruptible: true },
         );
+        return ProvidersService.of({
+          providers: subsystem.providers,
+          models: subsystem.models,
+          generations: subsystem.generations,
+        });
       }),
     );
 }

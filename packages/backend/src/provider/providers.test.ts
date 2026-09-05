@@ -1,19 +1,71 @@
 import { join } from "node:path";
-import { Effect } from "effect";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { Cause, Effect, Exit, Layer, ManagedRuntime } from "effect";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { ids } from "#backend/id";
 import type { CacheStore, StoredCacheEntry } from "#backend/resource-cache/cache-store";
 import { createResourceCache } from "#backend/resource-cache/resource-cache";
+import { ResourceCacheService } from "#backend/resource-cache/service";
 import { StorageCategory } from "#backend/storage/area";
 import type {
   ApiKeyProviderConfigurationSnapshot,
   ProviderAdapter,
   ProviderConfigureResult,
 } from "./provider";
-import { ProvidersService, createProviderSubsystem } from "./providers";
+import { ProviderAcquisitionError, ProvidersService } from "./providers";
 import { createProviderStorageArea } from "./storage";
 
 const keyLabel = "key...123";
+
+const fixtures = new Set<() => Promise<void>>();
+
+afterEach(async () => {
+  await Promise.all([...fixtures].map((close) => close()));
+});
+
+async function createTestProviders(
+  adapters: readonly ProviderAdapter[],
+  cache: Awaited<ReturnType<typeof createTestResourceCache>>,
+) {
+  const runtime = ManagedRuntime.make(
+    ProvidersService.layer(
+      adapters.map((adapter) => {
+        let storagePaths: readonly string[] | null = null;
+        if (adapter.configuration.kind === "api-key") {
+          storagePaths = [];
+        }
+        return { id: adapter.descriptor.id, storagePaths, create: () => adapter };
+      }),
+    ).pipe(
+      Layer.provide(
+        Layer.effect(
+          ResourceCacheService,
+          Effect.acquireRelease(Effect.succeed(cache), (cache) =>
+            Effect.promise(() => cache.close()),
+          ),
+        ),
+      ),
+    ),
+  );
+  const close = () => {
+    fixtures.delete(close);
+    return runtime.dispose();
+  };
+  fixtures.add(close);
+  try {
+    const providers = await runtime.runPromise(ProvidersService);
+    return {
+      ...providers,
+      close,
+      closeExit: () => {
+        fixtures.delete(close);
+        return Effect.runPromiseExit(runtime.disposeEffect);
+      },
+    };
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}
 
 function keyLabelProperty(value: string | undefined) {
   if (value === undefined) {
@@ -71,7 +123,7 @@ async function createTestResourceCache() {
 }
 
 async function listModels(
-  subsystem: ReturnType<typeof createProviderSubsystem>,
+  subsystem: Awaited<ReturnType<typeof createTestProviders>>,
   providerId: string,
 ) {
   return (await subsystem.models.getModels(providerId)).models;
@@ -151,10 +203,64 @@ function generationRequest() {
 }
 
 describe("provider subsystem", () => {
+  it("preserves acquisition and cleanup failures when a later factory fails", async () => {
+    const acquisitionFailure = new Error("Provider creation failed.");
+    const cleanupFailure = new Error("Provider cleanup failed.");
+    const reportFailure = vi.fn();
+    const dispose = vi.fn(async () => {
+      throw cleanupFailure;
+    });
+    const unused = vi.fn(() => configurationFreeProvider());
+    const runtime = ManagedRuntime.make(
+      ProvidersService.layer([
+        {
+          id: "local-provider",
+          storagePaths: null,
+          create: () => configurationFreeProvider({ [Symbol.asyncDispose]: dispose }),
+        },
+        {
+          id: "failed",
+          storagePaths: null,
+          create() {
+            throw acquisitionFailure;
+          },
+        },
+        { id: "unused", storagePaths: null, create: unused },
+      ]).pipe(
+        Layer.provide(
+          ResourceCacheService.layer({
+            path: ":memory:",
+            reportFailure,
+          }),
+        ),
+      ),
+    );
+    try {
+      const exit = await runtime.runPromiseExit(ProvidersService);
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isFailure(exit)) {
+        const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
+        expect(failure).toBeInstanceOf(ProviderAcquisitionError);
+        expect(failure).toMatchObject({ providerId: "failed", cause: acquisitionFailure });
+        expect(exit.cause.reasons.filter(Cause.isDieReason).map((reason) => reason.defect)).toEqual(
+          [cleanupFailure],
+        );
+      }
+      expect(dispose).toHaveBeenCalledOnce();
+      expect(unused).not.toHaveBeenCalled();
+    } finally {
+      await runtime.dispose();
+    }
+    expect(reportFailure).not.toHaveBeenCalled();
+  });
+
   it("projects distinct provider shapes from one registration", async () => {
     const configured = apiKeyProvider();
     const local = configurationFreeProvider();
-    const subsystem = createProviderSubsystem([configured, local], await createTestResourceCache());
+    const subsystem = await createTestProviders(
+      [configured, local],
+      await createTestResourceCache(),
+    );
 
     expect(subsystem.providers.list()).toEqual([
       {
@@ -206,7 +312,7 @@ describe("provider subsystem", () => {
         },
       },
     });
-    const capableSubsystem = createProviderSubsystem([capable], await createTestResourceCache());
+    const capableSubsystem = await createTestProviders([capable], await createTestResourceCache());
 
     await expect(listModels(capableSubsystem, capable.descriptor.id)).resolves.toEqual([
       {
@@ -239,7 +345,7 @@ describe("provider subsystem", () => {
         },
       },
     });
-    const inconsistentSubsystem = createProviderSubsystem(
+    const inconsistentSubsystem = await createTestProviders(
       [inconsistent],
       await createTestResourceCache(),
     );
@@ -265,7 +371,7 @@ describe("provider subsystem", () => {
         },
       },
     });
-    const capableSubsystem = createProviderSubsystem([capable], await createTestResourceCache());
+    const capableSubsystem = await createTestProviders([capable], await createTestResourceCache());
 
     await expect(listModels(capableSubsystem, capable.descriptor.id)).resolves.toEqual([
       {
@@ -292,7 +398,7 @@ describe("provider subsystem", () => {
         },
       },
     });
-    const invalidSubsystem = createProviderSubsystem([invalid], await createTestResourceCache());
+    const invalidSubsystem = await createTestProviders([invalid], await createTestResourceCache());
 
     await expect(listModels(invalidSubsystem, invalid.descriptor.id)).rejects.toThrow(
       'Provider "invalid" model "invalid-context-model" context window must be a positive safe integer.',
@@ -304,7 +410,7 @@ describe("provider subsystem", () => {
     const adapter = apiKeyProvider();
     const configure = vi.spyOn(adapter.configuration, "configure");
     const clear = vi.spyOn(adapter.configuration, "clear");
-    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+    const subsystem = await createTestProviders([adapter], await createTestResourceCache());
 
     await expect(listModels(subsystem, adapter.descriptor.id)).rejects.toThrow(
       'Provider "api-key-provider" is not configured.',
@@ -350,7 +456,7 @@ describe("provider subsystem", () => {
           async clear() {},
         },
       });
-      const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+      const subsystem = await createTestProviders([adapter], await createTestResourceCache());
 
       expect(() => subsystem.providers.list()).toThrow(
         'Provider "api-key-provider" returned an invalid API-key label.',
@@ -375,7 +481,7 @@ describe("provider subsystem", () => {
           async clear() {},
         },
       });
-      const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+      const subsystem = await createTestProviders([adapter], await createTestResourceCache());
 
       await expect(
         subsystem.providers.configureApiKey(adapter.descriptor.id, "secret"),
@@ -413,7 +519,7 @@ describe("provider subsystem", () => {
       },
       models: { list },
     });
-    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+    const subsystem = await createTestProviders([adapter], await createTestResourceCache());
 
     await expect(listModels(subsystem, adapter.descriptor.id)).resolves.toMatchObject([
       { name: "configuration-1" },
@@ -459,7 +565,7 @@ describe("provider subsystem", () => {
       },
       models: { list },
     });
-    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+    const subsystem = await createTestProviders([adapter], await createTestResourceCache());
     const obsolete = listModels(subsystem, adapter.descriptor.id);
     await listingStarted.promise;
 
@@ -494,7 +600,7 @@ describe("provider subsystem", () => {
         },
       },
     });
-    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+    const subsystem = await createTestProviders([adapter], await createTestResourceCache());
     const configuring = subsystem.providers.configureApiKey(adapter.descriptor.id, "secret");
     const clearing = subsystem.providers.clearConfiguration(adapter.descriptor.id);
 
@@ -545,7 +651,7 @@ describe("provider subsystem", () => {
     const unrelated = configurationFreeProvider({
       descriptor: { id: "unrelated", name: "Unrelated", brandId: "unrelated" },
     });
-    const subsystem = createProviderSubsystem(
+    const subsystem = await createTestProviders(
       [adapter, unrelated],
       await createTestResourceCache(),
     );
@@ -587,7 +693,7 @@ describe("provider subsystem", () => {
         },
       },
     });
-    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+    const subsystem = await createTestProviders([adapter], await createTestResourceCache());
 
     await expect(subsystem.providers.clearConfiguration(adapter.descriptor.id)).rejects.toBe(
       failure,
@@ -618,7 +724,7 @@ describe("provider subsystem", () => {
         },
       },
     });
-    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+    const subsystem = await createTestProviders([adapter], await createTestResourceCache());
 
     await listModels(subsystem, adapter.descriptor.id);
     await subsystem.generations.get(adapter.descriptor.id)?.generate(generationRequest());
@@ -646,7 +752,7 @@ describe("provider subsystem", () => {
       },
     });
     const cache = await createTestResourceCache();
-    const subsystem = createProviderSubsystem([adapter], cache);
+    const subsystem = await createTestProviders([adapter], cache);
 
     try {
       const first = subsystem.providers.configureApiKey(adapter.descriptor.id, "first");
@@ -672,11 +778,7 @@ describe("provider subsystem", () => {
       );
     } finally {
       release.resolve();
-      try {
-        await subsystem.close();
-      } finally {
-        await cache.close();
-      }
+      await subsystem.close();
     }
   });
 
@@ -702,7 +804,7 @@ describe("provider subsystem", () => {
       models: { list },
     });
     const cache = await createTestResourceCache();
-    const subsystem = createProviderSubsystem([adapter], cache);
+    const subsystem = await createTestProviders([adapter], cache);
 
     try {
       await subsystem.providers.configureApiKey(adapter.descriptor.id, "first");
@@ -720,11 +822,7 @@ describe("provider subsystem", () => {
       ).resolves.toEqual({ text: "Generated reply" });
       expect(list).toHaveBeenCalledTimes(2);
     } finally {
-      try {
-        await subsystem.close();
-      } finally {
-        await cache.close();
-      }
+      await subsystem.close();
     }
   });
 
@@ -746,7 +844,7 @@ describe("provider subsystem", () => {
       },
     });
     const cache = await createTestResourceCache();
-    const subsystem = createProviderSubsystem([adapter], cache);
+    const subsystem = await createTestProviders([adapter], cache);
 
     try {
       const route = subsystem.generations.get(adapter.descriptor.id)!;
@@ -763,11 +861,7 @@ describe("provider subsystem", () => {
       await expect(surviving).resolves.toEqual({ text: "Reply" });
     } finally {
       release.resolve();
-      try {
-        await subsystem.close();
-      } finally {
-        await cache.close();
-      }
+      await subsystem.close();
     }
   });
 
@@ -790,16 +884,17 @@ describe("provider subsystem", () => {
       }),
     );
     const cache = await createTestResourceCache();
-    const subsystem = createProviderSubsystem(adapters, cache);
+    const subsystem = await createTestProviders(adapters, cache);
 
-    try {
-      const closing = subsystem.close();
-      await expect(closing).rejects.toMatchObject({ errors: [lastFailure, firstFailure] });
-      expect(subsystem.close()).toBe(closing);
-      expect(closed).toEqual(["last", "middle", "first"]);
-    } finally {
-      await cache.close();
+    const exit = await subsystem.closeExit();
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      expect(exit.cause.reasons.filter(Cause.isDieReason).map((reason) => reason.defect)).toEqual([
+        lastFailure,
+        firstFailure,
+      ]);
     }
+    expect(closed).toEqual(["last", "middle", "first"]);
   });
 
   it("rejects new work and interrupts active work during close", async () => {
@@ -816,7 +911,7 @@ describe("provider subsystem", () => {
         },
       },
     });
-    const subsystem = createProviderSubsystem([adapter], await createTestResourceCache());
+    const subsystem = await createTestProviders([adapter], await createTestResourceCache());
     const listing = listModels(subsystem, adapter.descriptor.id);
     await started.promise;
 
@@ -824,7 +919,7 @@ describe("provider subsystem", () => {
 
     await expect(listing).rejects.toThrow("Providers are closing.");
     await firstClose;
-    expect(subsystem.close()).toBe(firstClose);
+    await subsystem.close();
     expect(activeSignal?.aborted).toBe(true);
     await expect(listModels(subsystem, adapter.descriptor.id)).rejects.toThrow(
       "Providers are closed.",
@@ -835,7 +930,7 @@ describe("provider subsystem", () => {
     const provider = configurationFreeProvider();
     const cache = await createTestResourceCache();
 
-    expect(() => createProviderSubsystem([provider, provider], cache)).toThrow(
+    await expect(createTestProviders([provider, provider], cache)).rejects.toThrow(
       'Provider "local-provider" is registered more than once.',
     );
     expect(Object.keys(provider)).toEqual(["descriptor", "configuration", "models", "generation"]);

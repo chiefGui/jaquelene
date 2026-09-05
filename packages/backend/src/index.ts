@@ -83,6 +83,7 @@ export type {
   ProviderSummary,
 } from "#backend/provider/providers";
 export type { ModelCatalogSnapshot } from "#backend/provider/model-catalog";
+export { ProviderAcquisitionError } from "#backend/provider/providers";
 export type {
   Generation,
   GenerationFailureKind,

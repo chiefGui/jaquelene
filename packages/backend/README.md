@@ -6,6 +6,8 @@ It owns SQLite, migrations, IDs, campaigns, the prompt catalog and campaign comp
 
 A provider factory declares one stable identity and its owned configuration paths; its adapter supplies configuration, model discovery, and generation capabilities. The backend validates those paths in the storage registry before acquiring resources and rejects disagreement between the factory declaration and the adapter's configuration capability. The provider subsystem routes capabilities, gives every network operation a cancellation signal, and orders configuration changes. Disconnecting a provider stops and drains its active work before removing its credential. Adding a provider does not add another backend registry or storage manifest entry.
 
+The provider layer owns each acquired adapter through an Effect scope, including adapters rejected during validation. Closing the layer stops its operations before releasing adapters in reverse acquisition order; consumers receive capabilities without a separate disposal method. Acquisition failures identify the factory through `ProviderAcquisitionError`, and the desktop lifetime boundary preserves all execution and cleanup failures. Factory and operation contracts remain Promise-based; operation ownership and configuration coordination have not yet migrated to Effect.
+
 Model execution is the feature-neutral boundary over those provider capabilities. It resolves requested model configuration against the live catalog, routes semantic model input with execution and optional grouping identities, propagates interruption, classifies failures, and normalizes provider accounting. Feature workflows own their domain state and output validation; reply generation, for example, owns durable generation and message settlement rather than pushing thread concepts into provider adapters.
 
 Usage owns the provider-attempt ledger, accounting persistence, and recovery of interrupted attempts. Each attempt references an execution and may carry a caller-supplied attribution kind and identity; usage does not look up feature entities. Campaign code supplies and queries campaign attribution. Deleting an individual campaign or thread history preserves its incurred usage. Reply settlement composes accounting and content writes in one transaction and publishes the usage change after commit. Clearing usage checks active provider attempts; preparation that has not dispatched a provider request does not block clearing settled history.
@@ -48,3 +50,22 @@ Initial baseline against production code at `41f226d`, before the provider refac
 Use the same runtime, fixtures, batch sizes, and machine for before/after comparisons. Repeat fresh-process runs and report absolute differences alongside percentages; the spread above shows why a single run is not a regression gate. Investigate repeatable slowdowns outside observed noise before accepting a refactor. Do not speed up a benchmark by omitting disposal, interruption, validation, or cache invalidation. Operation-count and result assertions enforce those paths where observable; behavioral tests remain the correctness gate.
 
 This baseline does not establish cross-platform parity, allocation bounds, or worst-case latency. Changes to concurrency or operation bookkeeping also require targeted allocation/CPU profiling and lifecycle stress checks before the refactor is considered complete.
+
+### Scoped adapter lifecycle comparison
+
+The acquisition/disposal change was compared against the original production bundle on the same host and runtimes, with unchanged workloads. Six fresh processes ran in baseline/change/change/baseline/baseline/change order. Values below are medians of three process medians, followed by their range, in microseconds.
+
+| Workload                                                  |               Baseline |        Scoped adapters |
+| --------------------------------------------------------- | ---------------------: | ---------------------: |
+| acquire and release two providers with an in-memory cache | 350.59 (338.85–354.34) | 356.09 (331.87–365.48) |
+| hot model lookup in a 256-model catalog                   |       1.72 (1.64–1.79) |       1.72 (1.66–1.75) |
+| dispatch one immediate generation                         |       1.95 (1.83–1.96) |       1.85 (1.82–1.90) |
+| execute through the model Effect service                  |    28.24 (27.79–30.45) |    26.93 (26.87–30.91) |
+| dispatch 32 concurrent generations                        |    56.22 (54.88–56.44) |    60.11 (53.43–90.62) |
+| replace configuration and reload the catalog              | 528.07 (500.31–544.87) | 502.95 (472.08–555.00) |
+| dispatch and cancel 32 generations                        | 293.06 (253.52–310.76) | 237.08 (235.31–275.02) |
+| acquire, dispatch 32 generations, and shut down           | 701.57 (671.44–739.62) | 712.17 (696.73–736.03) |
+
+The changed lifecycle paths increased by 5.51 µs (1.57%) and 10.61 µs (1.51%) at the median, with overlapping ranges. These runs do not establish a consistent material slowdown or zero regression. Request handling is unchanged; its apparent improvements and the concurrent-dispatch outlier are not attributed to this refactor. Every process verified balanced acquisitions/releases and no cache failures.
+
+Separate CPU and sampled-heap profiles were inspected for both versions. The heap samples were dominated by Node abort-signal weak references and finalization registrations; a single profile per version is not an allocation or retained-memory regression gate. Memory bounds and cross-platform behavior remain unverified.

@@ -1,5 +1,7 @@
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
+import { realpathSync } from "node:fs";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
 import { defineConfig } from "vite-plus";
@@ -49,6 +51,11 @@ const contentSecurityPolicyPlugin = {
 export default defineConfig({
   root: appRoot,
   resolve: {
+    // Cached paths and Bun's Windows links can differ in casing. React must keep one identity.
+    alias: {
+      react: realpathSync.native(dirname(fileURLToPath(import.meta.resolve("react")))),
+      "react-dom": realpathSync.native(dirname(fileURLToPath(import.meta.resolve("react-dom")))),
+    },
     tsconfigPaths: true,
   },
   plugins: [

@@ -5,7 +5,8 @@ export const scrollFade = stylex.create({
   start: {
     isolation: "isolate",
     "::before": {
-      backgroundImage: `linear-gradient(to bottom in oklch, ${colors.backgroundSurface}, color-mix(in oklch, ${colors.backgroundSurface} 90%, transparent) 20%, color-mix(in oklch, ${colors.backgroundSurface} 65%, transparent) 40%, color-mix(in oklch, ${colors.backgroundSurface} 35%, transparent) 60%, color-mix(in oklch, ${colors.backgroundSurface} 10%, transparent) 80%, transparent)`,
+      // Preserve the surface hue at every stop, including the fully transparent endpoint.
+      backgroundImage: `linear-gradient(to bottom in oklch, ${colors.backgroundSurface}, oklch(from ${colors.backgroundSurface} l c h / 90%) 20%, oklch(from ${colors.backgroundSurface} l c h / 65%) 40%, oklch(from ${colors.backgroundSurface} l c h / 35%) 60%, oklch(from ${colors.backgroundSurface} l c h / 10%) 80%, oklch(from ${colors.backgroundSurface} l c h / 0%))`,
       content: '""',
       display: "block",
       height: "var(--scroll-fade-height, 0px)",

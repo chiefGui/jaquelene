@@ -37,7 +37,8 @@ describe("theme color policy", () => {
       }
 
       const allowsRawColor = rawColorAllowlist.some((allowedPath) => path.endsWith(allowedPath));
-      if (!allowsRawColor && /oklch\(/iu.test(source)) {
+      // Relative colors derive an existing color; literal definitions belong in theme files.
+      if (!allowsRawColor && /\boklch\((?!\s*from\b)/iu.test(source)) {
         violations.push(`${path}: raw OKLCH color outside the theme boundary`);
       }
     }

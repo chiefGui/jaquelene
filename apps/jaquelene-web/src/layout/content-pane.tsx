@@ -138,12 +138,16 @@ const styles = stylex.create({
     paddingInlineStart: "0.75rem",
     position: "relative",
     "::before": {
-      backgroundImage: `linear-gradient(to bottom in oklch, ${colors.backgroundSurface}, color-mix(in oklch, ${colors.backgroundSurface} 90%, transparent) 20%, color-mix(in oklch, ${colors.backgroundSurface} 65%, transparent) 40%, color-mix(in oklch, ${colors.backgroundSurface} 35%, transparent) 60%, color-mix(in oklch, ${colors.backgroundSurface} 10%, transparent) 80%, transparent)`,
+      backgroundColor: "inherit",
       content: '""',
       height: "2.5rem",
       insetBlockStart: "100%",
       insetInlineStart: 0,
       insetInlineEnd: contentPaneLayout.headerInsetEnd,
+      // The mask controls opacity; the painted color stays identical to the header.
+      maskImage:
+        "linear-gradient(to bottom, black, color-mix(in oklch, black 90%, transparent) 20%, color-mix(in oklch, black 65%, transparent) 40%, color-mix(in oklch, black 35%, transparent) 60%, color-mix(in oklch, black 10%, transparent) 80%, transparent)",
+      maskMode: "alpha",
       pointerEvents: "none",
       position: "absolute",
       zIndex: 1,

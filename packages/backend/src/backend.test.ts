@@ -6,6 +6,7 @@ import { ManagedRuntime } from "effect";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { closeDatabase, openDatabase } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
+import { providerAttemptTable } from "#backend/usage/schema";
 import { ids } from "#backend/id";
 import type { ModelInput } from "#backend/model/input";
 import type {
@@ -645,7 +646,7 @@ describe("backend", () => {
     await reopened.close();
   });
 
-  it("recovers pending generations before exposing reopened services", async () => {
+  it("recovers reply state and all provider attempts before exposing reopened services", async () => {
     const databasePath = createDatabasePath();
     const database = openDatabase(databasePath);
     const threads = createThreads(database, () => 100);
@@ -661,9 +662,38 @@ describe("backend", () => {
       startedAt: 102,
     };
     database.insert(generationTable).values(pending).run();
+    database
+      .insert(providerAttemptTable)
+      .values([
+        {
+          id: ids.providerAttempt.create(),
+          executionId: pending.id,
+          providerId: "provider-a",
+          requestedModelId: "maker/model",
+          status: "pending",
+          startedAt: 103,
+        },
+        {
+          id: ids.providerAttempt.create(),
+          executionId: "independent-execution",
+          attributionKind: "document",
+          attributionId: "document-1",
+          providerId: "provider-a",
+          requestedModelId: "maker/model",
+          status: "pending",
+          startedAt: 104,
+        },
+      ])
+      .run();
     closeDatabase(database);
 
     const backend = await openBackend(backendOptions(databasePath));
+    expect(backend.usage.getOverview("all-time").attempts).toEqual({
+      provider: 2,
+      pending: 0,
+      completed: 0,
+      failed: 2,
+    });
     await backend.close();
     const recoveredDatabase = openDatabase(databasePath);
 
@@ -676,6 +706,22 @@ describe("backend", () => {
           finishedAt: expect.any(Number),
         }),
       );
+      expect(recoveredDatabase.select().from(providerAttemptTable).all()).toEqual([
+        expect.objectContaining({
+          executionId: pending.id,
+          status: "failed",
+          failureKind: "interrupted",
+          finishedAt: expect.any(Number),
+        }),
+        expect.objectContaining({
+          executionId: "independent-execution",
+          attributionKind: "document",
+          attributionId: "document-1",
+          status: "failed",
+          failureKind: "interrupted",
+          finishedAt: expect.any(Number),
+        }),
+      ]);
     } finally {
       closeDatabase(recoveredDatabase);
     }

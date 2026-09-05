@@ -32,8 +32,7 @@ describe("usage overview", () => {
   it("aggregates known values while preserving unknown and pending coverage", () => {
     const now = new Date(2026, 8, 1, 12).getTime();
     const { database, overview } = openEnvironment(now);
-    const threadId = ids.thread.create();
-    const common = { threadId, providerId: "openrouter", requestedModelId: "maker/model" };
+    const common = { providerId: "openrouter", requestedModelId: "maker/model" };
 
     database
       .insert(providerAttemptTable)
@@ -41,7 +40,7 @@ describe("usage overview", () => {
         {
           ...common,
           id: ids.providerAttempt.create(),
-          generationId: ids.generation.create(),
+          executionId: "execution-1",
           status: "completed",
           inputTokens: 10,
           cacheReadInputTokens: 3,
@@ -57,7 +56,7 @@ describe("usage overview", () => {
         {
           ...common,
           id: ids.providerAttempt.create(),
-          generationId: ids.generation.create(),
+          executionId: "execution-2",
           status: "failed",
           failureKind: "provider",
           startedAt: new Date(2026, 7, 31, 8).getTime(),
@@ -66,7 +65,7 @@ describe("usage overview", () => {
         {
           ...common,
           id: ids.providerAttempt.create(),
-          generationId: ids.generation.create(),
+          executionId: "execution-3",
           status: "pending",
           startedAt: new Date(2026, 8, 1, 10).getTime(),
         },
@@ -124,8 +123,7 @@ describe("usage overview", () => {
       .insert(providerAttemptTable)
       .values({
         id: ids.providerAttempt.create(),
-        generationId: ids.generation.create(),
-        threadId: ids.thread.create(),
+        executionId: "execution-1",
         providerId: "openrouter",
         requestedModelId: "maker/model",
         status: "completed",

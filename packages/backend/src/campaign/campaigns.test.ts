@@ -345,9 +345,9 @@ describe("campaigns", () => {
       .run();
     const attempt = {
       id: ids.providerAttempt.create(),
-      generationId,
-      threadId: campaign.threadId,
-      campaignId: campaign.id,
+      executionId: generationId,
+      attributionKind: "campaign",
+      attributionId: campaign.id,
       providerId: "provider-a",
       requestedModelId: "model-a",
       status: "completed" as const,

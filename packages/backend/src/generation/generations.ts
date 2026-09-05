@@ -1,5 +1,6 @@
 import { and, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
+import { getCampaignUsageAttribution } from "#backend/campaign/usage";
 import type { Database } from "#backend/database/database";
 import type { RequestedModelConfiguration } from "#backend/model/configuration";
 import {
@@ -26,10 +27,11 @@ import {
 import type { ProviderAccounting } from "#backend/provider/accounting";
 import {
   createProviderAttempts,
-  settleProviderAttempt,
+  settleProviderAttemptInTransaction,
   type ProviderAttempts,
+  type StartProviderAttempt,
 } from "#backend/usage/provider-attempts";
-import { providerAttemptTable, type ProviderAttempt } from "#backend/usage/schema";
+import type { ProviderAttempt } from "#backend/usage/schema";
 import { requireReplyInput, type ReplyAnchor, type ReplyPreparer } from "./reply-preparation";
 import {
   generationTable,
@@ -223,7 +225,11 @@ export function createGenerations(
           let attemptSettlement;
 
           if (accounting) {
-            attemptSettlement = { status: "completed", finishedAt: completionTime } as const;
+            attemptSettlement = {
+              status: "completed",
+              finishedAt: completionTime,
+              accounting,
+            } as const;
           } else if (failureKind === "provider" || failureKind === "interrupted") {
             attemptSettlement = {
               status: "failed",
@@ -235,16 +241,7 @@ export function createGenerations(
               `Generation failure "${failureKind}" requires provider accounting.`,
             );
           }
-          const settledAttempt = settleProviderAttempt(
-            transaction,
-            attempt.id,
-            attemptSettlement,
-            accounting,
-          );
-
-          if (!settledAttempt) {
-            throw new Error(`Provider attempt "${attempt.id}" is no longer pending.`);
-          }
+          settleProviderAttemptInTransaction(transaction, attempt.id, attemptSettlement);
         }
 
         return storedGeneration;
@@ -464,13 +461,19 @@ export function createGenerations(
     let attempt: ProviderAttempt;
 
     try {
-      attempt = attempts.start({
-        generationId: generation.id,
-        threadId: anchor.threadId,
+      let attemptInput: StartProviderAttempt = {
+        executionId: generation.id,
         providerId: generation.providerId,
         requestedModelId: generation.modelId,
         startedAt: Math.max(generation.startedAt, now()),
-      });
+      };
+      const attribution = getCampaignUsageAttribution(database, anchor.threadId);
+
+      if (attribution) {
+        attemptInput = { ...attemptInput, attribution };
+      }
+
+      attempt = attempts.start(attemptInput);
     } catch (cause) {
       return recordFailure(generation, "storage", cause);
     }
@@ -533,16 +536,11 @@ export function createGenerations(
           throw new Error(`Generation "${generation.id}" is no longer pending.`);
         }
 
-        const settledAttempt = settleProviderAttempt(
-          transaction,
-          attempt.id,
-          { status: "completed", finishedAt: completionTime },
+        settleProviderAttemptInTransaction(transaction, attempt.id, {
+          status: "completed",
+          finishedAt: completionTime,
           accounting,
-        );
-
-        if (!settledAttempt) {
-          throw new Error(`Provider attempt "${attempt.id}" is no longer pending.`);
-        }
+        });
 
         return { generation: toGeneration(storedCompletedGeneration), message, threadActivity };
       });
@@ -582,31 +580,15 @@ export function createGenerations(
     recoverInterrupted() {
       const recoveryTime = now();
 
-      const recoveredAttempts = database.transaction((transaction) => {
-        const attemptResult = transaction
-          .update(providerAttemptTable)
-          .set({
-            status: "failed",
-            failureKind: "interrupted",
-            finishedAt: sql`max(${providerAttemptTable.startedAt}, ${recoveryTime})`,
-          })
-          .where(eq(providerAttemptTable.status, "pending"))
-          .run();
-        transaction
-          .update(generationTable)
-          .set({
-            status: "failed",
-            failureKind: "interrupted",
-            finishedAt: sql`max(${generationTable.startedAt}, ${recoveryTime})`,
-          })
-          .where(eq(generationTable.status, "pending"))
-          .run();
-        return attemptResult.changes;
-      });
-
-      if (recoveredAttempts > 0) {
-        attempts.changed();
-      }
+      database
+        .update(generationTable)
+        .set({
+          status: "failed",
+          failureKind: "interrupted",
+          finishedAt: sql`max(${generationTable.startedAt}, ${recoveryTime})`,
+        })
+        .where(eq(generationTable.status, "pending"))
+        .run();
     },
 
     acceptRegenerationInTransaction,

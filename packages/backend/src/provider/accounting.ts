@@ -153,21 +153,3 @@ export function normalizeProviderAccounting(result: ProviderGenerationResult) {
 
   return { outcome: "invalid" as const, accounting, cause };
 }
-
-export function providerAccountingFields(accounting: ProviderAccounting) {
-  return {
-    providerGenerationId: accounting.providerGenerationId,
-    resolvedModelId: accounting.resolvedModelId,
-    upstreamProviderId: accounting.upstreamProviderId,
-    finishReason: accounting.finishReason,
-    inputTokens: accounting.usage?.tokens.input.total ?? null,
-    cacheReadInputTokens: accounting.usage?.tokens.input.cacheRead ?? null,
-    cacheWriteInputTokens: accounting.usage?.tokens.input.cacheWrite ?? null,
-    outputTokens: accounting.usage?.tokens.output.total ?? null,
-    reasoningOutputTokens: accounting.usage?.tokens.output.reasoning ?? null,
-    totalTokens: accounting.usage?.tokens.total ?? null,
-    costCurrency: accounting.usage?.cost?.currency ?? null,
-    costAmountNanos: accounting.usage?.cost?.amountNanos ?? null,
-    costSource: accounting.usage?.cost?.source ?? null,
-  };
-}

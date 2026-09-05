@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Clock, Context, Effect, Layer } from "effect";
 import { DatabaseService } from "#backend/database/database";
 import { createUsageHistory, type UsageHistory } from "./history";
 
@@ -8,7 +8,9 @@ export class UsageService extends Context.Service<UsageService, UsageHistory>()(
   static readonly layer = Layer.effect(
     this,
     Effect.gen(function* () {
-      return UsageService.of(createUsageHistory(yield* DatabaseService));
+      const usage = createUsageHistory(yield* DatabaseService);
+      usage.attempts.recoverInterrupted(yield* Clock.currentTimeMillis);
+      return UsageService.of(usage);
     }),
   );
 }

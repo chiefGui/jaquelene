@@ -1,6 +1,5 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
-import { generationTable } from "#backend/generation/schema";
 import { createProviderAttempts } from "./provider-attempts";
 import { createUsageOverviewReader } from "./overview";
 import { providerAttemptTable } from "./schema";
@@ -23,16 +22,6 @@ export function createUsageHistory(database: Database) {
     getOverview: overview.get,
     clear() {
       const deletedAttempts = database.transaction((transaction) => {
-        const pendingGeneration = transaction
-          .select({ id: generationTable.id })
-          .from(generationTable)
-          .where(eq(generationTable.status, "pending"))
-          .get();
-
-        if (pendingGeneration) {
-          throw new Error("Usage history cannot be cleared while a reply is being generated.");
-        }
-
         const pending = transaction
           .select({ id: providerAttemptTable.id })
           .from(providerAttemptTable)

@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "9430c5bc-2ece-43f1-8210-59c1b65b2713",
+  "id": "99e162c1-05a1-4a5d-86e2-1c6892c55e6c",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -640,17 +640,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "generation_id",
-      "entityType": "columns",
-      "table": "provider_attempts"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "thread_id",
+      "name": "execution_id",
       "entityType": "columns",
       "table": "provider_attempts"
     },
@@ -660,7 +650,17 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "campaign_id",
+      "name": "attribution_kind",
+      "entityType": "columns",
+      "table": "provider_attempts"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "attribution_id",
       "entityType": "columns",
       "table": "provider_attempts"
     },
@@ -1541,7 +1541,7 @@
     {
       "columns": [
         {
-          "value": "generation_id",
+          "value": "execution_id",
           "isExpression": false
         },
         {
@@ -1556,7 +1556,7 @@
       "isUnique": false,
       "where": null,
       "origin": "manual",
-      "name": "provider_attempts_generation_idx",
+      "name": "provider_attempts_execution_idx",
       "entityType": "indexes",
       "table": "provider_attempts"
     },
@@ -1581,7 +1581,11 @@
     {
       "columns": [
         {
-          "value": "campaign_id",
+          "value": "attribution_kind",
+          "isExpression": false
+        },
+        {
+          "value": "attribution_id",
           "isExpression": false
         },
         {
@@ -1596,7 +1600,21 @@
       "isUnique": false,
       "where": null,
       "origin": "manual",
-      "name": "provider_attempts_campaign_started_at_idx",
+      "name": "provider_attempts_attribution_started_at_idx",
+      "entityType": "indexes",
+      "table": "provider_attempts"
+    },
+    {
+      "columns": [
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": "\"provider_attempts\".\"status\" = 'pending'",
+      "origin": "manual",
+      "name": "provider_attempts_pending_idx",
       "entityType": "indexes",
       "table": "provider_attempts"
     },
@@ -1775,8 +1793,14 @@
       "table": "turns"
     },
     {
-      "value": "length(trim(\"generation_id\")) > 0\n        AND length(trim(\"thread_id\")) > 0\n        AND (\"campaign_id\" IS NULL OR length(trim(\"campaign_id\")) > 0)\n        AND length(trim(\"provider_id\")) > 0\n        AND length(trim(\"requested_model_id\")) > 0",
+      "value": "length(trim(\"execution_id\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0\n        AND length(trim(\"provider_id\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0\n        AND length(trim(\"requested_model_id\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0",
       "name": "provider_attempts_references_valid",
+      "entityType": "checks",
+      "table": "provider_attempts"
+    },
+    {
+      "value": "(\"attribution_kind\" IS NULL AND \"attribution_id\" IS NULL)\n        OR (\"attribution_kind\" IS NOT NULL\n          AND \"attribution_id\" IS NOT NULL\n          AND length(trim(\"attribution_kind\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0\n          AND length(trim(\"attribution_id\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0)",
+      "name": "provider_attempts_attribution_valid",
       "entityType": "checks",
       "table": "provider_attempts"
     },
@@ -1811,7 +1835,7 @@
       "table": "provider_attempts"
     },
     {
-      "value": "(\"cost_currency\" IS NULL\n          AND \"cost_amount_nanos\" IS NULL\n          AND \"cost_source\" IS NULL)\n        OR (\"cost_currency\" GLOB '[A-Z][A-Z][A-Z]'\n          AND \"cost_amount_nanos\" IS NOT NULL\n          AND \"cost_amount_nanos\" >= 0\n          AND \"input_tokens\" IS NOT NULL\n          AND \"cost_source\" IN ('provider-reported', 'estimated'))",
+      "value": "(\"cost_currency\" IS NULL\n          AND \"cost_amount_nanos\" IS NULL\n          AND \"cost_source\" IS NULL)\n        OR (\"cost_currency\" IS NOT NULL\n          AND \"cost_currency\" GLOB '[A-Z][A-Z][A-Z]'\n          AND \"cost_amount_nanos\" IS NOT NULL\n          AND \"cost_amount_nanos\" >= 0\n          AND \"input_tokens\" IS NOT NULL\n          AND \"cost_source\" IS NOT NULL\n          AND \"cost_source\" IN ('provider-reported', 'estimated'))",
       "name": "provider_attempts_cost_valid",
       "entityType": "checks",
       "table": "provider_attempts"

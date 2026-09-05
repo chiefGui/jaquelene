@@ -233,8 +233,9 @@ describe("generations", () => {
     expect(database.select().from(providerAttemptTable).get()).toEqual(
       expect.objectContaining({
         id: expect.stringMatching(/^attempt_/),
-        generationId: result.generation.id,
-        threadId: thread.id,
+        executionId: result.generation.id,
+        attributionKind: null,
+        attributionId: null,
         providerId: provider.id,
         requestedModelId: "maker/requested-model",
         providerGenerationId: "provider-generation-1",
@@ -475,7 +476,7 @@ describe("generations", () => {
     );
     expect(database.select().from(providerAttemptTable).get()).toEqual(
       expect.objectContaining({
-        generationId: result.generation.id,
+        executionId: result.generation.id,
         providerGenerationId: "late-provider-generation",
         totalTokens: 11,
         status: "completed",
@@ -835,7 +836,7 @@ describe("generations", () => {
     ]);
   });
 
-  it("recovers pending attempts left by an interrupted process", () => {
+  it("recovers reply state without taking ownership of provider-attempt recovery", () => {
     const provider = { id: "provider-a", generate: vi.fn(async () => ({ text: "Reply" })) };
     const { database, generations, threads } = openGenerationEnvironment(provider, () => 500);
     const thread = threads.create();
@@ -858,8 +859,7 @@ describe("generations", () => {
       .insert(providerAttemptTable)
       .values({
         id: ids.providerAttempt.create(),
-        generationId,
-        threadId: thread.id,
+        executionId: generationId,
         providerId: provider.id,
         requestedModelId: "maker/model",
         status: "pending",
@@ -879,10 +879,10 @@ describe("generations", () => {
     );
     expect(database.select().from(providerAttemptTable).get()).toEqual(
       expect.objectContaining({
-        status: "failed",
-        failureKind: "interrupted",
+        status: "pending",
+        failureKind: null,
         startedAt: 600,
-        finishedAt: 600,
+        finishedAt: null,
       }),
     );
   });

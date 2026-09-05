@@ -1,11 +1,10 @@
 import { Menu, MenuButton, MenuItem, MenuProvider } from "@ariakit/react/menu";
 import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
 import SparklesIcon from "@hugeicons/core-free-icons/SparklesIcon";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Button, IconButton } from "@jaquelene/ui";
+import { Button } from "@jaquelene/ui";
 import { colors, radii, shadows } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
+import { IconAction } from "@/primitive/icon-action";
 import type { AiActionControl } from "./use-ai-action";
 
 export function AiActionMenu({ control }: { control: AiActionControl }) {
@@ -14,7 +13,7 @@ export function AiActionMenu({ control }: { control: AiActionControl }) {
   }
   if (control.busy) {
     return (
-      <MarkdownEditor.Action
+      <IconAction
         icon={Cancel01Icon}
         label="Cancel AI action"
         disabled={control.state.status === "cancelling"}
@@ -26,11 +25,7 @@ export function AiActionMenu({ control }: { control: AiActionControl }) {
     <MenuProvider placement="bottom-start">
       <MenuButton
         disabled={control.disabled}
-        render={
-          <IconButton.Root type="button" shape="squircle" size="small" aria-label="AI actions">
-            <IconButton.Icon render={<HugeiconsIcon icon={SparklesIcon} />} />
-          </IconButton.Root>
-        }
+        render={<IconAction icon={SparklesIcon} label="AI actions" />}
       />
       <Menu gutter={6} portal {...stylex.props(styles.menu)}>
         {control.definitions.isPending && (
@@ -38,7 +33,7 @@ export function AiActionMenu({ control }: { control: AiActionControl }) {
         )}
         {control.definitions.isError && (
           <MenuItem
-            render={<Button variant="ghost" size="small" />}
+            render={<Button variant="ghost" size="small" style={styles.item} />}
             onClick={() => void control.definitions.refetch()}
           >
             Retry loading actions
@@ -48,7 +43,11 @@ export function AiActionMenu({ control }: { control: AiActionControl }) {
           <MenuItem
             key={action.id}
             render={<Button variant="ghost" size="small" style={styles.item} />}
-            disabled={!control.model.data || (action.requiresText && !control.value.trim())}
+            disabled={
+              control.disabled ||
+              !control.model.data ||
+              (action.requiresText && !control.value.trim())
+            }
             onClick={() => void control.run(action.id)}
           >
             {action.label}
@@ -56,7 +55,7 @@ export function AiActionMenu({ control }: { control: AiActionControl }) {
         ))}
         {control.model.isError && (
           <MenuItem
-            render={<Button variant="ghost" size="small" />}
+            render={<Button variant="ghost" size="small" style={styles.item} />}
             onClick={() => void control.model.refetch()}
           >
             Retry loading model

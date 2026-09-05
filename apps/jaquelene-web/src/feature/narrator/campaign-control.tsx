@@ -2,7 +2,12 @@ import { narratorPromptKindKey } from "@jaquelene/domain";
 import { Item } from "@jaquelene/ui";
 import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  usePrefetchInfiniteQuery,
+  usePrefetchQuery,
+  useSuspenseInfiniteQuery,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useId } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
@@ -17,6 +22,9 @@ import {
 } from "@/feature/prompt/query";
 
 export function CampaignNarratorControl({ campaignId }: { campaignId: string }) {
+  // Start independent queries before the campaign selection suspends this render.
+  usePrefetchInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
+  usePrefetchQuery(promptDefaultQuery(narratorPromptKindKey));
   const { data: selection } = useSuspenseQuery(
     campaignPromptSelectionQuery(campaignId, narratorPromptKindKey),
   );
@@ -44,9 +52,9 @@ function NarratorSelectionControl({
   campaignId: string;
   effectivePromptKey: string;
 }) {
+  const { data: effectivePrompt } = useSuspenseQuery(promptQuery(effectivePromptKey));
   const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
-  const { data: effectivePrompt } = useSuspenseQuery(promptQuery(effectivePromptKey));
   const setSelection = useSetCampaignPromptSelection(campaignId, narratorPromptKindKey);
   const defaultPending = useIsPromptDefaultPending(narratorPromptKindKey);
   const controlId = useId();

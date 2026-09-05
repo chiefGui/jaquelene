@@ -69,7 +69,7 @@ describe("AI action session", () => {
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
     let released = false;
-    const { session } = environment(() =>
+    const { session, diagnostics } = environment(() =>
       Effect.acquireUseRelease(
         Effect.sync(() => entered.resolve()),
         () => Effect.never,
@@ -88,6 +88,7 @@ describe("AI action session", () => {
     await cancelled;
     expect(released).toBe(true);
     expect(await result).toEqual({ status: "cancelled" });
+    expect(diagnostics.report).not.toHaveBeenCalled();
   });
 
   it("bounds concurrent operations and rejects duplicate identities", async () => {
@@ -103,7 +104,7 @@ describe("AI action session", () => {
     expect(await session.run({ ...input, executionId: "overflow" })).toMatchObject({
       status: "failed",
     });
-    session.close();
+    await session.close();
     expect(await Promise.all(results)).toEqual(
       Array.from({ length: 4 }, () => ({ status: "cancelled" })),
     );
@@ -121,15 +122,63 @@ describe("AI action session", () => {
     });
     const { session, diagnostics } = environment(() => Effect.fail(error));
     expect(await session.run(input)).toEqual({ status: "failed", message: error.message });
+    expect(diagnostics.report).toHaveBeenCalledOnce();
     expect(diagnostics.report).toHaveBeenCalledWith(
       expect.objectContaining({ operation: "ai-action.run", error }),
     );
   });
 
+  it("reports cleanup failures even when the operation was cancelled", async () => {
+    const entered = Promise.withResolvers<void>();
+    const cleanupError = new Error("Could not settle usage");
+    const { session, diagnostics } = environment(() =>
+      Effect.acquireUseRelease(
+        Effect.sync(() => entered.resolve()),
+        () => Effect.never,
+        () => Effect.die(cleanupError),
+      ),
+    );
+    const result = session.run(input);
+    await entered.promise;
+    await session.cancel(input.executionId);
+    expect(await result).toMatchObject({ status: "failed" });
+    expect(diagnostics.report).toHaveBeenCalledOnce();
+    const report = diagnostics.report.mock.calls[0]![0];
+    expect(report.error).toBeInstanceOf(AggregateError);
+    expect((report.error as AggregateError).errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ message: cleanupError.message })]),
+    );
+  });
+
+  it("waits for active operations to release their resources when closing", async () => {
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const { session } = environment(() =>
+      Effect.acquireUseRelease(
+        Effect.sync(() => entered.resolve()),
+        () => Effect.never,
+        () => Effect.promise(() => release.promise),
+      ),
+    );
+    const result = session.run(input);
+    await entered.promise;
+    const closed = vi.fn();
+    const closing = session.close().then(closed);
+    try {
+      await Promise.resolve();
+      expect(closed).not.toHaveBeenCalled();
+    } finally {
+      release.resolve();
+      await closing;
+    }
+    expect(closed).toHaveBeenCalledOnce();
+    expect(await result).toEqual({ status: "cancelled" });
+  });
+
   it("cancels all operations on navigation without closing the next document's session", async () => {
     const { session } = environment(() => Effect.never);
     const first = session.run(input);
-    session.cancelAll();
+    await session.cancelAll();
     expect(await first).toEqual({ status: "cancelled" });
     const second = session.run({ ...input, executionId: "next-page" });
     await session.cancel("next-page");

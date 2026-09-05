@@ -59,12 +59,12 @@ export function useAiAction({
         if (pending.current !== operation) {
           return;
         }
-        if (operation.cancelled || result.status === "cancelled") {
-          setState({ status: "idle" });
-          return;
-        }
         if (result.status === "failed") {
           setState({ status: "failed", message: result.message });
+          return;
+        }
+        if (operation.cancelled || result.status === "cancelled") {
+          setState({ status: "idle" });
           return;
         }
         setChange({ before: value, after: result.text });

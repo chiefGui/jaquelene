@@ -30,14 +30,14 @@ export function exposeAiActions(
     isMainFrame: boolean,
   ) => {
     if (isMainFrame && !isInPlace) {
-      session.cancelAll();
+      void session.cancelAll();
     }
   };
   const dispose = () => {
-    session.close();
     target.off("destroyed", dispose);
     target.off("render-process-gone", session.cancelAll);
     target.off("did-start-navigation", cancelForNavigation);
+    return session.close();
   };
   target.once("destroyed", dispose);
   target.on("render-process-gone", session.cancelAll);

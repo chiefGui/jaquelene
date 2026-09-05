@@ -1,12 +1,7 @@
-import type { AiActionRunner } from "@jaquelene/backend";
+import { AiActionError, type AiActionRunner } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
-import {
-  aiActionInputSchema,
-  aiActionResultSchema,
-  type AiActionInput,
-  type AiActionResult,
-} from "@jaquelene/domain";
-import { Effect } from "effect";
+import { aiActionInputSchema, type AiActionInput, type AiActionResult } from "@jaquelene/domain";
+import { Cause, Effect } from "effect";
 import type { AiActionPreferences } from "./preferences";
 
 export type AiActionEffectRunner = <Success, Failure>(
@@ -28,10 +23,21 @@ export function createAiActionSession(
   >();
   let closed = false;
 
-  function cancelAll() {
+  async function cancelAll() {
+    const results: Promise<AiActionResult>[] = [];
     for (const operation of running.values()) {
       operation.controller.abort();
+      results.push(operation.result);
     }
+    await Promise.all(results);
+  }
+
+  function failed(error: unknown): Extract<AiActionResult, { status: "failed" }> {
+    diagnostics.report({ severity: ErrorSeverity.Error, operation: "ai-action.run", error });
+    if (error instanceof AiActionError) {
+      return { status: "failed", message: error.message };
+    }
+    return { status: "failed", message: "The AI action could not finish. Try again." };
   }
 
   return {
@@ -57,25 +63,28 @@ export function createAiActionSession(
         };
       }
       const controller = new AbortController();
+      let failure: ReturnType<typeof failed> | undefined;
       const execution = runner
         .run({
           ...input,
           configuration: { model: { providerId: model.providerId, modelId: model.modelId } },
         })
         .pipe(
-          Effect.map((text): AiActionResult =>
-            aiActionResultSchema.parse({ status: "completed", text }),
+          // Preserve cleanup failures before the Promise runner collapses Effect's cause.
+          Effect.onError((cause) =>
+            Effect.sync(() => {
+              if (Cause.hasInterruptsOnly(cause)) {
+                return;
+              }
+              if (cause.reasons.length === 1) {
+                failure = failed(Cause.squash(cause));
+                return;
+              }
+              failure = failed(
+                new AggregateError(Cause.prettyErrors(cause), "The AI action failed."),
+              );
+            }),
           ),
-          Effect.catchTag("AiActionError", (error) => {
-            if (error.kind !== "input" && error.kind !== "configuration") {
-              diagnostics.report({
-                severity: ErrorSeverity.Error,
-                operation: "ai-action.run",
-                error,
-              });
-            }
-            return Effect.succeed<AiActionResult>({ status: "failed", message: error.message });
-          }),
         );
       const result = Promise.resolve()
         .then(() => {
@@ -83,22 +92,20 @@ export function createAiActionSession(
           return runEffect(execution, { signal: controller.signal });
         })
         .then(
-          (outcome): AiActionResult => {
+          (text): AiActionResult => {
             if (controller.signal.aborted) {
               return { status: "cancelled" };
             }
-            return outcome;
+            return { status: "completed", text };
           },
           (cause: unknown): AiActionResult => {
+            if (failure) {
+              return failure;
+            }
             if (controller.signal.aborted) {
               return { status: "cancelled" };
             }
-            diagnostics.report({
-              severity: ErrorSeverity.Error,
-              operation: "ai-action.run",
-              error: cause,
-            });
-            return { status: "failed", message: "The AI action could not finish. Try again." };
+            return failed(cause);
           },
         )
         .finally(() => running.delete(input.executionId));
@@ -116,7 +123,7 @@ export function createAiActionSession(
     cancelAll,
     close() {
       closed = true;
-      cancelAll();
+      return cancelAll();
     },
   };
 }

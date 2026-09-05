@@ -44,6 +44,21 @@ describe("thread drafts across navigation", () => {
     client.clear();
   });
 
+  it("keeps unsent text out of server refetches", async () => {
+    const fetch = vi.fn().mockResolvedValue({ content: "Server data" });
+    const client = new QueryClient({ defaultOptions: { queries: { queryFn: fetch } } });
+    const draft = writeThreadDraft(client, "thread-a", "Unsent message");
+
+    await client.invalidateQueries({
+      queryKey: threadQueryPrefix("thread-a"),
+      refetchType: "all",
+    });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(readThreadDraft(client, "thread-a")).toBe(draft);
+    client.clear();
+  });
+
   it("preserves newer edits, including intentionally clearing the composer", () => {
     const client = new QueryClient();
     const submitted = writeThreadDraft(client, "thread-a", "First turn");

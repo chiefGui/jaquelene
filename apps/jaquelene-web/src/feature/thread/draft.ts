@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
+import { skipToken, type QueryClient } from "@tanstack/react-query";
 import { threadQueryPrefix } from "@/feature/cache-keys";
 
 export type ThreadDraft = Readonly<{ content: string }>;
@@ -18,6 +18,7 @@ export function writeThreadDraft(queryClient: QueryClient, threadId: string, con
   // Keep each edit's identity so a failed submission cannot overwrite a newer edit.
   const query = queryClient.getQueryCache().build<ThreadDraft>(queryClient, {
     queryKey: draftQueryKey(threadId),
+    queryFn: skipToken,
     gcTime: Infinity,
     structuralSharing: false,
   });

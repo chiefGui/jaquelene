@@ -38,7 +38,9 @@ function GeneralRoute() {
       <ContentPane.Viewport>
         <ContentPane.Body>
           <Item.Section aria-labelledby="campaign-heading">
-            <Item.Heading id="campaign-heading">Campaign</Item.Heading>
+            <Item.SectionHeader>
+              <Item.Heading id="campaign-heading">Campaign</Item.Heading>
+            </Item.SectionHeader>
 
             <Item.Group>
               <Item.Root>

@@ -120,9 +120,9 @@ const styles = stylex.create({
     minWidth: 0,
   },
   heading: {
-    color: colors.foregroundPrimary,
+    color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
+    fontWeight: 400,
     lineHeight: tokens.lineHeightSmall,
     textBox: "trim-both text",
   },
@@ -131,6 +131,7 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     margin: 0,
+    maxWidth: "48ch",
     textBox: "trim-both text",
   },
   groupSurface: {

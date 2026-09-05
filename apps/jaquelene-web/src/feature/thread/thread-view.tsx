@@ -38,6 +38,8 @@ import { threadLayout } from "./thread-layout.stylex";
 import { ThreadTimeline } from "./thread-timeline";
 import type { ThreadMessageEditSession } from "./thread-message-editor";
 import { deriveThreadViewState } from "./thread-view-state";
+import { settleThreadDraft } from "./draft";
+import { useThreadDraft } from "./use-thread-draft";
 
 type RetryStatus = "pending" | "failed" | null;
 
@@ -189,10 +191,10 @@ const ThreadComposer = memo(function ThreadComposer({
   composerControls,
 }: ThreadComposerProps) {
   const submitTurnMutation = useSubmitTurn(threadId);
-  const [draft, setDraft] = useState("");
+  const queryClient = useQueryClient();
+  const { draft, setDraft } = useThreadDraft(threadId);
   const [sendError, setSendError] = useState<string | null>(null);
   const acceptingSubmission = useRef(false);
-  const draftRevision = useRef(0);
   const composerInputId = useId();
   const sendErrorId = useId();
   const submissionBlocked = operationPending || configurationPending || interactionDisabled;
@@ -204,15 +206,14 @@ const ThreadComposer = memo(function ThreadComposer({
       return;
     }
 
-    const content = draft;
+    const content = draft.content;
 
     if (!content.trim()) {
       return;
     }
 
     setSendError(null);
-    const submittedRevision = draftRevision.current;
-    setDraft("");
+    const clearedDraft = setDraft("");
     acceptingSubmission.current = true;
 
     try {
@@ -222,10 +223,9 @@ const ThreadComposer = memo(function ThreadComposer({
         submittedAt: Date.now(),
         configuration: toRequestedModelConfiguration(configuration),
       });
+      settleThreadDraft(queryClient, threadId, clearedDraft);
     } catch (cause) {
-      setDraft((currentDraft) =>
-        draftRevision.current === submittedRevision ? content : currentDraft,
-      );
+      settleThreadDraft(queryClient, threadId, clearedDraft, draft);
       reportError("thread.turn.submit", cause);
       setSendError("Could not send the message.");
     } finally {
@@ -245,12 +245,11 @@ const ThreadComposer = memo(function ThreadComposer({
       <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
       <Composer.Input
         id={composerInputId}
-        value={draft}
+        value={draft.content}
         maxLength={messageMaxCodeUnits}
         aria-describedby={sendError ? sendErrorId : undefined}
         readOnly={interactionDisabled}
         onChange={(event) => {
-          draftRevision.current += 1;
           setDraft(event.currentTarget.value);
           setSendError(null);
         }}
@@ -272,7 +271,7 @@ const ThreadComposer = memo(function ThreadComposer({
             configurationPending ||
             interactionDisabled ||
             !configuration ||
-            !draft.trim()
+            !draft.content.trim()
           }
         />
       </Composer.Footer>

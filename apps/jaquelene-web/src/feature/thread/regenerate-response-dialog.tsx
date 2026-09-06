@@ -10,12 +10,14 @@ import {
   useFormValue,
 } from "@ariakit/react/form";
 import { useStoreState } from "@ariakit/react/store";
+import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   REGENERATION_INSTRUCTIONS_MAX_LENGTH,
   parseRegenerationInstructions,
 } from "@jaquelene/domain";
 import type { ModelConfigurationSelection } from "@jaquelene/ipc/renderer";
-import { Button, Field, Textarea } from "@jaquelene/ui";
+import { Button, Field, IconButton, Textarea } from "@jaquelene/ui";
 import { Dialog } from "@jaquelene/ui/dialog";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
@@ -94,7 +96,7 @@ export function RegenerateResponseDialog({
         initialFocus={input}
         aria-busy={busy || undefined}
         hideOnEscape={!busy}
-        hideOnInteractOutside={false}
+        hideOnInteractOutside={!busy}
       >
         <AriakitForm
           store={form}
@@ -102,12 +104,22 @@ export function RegenerateResponseDialog({
           validateOnBlur={hasSubmitted}
           validateOnChange={hasSubmitted}
         >
-          <Dialog.Heading {...stylex.props(styles.heading)}>Regenerate response</Dialog.Heading>
+          <div {...stylex.props(styles.header)}>
+            <Dialog.Heading {...stylex.props(styles.heading)}>Regenerate response</Dialog.Heading>
+            <Dialog.Dismiss
+              disabled={busy}
+              render={
+                <IconButton.Root type="button" size="small" aria-label="Close regeneration dialog">
+                  <IconButton.Icon render={<HugeiconsIcon icon={Cancel01Icon} />} />
+                </IconButton.Root>
+              }
+            />
+          </div>
           <Dialog.Description {...stylex.props(styles.description)}>
             Try another response if this one isn’t what you wanted.
           </Dialog.Description>
 
-          <Field.Root style={styles.field}>
+          <Field.Root style={[styles.field, styles.modelField]}>
             <FormLabel name="configuration" render={<Field.Label style={styles.label} />}>
               Model
             </FormLabel>
@@ -140,7 +152,7 @@ export function RegenerateResponseDialog({
               />
               <ModelPicker.Content style={styles.modelPopover} />
             </ModelPicker.Root>
-            <FormError name="configuration" render={<Field.Error />} />
+            <FormError name="configuration" render={<Field.Error style={styles.modelError} />} />
           </Field.Root>
 
           <Field.Root style={styles.field}>
@@ -180,6 +192,12 @@ export function RegenerateResponseDialog({
 
 const styles = stylex.create({
   dialog: { width: "32rem" },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "1rem",
+  },
   heading: {
     fontSize: tokens.fontSizeLarge,
     fontWeight: 600,
@@ -198,7 +216,14 @@ const styles = stylex.create({
     fontWeight: 400,
     textBox: "trim-both text",
   },
-  model: { width: "100%", minWidth: 0 },
+  modelField: {
+    display: "grid",
+    gridTemplateColumns: "auto minmax(0, 1fr)",
+    alignItems: "center",
+    columnGap: "1.5rem",
+  },
+  model: { justifySelf: "end", maxWidth: "100%", minWidth: 0 },
+  modelError: { gridColumn: "2", textAlign: "end" },
   modelPopover: { zIndex: 101 },
   input: { resize: "none" },
   status: {

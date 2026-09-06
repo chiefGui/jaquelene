@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./confirm-dialog": "./src/primitive/confirm-dialog.tsx",
+    "./control.stylex": "./src/primitive/control.stylex.ts",
     "./dialog": "./src/primitive/dialog.tsx",
     "./menu": "./src/primitive/menu.tsx",
     "./motion": "./src/primitive/motion.tsx",

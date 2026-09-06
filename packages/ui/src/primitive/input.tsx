@@ -1,7 +1,7 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { colors } from "../tokens.stylex";
+import { colors, tokens } from "../tokens.stylex";
 import { control } from "./control.stylex";
 
 type InputVariant = "filled" | "ghost";
@@ -25,7 +25,8 @@ const styles = stylex.create({
     appearance: "none",
     caretColor: colors.foregroundAccent,
     "::placeholder": {
-      color: colors.foregroundSecondary,
+      color: tokens.controlPlaceholderColor,
+      opacity: 1,
     },
   },
   ghost: {

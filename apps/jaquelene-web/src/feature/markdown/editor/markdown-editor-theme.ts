@@ -36,7 +36,7 @@ const editorTheme = EditorView.theme(
       backgroundColor: `${colors.backgroundTextSelection} !important`,
     },
     ".cm-placeholder": {
-      color: `color-mix(in oklch, ${colors.foregroundSecondary} 65%, transparent)`,
+      color: tokens.controlPlaceholderColor,
       fontStyle: "normal",
     },
     ".cm-panels": {

@@ -1,38 +1,67 @@
 ---
 name: polish
-description: Use only when explicitly requested to polish this task's code changes.
+description: Improve existing code through deletion, simplification, and extensibility.
 ---
 
 # Polish
 
-Your goal is to make the code materially better if possible. Be aggressive about quality, conservative about needless change.
+- Preserve intended behavior.
+- Stay within the requested scope.
+- Delete before adding.
+- Reduce complexity.
+- Apply OCP by default.
 
-## Scope
+## Cleanup
 
-The radius of this polish is limited to the code directly affected by the recent changes and their surroundings. Expand beyond them only when necessary to fix the design properly.
+- Remove dead code and unused dependencies.
+- Remove redundant state and duplicated logic.
+- Remove pass-through wrappers and unnecessary indirection.
+- Remove obsolete compatibility paths.
+- Fix root causes and remove their workarounds.
+- Remove checks duplicated by enforced contracts.
+- Remove commented-out code and stale comments.
+- Remove comments that restate the code.
 
-## Principles
+## Design
 
-Look for material improvements. Change the code only when they exist.
+- Hide implementation complexity behind small interfaces.
+- Keep related logic and knowledge together.
+- Keep dependencies explicit.
+- Eliminate abstractions whose removal reduces complexity.
+- Retain abstractions that prevent complexity from spreading into callers.
+- Minimize the knowledge and coordination required from callers.
+- Optimize for understandable code and localized changes.
 
-- No leakage. Keep boundaries clean and implementation details contained.
-- No bullshit comments. Keep only comments that explain non-obvious intent, constraints, or tradeoffs.
-- No bloat. Remove unnecessary code, ceremony, indirection, duplication, and accidental complexity.
-- Aesthetics matter. Awkward structure, noisy flow, or ugly code are design signals.
-- Weird, clunky, or overly verbose names usually indicate a design problem. Fix the design before naming around it.
-- Keep each fact, rule, and piece of state owned in one authoritative place. Eliminate competing sources of truth and synchronization logic.
-- Reduce unnecessary state, mutation, and hidden ordering dependencies.
-- Make invariants, contracts, and ownership obvious.
-- Prefer simple, clear, idiomatic code with strong local reasoning.
-- Use abstractions when they reduce complexity, protect boundaries, or make future changes cheaper. Avoid both premature abstraction and repeated feature-specific hacks.
-- Structure change so new behavior can usually be added without repeatedly modifying unrelated existing code. If every feature cuts across the same areas, improve the design.
-- Preserve behavior unless fixing a defect or materially improving the design requires otherwise.
-- Strengthen tests when needed to make meaningful changes safe.
-- Optimize for code that stays easy to change as the system grows.
-- If nothing can be materially improved, leave it alone.
+## Extensibility
 
-## Output
+- Prefer composition.
+- Keep core logic independent of concrete integrations.
+- Accept replaceable dependencies.
+- Centralize implementation wiring.
+- Support new implementations through existing contracts without modifying consumers.
+- Remove unnecessary coupling that blocks extension.
+- Require every interface, factory, and layer to provide a concrete capability.
 
-After polishing, give a concise, high-level bullet list of the material value delivered. Describe outcomes, not mechanical edits.
+## Tests
 
-If nothing materially improved, say so plainly.
+- Keep tests that catch real bugs.
+- Delete tests that check the same thing.
+- Test what the code does, not how it does it.
+- Fix flaky tests.
+- Add a test only when it catches a meaningful bug existing tests would miss.
+- Investigate failures; never delete tests just to make checks pass.
+
+## Verification
+
+- Verify the behavior affected by the changes.
+- Use the smallest set of existing checks that covers that behavior.
+
+## Completion report
+
+- Describe in plain language, focusing on value.
+- Keep it brief.
+- Use two sections:
+  - Better: benefits of the changes.
+  - Worse: drawbacks of the changes. State "None identified" when applicable.
+- Omit file inventories, implementation walkthroughs, and design-pattern names.
+- Support claimed benefits with evidence.

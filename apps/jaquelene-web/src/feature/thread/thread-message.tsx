@@ -1,4 +1,5 @@
 import TrashIcon from "@hugeicons/core-free-icons/TrashIcon";
+import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   GenerationFailureKind,
@@ -12,6 +13,7 @@ import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import { lazy, memo, Suspense, useState, type ReactNode } from "react";
 import { EditIcon, RegenerateIcon } from "@/primitive/icons";
+import { Backlight } from "@/primitive/backlight/backlight";
 import { Markdown } from "../markdown/markdown";
 import type { SubmitTurnVariables } from "./query";
 import { ThreadMessageDeleteConfirmation } from "./thread-message-delete-confirmation";
@@ -293,9 +295,11 @@ function MessageEditorFallback() {
 function MessageContent({
   editor,
   message,
+  regenerating,
 }: Readonly<{
   editor: ThreadMessageEditorProps | null;
   message: ThreadMessage;
+  regenerating: boolean;
 }>) {
   if (editor) {
     return (
@@ -306,7 +310,8 @@ function MessageContent({
   }
 
   return (
-    <div {...stylex.props(styles.bubble)}>
+    <div aria-busy={regenerating || undefined} {...stylex.props(styles.bubble)}>
+      {regenerating && <Backlight active />}
       <Markdown content={message.content} />
     </div>
   );
@@ -314,13 +319,7 @@ function MessageContent({
 
 function renderRegenerationState(regeneration: ThreadReplyRegenerationView) {
   if (regeneration?.status === "pending") {
-    return (
-      <div {...stylex.props(styles.replyState, styles.assistantReplyState)}>
-        <p role="status" {...stylex.props(styles.replyStatus)}>
-          Regenerating…
-        </p>
-      </div>
-    );
+    return <VisuallyHidden role="status">Regenerating response</VisuallyHidden>;
   }
 
   if (regeneration?.status === "failed") {
@@ -483,7 +482,11 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
 
   return (
     <MessageRoot fromUser={fromUser} reserveFooterSpace={reserveFooterSpace}>
-      <MessageContent message={message} editor={editor} />
+      <MessageContent
+        message={message}
+        editor={editor}
+        regenerating={regeneration?.status === "pending"}
+      />
       {footer}
     </MessageRoot>
   );
@@ -534,6 +537,8 @@ const styles = stylex.create({
     minHeight: tokens.controlHeightSmall,
   },
   bubble: {
+    isolation: "isolate",
+    position: "relative",
     backgroundColor: colors.backgroundNeutralSubtlest,
     borderColor: colors.borderSubtle,
     borderRadius: radii.content,

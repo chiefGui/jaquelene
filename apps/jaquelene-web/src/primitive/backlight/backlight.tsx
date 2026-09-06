@@ -13,30 +13,26 @@ import {
   type Frame,
   type FrameLoopHandle,
   type Gpu,
-  type Surface,
 } from "vgpu";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import composerBacklightShader from "./composer-backlight.wgsl";
+import backlightShader from "./backlight.wgsl";
+import { backlightResolution } from "./backlight-resolution";
 
 const backlightOutset = 48;
+const backlightFadeMs = 140;
 
-type ComposerBacklightMode = Readonly<{
+type BacklightMode = Readonly<{
   active: boolean;
   reducedMotion: boolean;
 }>;
 
-type ComposerBacklightColor = [number, number, number, number];
+type BacklightColor = [number, number, number, number];
 
-type ComposerBacklightPalette = [
-  ComposerBacklightColor,
-  ComposerBacklightColor,
-  ComposerBacklightColor,
-  ComposerBacklightColor,
-];
+type BacklightPalette = [BacklightColor, BacklightColor, BacklightColor, BacklightColor];
 
-type ComposerBacklightUniforms = {
+type BacklightUniforms = {
   params: {
-    resolution: number[];
+    resolution: [number, number];
     time: number;
     border_radius: number;
     outset: number;
@@ -48,22 +44,21 @@ type ComposerBacklightUniforms = {
   };
 };
 
-type ComposerBacklightAttachment = {
-  setMode(mode: ComposerBacklightMode): void;
+type BacklightAttachment = {
+  setMode(mode: BacklightMode): void;
   dispose(): void;
 };
 
-type ComposerBacklightEngine = {
+type BacklightEngine = {
   gpu: Gpu;
   effect: Effect;
-  uniforms: ComposerBacklightUniforms;
   format: GPUTextureFormat;
-  attachment: ComposerBacklightAttachment | undefined;
+  attachments: Set<BacklightAttachment>;
   stopErrors: () => void;
 };
 
-let engine: ComposerBacklightEngine | undefined;
-let engineRequest: Promise<ComposerBacklightEngine> | undefined;
+let engine: BacklightEngine | undefined;
+let engineRequest: Promise<BacklightEngine> | undefined;
 let engineEpoch = 0;
 
 function isAbortError(error: unknown) {
@@ -71,7 +66,7 @@ function isAbortError(error: unknown) {
 }
 
 function abortError() {
-  return new DOMException("Composer backlight initialization was canceled.", "AbortError");
+  return new DOMException("Backlight initialization was canceled.", "AbortError");
 }
 
 function reportBacklightError(operation: string, error: unknown) {
@@ -86,25 +81,10 @@ async function createEngine(epoch: number) {
     throw abortError();
   }
 
-  const stopErrors = gpu.onError((error) =>
-    reportBacklightError("composer.backlight.render", error),
-  );
-  const uniforms: ComposerBacklightUniforms = {
-    params: {
-      resolution: [1, 1],
-      time: 0,
-      border_radius: 1,
-      outset: 1,
-      palette_end: [0, 0, 0, 1],
-      palette_first_blend: [0, 0, 0, 1],
-      palette_second_blend: [0, 0, 0, 1],
-      palette_start: [0, 0, 0, 1],
-      pixel_scale: 1,
-    },
-  };
-  const backlightEffect = effect(gpu, composerBacklightShader, {
-    label: "composer loading backlight",
-    set: uniforms,
+  const stopErrors = gpu.onError((error) => reportBacklightError("backlight.render", error));
+  const backlightEffect = effect(gpu, backlightShader, {
+    label: "loading backlight",
+    set: createUniforms(),
   });
   const format = navigator.gpu.getPreferredCanvasFormat();
 
@@ -122,12 +102,11 @@ async function createEngine(epoch: number) {
     throw abortError();
   }
 
-  const created: ComposerBacklightEngine = {
+  const created: BacklightEngine = {
     gpu,
     effect: backlightEffect,
-    uniforms,
     format,
-    attachment: undefined,
+    attachments: new Set(),
     stopErrors,
   };
 
@@ -138,10 +117,12 @@ async function createEngine(epoch: number) {
 
     engine = undefined;
     engineRequest = undefined;
-    created.attachment?.dispose();
+    for (const attachment of created.attachments) {
+      attachment.dispose();
+    }
     created.stopErrors();
     reportBacklightError(
-      "composer.backlight.device-lost",
+      "backlight.device-lost",
       new Error(information.message || `WebGPU device was lost (${information.reason}).`),
     );
   });
@@ -187,30 +168,29 @@ function disposeEngine() {
   const current = engine;
   engine = undefined;
   engineRequest = undefined;
-  current?.attachment?.dispose();
+  if (current) {
+    for (const attachment of current.attachments) {
+      attachment.dispose();
+    }
+  }
   current?.stopErrors();
   current?.gpu.dispose();
 }
 
-function readGeometry(host: HTMLElement, canvasSurface: Surface) {
-  const radius = Number.parseFloat(getComputedStyle(host).borderTopLeftRadius);
-  const pixelScale = canvasSurface.dpr;
-
+function createUniforms(): BacklightUniforms {
   return {
-    borderRadius: (Number.isFinite(radius) ? radius : 0) * pixelScale,
-    outset: backlightOutset * pixelScale,
-    pixelScale,
+    params: {
+      resolution: [1, 1],
+      time: 0,
+      border_radius: 1,
+      outset: 1,
+      palette_end: [0, 0, 0, 1],
+      palette_first_blend: [0, 0, 0, 1],
+      palette_second_blend: [0, 0, 0, 1],
+      palette_start: [0, 0, 0, 1],
+      pixel_scale: 1,
+    },
   };
-}
-
-function getComposerHost(canvas: HTMLCanvasElement) {
-  const host = canvas.parentElement;
-
-  if (!(host instanceof HTMLFormElement)) {
-    throw new Error("The composer backlight canvas must be mounted directly inside its form.");
-  }
-
-  return host;
 }
 
 function readBacklightPalette(host: HTMLElement) {
@@ -230,7 +210,7 @@ function readBacklightPalette(host: HTMLElement) {
 
   if (!decoderContext) {
     probe.remove();
-    throw new Error("The composer backlight could not create a color decoder.");
+    throw new Error("The backlight could not create a color decoder.");
   }
 
   const context = decoderContext;
@@ -242,9 +222,9 @@ function readBacklightPalette(host: HTMLElement) {
     stylex.props(styles.paletteEnd).className,
   ];
 
-  function readColor(className: string | undefined): ComposerBacklightColor {
+  function readColor(className: string | undefined): BacklightColor {
     if (!className) {
-      throw new Error("The composer backlight palette is missing a theme token.");
+      throw new Error("The backlight palette is missing a theme token.");
     }
 
     probe.className = className;
@@ -255,7 +235,7 @@ function readBacklightPalette(host: HTMLElement) {
     const channels = context.getImageData(0, 0, 1, 1).data;
     const normalize = (channel: number | undefined) => {
       if (channel === undefined) {
-        throw new Error("The composer backlight received an invalid theme color.");
+        throw new Error("The backlight received an invalid theme color.");
       }
 
       return channel / 255;
@@ -275,79 +255,64 @@ function readBacklightPalette(host: HTMLElement) {
       readColor(paletteClassNames[1]),
       readColor(paletteClassNames[2]),
       readColor(paletteClassNames[3]),
-    ] satisfies ComposerBacklightPalette;
+    ] satisfies BacklightPalette;
   } finally {
     probe.remove();
   }
 }
 
-function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvasElement) {
-  currentEngine.attachment?.dispose();
-  const host = getComposerHost(canvas);
+function attachEngine(currentEngine: BacklightEngine, canvas: HTMLCanvasElement) {
+  const container = canvas.parentElement;
+  const host = container?.parentElement;
+
+  if (!container || !host) {
+    throw new Error("The backlight must be mounted inside its positioned host.");
+  }
 
   let active = false;
   let disposed = false;
   let failed = false;
-  let placementFrame: number | undefined;
+  let visible = false;
   let reducedMotion = false;
   let startedAt = 0;
   let loop: FrameLoopHandle | undefined;
+  const uniforms = createUniforms();
+  const params = uniforms.params;
   const [paletteStart, paletteFirstBlend, paletteSecondBlend, paletteEnd] =
     readBacklightPalette(host);
-  const params = currentEngine.uniforms.params;
-  params.palette_start.splice(0, 4, ...paletteStart);
-  params.palette_first_blend.splice(0, 4, ...paletteFirstBlend);
-  params.palette_second_blend.splice(0, 4, ...paletteSecondBlend);
-  params.palette_end.splice(0, 4, ...paletteEnd);
+  params.palette_start = paletteStart;
+  params.palette_first_blend = paletteFirstBlend;
+  params.palette_second_blend = paletteSecondBlend;
+  params.palette_end = paletteEnd;
+  params.outset = backlightOutset;
 
-  function updatePlacement() {
-    if (disposed) {
-      return;
+  const readGeometry = () => {
+    const style = getComputedStyle(host);
+    const radius = Number.parseFloat(style.borderTopLeftRadius);
+    params.border_radius = 0;
+    if (Number.isFinite(radius)) {
+      params.border_radius = radius;
     }
 
-    const bounds = host.getBoundingClientRect();
-    canvas.style.left = `${bounds.left - backlightOutset}px`;
-    canvas.style.top = `${bounds.top - backlightOutset}px`;
-    canvas.style.width = `${bounds.width + backlightOutset * 2}px`;
-    canvas.style.height = `${bounds.height + backlightOutset * 2}px`;
-  }
-
-  function placeCanvas() {
-    if (placementFrame !== undefined) {
-      cancelAnimationFrame(placementFrame);
-      placementFrame = undefined;
-    }
-
-    updatePlacement();
-  }
-
-  function schedulePlacement() {
-    if (active && placementFrame === undefined) {
-      placementFrame = requestAnimationFrame(() => {
-        placementFrame = undefined;
-        updatePlacement();
-      });
-    }
-  }
-
-  placeCanvas();
+    // Absolute positioning uses the padding box. Include the host's border too.
+    container.style.top = `-${style.borderTopWidth}`;
+    container.style.right = `-${style.borderRightWidth}`;
+    container.style.bottom = `-${style.borderBottomWidth}`;
+    container.style.left = `-${style.borderLeftWidth}`;
+    // Keep shader geometry in CSS pixels so limiting the raster size does not
+    // change the shape, border radius, or glow width.
+    params.resolution[0] = host.offsetWidth + backlightOutset * 2;
+    params.resolution[1] = host.offsetHeight + backlightOutset * 2;
+  };
+  readGeometry();
 
   const canvasSurface = surface(currentEngine.gpu, canvas, {
     alphaMode: "premultiplied",
+    autoResize: false,
     clearColor: [0, 0, 0, 0],
-    dpr: [1, 2],
+    size: [1, 1],
     format: currentEngine.format,
-    label: "composer loading backlight",
-  });
-
-  const stopResize = canvasSurface.onResize(({ width, height }) => {
-    const geometry = readGeometry(host, canvasSurface);
-    const params = currentEngine.uniforms.params;
-    params.resolution[0] = width;
-    params.resolution[1] = height;
-    params.border_radius = geometry.borderRadius;
-    params.outset = geometry.outset;
-    params.pixel_scale = geometry.pixelScale;
+    label: "loading backlight",
   });
 
   function stopLoop() {
@@ -356,10 +321,22 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
   }
 
   function render(currentFrame: Frame) {
-    currentEngine.uniforms.params.time = reducedMotion
-      ? 0.42
-      : Math.max(0, (performance.now() - startedAt) / 1000);
-    currentEngine.effect.set(currentEngine.uniforms);
+    canvasSurface.resize(
+      backlightResolution(
+        params.resolution[0],
+        params.resolution[1],
+        window.devicePixelRatio,
+        currentEngine.gpu.gpu.limits.maxTextureDimension2D,
+      ),
+    );
+    params.time = 0.42;
+    if (!reducedMotion) {
+      params.time = Math.max(0, (performance.now() - startedAt) / 1000);
+    }
+
+    // Each attachment submits its own frame, so shared shader bindings cannot
+    // overwrite another canvas's uniforms before its commands are submitted.
+    currentEngine.effect.set(uniforms);
     currentFrame.pass(canvasSurface, currentEngine.effect);
   }
 
@@ -370,7 +347,7 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
 
     failed = true;
     stopLoop();
-    reportBacklightError("composer.backlight.draw", error);
+    reportBacklightError("backlight.draw", error);
   }
 
   function renderOnce() {
@@ -384,7 +361,7 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
   function synchronize() {
     stopLoop();
 
-    if (disposed || failed || !active || document.visibilityState !== "visible") {
+    if (disposed || failed || !active || !visible || document.visibilityState !== "visible") {
       return;
     }
 
@@ -401,19 +378,28 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
     }
   }
 
-  const resizeObserver = new ResizeObserver(() => {
-    if (active && reducedMotion && document.visibilityState === "visible") {
-      renderOnce();
+  function resize() {
+    if (disposed) {
+      return;
     }
-  });
-  resizeObserver.observe(canvas);
-  const positionObserver = new ResizeObserver(schedulePlacement);
-  positionObserver.observe(host);
-  document.addEventListener("visibilitychange", synchronize);
-  document.addEventListener("scroll", schedulePlacement, { capture: true, passive: true });
-  window.addEventListener("resize", schedulePlacement, { passive: true });
+    readGeometry();
+    synchronize();
+  }
 
-  const attachment: ComposerBacklightAttachment = {
+  const resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(host, { box: "border-box" });
+  const visibilityObserver = new IntersectionObserver(
+    ([entry]) => {
+      visible = entry?.isIntersecting === true;
+      synchronize();
+    },
+    { rootMargin: `${backlightOutset}px` },
+  );
+  visibilityObserver.observe(host);
+  document.addEventListener("visibilitychange", synchronize);
+  window.addEventListener("resize", resize, { passive: true });
+
+  const attachment: BacklightAttachment = {
     setMode(mode) {
       if (active === mode.active && reducedMotion === mode.reducedMotion) {
         return;
@@ -421,7 +407,6 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
 
       if (!active && mode.active) {
         startedAt = performance.now();
-        placeCanvas();
       }
 
       active = mode.active;
@@ -436,31 +421,21 @@ function attachEngine(currentEngine: ComposerBacklightEngine, canvas: HTMLCanvas
       disposed = true;
       stopLoop();
       resizeObserver.disconnect();
-      positionObserver.disconnect();
+      visibilityObserver.disconnect();
       document.removeEventListener("visibilitychange", synchronize);
-      document.removeEventListener("scroll", schedulePlacement, true);
-      window.removeEventListener("resize", schedulePlacement);
-
-      if (placementFrame !== undefined) {
-        cancelAnimationFrame(placementFrame);
-      }
-
-      stopResize();
+      window.removeEventListener("resize", resize);
       canvasSurface.dispose();
       canvas.width = 1;
       canvas.height = 1;
-
-      if (currentEngine.attachment === attachment) {
-        currentEngine.attachment = undefined;
-      }
+      currentEngine.attachments.delete(attachment);
     },
   };
-  currentEngine.attachment = attachment;
+  currentEngine.attachments.add(attachment);
   return attachment;
 }
 
-function useComposerBacklight(canvas: HTMLCanvasElement | null, mode: ComposerBacklightMode) {
-  const attachment = useRef<ComposerBacklightAttachment>(undefined);
+function useBacklight(canvas: HTMLCanvasElement | null, mode: BacklightMode) {
+  const attachment = useRef<BacklightAttachment>(undefined);
   const latestMode = useRef(mode);
   latestMode.current = mode;
 
@@ -469,17 +444,32 @@ function useComposerBacklight(canvas: HTMLCanvasElement | null, mode: ComposerBa
       return;
     }
 
+    if (!mode.active) {
+      // Stop drawing immediately, but retain the last frame for the opacity fade.
+      attachment.current?.setMode(latestMode.current);
+      const timer = window.setTimeout(() => {
+        attachment.current?.dispose();
+        attachment.current = undefined;
+      }, backlightFadeMs);
+      return () => window.clearTimeout(timer);
+    }
+
+    if (attachment.current) {
+      attachment.current.setMode(latestMode.current);
+      return;
+    }
+
     const abort = new AbortController();
 
     void getEngine()
       .then((currentEngine) => {
         abort.signal.throwIfAborted();
-        let nextAttachment: ComposerBacklightAttachment;
+        let nextAttachment: BacklightAttachment;
 
         try {
           nextAttachment = attachEngine(currentEngine, canvas);
         } catch (error) {
-          reportBacklightError("composer.backlight.attach", error);
+          reportBacklightError("backlight.attach", error);
           return;
         }
 
@@ -488,12 +478,17 @@ function useComposerBacklight(canvas: HTMLCanvasElement | null, mode: ComposerBa
       })
       .catch((error: unknown) => {
         if (!isAbortError(error)) {
-          reportBacklightError("composer.backlight.initialize", error);
+          reportBacklightError("backlight.initialize", error);
         }
       });
 
     return () => {
       abort.abort();
+    };
+  }, [canvas, mode.active]);
+
+  useEffect(() => {
+    return () => {
       attachment.current?.dispose();
       attachment.current = undefined;
     };
@@ -504,51 +499,65 @@ function useComposerBacklight(canvas: HTMLCanvasElement | null, mode: ComposerBa
   }, [mode.active, mode.reducedMotion]);
 }
 
-export function ComposerBacklight({ active }: { active: boolean }) {
+/** Mount directly inside a positioned, isolated host; inherits its rounded shape. */
+export function Backlight({ active }: { active: boolean }) {
   const reducedMotion = useReducedMotion();
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const mode = { active, reducedMotion };
-  useComposerBacklight(canvas, mode);
+  useBacklight(canvas, mode);
 
   return (
-    <canvas
-      ref={setCanvas}
-      aria-hidden="true"
-      {...stylex.props(styles.canvas, active && styles.active, !reducedMotion && styles.transition)}
-    />
+    <div aria-hidden="true" {...stylex.props(styles.container)}>
+      <canvas
+        ref={setCanvas}
+        {...stylex.props(
+          styles.canvas,
+          active && styles.active,
+          !reducedMotion && styles.transition,
+        )}
+      />
+    </div>
   );
 }
 
 const styles = stylex.create({
-  canvas: {
-    height: 0,
-    left: 0,
-    opacity: 0,
+  // Contain scroll overflow while allowing the glow to paint beyond the host.
+  container: {
+    borderRadius: "inherit",
+    inset: 0,
+    overflow: "clip",
+    overflowClipMargin: `${backlightOutset}px`,
     pointerEvents: "none",
-    position: "fixed",
-    top: 0,
-    width: 0,
+    position: "absolute",
     zIndex: 0,
+  },
+  canvas: {
+    height: `calc(100% + ${backlightOutset * 2}px)`,
+    left: -backlightOutset,
+    opacity: 0,
+    position: "absolute",
+    top: -backlightOutset,
+    width: `calc(100% + ${backlightOutset * 2}px)`,
   },
   active: {
     opacity: 1,
   },
   transition: {
-    transitionDuration: "0.14s",
+    transitionDuration: `${backlightFadeMs}ms`,
     transitionProperty: "opacity",
     transitionTimingFunction: "cubic-bezier(0.2, 0, 0, 1)",
   },
   paletteStart: {
-    color: colors.effectComposerGlowStart,
+    color: colors.effectBacklightGlowStart,
   },
   paletteFirstBlend: {
-    color: colors.effectComposerGlowMiddleStart,
+    color: colors.effectBacklightGlowMiddleStart,
   },
   paletteSecondBlend: {
-    color: colors.effectComposerGlowMiddleEnd,
+    color: colors.effectBacklightGlowMiddleEnd,
   },
   paletteEnd: {
-    color: colors.effectComposerGlowEnd,
+    color: colors.effectBacklightGlowEnd,
   },
 });
 

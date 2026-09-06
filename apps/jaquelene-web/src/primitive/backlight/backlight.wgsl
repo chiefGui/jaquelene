@@ -1,4 +1,4 @@
-struct ComposerBacklightParams {
+struct BacklightParams {
   resolution: vec2f,
   time: f32,
   border_radius: f32,
@@ -10,7 +10,7 @@ struct ComposerBacklightParams {
   palette_end: vec4f,
 }
 
-@group(0) @binding(0) var<uniform> params: ComposerBacklightParams;
+@group(0) @binding(0) var<uniform> params: BacklightParams;
 
 const TAU: f32 = 6.28318530718;
 const PI: f32 = 3.14159265359;

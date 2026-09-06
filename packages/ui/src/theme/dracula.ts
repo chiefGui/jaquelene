@@ -96,8 +96,8 @@ export const draculaTheme = stylex.createTheme(colors, {
   effectThemePreviewGlow: "oklch(0.58172 0.22593 284.37)",
 
   // Composer
-  effectComposerGlowStart: "oklch(0.69616 0.20719 353.11)",
-  effectComposerGlowMiddleStart: "oklch(0.58172 0.22593 284.37)",
-  effectComposerGlowMiddleEnd: "oklch(0.6493 0.18797 287.7)",
-  effectComposerGlowEnd: "oklch(0.88229 0.13417 179.69)",
+  effectBacklightGlowStart: "oklch(0.69616 0.20719 353.11)",
+  effectBacklightGlowMiddleStart: "oklch(0.58172 0.22593 284.37)",
+  effectBacklightGlowMiddleEnd: "oklch(0.6493 0.18797 287.7)",
+  effectBacklightGlowEnd: "oklch(0.88229 0.13417 179.69)",
 } satisfies ThemeColorOverrides);

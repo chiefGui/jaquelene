@@ -100,10 +100,7 @@ export function deriveThreadViewState({
         generation.status === GenerationStatus.Failed
       ) {
         regeneration = { status: "failed", canRegenerate: true };
-      } else if (
-        generation?.status === GenerationStatus.Completed &&
-        generation.outputMessageId === message.id
-      ) {
+      } else if (generation?.status !== GenerationStatus.Pending) {
         regeneration = { status: "available", canRegenerate: true };
       }
     }

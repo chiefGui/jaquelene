@@ -77,6 +77,20 @@ describe("thread view state", () => {
     expect(state.messages[1]?.regeneration).toEqual({ status: "available", canRegenerate: true });
   });
 
+  it("allows regenerating narration that has no generation record", () => {
+    const current = page(GenerationStatus.Completed);
+    const state = deriveThreadViewState({
+      pages: [{ ...current, generations: [] }],
+      regenerationRequestMessageId: null,
+      retryActivity: null,
+      actionsAvailable: true,
+      hasModel: false,
+    });
+    expect(state.messages[1]?.regeneration).toEqual({ status: "available", canRegenerate: true });
+    expect(state.messages[0]?.regeneration).toBeNull();
+    expect(state.pendingGenerationIntent).toBeNull();
+  });
+
   it("tracks pending replies without adding inline message state", () => {
     const state = deriveThreadViewState({
       pages: [page(GenerationStatus.Pending)],

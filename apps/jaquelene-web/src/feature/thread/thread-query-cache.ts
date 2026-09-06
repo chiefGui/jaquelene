@@ -14,8 +14,13 @@ export type ThreadHistoryPageParam =
 export type ThreadQueryData = InfiniteData<ThreadMessagePage, ThreadHistoryPageParam>;
 export type ThreadTurnUpdate =
   | Readonly<{
-      type: "submission-accepted" | "reply-failed";
+      type: "submission-accepted";
       userMessage: ThreadMessage;
+      generation: TurnGeneration;
+    }>
+  | Readonly<{
+      type: "reply-failed";
+      sourceMessage: ThreadMessage;
       generation: TurnGeneration;
     }>
   | Readonly<{
@@ -29,7 +34,7 @@ export type ThreadTurnUpdate =
     }>
   | Readonly<{
       type: "reply-completed";
-      userMessage: ThreadMessage;
+      sourceMessage: ThreadMessage;
       assistantMessage: ThreadMessage;
       generation: TurnGeneration;
     }>;
@@ -547,12 +552,22 @@ function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
     );
   }
 
-  const { userMessage, generation } = update;
+  const { generation } = update;
+  let sourceMessage: ThreadMessage;
+  if (update.type === "submission-accepted") {
+    sourceMessage = update.userMessage;
+  } else {
+    sourceMessage = update.sourceMessage;
+  }
+  let expectedAuthor = ThreadMessageAuthor.User;
+  if (generation.intent === GenerationIntent.Regeneration) {
+    expectedAuthor = ThreadMessageAuthor.Assistant;
+  }
 
   if (
-    userMessage.threadId !== threadId ||
-    userMessage.author !== ThreadMessageAuthor.User ||
-    generation.turnId !== userMessage.turnId
+    sourceMessage.threadId !== threadId ||
+    sourceMessage.author !== expectedAuthor ||
+    generation.turnId !== sourceMessage.turnId
   ) {
     return false;
   }
@@ -569,10 +584,10 @@ function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
       return (
         generation.status === GenerationStatus.Completed &&
         update.assistantMessage.threadId === threadId &&
-        update.assistantMessage.turnId === userMessage.turnId &&
+        update.assistantMessage.turnId === sourceMessage.turnId &&
         update.assistantMessage.author === ThreadMessageAuthor.Assistant &&
         update.assistantMessage.id === generation.outputMessageId &&
-        update.assistantMessage.sequence > userMessage.sequence
+        update.assistantMessage.sequence > sourceMessage.sequence
       );
   }
 }
@@ -657,64 +672,67 @@ export function reconcileThreadTurn(
     };
   }
 
-  const userMessage =
-    update.type === "retry-accepted"
-      ? messages.find(
-          ({ author, turnId }) =>
-            author === ThreadMessageAuthor.User && turnId === update.generation.turnId,
-        )
-      : update.userMessage;
+  let sourceMessage: ThreadMessage | undefined;
+  if (update.type === "retry-accepted") {
+    sourceMessage = messages.find(
+      ({ author, turnId }) =>
+        author === ThreadMessageAuthor.User && turnId === update.generation.turnId,
+    );
+  } else if (update.type === "submission-accepted") {
+    sourceMessage = update.userMessage;
+  } else {
+    sourceMessage = update.sourceMessage;
+  }
 
-  if (!userMessage) {
+  if (!sourceMessage) {
     return RELOAD;
   }
 
-  const userIndex = messageIndexById.get(userMessage.id) ?? -1;
+  const sourceIndex = messageIndexById.get(sourceMessage.id) ?? -1;
   const latestMessage = messages.at(-1);
 
   if (
-    userIndex === -1 &&
+    isReplyCompletion(update) &&
+    currentGeneration?.id === update.generation.id &&
+    currentGeneration.status === GenerationStatus.Completed &&
+    latestMessage?.id === update.assistantMessage.id
+  ) {
+    return CURRENT;
+  }
+
+  if (
+    sourceIndex === -1 &&
     latestMessage !== undefined &&
-    userMessage.sequence <= latestMessage.sequence
+    sourceMessage.sequence <= latestMessage.sequence
   ) {
     return RELOAD;
   }
 
-  if (update.type === "retry-accepted" && userIndex !== messages.length - 1) {
+  if (update.type === "retry-accepted" && sourceIndex !== messages.length - 1) {
     return RELOAD;
   }
 
-  if (isReplyCompletion(update) && userIndex !== -1 && userIndex !== messages.length - 1) {
-    const currentAssistant = messages[userIndex + 1];
-    const replacesActiveReply =
-      update.generation.intent === GenerationIntent.Regeneration &&
-      userIndex === messages.length - 2 &&
-      currentAssistant?.author === ThreadMessageAuthor.Assistant &&
-      currentAssistant.turnId === userMessage.turnId;
-
-    if (!replacesActiveReply) {
+  if (sourceMessage.author === ThreadMessageAuthor.Assistant) {
+    // A replacement can settle with only its source response loaded; its player
+    // message may live outside this bounded history window.
+    if (sourceIndex !== messages.length - 1 || sourceIndex === -1) {
       return RELOAD;
     }
-
-    messages.pop();
-    messageIndexById.delete(currentAssistant.id);
-  }
-
-  function upsertMessage(message: ThreadMessage) {
-    const index = messageIndexById.get(message.id);
-
-    if (index === undefined) {
-      messageIndexById.set(message.id, messages.length);
-      messages.push(message);
-    } else {
-      messages[index] = message;
+    if (isReplyCompletion(update)) {
+      messages[sourceIndex] = update.assistantMessage;
     }
-  }
-
-  upsertMessage(userMessage);
-
-  if (isReplyCompletion(update)) {
-    upsertMessage(update.assistantMessage);
+  } else {
+    if (isReplyCompletion(update) && sourceIndex !== -1 && sourceIndex !== messages.length - 1) {
+      return RELOAD;
+    }
+    if (sourceIndex === -1) {
+      messages.push(sourceMessage);
+    } else {
+      messages[sourceIndex] = sourceMessage;
+    }
+    if (isReplyCompletion(update)) {
+      messages.push(update.assistantMessage);
+    }
   }
 
   generationByTurn.set(update.generation.turnId, update.generation);

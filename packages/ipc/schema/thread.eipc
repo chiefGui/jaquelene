@@ -190,13 +190,13 @@ structure TurnSubmission {
 }
 
 structure FailedReply {
-  userMessage: ThreadMessage
+  sourceMessage: ThreadMessage
   generation: TurnGeneration
   threadActivity: ThreadActivity
 }
 
 structure CompletedReply {
-  userMessage: ThreadMessage
+  sourceMessage: ThreadMessage
   assistantMessage: ThreadMessage
   generation: TurnGeneration
   threadActivity: ThreadActivity

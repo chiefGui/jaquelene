@@ -1,5 +1,5 @@
 import { Effect, Exit, FiberSet, Scope } from "effect";
-import type { Generation, TurnAcceptance, TurnSettlement } from "@jaquelene/backend";
+import type { Generation, TurnAcceptance, GenerationSettlement } from "@jaquelene/backend";
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
 import {
@@ -19,8 +19,8 @@ import type {
 import type { WebFrameMain } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-type CompletedTurnSettlement = Extract<TurnSettlement, { outcome: "completed" }>;
-type FailedTurnSettlement = Extract<TurnSettlement, { outcome: "failed" }>;
+type CompletedGenerationSettlement = Extract<GenerationSettlement, { outcome: "completed" }>;
+type FailedGenerationSettlement = Extract<GenerationSettlement, { outcome: "failed" }>;
 
 const implementations = vi.hoisted(() => ({
   threads: undefined as IThreadsImpl | undefined,
@@ -152,8 +152,8 @@ function createTurnState(intent: Generation["intent"] = "reply") {
     content: "Hi",
     createdAt: 102,
   };
-  const completed: CompletedTurnSettlement = {
-    ...acceptance,
+  const completed: CompletedGenerationSettlement = {
+    sourceMessage: acceptance.userMessage,
     outcome: "completed",
     generation: {
       ...pendingGeneration,
@@ -169,15 +169,20 @@ function createTurnState(intent: Generation["intent"] = "reply") {
   return { acceptance, completed };
 }
 
+function toGenerationAcceptance({ userMessage, ...acceptance }: TurnAcceptance) {
+  return { ...acceptance, sourceMessage: userMessage };
+}
+
 function failedSettlement(
   failureKind: NonNullable<Generation["failureKind"]>,
   cause: unknown,
   intent: Generation["intent"] = "reply",
-): FailedTurnSettlement {
+): FailedGenerationSettlement {
   const { acceptance } = createTurnState(intent);
 
   return {
-    ...acceptance,
+    sourceMessage: acceptance.userMessage,
+    threadActivity: acceptance.threadActivity,
     outcome: "failed",
     generation: {
       ...acceptance.generation,
@@ -338,8 +343,8 @@ describe("thread IPC", () => {
 
   it("returns pending acceptance and dispatches committed settlement separately", async () => {
     const { acceptance, completed } = createTurnState();
-    let settle!: (settlement: TurnSettlement) => void;
-    const settlement = new Promise<TurnSettlement>((resolve) => {
+    let settle!: (settlement: GenerationSettlement) => void;
+    const settlement = new Promise<GenerationSettlement>((resolve) => {
       settle = resolve;
     });
     const listForThread = vi.fn<ThreadMessagingTurns["listForThread"]>(() => ({
@@ -360,7 +365,7 @@ describe("thread IPC", () => {
       submit,
       retry: vi.fn(() =>
         Effect.succeed({
-          acceptance,
+          acceptance: toGenerationAcceptance(acceptance),
           settlement: Effect.promise(() => settlement),
           cancel: Effect.void,
         }),
@@ -442,7 +447,7 @@ describe("thread IPC", () => {
     await vi.waitFor(() => expect(implementations.dispatchReplyCompleted).toHaveBeenCalledOnce());
 
     expect(implementations.dispatchReplyCompleted).toHaveBeenCalledWith({
-      userMessage: page.messages[0],
+      sourceMessage: page.messages[0],
       generation: expect.objectContaining({
         id: completed.generation.id,
         intent: GenerationIntent.Reply,
@@ -457,7 +462,7 @@ describe("thread IPC", () => {
 
   it("publishes a superseded reply when its completion is not active", async () => {
     const { acceptance, completed } = createTurnState();
-    const inactiveCompletion: CompletedTurnSettlement = {
+    const inactiveCompletion: CompletedGenerationSettlement = {
       ...completed,
       assistantActivated: false,
     };
@@ -495,7 +500,7 @@ describe("thread IPC", () => {
     const cause = new Error(`${failureKind} failed`);
     const failed = failedSettlement(failureKind, cause);
     const acceptance: TurnAcceptance = {
-      userMessage: failed.userMessage,
+      userMessage: failed.sourceMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
       threadActivity: failed.threadActivity,
     };
@@ -508,7 +513,7 @@ describe("thread IPC", () => {
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
     await requireImplementations().turns.submit({
-      threadId: failed.userMessage.threadId,
+      threadId: failed.sourceMessage.threadId,
       content: "Hello",
       configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
@@ -526,13 +531,13 @@ describe("thread IPC", () => {
     const cause = new Error("Reply preparation failed");
     const failed = failedSettlement("preparation", cause, "retry");
     const acceptance: TurnAcceptance = {
-      userMessage: failed.userMessage,
+      userMessage: failed.sourceMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
       threadActivity: failed.threadActivity,
     };
     const retry = vi.fn<ThreadMessagingTurns["retry"]>(() =>
       Effect.succeed({
-        acceptance,
+        acceptance: toGenerationAcceptance(acceptance),
         cancel: Effect.void,
         settlement: Effect.succeed(failed),
       }),
@@ -545,12 +550,12 @@ describe("thread IPC", () => {
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
     const accepted = await requireImplementations().turns.retry({
-      turnId: failed.userMessage.turnId,
+      turnId: failed.sourceMessage.turnId,
       configuration,
     });
 
     expect(retry).toHaveBeenCalledWith({
-      turnId: failed.userMessage.turnId,
+      turnId: failed.sourceMessage.turnId,
       configuration,
     });
     expect(accepted.status).toBe("pending");
@@ -571,7 +576,7 @@ describe("thread IPC", () => {
       }
       const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(() =>
         Effect.succeed({
-          acceptance,
+          acceptance: toGenerationAcceptance(acceptance),
           cancel: Effect.void,
           settlement: Effect.succeed(completed),
         }),
@@ -625,13 +630,13 @@ describe("thread IPC", () => {
     const cause = new Error("Reply preparation failed");
     const failed = failedSettlement("preparation", cause, "regeneration");
     const acceptance: TurnAcceptance = {
-      userMessage: failed.userMessage,
+      userMessage: failed.sourceMessage,
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
       threadActivity: failed.threadActivity,
     };
     const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(() =>
       Effect.succeed({
-        acceptance,
+        acceptance: toGenerationAcceptance(acceptance),
         cancel: Effect.void,
         settlement: Effect.succeed(failed),
       }),
@@ -682,7 +687,7 @@ describe("thread IPC", () => {
   it("does not diagnose interruption as an application failure", async () => {
     const interrupted = failedSettlement("interrupted", new Error("Backend is closing"));
     const acceptance: TurnAcceptance = {
-      userMessage: interrupted.userMessage,
+      userMessage: interrupted.sourceMessage,
       generation: {
         ...interrupted.generation,
         status: "pending",
@@ -704,7 +709,7 @@ describe("thread IPC", () => {
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
     await requireImplementations().turns.submit({
-      threadId: interrupted.userMessage.threadId,
+      threadId: interrupted.sourceMessage.threadId,
       content: "Hello",
       configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
     });
@@ -741,8 +746,8 @@ describe("thread IPC", () => {
 
   it("delivers an in-flight settlement to a replacement renderer", async () => {
     const { acceptance, completed } = createTurnState();
-    let settle!: (settlement: TurnSettlement) => void;
-    const settlement = new Promise<TurnSettlement>((resolve) => {
+    let settle!: (settlement: GenerationSettlement) => void;
+    const settlement = new Promise<GenerationSettlement>((resolve) => {
       settle = resolve;
     });
     const backendTurns = createBackendTurnsStub({

@@ -98,11 +98,12 @@ function pendingTurn(
   };
 }
 
-function failedTurn(sequence: number): FailedReply {
+function failedTurn(sequence: number): FailedReply & TurnSubmission {
   const pending = pendingTurn(sequence);
 
   return {
     ...pending,
+    sourceMessage: pending.userMessage,
     generation: {
       ...pending.generation,
       status: GenerationStatus.Failed,
@@ -112,7 +113,10 @@ function failedTurn(sequence: number): FailedReply {
   };
 }
 
-function completedTurn(acceptance: TurnSubmission, sequence: number): CompletedReply {
+function completedTurn(
+  acceptance: TurnSubmission,
+  sequence: number,
+): CompletedReply & TurnSubmission {
   const assistantMessage: ThreadMessage = {
     id: `message-${sequence}`,
     threadId,
@@ -125,6 +129,7 @@ function completedTurn(acceptance: TurnSubmission, sequence: number): CompletedR
 
   return {
     ...acceptance,
+    sourceMessage: acceptance.userMessage,
     generation: {
       id: acceptance.generation.id,
       turnId: acceptance.generation.turnId,
@@ -525,7 +530,10 @@ describe("thread query cache", () => {
       },
       threadActivity: original.threadActivity,
     };
-    const regenerated = completedTurn(regenerationAcceptance, 4);
+    const regenerated = {
+      ...completedTurn(regenerationAcceptance, 4),
+      sourceMessage: original.assistantMessage,
+    };
     const data: ThreadQueryData = {
       pages: [page([original.userMessage, original.assistantMessage], [original.generation])],
       pageParams: [latestThreadHistoryPageParam],
@@ -571,13 +579,54 @@ describe("thread query cache", () => {
     expect(
       requireUpdated(pending, {
         type: "reply-failed",
-        userMessage: original.userMessage,
+        sourceMessage: original.assistantMessage,
         generation: failedGeneration,
       }),
     ).toEqual({
       pages: [page([original.userMessage, original.assistantMessage], [failedGeneration])],
       pageParams: [latestThreadHistoryPageParam],
     });
+  });
+
+  it("reconciles regeneration when only its source narration is loaded", () => {
+    const original = completedTurn(pendingTurn(1), 2);
+    const regenerated = {
+      ...completedTurn(
+        {
+          userMessage: original.userMessage,
+          generation: {
+            ...original.generation,
+            id: "regeneration",
+            intent: GenerationIntent.Regeneration,
+            status: GenerationStatus.Pending,
+            startedAt: 3,
+          },
+          threadActivity: original.threadActivity,
+        },
+        4,
+      ),
+      sourceMessage: original.assistantMessage,
+    };
+    const data: ThreadQueryData = {
+      pages: [
+        page([original.assistantMessage], [original.generation], {
+          olderCursor: original.userMessage.id,
+          messageCountLimit: 1,
+        }),
+      ],
+      pageParams: [latestThreadHistoryPageParam],
+    };
+
+    const settled = requireUpdated(data, { type: "reply-completed", ...regenerated });
+    expect(settled.pages[0]?.messages).toEqual([regenerated.assistantMessage]);
+    expect(settled.pages[0]?.olderCursor).toBe(original.userMessage.id);
+    expect(settled.pages[0]?.generations).toEqual([regenerated.generation]);
+    expect(
+      reconcileThreadTurn(settled, threadId, {
+        type: "reply-completed",
+        ...regenerated,
+      }),
+    ).toEqual({ outcome: "current" });
   });
 
   it("does not downgrade a fast settlement when pending acceptance arrives later", () => {
@@ -723,7 +772,11 @@ describe("thread query cache", () => {
         ...acceptance,
         generation: { ...acceptance.generation, intent: GenerationIntent.Retry },
       },
-      { type: "reply-failed", ...acceptance },
+      {
+        type: "reply-failed",
+        sourceMessage: acceptance.userMessage,
+        generation: acceptance.generation,
+      },
       {
         type: "reply-completed",
         ...completion,

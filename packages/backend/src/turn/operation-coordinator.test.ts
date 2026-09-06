@@ -16,14 +16,13 @@ describe("thread operation coordinator", () => {
       `Thread "${threadId}" already has an active operation.`,
     );
 
-    submission.generating(turnId, generationId, "reply");
+    submission.generating(generationId, "reply");
     expect(coordinator.inspect(threadId)).toEqual({
       state: "generating",
       intent: "reply",
-      turnId,
       generationId,
     });
-    expect(() => submission.generating(turnId, generationId, "reply")).toThrow(
+    expect(() => submission.generating(generationId, "reply")).toThrow(
       `Thread "${threadId}" operation is already generating.`,
     );
 

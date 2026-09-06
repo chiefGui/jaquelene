@@ -147,5 +147,7 @@ export type {
   TurnAcceptance,
   TurnOperation,
   ThreadOperationInspection,
-  TurnSettlement,
+  GenerationAcceptance,
+  GenerationOperation,
+  GenerationSettlement,
 } from "#backend/turn/turns";

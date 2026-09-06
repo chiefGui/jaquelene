@@ -25,6 +25,7 @@ import { narratorPromptModule } from "#backend/narrator/module";
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
 import { threadTable } from "#backend/thread/schema";
 import {
+  appendAssistantMessageInTransaction,
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
   THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
@@ -401,7 +402,6 @@ describe("turns", () => {
     expect(turns.inspect(thread.id)).toEqual({
       state: "generating",
       intent: "reply",
-      turnId: operation.acceptance.userMessage.turnId,
       generationId: operation.acceptance.generation.id,
     });
     expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
@@ -419,7 +419,7 @@ describe("turns", () => {
     }
 
     expect(settlement).toEqual({
-      ...operation.acceptance,
+      sourceMessage: operation.acceptance.userMessage,
       outcome: "completed",
       generation: expect.objectContaining({ status: "completed" }),
       assistantMessage: expect.objectContaining({
@@ -498,18 +498,18 @@ describe("turns", () => {
 
     const pendingRetry = Effect.runPromise(
       turns.retry({
-        turnId: failed.userMessage.turnId,
+        turnId: failed.sourceMessage.turnId,
         configuration,
       }),
     );
     expect(turns.inspect(thread.id)).toEqual({
       state: "retrying",
-      turnId: failed.userMessage.turnId,
+      turnId: failed.sourceMessage.turnId,
     });
 
     const retriedOperation = await pendingRetry;
 
-    expect(retriedOperation.acceptance.userMessage).toEqual(failed.userMessage);
+    expect(retriedOperation.acceptance.sourceMessage).toEqual(failed.sourceMessage);
     expect(retriedOperation.acceptance.generation).toEqual(
       expect.objectContaining({ intent: "retry", status: "pending" }),
     );
@@ -517,7 +517,6 @@ describe("turns", () => {
     expect(turns.inspect(thread.id)).toEqual({
       state: "generating",
       intent: "retry",
-      turnId: retriedOperation.acceptance.userMessage.turnId,
       generationId: retriedOperation.acceptance.generation.id,
     });
 
@@ -575,7 +574,7 @@ describe("turns", () => {
 
       const regeneration = await pendingRegeneration;
 
-      expect(regeneration.acceptance.userMessage).toEqual(submission.acceptance.userMessage);
+      expect(regeneration.acceptance.sourceMessage).toEqual(original.assistantMessage);
       expect(regeneration.acceptance.generation).toEqual(
         expect.objectContaining({ intent: "regeneration", status: "pending" }),
       );
@@ -583,7 +582,6 @@ describe("turns", () => {
       expect(turns.inspect(thread.id)).toEqual({
         state: "generating",
         intent: "regeneration",
-        turnId: submission.acceptance.userMessage.turnId,
         generationId: regeneration.acceptance.generation.id,
       });
       expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
@@ -864,6 +862,45 @@ describe("turns", () => {
     );
   });
 
+  it("regenerates authored narration without inventing an earlier generation", async () => {
+    const generate = vi.fn<TestGenerate>(async () => ({ text: "Replacement narration" }));
+    const { database, threads, turns } = await openTurnEnvironment(generate, () => 100);
+    const thread = threads.create();
+    const input = threads.startTurn(thread.id, "Begin the voyage.");
+    const { message: source } = database.transaction((transaction) =>
+      appendAssistantMessageInTransaction(transaction, {
+        threadId: thread.id,
+        turnId: input.turn.id,
+        parentMessageId: input.message.id,
+        activateIfMessageId: input.message.id,
+        content: "The ship leaves at dawn.",
+        createdAt: 100,
+      }),
+    );
+    expect(database.select().from(generationTable).all()).toEqual([]);
+
+    const operation = await Effect.runPromise(
+      turns.regenerate({
+        assistantMessageId: source.id,
+        instructions: "Make it ominous.",
+        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+      }),
+    );
+    expect(operation.acceptance.sourceMessage).toEqual(source);
+    const settlement = await Effect.runPromise(operation.settlement);
+    expect(settlement).toMatchObject({
+      outcome: "completed",
+      sourceMessage: source,
+      assistantMessage: { content: "Replacement narration", parentMessageId: input.message.id },
+    });
+    expect(generate.mock.calls[0]?.[0].input.requestMessages?.[0]).toEqual({
+      role: "assistant",
+      content: source.content,
+    });
+    expect(database.select().from(generationTable).all()).toHaveLength(1);
+    expect(threads.getMessage(source.id)).toEqual(source);
+  });
+
   it("rejects regeneration when the selected response is not the active thread head", async () => {
     const generate = vi.fn<TestGenerate>(async ({ input }) => ({
       text: `Reply ${input.dialogue.length}`,
@@ -1067,7 +1104,7 @@ describe("turns", () => {
         },
         listLatestForTurns: generationEngine.listLatestForTurns,
         resolveConfiguration: generationEngine.resolveConfiguration,
-        executeAcceptedReply() {
+        executeAccepted() {
           throw new Error("Generation must not be scheduled after failed acceptance.");
         },
       }),
@@ -1112,7 +1149,7 @@ describe("turns", () => {
         acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
         listLatestForTurns: generationEngine.listLatestForTurns,
         resolveConfiguration: generationEngine.resolveConfiguration,
-        executeAcceptedReply: () =>
+        executeAccepted: () =>
           Effect.tryPromise({ try: () => settlement.promise, catch: (cause) => cause }).pipe(
             Effect.orDie,
           ),
@@ -1129,7 +1166,6 @@ describe("turns", () => {
     expect(turns.inspect(thread.id)).toEqual({
       state: "generating",
       intent: "reply",
-      turnId: operation.acceptance.userMessage.turnId,
       generationId: operation.acceptance.generation.id,
     });
     settlement.reject(settlementFailure);

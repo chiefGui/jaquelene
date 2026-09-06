@@ -1,4 +1,5 @@
 import { rm } from "node:fs/promises";
+import { Clock, Effect, type Scope } from "effect";
 import { DatabaseSync } from "node:sqlite";
 import { getDatabaseStoragePaths } from "#backend/database/database";
 import type {
@@ -104,12 +105,6 @@ function open(path: string) {
   }
 }
 
-async function removeCacheDatabase(path: string) {
-  await Promise.all(
-    getDatabaseStoragePaths(path).map((ownedPath) => rm(ownedPath, { force: true })),
-  );
-}
-
 function transaction<Result>(database: DatabaseSync, operation: () => Result) {
   database.exec("BEGIN IMMEDIATE;");
 
@@ -148,9 +143,16 @@ function selectorClause(selector: CacheSelector) {
   }
 
   return {
-    sql: clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "",
+    sql: whereClause(clauses),
     values,
   };
+}
+
+function whereClause(clauses: readonly string[]) {
+  if (clauses.length === 0) {
+    return "";
+  }
+  return ` WHERE ${clauses.join(" AND ")}`;
 }
 
 function readCounts(database: DatabaseSync, selector?: CacheSelector) {
@@ -178,51 +180,74 @@ export function getCacheStoragePaths(path: string) {
   return getDatabaseStoragePaths(path);
 }
 
-export async function openSqliteCacheStore(
+export const openSqliteCacheStore = Effect.fn("SqliteCacheStore.open")(function* (
   path: string,
   options: SqliteCacheStoreOptions,
-): Promise<CacheStore> {
+): Effect.fn.Return<CacheStore, unknown, Scope.Scope> {
   requireLimit(options.maxEntries, "The persistent cache entry limit");
   requireLimit(options.maxBytes, "The persistent cache byte limit");
-
-  let database: DatabaseSync;
-
-  try {
-    database = open(path);
-  } catch (error) {
-    reportFailure(options, { operation: "open", error });
-
-    try {
-      await removeCacheDatabase(path);
-      database = open(path);
-      reportFailure(options, {
-        operation: "recover",
-        error: new Error("The replaceable cache database was corrupt and has been recreated.", {
-          cause: error,
-        }),
-      });
-    } catch (recoveryError) {
-      throw new AggregateError(
-        [error, recoveryError],
-        "The cache database could not be opened or recreated.",
-      );
-    }
-  }
-
-  let closed = false;
+  const clock = yield* Clock.Clock;
+  const acquire = Effect.try({ try: () => open(path), catch: (cause) => cause }).pipe(
+    Effect.catch((error) =>
+      Effect.gen(function* () {
+        reportFailure(options, { operation: "open", error });
+        yield* Effect.forEach(
+          getDatabaseStoragePaths(path),
+          (ownedPath) =>
+            Effect.tryPromise({
+              try: () => rm(ownedPath, { force: true }),
+              catch: (cause) => cause,
+            }),
+          { concurrency: "unbounded", discard: true },
+        );
+        const database = yield* Effect.try({ try: () => open(path), catch: (cause) => cause });
+        reportFailure(options, {
+          operation: "recover",
+          error: new Error("The replaceable cache database was corrupt and has been recreated.", {
+            cause: error,
+          }),
+        });
+        return database;
+      }).pipe(
+        Effect.mapError(
+          (recoveryError) =>
+            new AggregateError(
+              [error, recoveryError],
+              "The cache database could not be opened or recreated.",
+            ),
+        ),
+      ),
+    ),
+  );
+  const database = yield* Effect.acquireRelease(acquire, (database) =>
+    Effect.try({
+      try: () => {
+        try {
+          database.exec("PRAGMA optimize;");
+        } finally {
+          database.close();
+        }
+      },
+      catch: (error) => {
+        reportFailure(options, { operation: "close", error });
+        return error;
+      },
+    }).pipe(Effect.orDie),
+  );
 
   function assertOpen() {
-    if (closed) {
+    if (!database.isOpen) {
       throw new Error("Cache store is closed.");
     }
   }
-
   return {
-    async read(address: CacheAddress) {
-      assertOpen();
-      const row = database
-        .prepare(
-          `SELECT
+    read: (address: CacheAddress) =>
+      Effect.try({
+        try: () => {
+          assertOpen();
+          const row = database
+            .prepare(
+              `SELECT
              namespace,
              scope,
              cache_key AS cacheKey,
@@ -234,38 +259,44 @@ export async function openSqliteCacheStore(
              revision
            FROM cache_entries
            WHERE namespace = ? AND scope = ? AND cache_key = ?`,
-        )
-        .get(address.namespace, address.scope, address.key) as StoredRow | undefined;
+            )
+            .get(address.namespace, address.scope, address.key) as StoredRow | undefined;
 
-      if (!row) {
-        return undefined;
-      }
+          if (!row) {
+            return undefined;
+          }
 
-      return {
-        namespace: row.namespace,
-        scope: row.scope,
-        key: row.cacheKey,
-        codecVersion: row.codecVersion,
-        payload: new Uint8Array(row.payload),
-        payloadBytes: row.payloadBytes,
-        storedAt: row.storedAt,
-        discardAt: row.discardAt,
-        revision: row.revision,
-      } satisfies StoredCacheEntry;
-    },
+          return {
+            namespace: row.namespace,
+            scope: row.scope,
+            key: row.cacheKey,
+            codecVersion: row.codecVersion,
+            payload: new Uint8Array(row.payload),
+            payloadBytes: row.payloadBytes,
+            storedAt: row.storedAt,
+            discardAt: row.discardAt,
+            revision: row.revision,
+          } satisfies StoredCacheEntry;
+        },
+        catch: (cause) => cause,
+      }),
 
-    async write(entry) {
-      assertOpen();
+    write: (entry: StoredCacheEntry) =>
+      Effect.try({
+        try: () => {
+          assertOpen();
 
-      if (entry.payloadBytes > options.maxBytes) {
-        throw new RangeError("A cache entry cannot exceed the persistent cache byte limit.");
-      }
+          if (entry.payloadBytes > options.maxBytes) {
+            throw new RangeError("A cache entry cannot exceed the persistent cache byte limit.");
+          }
 
-      transaction(database, () => {
-        database.prepare("DELETE FROM cache_entries WHERE discard_at <= ?").run(Date.now());
-        database
-          .prepare(
-            `INSERT INTO cache_entries (
+          transaction(database, () => {
+            database
+              .prepare("DELETE FROM cache_entries WHERE discard_at <= ?")
+              .run(clock.currentTimeMillisUnsafe());
+            database
+              .prepare(
+                `INSERT INTO cache_entries (
                namespace,
                scope,
                cache_key,
@@ -283,101 +314,105 @@ export async function openSqliteCacheStore(
                stored_at = excluded.stored_at,
                discard_at = excluded.discard_at,
                revision = excluded.revision`,
-          )
-          .run(
-            entry.namespace,
-            entry.scope,
-            entry.key,
-            entry.codecVersion,
-            entry.payload,
-            entry.payloadBytes,
-            entry.storedAt,
-            entry.discardAt,
-            entry.revision,
-          );
+              )
+              .run(
+                entry.namespace,
+                entry.scope,
+                entry.key,
+                entry.codecVersion,
+                entry.payload,
+                entry.payloadBytes,
+                entry.storedAt,
+                entry.discardAt,
+                entry.revision,
+              );
 
-        const candidates = database
-          .prepare(
-            `SELECT namespace, scope, cache_key AS cacheKey, payload_bytes AS payloadBytes
+            const candidates = database
+              .prepare(
+                `SELECT namespace, scope, cache_key AS cacheKey, payload_bytes AS payloadBytes
              FROM cache_entries
              ORDER BY stored_at ASC, namespace ASC, scope ASC, cache_key ASC`,
-          )
-          .all() as Array<Pick<StoredRow, "namespace" | "scope" | "cacheKey" | "payloadBytes">>;
-        let entryCount = candidates.length;
-        let logicalBytes = candidates.reduce(
-          (total, candidate) => total + candidate.payloadBytes,
-          0,
-        );
+              )
+              .all() as Array<Pick<StoredRow, "namespace" | "scope" | "cacheKey" | "payloadBytes">>;
+            let entryCount = candidates.length;
+            let logicalBytes = candidates.reduce(
+              (total, candidate) => total + candidate.payloadBytes,
+              0,
+            );
 
-        for (const candidate of candidates) {
-          if (entryCount <= options.maxEntries && logicalBytes <= options.maxBytes) {
-            break;
-          }
+            for (const candidate of candidates) {
+              if (entryCount <= options.maxEntries && logicalBytes <= options.maxBytes) {
+                break;
+              }
 
-          database
-            .prepare(
-              `DELETE FROM cache_entries
+              database
+                .prepare(
+                  `DELETE FROM cache_entries
                WHERE namespace = ? AND scope = ? AND cache_key = ?`,
-            )
-            .run(candidate.namespace, candidate.scope, candidate.cacheKey);
-          entryCount -= 1;
-          logicalBytes -= candidate.payloadBytes;
-        }
+                )
+                .run(candidate.namespace, candidate.scope, candidate.cacheKey);
+              entryCount -= 1;
+              logicalBytes -= candidate.payloadBytes;
+            }
 
-        database
-          .prepare(
-            `UPDATE cache_meta
+            database
+              .prepare(
+                `UPDATE cache_meta
              SET revision = MAX(revision, ?), logical_bytes = ?
              WHERE id = 1`,
-          )
-          .run(entry.revision, logicalBytes);
-      });
-    },
+              )
+              .run(entry.revision, logicalBytes);
+          });
+        },
+        catch: (cause) => cause,
+      }),
 
-    async delete(selector, revision) {
-      assertOpen();
-      const clause = selectorClause(selector);
-      transaction(database, () => {
-        database.prepare(`DELETE FROM cache_entries${clause.sql}`).run(...clause.values);
-        updateMeta(database, revision);
-      });
-    },
+    delete: (selector: CacheSelector, revision: number) =>
+      Effect.try({
+        try: () => {
+          assertOpen();
+          const clause = selectorClause(selector);
+          transaction(database, () => {
+            database.prepare(`DELETE FROM cache_entries${clause.sql}`).run(...clause.values);
+            updateMeta(database, revision);
+          });
+        },
+        catch: (cause) => cause,
+      }),
 
-    async clear(revision) {
-      assertOpen();
-      transaction(database, () => {
-        database.prepare("DELETE FROM cache_entries").run();
-        database
-          .prepare(
-            "UPDATE cache_meta SET revision = MAX(revision, ?), logical_bytes = 0 WHERE id = 1",
-          )
-          .run(revision);
-      });
-      database.exec("VACUUM; PRAGMA optimize;");
-    },
+    clear: (revision: number) =>
+      Effect.try({
+        try: () => {
+          assertOpen();
+          transaction(database, () => {
+            database.prepare("DELETE FROM cache_entries").run();
+            database
+              .prepare(
+                "UPDATE cache_meta SET revision = MAX(revision, ?), logical_bytes = 0 WHERE id = 1",
+              )
+              .run(revision);
+          });
+          database.exec("VACUUM; PRAGMA optimize;");
+        },
+        catch: (cause) => cause,
+      }),
 
-    async inspect(selector) {
-      assertOpen();
-      const counts = readCounts(database, selector);
-      const { revision } = database
-        .prepare("SELECT revision FROM cache_meta WHERE id = 1")
-        .get() as RevisionRow;
+    inspect: (selector?: CacheSelector) =>
+      Effect.try({
+        try: () => {
+          assertOpen();
+          const counts = readCounts(database, selector);
+          const { revision } = database
+            .prepare("SELECT revision FROM cache_meta WHERE id = 1")
+            .get() as RevisionRow;
 
-      return {
-        entries: counts.entries,
-        logicalBytes: counts.logicalBytes,
-        revision,
-      } satisfies CacheStoreInspection;
-    },
-
-    async close() {
-      if (closed) {
-        return;
-      }
-
-      closed = true;
-      database.exec("PRAGMA optimize;");
-      database.close();
-    },
+          return {
+            entries: counts.entries,
+            logicalBytes: counts.logicalBytes,
+            revision,
+          } satisfies CacheStoreInspection;
+        },
+        catch: (cause) => cause,
+      }),
   };
-}
+});

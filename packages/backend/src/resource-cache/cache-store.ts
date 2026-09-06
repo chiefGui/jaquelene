@@ -27,12 +27,11 @@ export type CacheStoreInspection = Readonly<{
 }>;
 
 export type CacheStore = Readonly<{
-  read: (address: CacheAddress) => Promise<StoredCacheEntry | undefined>;
-  write: (entry: StoredCacheEntry) => Promise<void>;
-  delete: (selector: CacheSelector, revision: number) => Promise<void>;
-  clear: (revision: number) => Promise<void>;
-  inspect: (selector?: CacheSelector) => Promise<CacheStoreInspection>;
-  close: () => Promise<void>;
+  read: (address: CacheAddress) => Effect.Effect<StoredCacheEntry | undefined, unknown>;
+  write: (entry: StoredCacheEntry) => Effect.Effect<void, unknown>;
+  delete: (selector: CacheSelector, revision: number) => Effect.Effect<void, unknown>;
+  clear: (revision: number) => Effect.Effect<void, unknown>;
+  inspect: (selector?: CacheSelector) => Effect.Effect<CacheStoreInspection, unknown>;
 }>;
 
 export function cacheAddressKey({ namespace, scope, key }: CacheAddress) {
@@ -46,3 +45,4 @@ export function cacheAddressMatches(address: CacheAddress, selector: CacheSelect
     (selector.key === undefined || selector.key === address.key)
   );
 }
+import type { Effect } from "effect";

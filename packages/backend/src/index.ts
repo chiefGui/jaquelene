@@ -84,6 +84,7 @@ export type {
 } from "#backend/provider/providers";
 export type { ModelCatalogSnapshot } from "#backend/provider/model-catalog";
 export { ProviderAcquisitionError, ProviderOperationError } from "#backend/provider/providers";
+export { ResourceCacheOpeningError } from "#backend/resource-cache/service";
 export type {
   Generation,
   GenerationFailureKind,

@@ -293,7 +293,10 @@ function createMainWindowManager({
       exposeCampaignUsage(browserWindow.webContents.mainFrame, campaignUsage);
       await addFinalizer(scope, threadMessaging.expose(browserWindow.webContents.mainFrame));
       exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);
-      await addFinalizer(scope, exposeModelCatalog(browserWindow.webContents, modelCatalog));
+      await addFinalizer(
+        scope,
+        exposeModelCatalog(browserWindow.webContents, modelCatalog, runEffect),
+      );
       exposeFavoriteModels(browserWindow.webContents.mainFrame, favoriteModels);
       await addFinalizer(
         scope,

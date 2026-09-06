@@ -2,20 +2,18 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { Effect } from "effect";
+import { Cause, Context, Deferred, Effect, Exit, Fiber, Scope } from "effect";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { getCampaignUsageAttribution } from "#backend/campaign/usage";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createGenerations } from "#backend/generation/generations";
 import { createReplyPreparer } from "#backend/generation/reply-preparation";
 import { generationTable } from "#backend/generation/schema";
-import { superviseGenerations } from "#backend/generation/supervisor";
 import { ids } from "#backend/id";
 import {
-  createModelExecutionRunner,
   createModelExecutor,
   ModelProviderError,
-  type ModelExecutionRunner,
+  type ModelExecutor,
 } from "#backend/model/execution";
 import { createModelInputResolver } from "#backend/model/input-resolver";
 import type {
@@ -38,7 +36,13 @@ import { createTurns } from "./turns";
 
 const directories: string[] = [];
 const databases: Database[] = [];
-const closeSupervisors: Array<() => Promise<void>> = [];
+const scopes: Scope.Closeable[] = [];
+
+function scoped<A, E>(effect: Effect.Effect<A, E, Scope.Scope>) {
+  const scope = Scope.makeUnsafe();
+  scopes.push(scope);
+  return Effect.runPromise(effect.pipe(Scope.provide(scope)));
+}
 
 function threadPageMetadata(messages: readonly { content: string }[]) {
   return {
@@ -59,7 +63,7 @@ function createDatabasePath() {
   return join(directory, "jaquelene.sqlite");
 }
 
-function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
+function modelExecutor(generate: TestGenerate): ModelExecutor {
   const executor = createModelExecutor(
     {
       getModel: Effect.fnUntraced(function* (reference) {
@@ -86,12 +90,10 @@ function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
     },
   );
 
-  return createModelExecutionRunner(executor, (effect, options) =>
-    Effect.runPromise(effect, options),
-  );
+  return executor;
 }
 
-function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
+async function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
   const database = openDatabase(createDatabasePath());
   const { applications: promptApplications } = createPromptSubsystem(database, [
     narratorPromptModule,
@@ -105,22 +107,18 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
       threads,
       createModelInputResolver(campaigns, promptApplications),
     ),
-    modelExecutor: modelExecutionRunner(generate),
+    modelExecutor: modelExecutor(generate),
     attempts: usage.attempts,
     getUsageAttribution: (threadId) => getCampaignUsageAttribution(database, threadId),
     now,
   });
-  const supervised = superviseGenerations(generationEngine);
-  const turns = createTurns(database, threads, {
-    acceptRegenerationInTransaction: generationEngine.acceptRegenerationInTransaction,
-    acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
-    listLatestForTurns: generationEngine.listLatestForTurns,
-    resolveConfiguration: generationEngine.resolveConfiguration,
-    scheduleAcceptedReply: supervised.scheduleAcceptedReply,
-  });
+  const scope = Scope.makeUnsafe();
+  scopes.push(scope);
+  const turns = await Effect.runPromise(
+    createTurns(database, threads, generationEngine).pipe(Scope.provide(scope)),
+  );
   databases.push(database);
-  closeSupervisors.push(supervised.close);
-  return { database, generationEngine, threads, turns };
+  return { database, generationEngine, scope, threads, turns };
 }
 
 function deferred<Result>() {
@@ -134,8 +132,8 @@ function deferred<Result>() {
 }
 
 afterEach(async () => {
-  for (const close of closeSupervisors.splice(0)) {
-    await close();
+  for (const scope of scopes.splice(0)) {
+    await Effect.runPromise(Scope.close(scope, Exit.void));
   }
 
   for (const database of databases.splice(0)) {
@@ -148,20 +146,233 @@ afterEach(async () => {
 });
 
 describe("turns", () => {
+  it("owns configuration before it can initiate shutdown", async () => {
+    const { database, generationEngine, scope, threads, turns } = await openTurnEnvironment(
+      async () => ({ text: "Unused" }),
+    );
+    let closing: Promise<Exit.Exit<void>> | undefined;
+    vi.spyOn(generationEngine, "resolveConfiguration").mockReturnValueOnce(
+      Effect.suspend(() => {
+        closing = Effect.runPromiseExit(Scope.close(scope, Exit.void));
+        return Effect.never;
+      }),
+    );
+    const thread = threads.create();
+
+    const submitted = await Effect.runPromiseExit(
+      turns.submit({
+        threadId: thread.id,
+        content: "Hello",
+        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+      }),
+    );
+
+    expect(Exit.isFailure(submitted)).toBe(true);
+    if (!closing) {
+      throw new Error("Configuration did not initiate shutdown.");
+    }
+    expect(Exit.isSuccess(await closing)).toBe(true);
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
+    expect(database.select().from(generationTable).all()).toEqual([]);
+  });
+
+  it("preserves configuration cleanup defects when the caller cancels admission", async () => {
+    const { database, generationEngine, threads, turns } = await openTurnEnvironment(async () => ({
+      text: "Unused",
+    }));
+    const entered = Deferred.makeUnsafe<void>();
+    const cleanupFailure = new Error("Configuration cleanup failed.");
+    vi.spyOn(generationEngine, "resolveConfiguration").mockReturnValueOnce(
+      Deferred.succeed(entered, undefined).pipe(
+        Effect.andThen(Effect.never),
+        Effect.ensuring(Effect.die(cleanupFailure)),
+      ),
+    );
+    const thread = threads.create();
+    const submission = Effect.runFork(
+      turns.submit({
+        threadId: thread.id,
+        content: "Hello",
+        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+      }),
+    );
+    await Effect.runPromise(Deferred.await(entered));
+
+    await Effect.runPromise(Fiber.interrupt(submission));
+    const exit = await Effect.runPromise(Fiber.await(submission));
+
+    if (Exit.isSuccess(exit)) {
+      throw new Error("Expected interrupted admission.");
+    }
+    expect(Cause.hasDies(exit.cause)).toBe(true);
+    expect(Cause.squash(exit.cause)).toBe(cleanupFailure);
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
+    expect(database.select().from(generationTable).all()).toEqual([]);
+  });
+
+  it("cancels active provider work and ignores its late Promise completion", async () => {
+    const reply = deferred<ProviderGenerationResult>();
+    const generate = vi.fn<TestGenerate>(() => reply.promise);
+    const { database, threads, turns } = await openTurnEnvironment(generate);
+    const thread = threads.create();
+    const operation = await Effect.runPromise(
+      turns.submit({
+        threadId: thread.id,
+        content: "Hello",
+        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+      }),
+    );
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledOnce());
+
+    await Effect.runPromise(operation.cancel);
+    const settled = await Effect.runPromise(operation.settlement);
+
+    expect(settled.generation).toMatchObject({ status: "failed", failureKind: "interrupted" });
+    expect(generate.mock.calls[0]?.[0].signal?.aborted).toBe(true);
+    expect(database.select().from(providerAttemptTable).get()).toMatchObject({
+      status: "failed",
+      failureKind: "interrupted",
+    });
+    reply.resolve({ text: "Too late" });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toEqual([
+      operation.acceptance.userMessage,
+    ]);
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
+  });
+
+  it("cancels immediately accepted work before preparation and permits retry", async () => {
+    const generate = vi.fn(async () => ({ text: "Reply" }));
+    const { database, threads, turns } = await openTurnEnvironment(generate);
+    const thread = threads.create();
+    const configuration = { model: { providerId: "provider-a", modelId: "maker/model" } };
+    const operation = await Effect.runPromise(
+      turns.submit({ threadId: thread.id, content: "Hello", configuration }),
+    );
+
+    await Effect.runPromise(operation.cancel);
+    const settlement = await Effect.runPromise(operation.settlement);
+
+    expect(settlement.generation).toMatchObject({ status: "failed", failureKind: "interrupted" });
+    expect(generate).not.toHaveBeenCalled();
+    expect(database.select().from(providerAttemptTable).all()).toEqual([]);
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
+    const retry = await Effect.runPromise(
+      turns.retry({ turnId: operation.acceptance.userMessage.turnId, configuration }),
+    );
+    await expect(Effect.runPromise(retry.settlement)).resolves.toMatchObject({
+      outcome: "completed",
+    });
+  });
+
+  it("cancels configuration before acceptance without persisting a turn", async () => {
+    const { database, generationEngine, threads, turns } = await openTurnEnvironment(async () => ({
+      text: "Unused",
+    }));
+    const entered = Deferred.makeUnsafe<void>();
+    vi.spyOn(generationEngine, "resolveConfiguration").mockReturnValueOnce(
+      Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never)),
+    );
+    const thread = threads.create();
+    const configuration = { model: { providerId: "provider-a", modelId: "maker/model" } };
+    const submission = Effect.runFork(
+      turns.submit({ threadId: thread.id, content: "Hello", configuration }),
+    );
+    await Effect.runPromise(Deferred.await(entered));
+    expect(turns.inspect(thread.id)).toEqual({ state: "submitting" });
+    await expect(
+      Effect.runPromise(turns.submit({ threadId: thread.id, content: "Competing", configuration })),
+    ).rejects.toThrow("already has an active operation");
+
+    await Effect.runPromise(Fiber.interrupt(submission));
+
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toEqual([]);
+    expect(database.select().from(generationTable).all()).toEqual([]);
+    const next = await Effect.runPromise(
+      turns.submit({ threadId: thread.id, content: "Next", configuration }),
+    );
+    await Effect.runPromise(next.settlement);
+  });
+
+  it("shutdown drains configuration and rejects retained service calls", async () => {
+    const { database, generationEngine, scope, threads, turns } = await openTurnEnvironment(
+      async () => ({ text: "Unused" }),
+    );
+    const entered = Deferred.makeUnsafe<void>();
+    const released = vi.fn();
+    vi.spyOn(generationEngine, "resolveConfiguration").mockReturnValueOnce(
+      Deferred.succeed(entered, undefined).pipe(
+        Effect.andThen(Effect.never),
+        Effect.ensuring(Effect.sync(released)),
+      ),
+    );
+    const thread = threads.create();
+    const request = {
+      threadId: thread.id,
+      content: "Hello",
+      configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+    };
+    const submission = Effect.runPromiseExit(turns.submit(request));
+    await Effect.runPromise(Deferred.await(entered));
+
+    await Effect.runPromise(Scope.close(scope, Exit.void));
+
+    expect(Exit.isFailure(await submission)).toBe(true);
+    expect(released).toHaveBeenCalledOnce();
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
+    expect(database.select().from(generationTable).all()).toEqual([]);
+    await expect(Effect.runPromise(turns.submit(request))).rejects.toThrow("closed");
+  });
+
+  it("runs owned work with the service context instead of a transient caller context", async () => {
+    const { database, generationEngine, threads } = await openTurnEnvironment(async () => ({
+      text: "Unused",
+    }));
+    const Owner = Context.Reference<string>("turn-test/Owner", { defaultValue: () => "default" });
+    const observed: string[] = [];
+    const original = generationEngine.resolveConfiguration;
+    vi.spyOn(generationEngine, "resolveConfiguration").mockImplementation((configuration) =>
+      Effect.gen(function* () {
+        observed.push(yield* Owner);
+        return yield* original(configuration);
+      }),
+    );
+    const turns = await scoped(
+      createTurns(database, threads, generationEngine).pipe(
+        Effect.provideService(Owner, "service"),
+      ),
+    );
+    const thread = threads.create();
+    const operation = await Effect.runPromise(
+      turns
+        .submit({
+          threadId: thread.id,
+          content: "Hello",
+          configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+        })
+        .pipe(Effect.provideService(Owner, "caller")),
+    );
+    await Effect.runPromise(operation.settlement);
+    expect(observed).toEqual(["service"]);
+  });
+
   it("accepts a durable user turn before provider work settles", async () => {
     const providerReply = deferred<ProviderGenerationResult>();
     const generate = vi.fn<TestGenerate>(() => providerReply.promise);
-    const { threads, turns } = openTurnEnvironment(generate);
+    const { threads, turns } = await openTurnEnvironment(generate);
     const thread = threads.create();
 
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
-    const pendingSubmission = turns.submit({
-      threadId: thread.id,
-      content: "Begin the voyage.",
-      configuration: {
-        model: { providerId: "provider-a", modelId: "maker/model" },
-      },
-    });
+    const pendingSubmission = Effect.runPromise(
+      turns.submit({
+        threadId: thread.id,
+        content: "Begin the voyage.",
+        configuration: {
+          model: { providerId: "provider-a", modelId: "maker/model" },
+        },
+      }),
+    );
     expect(turns.inspect(thread.id)).toEqual({ state: "submitting" });
 
     const operation = await pendingSubmission;
@@ -202,7 +413,7 @@ describe("turns", () => {
 
     await vi.waitFor(() => expect(generate).toHaveBeenCalledOnce());
     providerReply.resolve({ text: "Welcome aboard." });
-    const settlement = await operation.settlement;
+    const settlement = await Effect.runPromise(operation.settlement);
 
     if (settlement.outcome !== "completed") {
       throw new Error("Expected reply generation to complete.");
@@ -251,17 +462,19 @@ describe("turns", () => {
 
       return result;
     });
-    const { threads, turns } = openTurnEnvironment(generate);
+    const { threads, turns } = await openTurnEnvironment(generate);
     const thread = threads.create();
     const configuration = {
       model: { providerId: "provider-a", modelId: "maker/model" },
     };
-    const failedOperation = await turns.submit({
-      threadId: thread.id,
-      content: "Hello",
-      configuration,
-    });
-    const failed = await failedOperation.settlement;
+    const failedOperation = await Effect.runPromise(
+      turns.submit({
+        threadId: thread.id,
+        content: "Hello",
+        configuration,
+      }),
+    );
+    const failed = await Effect.runPromise(failedOperation.settlement);
 
     if (failed.outcome !== "failed") {
       throw new Error("Expected reply generation to fail.");
@@ -284,10 +497,12 @@ describe("turns", () => {
     );
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
 
-    const pendingRetry = turns.retry({
-      turnId: failed.userMessage.turnId,
-      configuration,
-    });
+    const pendingRetry = Effect.runPromise(
+      turns.retry({
+        turnId: failed.userMessage.turnId,
+        configuration,
+      }),
+    );
     expect(turns.inspect(thread.id)).toEqual({
       state: "retrying",
       turnId: failed.userMessage.turnId,
@@ -307,7 +522,7 @@ describe("turns", () => {
       generationId: retriedOperation.acceptance.generation.id,
     });
 
-    const retried = await retriedOperation.settlement;
+    const retried = await Effect.runPromise(retriedOperation.settlement);
 
     if (retried.outcome !== "completed") {
       throw new Error("Expected retried reply generation to complete.");
@@ -327,26 +542,30 @@ describe("turns", () => {
       .mockResolvedValueOnce({ text: "Original reply" })
       .mockImplementationOnce(() => regeneratedReply.promise);
     let timestamp = 300;
-    const { database, threads, turns } = openTurnEnvironment(generate, () => timestamp++);
+    const { database, threads, turns } = await openTurnEnvironment(generate, () => timestamp++);
     const thread = threads.create();
     const configuration = {
       model: { providerId: "provider-a", modelId: "maker/model" },
     };
-    const submission = await turns.submit({
-      threadId: thread.id,
-      content: "Hello",
-      configuration,
-    });
-    const original = await submission.settlement;
+    const submission = await Effect.runPromise(
+      turns.submit({
+        threadId: thread.id,
+        content: "Hello",
+        configuration,
+      }),
+    );
+    const original = await Effect.runPromise(submission.settlement);
 
     if (original.outcome !== "completed") {
       throw new Error("Expected the original reply to complete.");
     }
 
-    const pendingRegeneration = turns.regenerate({
-      assistantMessageId: original.assistantMessage.id,
-      configuration,
-    });
+    const pendingRegeneration = Effect.runPromise(
+      turns.regenerate({
+        assistantMessageId: original.assistantMessage.id,
+        configuration,
+      }),
+    );
     expect(turns.inspect(thread.id)).toEqual({
       state: "regenerating",
       assistantMessageId: original.assistantMessage.id,
@@ -373,7 +592,7 @@ describe("turns", () => {
 
     await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2));
     regeneratedReply.resolve({ text: "Regenerated reply" });
-    const regenerated = await regeneration.settlement;
+    const regenerated = await Effect.runPromise(regeneration.settlement);
 
     if (regenerated.outcome !== "completed") {
       throw new Error("Expected regeneration to complete.");
@@ -395,10 +614,12 @@ describe("turns", () => {
     });
     expect(database.select().from(generationTable).all()).toHaveLength(2);
     await expect(
-      turns.regenerate({
-        assistantMessageId: original.assistantMessage.id,
-        configuration,
-      }),
+      Effect.runPromise(
+        turns.regenerate({
+          assistantMessageId: original.assistantMessage.id,
+          configuration,
+        }),
+      ),
     ).rejects.toThrow(`Message "${original.assistantMessage.id}" is not the active thread reply.`);
     expect(generate).toHaveBeenCalledTimes(2);
   });
@@ -423,23 +644,27 @@ describe("turns", () => {
 
       return result;
     });
-    const { threads, turns } = openTurnEnvironment(generate);
+    const { threads, turns } = await openTurnEnvironment(generate);
     const thread = threads.create();
     const configuration = {
       model: { providerId: "provider-a", modelId: "maker/model" },
     };
-    const submission = await turns.submit({ threadId: thread.id, content: "Hello", configuration });
-    const original = await submission.settlement;
+    const submission = await Effect.runPromise(
+      turns.submit({ threadId: thread.id, content: "Hello", configuration }),
+    );
+    const original = await Effect.runPromise(submission.settlement);
 
     if (original.outcome !== "completed") {
       throw new Error("Expected the original reply to complete.");
     }
 
-    const failedAttempt = await turns.regenerate({
-      assistantMessageId: original.assistantMessage.id,
-      configuration,
-    });
-    const failed = await failedAttempt.settlement;
+    const failedAttempt = await Effect.runPromise(
+      turns.regenerate({
+        assistantMessageId: original.assistantMessage.id,
+        configuration,
+      }),
+    );
+    const failed = await Effect.runPromise(failedAttempt.settlement);
 
     if (failed.outcome !== "failed") {
       throw new Error("Expected regeneration to fail.");
@@ -468,11 +693,13 @@ describe("turns", () => {
       original.assistantMessage,
     ]);
 
-    const retryAttempt = await turns.regenerate({
-      assistantMessageId: original.assistantMessage.id,
-      configuration,
-    });
-    const recovered = await retryAttempt.settlement;
+    const retryAttempt = await Effect.runPromise(
+      turns.regenerate({
+        assistantMessageId: original.assistantMessage.id,
+        configuration,
+      }),
+    );
+    const recovered = await Effect.runPromise(retryAttempt.settlement);
 
     expect(recovered).toEqual(
       expect.objectContaining({
@@ -486,40 +713,48 @@ describe("turns", () => {
     const generate = vi.fn<TestGenerate>(async ({ input }) => ({
       text: `Reply ${input.dialogue.length}`,
     }));
-    const { threads, turns } = openTurnEnvironment(generate);
+    const { threads, turns } = await openTurnEnvironment(generate);
     const thread = threads.create();
     const configuration = {
       model: { providerId: "provider-a", modelId: "maker/model" },
     };
-    const firstSubmission = await turns.submit({
-      threadId: thread.id,
-      content: "First",
-      configuration,
-    });
-    const first = await firstSubmission.settlement;
+    const firstSubmission = await Effect.runPromise(
+      turns.submit({
+        threadId: thread.id,
+        content: "First",
+        configuration,
+      }),
+    );
+    const first = await Effect.runPromise(firstSubmission.settlement);
 
     if (first.outcome !== "completed") {
       throw new Error("Expected the first reply to complete.");
     }
 
-    const secondSubmission = await turns.submit({
-      threadId: thread.id,
-      content: "Second",
-      configuration,
-    });
-    await secondSubmission.settlement;
+    const secondSubmission = await Effect.runPromise(
+      turns.submit({
+        threadId: thread.id,
+        content: "Second",
+        configuration,
+      }),
+    );
+    await Effect.runPromise(secondSubmission.settlement);
 
     await expect(
-      turns.regenerate({
-        assistantMessageId: first.assistantMessage.id,
-        configuration,
-      }),
+      Effect.runPromise(
+        turns.regenerate({
+          assistantMessageId: first.assistantMessage.id,
+          configuration,
+        }),
+      ),
     ).rejects.toThrow(`Message "${first.assistantMessage.id}" is not the active thread reply.`);
     await expect(
-      turns.regenerate({
-        assistantMessageId: firstSubmission.acceptance.userMessage.id,
-        configuration,
-      }),
+      Effect.runPromise(
+        turns.regenerate({
+          assistantMessageId: firstSubmission.acceptance.userMessage.id,
+          configuration,
+        }),
+      ),
     ).rejects.toThrow(
       `Message "${firstSubmission.acceptance.userMessage.id}" is not an assistant message.`,
     );
@@ -532,13 +767,15 @@ describe("turns", () => {
       .fn<TestGenerate>()
       .mockImplementationOnce(() => firstReply.promise)
       .mockResolvedValue({ text: "Next reply" });
-    const { threads, turns } = openTurnEnvironment(generate);
+    const { threads, turns } = await openTurnEnvironment(generate);
     const thread = threads.create();
     const independentThread = threads.create();
     const configuration = {
       model: { providerId: "provider-a", modelId: "maker/model" },
     };
-    const first = await turns.submit({ threadId: thread.id, content: "First", configuration });
+    const first = await Effect.runPromise(
+      turns.submit({ threadId: thread.id, content: "First", configuration }),
+    );
 
     expect(() =>
       turns.deleteFrom({
@@ -553,21 +790,25 @@ describe("turns", () => {
       }),
     ).toThrow(`Thread "${thread.id}" already has an active operation.`);
     await expect(
-      turns.submit({ threadId: thread.id, content: "Too soon", configuration }),
+      Effect.runPromise(turns.submit({ threadId: thread.id, content: "Too soon", configuration })),
     ).rejects.toThrow(`Thread "${thread.id}" already has an active operation.`);
-    const independent = await turns.submit({
-      threadId: independentThread.id,
-      content: "Independent",
-      configuration,
-    });
-    await expect(independent.settlement).resolves.toEqual(
+    const independent = await Effect.runPromise(
+      turns.submit({
+        threadId: independentThread.id,
+        content: "Independent",
+        configuration,
+      }),
+    );
+    await expect(Effect.runPromise(independent.settlement)).resolves.toEqual(
       expect.objectContaining({ outcome: "completed", assistantActivated: true }),
     );
 
     firstReply.resolve({ text: "First reply" });
-    await first.settlement;
-    const second = await turns.submit({ threadId: thread.id, content: "Second", configuration });
-    await expect(second.settlement).resolves.toEqual(
+    await Effect.runPromise(first.settlement);
+    const second = await Effect.runPromise(
+      turns.submit({ threadId: thread.id, content: "Second", configuration }),
+    );
+    await expect(Effect.runPromise(second.settlement)).resolves.toEqual(
       expect.objectContaining({ outcome: "completed", assistantActivated: true }),
     );
     expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toHaveLength(
@@ -577,13 +818,15 @@ describe("turns", () => {
 
   it("uses edited user and assistant content in subsequent model input", async () => {
     const generate = vi.fn<TestGenerate>(async () => ({ text: "Reply" }));
-    const { threads, turns } = openTurnEnvironment(generate);
+    const { threads, turns } = await openTurnEnvironment(generate);
     const thread = threads.create();
     const configuration = {
       model: { providerId: "provider-a", modelId: "maker/model" },
     };
-    const first = await turns.submit({ threadId: thread.id, content: "Original", configuration });
-    const firstSettlement = await first.settlement;
+    const first = await Effect.runPromise(
+      turns.submit({ threadId: thread.id, content: "Original", configuration }),
+    );
+    const firstSettlement = await Effect.runPromise(first.settlement);
 
     if (firstSettlement.outcome !== "completed") {
       throw new Error("Expected the first reply to complete.");
@@ -602,8 +845,10 @@ describe("turns", () => {
       }),
     ).toEqual({ ...firstSettlement.assistantMessage, content: "Edited assistant message" });
 
-    const second = await turns.submit({ threadId: thread.id, content: "Continue", configuration });
-    await second.settlement;
+    const second = await Effect.runPromise(
+      turns.submit({ threadId: thread.id, content: "Continue", configuration }),
+    );
+    await Effect.runPromise(second.settlement);
 
     expect(generate).toHaveBeenCalledTimes(2);
     expect(generate.mock.calls[1]?.[0].input.dialogue).toEqual([
@@ -615,14 +860,16 @@ describe("turns", () => {
 
   it("deletes durable conversation state while retaining provider usage history", async () => {
     const generate = vi.fn(async () => ({ text: "Completed reply" }));
-    const { database, threads, turns } = openTurnEnvironment(generate);
+    const { database, threads, turns } = await openTurnEnvironment(generate);
     const thread = threads.create();
-    const operation = await turns.submit({
-      threadId: thread.id,
-      content: "Delete this turn",
-      configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
-    });
-    await operation.settlement;
+    const operation = await Effect.runPromise(
+      turns.submit({
+        threadId: thread.id,
+        content: "Delete this turn",
+        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+      }),
+    );
+    await Effect.runPromise(operation.settlement);
     const attemptsBeforeDeletion = database.select().from(providerAttemptTable).all();
 
     expect(attemptsBeforeDeletion).toHaveLength(1);
@@ -654,28 +901,32 @@ describe("turns", () => {
 
   it("rolls back a user turn when pending generation acceptance fails", async () => {
     const generate = vi.fn(async () => ({ text: "Unused" }));
-    const { database, generationEngine, threads } = openTurnEnvironment(generate);
+    const { database, generationEngine, threads } = await openTurnEnvironment(generate);
     const thread = threads.create();
     const acceptanceFailure = new Error("Could not persist pending generation.");
-    const turns = createTurns(database, threads, {
-      acceptRegenerationInTransaction: generationEngine.acceptRegenerationInTransaction,
-      acceptReplyInTransaction() {
-        throw acceptanceFailure;
-      },
-      listLatestForTurns: generationEngine.listLatestForTurns,
-      resolveConfiguration: generationEngine.resolveConfiguration,
-      scheduleAcceptedReply() {
-        throw new Error("Generation must not be scheduled after failed acceptance.");
-      },
-    });
+    const turns = await scoped(
+      createTurns(database, threads, {
+        acceptRegenerationInTransaction: generationEngine.acceptRegenerationInTransaction,
+        acceptReplyInTransaction() {
+          throw acceptanceFailure;
+        },
+        listLatestForTurns: generationEngine.listLatestForTurns,
+        resolveConfiguration: generationEngine.resolveConfiguration,
+        executeAcceptedReply() {
+          throw new Error("Generation must not be scheduled after failed acceptance.");
+        },
+      }),
+    );
 
     await expect(
-      turns.submit({
-        threadId: thread.id,
-        content: "Do not retain this",
-        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
-      }),
-    ).rejects.toBe(acceptanceFailure);
+      Effect.runPromise(
+        turns.submit({
+          threadId: thread.id,
+          content: "Do not retain this",
+          configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+        }),
+      ),
+    ).rejects.toMatchObject({ _tag: "TurnAdmissionError", cause: acceptanceFailure });
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
     expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
       messages: [],
@@ -696,22 +947,29 @@ describe("turns", () => {
 
   it("releases thread ownership when an accepted turn cannot settle", async () => {
     const generate = vi.fn(async () => ({ text: "Unused" }));
-    const { database, generationEngine, threads } = openTurnEnvironment(generate);
+    const { database, generationEngine, threads } = await openTurnEnvironment(generate);
     const thread = threads.create();
     const settlementFailure = new Error("Could not schedule generation.");
     const settlement = deferred<never>();
-    const turns = createTurns(database, threads, {
-      acceptRegenerationInTransaction: generationEngine.acceptRegenerationInTransaction,
-      acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
-      listLatestForTurns: generationEngine.listLatestForTurns,
-      resolveConfiguration: generationEngine.resolveConfiguration,
-      scheduleAcceptedReply: () => settlement.promise,
-    });
-    const operation = await turns.submit({
-      threadId: thread.id,
-      content: "Hello",
-      configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
-    });
+    const turns = await scoped(
+      createTurns(database, threads, {
+        acceptRegenerationInTransaction: generationEngine.acceptRegenerationInTransaction,
+        acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
+        listLatestForTurns: generationEngine.listLatestForTurns,
+        resolveConfiguration: generationEngine.resolveConfiguration,
+        executeAcceptedReply: () =>
+          Effect.tryPromise({ try: () => settlement.promise, catch: (cause) => cause }).pipe(
+            Effect.orDie,
+          ),
+      }),
+    );
+    const operation = await Effect.runPromise(
+      turns.submit({
+        threadId: thread.id,
+        content: "Hello",
+        configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+      }),
+    );
 
     expect(turns.inspect(thread.id)).toEqual({
       state: "generating",
@@ -720,45 +978,50 @@ describe("turns", () => {
       generationId: operation.acceptance.generation.id,
     });
     settlement.reject(settlementFailure);
-    await expect(operation.settlement).rejects.toBe(settlementFailure);
+    await expect(Effect.runPromise(operation.settlement)).rejects.toBe(settlementFailure);
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
     expect(generate).not.toHaveBeenCalled();
   });
 
   it("rejects invalid work before accepting a turn", async () => {
     const generate = vi.fn(async () => ({ text: "Unused" }));
-    const { threads, turns } = openTurnEnvironment(generate);
+    const { threads, turns } = await openTurnEnvironment(generate);
     const thread = threads.create();
     const configuration = {
       model: { providerId: "provider-a", modelId: "maker/model" },
     };
-    const interruption = new Error("Cancelled before submission");
-    const controller = new AbortController();
-    controller.abort(interruption);
-
     await expect(
-      turns.submit({
-        threadId: thread.id,
-        content: "Hello",
-        configuration,
-        signal: controller.signal,
-      }),
-    ).rejects.toBe(interruption);
+      Effect.runPromise(
+        Effect.interrupt.pipe(
+          Effect.andThen(
+            turns.submit({
+              threadId: thread.id,
+              content: "Hello",
+              configuration,
+            }),
+          ),
+        ),
+      ),
+    ).rejects.toThrow(/interrupt/i);
     await expect(
-      turns.submit({
-        threadId: thread.id,
-        content: "Hello",
-        configuration: {
-          model: { providerId: "missing-provider", modelId: "maker/model" },
-        },
-      }),
+      Effect.runPromise(
+        turns.submit({
+          threadId: thread.id,
+          content: "Hello",
+          configuration: {
+            model: { providerId: "missing-provider", modelId: "maker/model" },
+          },
+        }),
+      ),
     ).rejects.toThrow('Unknown provider "missing-provider".');
     await expect(
-      turns.submit({ threadId: thread.id, content: "  ", configuration }),
-    ).rejects.toThrow(TypeError);
+      Effect.runPromise(turns.submit({ threadId: thread.id, content: "  ", configuration })),
+    ).rejects.toMatchObject({ _tag: "TurnAdmissionError", cause: expect.any(TypeError) });
     await expect(
-      turns.submit({ threadId: ids.thread.create(), content: "Hello", configuration }),
-    ).rejects.toThrow(RangeError);
+      Effect.runPromise(
+        turns.submit({ threadId: ids.thread.create(), content: "Hello", configuration }),
+      ),
+    ).rejects.toMatchObject({ _tag: "TurnAdmissionError", cause: expect.any(RangeError) });
     expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toEqual([]);
     expect(generate).not.toHaveBeenCalled();
   });

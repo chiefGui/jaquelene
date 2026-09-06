@@ -1,3 +1,4 @@
+import { Cause, Effect, Exit } from "effect";
 import { and, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "#backend/database/database";
@@ -14,13 +15,10 @@ import {
   type ThreadMessage,
 } from "#backend/thread/schema";
 import { ids, type MessageId, type ThreadId, type TurnId } from "#backend/id";
-import type { ModelInput } from "#backend/model/input";
 import {
   requireModelExecutionRequest,
   requireResolvedModelConfiguration,
-  type ModelExecutionRequest,
-  type ModelExecutionRunner,
-  type ModelExecutionResult,
+  type ModelExecutor,
   type ResolvedModelConfiguration,
 } from "#backend/model/execution";
 import type { ProviderAccounting } from "#backend/provider/accounting";
@@ -45,7 +43,6 @@ export type GenerateReplyRequest = {
   turnId: TurnId;
   intent: GenerationIntent;
   configuration: RequestedModelConfiguration;
-  signal?: AbortSignal;
 };
 
 export type ReplyGenerationExecution =
@@ -70,7 +67,7 @@ export type AcceptedReplyGeneration = Readonly<{
 export type GenerationOptions = Readonly<{
   database: Database;
   replyPreparer: ReplyPreparer;
-  modelExecutor: ModelExecutionRunner;
+  modelExecutor: ModelExecutor;
   attempts: Pick<ProviderAttempts, "start" | "changed">;
   getUsageAttribution: (threadId: ThreadId) => UsageAttribution | undefined;
   now?: () => number;
@@ -89,68 +86,6 @@ function modelConfigurationFromGeneration(
   }
 
   return { model, reasoning: generation.reasoning };
-}
-
-function interruptionCause(signal: AbortSignal) {
-  if (signal.reason instanceof Error) {
-    return signal.reason;
-  }
-
-  return new Error("Generation was interrupted.", { cause: signal.reason });
-}
-
-function waitForOperation<Result>(operation: Promise<Result>, signal?: AbortSignal) {
-  if (!signal) {
-    return operation;
-  }
-
-  if (signal.aborted) {
-    void operation.then(
-      () => undefined,
-      () => undefined,
-    );
-    return Promise.reject(interruptionCause(signal));
-  }
-
-  const interruptionSignal = signal;
-
-  return new Promise<Result>((resolve, reject) => {
-    let settled = false;
-
-    function beginSettlement() {
-      if (settled) {
-        return false;
-      }
-
-      settled = true;
-      interruptionSignal.removeEventListener("abort", onAbort);
-      return true;
-    }
-
-    function onAbort() {
-      if (beginSettlement()) {
-        reject(interruptionCause(interruptionSignal));
-      }
-    }
-
-    interruptionSignal.addEventListener("abort", onAbort, { once: true });
-    operation.then(
-      (value) => {
-        if (beginSettlement()) {
-          resolve(value);
-        }
-      },
-      (cause: unknown) => {
-        if (beginSettlement()) {
-          reject(cause);
-        }
-      },
-    );
-
-    if (interruptionSignal.aborted) {
-      onAbort();
-    }
-  });
 }
 
 export function createGenerations({
@@ -426,164 +361,166 @@ export function createGenerations({
     return { generation, ...replyContext };
   }
 
-  async function executeAcceptedReply(
-    { generation, anchor, activeMessageId }: AcceptedReplyGeneration,
-    signal?: AbortSignal,
-  ): Promise<ReplyGenerationExecution> {
-    if (signal?.aborted) {
-      return recordFailure(generation, "interrupted", interruptionCause(signal));
-    }
+  const executeAcceptedReply = Effect.fn("Generations.executeAcceptedReply")(function ({
+    generation,
+    anchor,
+    activeMessageId,
+  }: AcceptedReplyGeneration) {
+    return Effect.uninterruptible(
+      Effect.gen(function* () {
+        // Acceptance is observable before preparation starts; cancellation still settles the row.
+        const prepared = yield* Effect.exit(
+          Effect.interruptible(
+            Effect.yieldNow.pipe(
+              Effect.andThen(() => replyPreparer.prepare({ ...anchor })),
+              Effect.flatMap((input) =>
+                Effect.try({
+                  try: () =>
+                    requireModelExecutionRequest({
+                      executionId: generation.id,
+                      groupId: anchor.threadId,
+                      configuration: modelConfigurationFromGeneration(generation),
+                      input: requireReplyInput(input, anchor),
+                    }),
+                  catch: (cause) => cause,
+                }),
+              ),
+            ),
+          ),
+        );
+        if (Exit.isFailure(prepared)) {
+          return yield* settleExecutionFailure(generation, "preparation", prepared.cause);
+        }
+        let attempt: ProviderAttempt;
 
-    let input: ModelInput;
+        try {
+          let attemptInput: StartProviderAttempt = {
+            executionId: generation.id,
+            providerId: generation.providerId,
+            requestedModelId: generation.modelId,
+            startedAt: Math.max(generation.startedAt, now()),
+          };
+          const attribution = getUsageAttribution(anchor.threadId);
 
-    try {
-      input = requireReplyInput(
-        await waitForOperation(
-          Promise.resolve(replyPreparer.prepare({ ...anchor }, signal)),
-          signal,
-        ),
-        anchor,
-      );
-    } catch (cause) {
-      let failureKind: GenerationFailureKind = "preparation";
+          if (attribution) {
+            attemptInput = { ...attemptInput, attribution };
+          }
 
-      if (signal?.aborted) {
-        failureKind = "interrupted";
-      }
-
-      return recordFailure(generation, failureKind, cause);
-    }
-
-    let executionRequest: ModelExecutionRequest;
-
-    try {
-      executionRequest = requireModelExecutionRequest({
-        executionId: generation.id,
-        groupId: anchor.threadId,
-        configuration: modelConfigurationFromGeneration(generation),
-        input,
-      });
-    } catch (cause) {
-      return recordFailure(generation, "preparation", cause);
-    }
-
-    let attempt: ProviderAttempt;
-
-    try {
-      let attemptInput: StartProviderAttempt = {
-        executionId: generation.id,
-        providerId: generation.providerId,
-        requestedModelId: generation.modelId,
-        startedAt: Math.max(generation.startedAt, now()),
-      };
-      const attribution = getUsageAttribution(anchor.threadId);
-
-      if (attribution) {
-        attemptInput = { ...attemptInput, attribution };
-      }
-
-      attempt = attempts.start(attemptInput);
-    } catch (cause) {
-      return recordFailure(generation, "storage", cause);
-    }
-
-    let modelExecution: ModelExecutionResult;
-
-    try {
-      modelExecution = await modelExecutor.execute(executionRequest, signal);
-    } catch (cause) {
-      let failureKind: GenerationFailureKind = "provider";
-
-      if (signal?.aborted) {
-        failureKind = "interrupted";
-      }
-
-      return recordFailure(generation, failureKind, cause, attempt);
-    }
-
-    if (modelExecution.outcome === "invalid-accounting") {
-      return recordFailure(
-        generation,
-        "invalid-output",
-        modelExecution.cause,
-        attempt,
-        modelExecution.accounting,
-      );
-    }
-    const { accounting } = modelExecution;
-    let text: string;
-
-    try {
-      text = requireThreadMessageContent(modelExecution.text);
-    } catch (cause) {
-      return recordFailure(generation, "invalid-output", cause, attempt, accounting);
-    }
-
-    try {
-      const result = database.transaction((transaction) => {
-        const completionTime = finishedAt(generation, attempt);
-        const { message, threadActivity } = appendAssistantMessageInTransaction(transaction, {
-          threadId: anchor.threadId,
-          turnId: generation.turnId,
-          parentMessageId: anchor.inputMessageId,
-          activateIfMessageId: activeMessageId,
-          content: text,
-          createdAt: completionTime,
-        });
-        const storedCompletedGeneration = transaction
-          .update(generationTable)
-          .set({
-            status: "completed",
-            outputMessageId: message.id,
-            finishedAt: completionTime,
-          })
-          .where(and(eq(generationTable.id, generation.id), eq(generationTable.status, "pending")))
-          .returning()
-          .get();
-
-        if (!storedCompletedGeneration) {
-          throw new Error(`Generation "${generation.id}" is no longer pending.`);
+          attempt = attempts.start(attemptInput);
+        } catch (cause) {
+          return recordFailure(generation, "storage", cause);
         }
 
-        settleProviderAttemptInTransaction(transaction, attempt.id, {
-          status: "completed",
-          finishedAt: completionTime,
-          accounting,
-        });
+        const executed = yield* Effect.exit(
+          Effect.interruptible(modelExecutor.execute(prepared.value)),
+        );
+        if (Exit.isFailure(executed)) {
+          return yield* settleExecutionFailure(generation, "provider", executed.cause, attempt);
+        }
+        const modelExecution = executed.value;
+        if (modelExecution.outcome === "invalid-accounting") {
+          return recordFailure(
+            generation,
+            "invalid-output",
+            modelExecution.cause,
+            attempt,
+            modelExecution.accounting,
+          );
+        }
+        const { accounting } = modelExecution;
+        let text: string;
 
-        return { generation: toGeneration(storedCompletedGeneration), message, threadActivity };
-      });
+        try {
+          text = requireThreadMessageContent(modelExecution.text);
+        } catch (cause) {
+          return recordFailure(generation, "invalid-output", cause, attempt, accounting);
+        }
 
-      attempts.changed();
-      return { outcome: "completed", ...result };
-    } catch (cause) {
-      return recordFailure(generation, "storage", cause, attempt, accounting);
+        try {
+          const result = database.transaction((transaction) => {
+            const completionTime = finishedAt(generation, attempt);
+            const { message, threadActivity } = appendAssistantMessageInTransaction(transaction, {
+              threadId: anchor.threadId,
+              turnId: generation.turnId,
+              parentMessageId: anchor.inputMessageId,
+              activateIfMessageId: activeMessageId,
+              content: text,
+              createdAt: completionTime,
+            });
+            const storedCompletedGeneration = transaction
+              .update(generationTable)
+              .set({
+                status: "completed",
+                outputMessageId: message.id,
+                finishedAt: completionTime,
+              })
+              .where(
+                and(eq(generationTable.id, generation.id), eq(generationTable.status, "pending")),
+              )
+              .returning()
+              .get();
+
+            if (!storedCompletedGeneration) {
+              throw new Error(`Generation "${generation.id}" is no longer pending.`);
+            }
+
+            settleProviderAttemptInTransaction(transaction, attempt.id, {
+              status: "completed",
+              finishedAt: completionTime,
+              accounting,
+            });
+
+            return { generation: toGeneration(storedCompletedGeneration), message, threadActivity };
+          });
+
+          attempts.changed();
+          return { outcome: "completed", ...result } satisfies ReplyGenerationExecution;
+        } catch (cause) {
+          return recordFailure(generation, "storage", cause, attempt, accounting);
+        }
+      }),
+    );
+  });
+
+  const settleExecutionFailure = Effect.fnUntraced(function* (
+    generation: Generation,
+    phase: "preparation" | "provider",
+    cause: Cause.Cause<unknown>,
+    attempt?: ProviderAttempt,
+  ) {
+    let failureKind: GenerationFailureKind = phase;
+    if (Cause.hasInterrupts(cause)) {
+      failureKind = "interrupted";
     }
-  }
+    const failure = recordFailure(generation, failureKind, Cause.squash(cause), attempt);
+    // Cancellation must not hide cleanup failures, whether typed failures or defects.
+    if (Cause.hasDies(cause) || (failureKind === "interrupted" && Cause.hasFails(cause))) {
+      return yield* Effect.failCause(cause).pipe(Effect.orDie);
+    }
+    return failure;
+  });
 
-  async function executeReply({
+  const executeReply = Effect.fn("Generations.executeReply")(function ({
     turnId,
     intent,
     configuration,
-    signal,
-  }: GenerateReplyRequest): Promise<ReplyGenerationExecution> {
-    if (signal?.aborted) {
-      throw interruptionCause(signal);
-    }
-
-    const resolvedConfiguration = await resolveConfiguration(configuration, signal);
-    const accepted = database.transaction((transaction) =>
-      acceptReplyInTransaction(transaction, turnId, intent, resolvedConfiguration),
+  }: GenerateReplyRequest) {
+    return Effect.uninterruptibleMask((restore) =>
+      Effect.gen(function* () {
+        const resolvedConfiguration = yield* restore(
+          modelExecutor.resolveConfiguration(configuration),
+        );
+        const accepted = yield* Effect.try({
+          try: () =>
+            database.transaction((transaction) =>
+              acceptReplyInTransaction(transaction, turnId, intent, resolvedConfiguration),
+            ),
+          catch: (cause) => cause,
+        });
+        return yield* executeAcceptedReply(accepted);
+      }),
     );
-    return executeAcceptedReply(accepted, signal);
-  }
-
-  async function resolveConfiguration(
-    requestedConfiguration: RequestedModelConfiguration,
-    signal?: AbortSignal,
-  ): Promise<ResolvedModelConfiguration> {
-    return modelExecutor.resolveConfiguration(requestedConfiguration, signal);
-  }
+  });
 
   return {
     recoverInterrupted() {
@@ -605,17 +542,19 @@ export function createGenerations({
     executeAcceptedReply,
     executeReply,
     listLatestForTurns,
-    resolveConfiguration,
-    async generateReply(request: GenerateReplyRequest) {
-      const execution = await executeReply(request);
+    resolveConfiguration: modelExecutor.resolveConfiguration,
+    generateReply: Effect.fn("Generations.generateReply")(function* (
+      request: GenerateReplyRequest,
+    ) {
+      const execution = yield* executeReply(request);
 
       if (execution.outcome === "failed") {
-        throw execution.cause;
+        return yield* Effect.fail(execution.cause);
       }
 
       const { outcome: _outcome, ...result } = execution;
       return result;
-    },
+    }),
   };
 }
 

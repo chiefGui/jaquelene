@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import type { MessageId, ThreadId, TurnId } from "#backend/id";
 import { requireModelInput, type ModelInput } from "#backend/model/input";
 import type { ModelInputResolver } from "#backend/model/input-resolver";
@@ -10,7 +11,7 @@ export type ReplyAnchor = Readonly<{
 }>;
 
 export type ReplyPreparer = Readonly<{
-  prepare(anchor: ReplyAnchor, signal?: AbortSignal): ModelInput | Promise<ModelInput>;
+  prepare(anchor: ReplyAnchor): Effect.Effect<ModelInput, unknown>;
 }>;
 
 export function requireReplyInput(prepared: ModelInput, anchor: ReplyAnchor): ModelInput {
@@ -29,20 +30,25 @@ export function createReplyPreparer(
   modelInputs: ModelInputResolver,
 ): ReplyPreparer {
   return {
-    prepare(anchor) {
-      const context = threads.getTurnContext(anchor.turnId);
+    prepare: Effect.fn("ReplyPreparer.prepare")(function (anchor) {
+      return Effect.try({
+        try: () => {
+          const context = threads.getTurnContext(anchor.turnId);
 
-      if (
-        context.threadId !== anchor.threadId ||
-        context.inputMessageId !== anchor.inputMessageId
-      ) {
-        throw new Error(`The accepted input for turn "${anchor.turnId}" has changed.`);
-      }
+          if (
+            context.threadId !== anchor.threadId ||
+            context.inputMessageId !== anchor.inputMessageId
+          ) {
+            throw new Error(`The accepted input for turn "${anchor.turnId}" has changed.`);
+          }
 
-      return modelInputs.resolve({
-        threadId: anchor.threadId,
-        messages: context.messages,
+          return modelInputs.resolve({
+            threadId: anchor.threadId,
+            messages: context.messages,
+          });
+        },
+        catch: (cause) => cause,
       });
-    },
+    }),
   };
 }

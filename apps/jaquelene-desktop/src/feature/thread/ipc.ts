@@ -1,3 +1,4 @@
+import { Cause, Exit, type Effect, type Fiber } from "effect";
 import type {
   Generation,
   GenerationFailureKind,
@@ -206,6 +207,10 @@ export function createThreadMessaging(
   threads: ThreadMessagingThreads,
   turns: ThreadMessagingTurns,
   diagnostics: ErrorReporter,
+  runtime: {
+    runPromise: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>;
+    runFork: <A, E>(effect: Effect.Effect<A, E>) => Fiber.Fiber<A, E>;
+  },
 ) {
   const destinations = new Map<WebFrameMain, ITurnsDispatcher>();
 
@@ -268,20 +273,22 @@ export function createThreadMessaging(
 
   function observeSettlement(
     operation: TurnGenerationOperation,
-    settlement: Promise<TurnSettlement>,
+    settlement: Effect.Effect<TurnSettlement, unknown>,
   ) {
-    void settlement.then(
-      (result) => {
-        publishSettlement(operation, result);
-      },
-      (cause: unknown) => {
-        diagnostics.report({
-          severity: ErrorSeverity.Error,
-          operation,
-          error: new Error("An accepted turn could not settle.", { cause }),
-        });
-      },
-    );
+    runtime.runFork(settlement).addObserver((exit) => {
+      if (Exit.isSuccess(exit)) {
+        publishSettlement(operation, exit.value);
+        return;
+      }
+      if (Cause.hasInterruptsOnly(exit.cause)) {
+        return;
+      }
+      diagnostics.report({
+        severity: ErrorSeverity.Error,
+        operation,
+        error: new Error("An accepted turn could not settle.", { cause: Cause.squash(exit.cause) }),
+      });
+    });
   }
 
   return {
@@ -331,48 +338,60 @@ export function createThreadMessaging(
           return deletion;
         },
         async submit(request) {
-          const operation = await turns.submit({
-            threadId: ids.thread.parse(request.threadId),
-            content: request.content,
-            configuration: {
-              model: { ...request.configuration.model },
-              ...(request.configuration.reasoningPreset === undefined
-                ? {}
-                : {
-                    reasoningPreset: fromIpcReasoningPreset(request.configuration.reasoningPreset),
-                  }),
-            },
-          });
+          const operation = await runtime.runPromise(
+            turns.submit({
+              threadId: ids.thread.parse(request.threadId),
+              content: request.content,
+              configuration: {
+                model: { ...request.configuration.model },
+                ...(request.configuration.reasoningPreset === undefined
+                  ? {}
+                  : {
+                      reasoningPreset: fromIpcReasoningPreset(
+                        request.configuration.reasoningPreset,
+                      ),
+                    }),
+              },
+            }),
+          );
           observeSettlement("thread.turn.submit", operation.settlement);
           return toIpcSubmission(operation.acceptance);
         },
         async retry(request) {
-          const operation = await turns.retry({
-            turnId: ids.turn.parse(request.turnId),
-            configuration: {
-              model: { ...request.configuration.model },
-              ...(request.configuration.reasoningPreset === undefined
-                ? {}
-                : {
-                    reasoningPreset: fromIpcReasoningPreset(request.configuration.reasoningPreset),
-                  }),
-            },
-          });
+          const operation = await runtime.runPromise(
+            turns.retry({
+              turnId: ids.turn.parse(request.turnId),
+              configuration: {
+                model: { ...request.configuration.model },
+                ...(request.configuration.reasoningPreset === undefined
+                  ? {}
+                  : {
+                      reasoningPreset: fromIpcReasoningPreset(
+                        request.configuration.reasoningPreset,
+                      ),
+                    }),
+              },
+            }),
+          );
           observeSettlement("thread.turn.retry", operation.settlement);
           return toIpcGeneration(operation.acceptance.generation);
         },
         async regenerate(request) {
-          const operation = await turns.regenerate({
-            assistantMessageId: ids.message.parse(request.assistantMessageId),
-            configuration: {
-              model: { ...request.configuration.model },
-              ...(request.configuration.reasoningPreset === undefined
-                ? {}
-                : {
-                    reasoningPreset: fromIpcReasoningPreset(request.configuration.reasoningPreset),
-                  }),
-            },
-          });
+          const operation = await runtime.runPromise(
+            turns.regenerate({
+              assistantMessageId: ids.message.parse(request.assistantMessageId),
+              configuration: {
+                model: { ...request.configuration.model },
+                ...(request.configuration.reasoningPreset === undefined
+                  ? {}
+                  : {
+                      reasoningPreset: fromIpcReasoningPreset(
+                        request.configuration.reasoningPreset,
+                      ),
+                    }),
+              },
+            }),
+          );
           observeSettlement("thread.reply.regenerate", operation.settlement);
           return toIpcGeneration(operation.acceptance.generation);
         },

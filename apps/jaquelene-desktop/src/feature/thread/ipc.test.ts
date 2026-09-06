@@ -1,3 +1,4 @@
+import { Effect, Exit, FiberSet, Scope } from "effect";
 import type { Generation, TurnAcceptance, TurnSettlement } from "@jaquelene/backend";
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
@@ -97,7 +98,7 @@ function exposeSingleRenderer(
   diagnostics: ErrorReporter,
   threads: ThreadMessagingThreads = createBackendThreadsStub(),
 ) {
-  return createThreadMessaging(threads, turns, diagnostics).expose(target);
+  return createThreadMessaging(threads, turns, diagnostics, Effect).expose(target);
 }
 
 function requireImplementations() {
@@ -240,6 +241,53 @@ beforeEach(() => {
 });
 
 describe("thread IPC", () => {
+  it.each([false, true])(
+    "stops settlement observers on shutdown without hiding cleanup defects (%s)",
+    async (failCleanup) => {
+      const { acceptance } = createTurnState();
+      const cleanupFailure = new Error("Observer cleanup failed.");
+      let settlement: Effect.Effect<never> = Effect.never;
+      if (failCleanup) {
+        settlement = settlement.pipe(Effect.ensuring(Effect.die(cleanupFailure)));
+      }
+      const turns = createBackendTurnsStub({
+        submit: () => Effect.succeed({ acceptance, settlement, cancel: Effect.void }),
+      });
+      const report = vi.fn<ErrorReporter["report"]>();
+      const scope = Scope.makeUnsafe();
+      const runFork = await Effect.runPromise(FiberSet.makeRuntime().pipe(Scope.provide(scope)));
+      const messaging = createThreadMessaging(
+        createBackendThreadsStub(),
+        turns,
+        { report },
+        {
+          runPromise: Effect.runPromise,
+          runFork,
+        },
+      );
+      messaging.expose(activeTarget());
+      await requireImplementations().turns.submit({
+        threadId: acceptance.userMessage.threadId,
+        content: "Hello",
+        configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
+      });
+
+      await Effect.runPromise(Scope.close(scope, Exit.void));
+
+      if (failCleanup) {
+        expect(report).toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: expect.objectContaining({ cause: cleanupFailure }),
+          }),
+        );
+      } else {
+        expect(report).not.toHaveBeenCalled();
+      }
+      expect(implementations.dispatchReplyCompleted).not.toHaveBeenCalled();
+      expect(implementations.dispatchReplyFailed).not.toHaveBeenCalled();
+    },
+  );
+
   it("returns the current transcript from the thread capability", async () => {
     const threadId = ids.thread.create();
     const transcript = {
@@ -300,14 +348,23 @@ describe("thread IPC", () => {
       generations: [acceptance.generation],
       contentBytes: 5,
     }));
-    const submit = vi.fn<ThreadMessagingTurns["submit"]>(async () => ({
-      acceptance,
-      settlement,
-    }));
+    const submit = vi.fn<ThreadMessagingTurns["submit"]>(() =>
+      Effect.succeed({
+        acceptance,
+        cancel: Effect.void,
+        settlement: Effect.promise(() => settlement),
+      }),
+    );
     const backendTurns = createBackendTurnsStub({
       listForThread,
       submit,
-      retry: vi.fn(async () => ({ acceptance, settlement })),
+      retry: vi.fn(() =>
+        Effect.succeed({
+          acceptance,
+          settlement: Effect.promise(() => settlement),
+          cancel: Effect.void,
+        }),
+      ),
     });
     const report = vi.fn<ErrorReporter["report"]>();
 
@@ -405,7 +462,13 @@ describe("thread IPC", () => {
       assistantActivated: false,
     };
     const backendTurns = createBackendTurnsStub({
-      submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(inactiveCompletion) })),
+      submit: vi.fn(() =>
+        Effect.succeed({
+          acceptance,
+          cancel: Effect.void,
+          settlement: Effect.succeed(inactiveCompletion),
+        }),
+      ),
     });
     const report = vi.fn<ErrorReporter["report"]>();
 
@@ -437,7 +500,9 @@ describe("thread IPC", () => {
       threadActivity: failed.threadActivity,
     };
     const backendTurns = createBackendTurnsStub({
-      submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(failed) })),
+      submit: vi.fn(() =>
+        Effect.succeed({ acceptance, cancel: Effect.void, settlement: Effect.succeed(failed) }),
+      ),
     });
     const report = vi.fn<ErrorReporter["report"]>();
 
@@ -465,10 +530,13 @@ describe("thread IPC", () => {
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
       threadActivity: failed.threadActivity,
     };
-    const retry = vi.fn<ThreadMessagingTurns["retry"]>(async () => ({
-      acceptance,
-      settlement: Promise.resolve(failed),
-    }));
+    const retry = vi.fn<ThreadMessagingTurns["retry"]>(() =>
+      Effect.succeed({
+        acceptance,
+        cancel: Effect.void,
+        settlement: Effect.succeed(failed),
+      }),
+    );
     const backendTurns = createBackendTurnsStub({ retry });
     const report = vi.fn<ErrorReporter["report"]>();
     const configuration = {
@@ -495,10 +563,13 @@ describe("thread IPC", () => {
   it("maps regeneration and publishes its settlement", async () => {
     const { acceptance, completed } = createTurnState("regeneration");
     const assistantMessageId = ids.message.create();
-    const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(async () => ({
-      acceptance,
-      settlement: Promise.resolve(completed),
-    }));
+    const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(() =>
+      Effect.succeed({
+        acceptance,
+        cancel: Effect.void,
+        settlement: Effect.succeed(completed),
+      }),
+    );
     const backendTurns = createBackendTurnsStub({ regenerate });
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
@@ -539,10 +610,13 @@ describe("thread IPC", () => {
       generation: { ...failed.generation, status: "pending", failureKind: null, finishedAt: null },
       threadActivity: failed.threadActivity,
     };
-    const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(async () => ({
-      acceptance,
-      settlement: Promise.resolve(failed),
-    }));
+    const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(() =>
+      Effect.succeed({
+        acceptance,
+        cancel: Effect.void,
+        settlement: Effect.succeed(failed),
+      }),
+    );
     const backendTurns = createBackendTurnsStub({ regenerate });
     const report = vi.fn<ErrorReporter["report"]>();
 
@@ -562,7 +636,9 @@ describe("thread IPC", () => {
     const { acceptance } = createTurnState();
     const cause = new Error("Settlement ownership failed");
     const backendTurns = createBackendTurnsStub({
-      submit: vi.fn(async () => ({ acceptance, settlement: Promise.reject(cause) })),
+      submit: vi.fn(() =>
+        Effect.succeed({ acceptance, cancel: Effect.void, settlement: Effect.fail(cause) }),
+      ),
     });
     const report = vi.fn<ErrorReporter["report"]>();
 
@@ -597,7 +673,13 @@ describe("thread IPC", () => {
       threadActivity: interrupted.threadActivity,
     };
     const backendTurns = createBackendTurnsStub({
-      submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(interrupted) })),
+      submit: vi.fn(() =>
+        Effect.succeed({
+          acceptance,
+          cancel: Effect.void,
+          settlement: Effect.succeed(interrupted),
+        }),
+      ),
     });
     const report = vi.fn<ErrorReporter["report"]>();
 
@@ -615,7 +697,9 @@ describe("thread IPC", () => {
   it("does not dispatch settlement state to a destroyed renderer", async () => {
     const { acceptance, completed } = createTurnState();
     const backendTurns = createBackendTurnsStub({
-      submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(completed) })),
+      submit: vi.fn(() =>
+        Effect.succeed({ acceptance, cancel: Effect.void, settlement: Effect.succeed(completed) }),
+      ),
     });
     const target = {
       detached: false,
@@ -643,10 +727,21 @@ describe("thread IPC", () => {
       settle = resolve;
     });
     const backendTurns = createBackendTurnsStub({
-      submit: vi.fn(async () => ({ acceptance, settlement })),
+      submit: vi.fn(() =>
+        Effect.succeed({
+          acceptance,
+          settlement: Effect.promise(() => settlement),
+          cancel: Effect.void,
+        }),
+      ),
     });
     const report = vi.fn<ErrorReporter["report"]>();
-    const messaging = createThreadMessaging(createBackendThreadsStub(), backendTurns, { report });
+    const messaging = createThreadMessaging(
+      createBackendThreadsStub(),
+      backendTurns,
+      { report },
+      Effect,
+    );
     const stopSubmittingRenderer = messaging.expose(activeTarget());
 
     await requireImplementations().turns.submit({
@@ -665,7 +760,9 @@ describe("thread IPC", () => {
   it("reports settlement dispatch failures for an active renderer", async () => {
     const { acceptance, completed } = createTurnState();
     const backendTurns = createBackendTurnsStub({
-      submit: vi.fn(async () => ({ acceptance, settlement: Promise.resolve(completed) })),
+      submit: vi.fn(() =>
+        Effect.succeed({ acceptance, cancel: Effect.void, settlement: Effect.succeed(completed) }),
+      ),
     });
     const cause = new Error("IPC send failed");
     const report = vi.fn<ErrorReporter["report"]>();

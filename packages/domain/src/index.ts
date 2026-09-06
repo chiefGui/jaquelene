@@ -1,3 +1,8 @@
+export {
+  campaignOpeningSceneSchema,
+  parseCampaignOpeningScene,
+  type CampaignOpeningScene,
+} from "./campaign/opening-scene";
 export { campaignSetupInputSchema, type CampaignSetupInput } from "./campaign/setup";
 export {
   CAMPAIGN_SCENARIO_MAX_LENGTH,
@@ -95,3 +100,6 @@ export {
   type ThreadTranscriptInstruction,
   type ThreadTranscriptMessage,
 } from "./thread/transcript";
+
+export { THREAD_MESSAGE_MAX_CODE_UNITS } from "./thread/content";
+export { threadTurnIdSchema, type ThreadTurnId } from "./thread/turn-id";

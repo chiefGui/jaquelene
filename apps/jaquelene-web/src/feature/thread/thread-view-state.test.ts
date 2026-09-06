@@ -38,6 +38,7 @@ function page(status: GenerationStatus): ThreadMessagePage {
     generations: [
       {
         id: "generation",
+        threadId: "thread",
         turnId: "turn",
         intent: GenerationIntent.Reply,
         providerId: "provider",
@@ -152,6 +153,7 @@ describe("thread view state", () => {
       generations: [
         {
           id: "generation-regeneration",
+          threadId: generation.threadId,
           turnId: generation.turnId,
           intent: GenerationIntent.Regeneration,
           providerId: generation.providerId,
@@ -186,6 +188,7 @@ describe("thread view state", () => {
       generations: [
         {
           id: "generation-regeneration",
+          threadId: generation.threadId,
           turnId: generation.turnId,
           intent: GenerationIntent.Regeneration,
           providerId: generation.providerId,

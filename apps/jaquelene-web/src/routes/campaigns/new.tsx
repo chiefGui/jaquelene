@@ -12,6 +12,7 @@ import {
 import { useStoreState } from "@ariakit/react/store";
 import {
   CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH,
+  THREAD_MESSAGE_MAX_CODE_UNITS,
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,
   campaignSetupInputSchema,
   type CampaignSetupInput,
@@ -85,15 +86,19 @@ function NewCampaignRoute() {
   const navigate = useNavigate({ from: "/campaigns/new" });
   const active = useRef(true);
   const composingTitle = useRef(false);
-  const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
+  const [createdCampaign, setCreatedCampaign] = useState<{
+    campaign: Campaign;
+    setup: CampaignSetupInput;
+  } | null>(null);
   const formValues = useMemo(() => {
     if (createdCampaign) {
-      return { title: createdCampaign.title, scenario: createdCampaign.scenario };
+      return createdCampaign.setup;
     }
     return resolveCampaignSetupValues(draft, defaultScenario?.body ?? "");
   }, [draft, defaultScenario?.body, createdCampaign]);
   const form = useFormStore<CampaignSetupInput>({ values: formValues });
   const scenario = useFormValue<string>(form, form.names.scenario);
+  const openingScene = useFormValue<string>(form, form.names.openingScene);
   const formSubmitting = useStoreState(form, "submitting");
   const submitting = formSubmitting || starting;
   const hasSubmitted = useStoreState(
@@ -176,14 +181,16 @@ function NewCampaignRoute() {
 
   useFormSubmit(form, async (state) => {
     if (starting || composingTitle.current || (!createdCampaign && !selectedPrompt)) return;
-    let campaign = createdCampaign;
+    let campaign = createdCampaign?.campaign;
 
     if (!campaign) {
       try {
-        const { title, scenario } = campaignSetupInputSchema.parse(state.values);
+        const setup = campaignSetupInputSchema.parse(state.values);
+        const { title, scenario, openingScene } = setup;
         campaign = await startCampaign.mutateAsync({
           title,
           scenario,
+          openingScene,
           composition: [
             {
               kind: narratorPromptKindKey,
@@ -191,6 +198,9 @@ function NewCampaignRoute() {
             },
           ],
         });
+        if (active.current) {
+          setCreatedCampaign({ campaign, setup });
+        }
       } catch (cause) {
         reportError("campaign.start", cause);
 
@@ -203,8 +213,6 @@ function NewCampaignRoute() {
       if (!active.current) {
         return;
       }
-
-      setCreatedCampaign(campaign);
     }
 
     await openCampaign(campaign);
@@ -323,6 +331,36 @@ function NewCampaignRoute() {
                     }
                   />
                   <FormError name={form.names.scenario} render={<Field.Error />} />
+                </Field.Root>
+              </Item.Root>
+
+              <Item.Root style={styles.writingField}>
+                <Field.Root>
+                  <FormLabel name={form.names.openingScene} render={<Field.Label />}>
+                    Opening scene (optional)
+                  </FormLabel>
+                  <FormDescription
+                    name={form.names.openingScene}
+                    render={<Field.Description style={styles.scenarioDescription} />}
+                  >
+                    This text will appear as the first narrator message.
+                  </FormDescription>
+                  <FormControl
+                    name={form.names.openingScene}
+                    render={
+                      <MarkdownEditor
+                        value={openingScene}
+                        onValueChange={(value) => {
+                          updateDraft({ openingScene: value });
+                          form.setValue(form.names.openingScene, value);
+                        }}
+                        maxLength={THREAD_MESSAGE_MAX_CODE_UNITS}
+                        readOnly={submitting || Boolean(createdCampaign)}
+                        placeholder="John wakes up to a knock at the door."
+                      />
+                    }
+                  />
+                  <FormError name={form.names.openingScene} render={<Field.Error />} />
                 </Field.Root>
               </Item.Root>
 

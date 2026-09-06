@@ -61,6 +61,7 @@ describe("usage history", () => {
       .values({
         id: ids.generation.create(),
         turnId: turn.id,
+        threadId: turn.threadId,
         intent: "reply",
         providerId: "provider-a",
         modelId: "maker/model",

@@ -1,9 +1,9 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "98f9776c-718e-4e27-8899-98304378228e",
+  "id": "f3aca79b-7d19-4712-8985-3a8c951de80a",
   "prevIds": [
-    "18093a4d-82fe-41cd-8f5c-7da2cdd7dec6"
+    "00000000-0000-0000-0000-000000000000"
   ],
   "ddl": [
     {
@@ -177,6 +177,16 @@
     {
       "type": "text",
       "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "thread_id",
+      "entityType": "columns",
+      "table": "generations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -496,7 +506,7 @@
     },
     {
       "type": "text",
-      "notNull": true,
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -916,6 +926,21 @@
     },
     {
       "columns": [
+        "thread_id"
+      ],
+      "tableTo": "threads",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_generations_thread_id_threads_id_fk",
+      "entityType": "fks",
+      "table": "generations"
+    },
+    {
+      "columns": [
         "turn_id"
       ],
       "tableTo": "turns",
@@ -926,6 +951,57 @@
       "onDelete": "CASCADE",
       "nameExplicit": false,
       "name": "fk_generations_turn_id_turns_id_fk",
+      "entityType": "fks",
+      "table": "generations"
+    },
+    {
+      "columns": [
+        "thread_id",
+        "turn_id"
+      ],
+      "tableTo": "turns",
+      "columnsTo": [
+        "thread_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": true,
+      "name": "generations_thread_turn_fk",
+      "entityType": "fks",
+      "table": "generations"
+    },
+    {
+      "columns": [
+        "thread_id",
+        "output_message_id"
+      ],
+      "tableTo": "thread_messages",
+      "columnsTo": [
+        "thread_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": true,
+      "name": "generations_thread_output_fk",
+      "entityType": "fks",
+      "table": "generations"
+    },
+    {
+      "columns": [
+        "thread_id",
+        "regeneration_source_message_id"
+      ],
+      "tableTo": "thread_messages",
+      "columnsTo": [
+        "thread_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": true,
+      "name": "generations_thread_source_fk",
       "entityType": "fks",
       "table": "generations"
     },
@@ -1330,6 +1406,46 @@
     {
       "columns": [
         {
+          "value": "thread_id",
+          "isExpression": false
+        },
+        {
+          "value": "turn_id",
+          "isExpression": false
+        },
+        {
+          "value": "started_at",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "generations_thread_turn_started_at_idx",
+      "entityType": "indexes",
+      "table": "generations"
+    },
+    {
+      "columns": [
+        {
+          "value": "thread_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": "\"generations\".\"turn_id\" IS NULL AND \"generations\".\"status\" = 'pending'",
+      "origin": "manual",
+      "name": "generations_pending_opening_unique",
+      "entityType": "indexes",
+      "table": "generations"
+    },
+    {
+      "columns": [
+        {
           "value": "turn_id",
           "isExpression": false
         },
@@ -1690,7 +1806,13 @@
       "table": "campaigns"
     },
     {
-      "value": "(\"regeneration_source_message_id\" IS NULL AND \"regeneration_instructions\" IS NULL)\n        OR (\"intent\" = 'regeneration'\n          AND \"regeneration_source_message_id\" IS NOT NULL\n          AND \"regeneration_instructions\" IS NOT NULL\n          AND length(trim(\"regeneration_instructions\")) BETWEEN 1 AND 2000)",
+      "value": "\"turn_id\" IS NOT NULL OR (\"intent\" = 'regeneration' AND \"regeneration_source_message_id\" IS NOT NULL)",
+      "name": "generations_opening_valid",
+      "entityType": "checks",
+      "table": "generations"
+    },
+    {
+      "value": "(\"intent\" != 'regeneration' AND \"regeneration_source_message_id\" IS NULL AND \"regeneration_instructions\" IS NULL)\n        OR (\"intent\" = 'regeneration'\n          AND \"regeneration_source_message_id\" IS NOT NULL\n          AND (\"regeneration_instructions\" IS NULL OR length(trim(\"regeneration_instructions\")) BETWEEN 1 AND 2000))",
       "name": "generations_regeneration_valid",
       "entityType": "checks",
       "table": "generations"
@@ -1804,7 +1926,7 @@
       "table": "thread_messages"
     },
     {
-      "value": "\"author\" = 'user' OR \"parent_message_id\" IS NOT NULL",
+      "value": "(\"turn_id\" IS NULL AND \"author\" = 'assistant' AND \"parent_message_id\" IS NULL)\n        OR (\"turn_id\" IS NOT NULL AND (\"author\" = 'user' OR \"parent_message_id\" IS NOT NULL))",
       "name": "thread_messages_parent_valid",
       "entityType": "checks",
       "table": "thread_messages"

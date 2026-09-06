@@ -41,6 +41,7 @@ structure CampaignPromptSelectionInput {
 structure StartCampaignRequest {
   title: CampaignTitle
   scenario?: CampaignScenario
+  openingScene?: CampaignOpeningScene
   composition: CampaignPromptSelectionInput[]
 }
 
@@ -126,4 +127,10 @@ interface CampaignUsage {
 interface CampaignPreferences {
   getDefaultModel() -> ModelSelection?
   setDefaultModel(selection: ModelSelection) -> ModelSelection
+}
+
+zod_reference CampaignOpeningScene {
+  import = "@jaquelene/domain"
+  type = "CampaignOpeningScene"
+  schema = "campaignOpeningSceneSchema"
 }

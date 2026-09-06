@@ -1,5 +1,5 @@
 import { Cause, Effect, Exit } from "effect";
-import { and, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, notExists, or, sql, type SQL } from "drizzle-orm";
 import { parseRegenerationInstructions } from "@jaquelene/domain";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "#backend/database/database";
@@ -26,6 +26,8 @@ import {
 } from "#backend/usage/provider-attempts";
 import type { ProviderAttempt } from "#backend/usage/schema";
 import type { UsageAttribution } from "#backend/usage/types";
+import type { ModelInputResolver } from "#backend/model/input-resolver";
+import { createOpeningTarget } from "./opening-target";
 import type { ReplyAnchor, ReplyPreparer } from "./reply-preparation";
 import { createReplyTarget } from "./reply-target";
 import type { GenerationTarget } from "./target";
@@ -40,7 +42,7 @@ import {
 
 export type GenerateReplyRequest = {
   turnId: TurnId;
-  intent: GenerationIntent;
+  intent: "reply" | "retry";
   configuration: RequestedModelConfiguration;
 };
 
@@ -63,15 +65,10 @@ export type AcceptedGeneration = Readonly<{
   threadActivity: ThreadActivity;
 }>;
 
-type GuidedRegeneration = Readonly<{
-  sourceMessageId: MessageId;
-  content: string;
-  instructions: string;
-}>;
-
 export type GenerationOptions = Readonly<{
   database: Database;
   replyPreparer: ReplyPreparer;
+  modelInputs: ModelInputResolver;
   modelExecutor: ModelExecutor;
   attempts: Pick<ProviderAttempts, "start" | "changed">;
   getUsageAttribution: (threadId: ThreadId) => UsageAttribution | undefined;
@@ -96,6 +93,7 @@ function modelConfigurationFromGeneration(
 export function createGenerations({
   database,
   replyPreparer,
+  modelInputs,
   modelExecutor,
   attempts,
   getUsageAttribution,
@@ -216,27 +214,44 @@ export function createGenerations({
     return { outcome: "failed", generation: toGeneration(failedGeneration), cause };
   }
 
-  function listLatestForTurns(turnIds: readonly TurnId[]) {
+  function listLatestForTargets(
+    turnIds: readonly TurnId[],
+    openingThreadIds: readonly ThreadId[] = [],
+  ) {
     const uniqueTurnIds = [...new Set(turnIds)];
 
-    if (uniqueTurnIds.length === 0) {
+    const uniqueOpeningThreadIds = [...new Set(openingThreadIds)];
+    if (uniqueTurnIds.length === 0 && uniqueOpeningThreadIds.length === 0) {
       return [];
     }
 
+    const targets: SQL[] = [];
+    if (uniqueTurnIds.length > 0) {
+      targets.push(inArray(generationTable.turnId, uniqueTurnIds));
+    }
+    if (uniqueOpeningThreadIds.length > 0) {
+      targets.push(
+        and(
+          sql`${generationTable.turnId} IS NULL`,
+          inArray(generationTable.threadId, uniqueOpeningThreadIds),
+        )!,
+      );
+    }
     const newerGeneration = alias(generationTable, "newer_generation");
     const storedGenerations = database
       .select()
       .from(generationTable)
       .where(
         and(
-          inArray(generationTable.turnId, uniqueTurnIds),
+          or(...targets),
           notExists(
             database
               .select({ id: newerGeneration.id })
               .from(newerGeneration)
               .where(
                 and(
-                  eq(newerGeneration.turnId, generationTable.turnId),
+                  eq(newerGeneration.threadId, generationTable.threadId),
+                  sql`${newerGeneration.turnId} IS ${generationTable.turnId}`,
                   or(
                     gt(newerGeneration.startedAt, generationTable.startedAt),
                     and(
@@ -253,11 +268,11 @@ export function createGenerations({
     const generationByTurn = new Map(
       storedGenerations.map((storedGeneration) => {
         const generation = toGeneration(storedGeneration);
-        return [generation.turnId, generation];
+        return [generation.turnId ?? generation.threadId, generation];
       }),
     );
 
-    return uniqueTurnIds.flatMap((turnId) => {
+    return [...uniqueTurnIds, ...uniqueOpeningThreadIds].flatMap((turnId) => {
       const generation = generationByTurn.get(turnId);
 
       if (!generation) {
@@ -271,12 +286,19 @@ export function createGenerations({
   function acceptReplyInTransaction(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
-    intent: GenerationIntent,
+    intent: "reply" | "retry",
     requestedConfiguration: ResolvedModelConfiguration,
   ): AcceptedGeneration {
     const replyContext = requireReplyContext(transaction, turnId);
 
-    return acceptReplyForContext(transaction, intent, requestedConfiguration, replyContext);
+    return acceptForTarget(
+      transaction,
+      turnId,
+      intent,
+      requestedConfiguration,
+      createReplyTarget(replyPreparer, replyContext),
+      replyContext.activity,
+    );
   }
 
   function acceptRegenerationInTransaction(
@@ -288,6 +310,7 @@ export function createGenerations({
     const instructions = parseRegenerationInstructions(requestedInstructions);
     const source = transaction
       .select({
+        threadId: threadMessageTable.threadId,
         author: threadMessageTable.author,
         content: threadMessageTable.content,
         turnId: threadMessageTable.turnId,
@@ -304,50 +327,88 @@ export function createGenerations({
       throw new TypeError(`Message "${assistantMessageId}" is not an assistant message.`);
     }
 
-    const replyContext = requireReplyContext(transaction, source.turnId);
-
-    if (replyContext.activeMessageId !== assistantMessageId) {
-      throw new RangeError(`Message "${assistantMessageId}" is not the active thread reply.`);
+    let target: GenerationTarget;
+    let activity: ThreadActivity;
+    if (source.turnId === null) {
+      const thread = transaction
+        .select({
+          activeMessageId: threadTable.activeMessageId,
+          lastActivityAt: threadTable.lastActivityAt,
+          turnCount: threadTable.turnCount,
+        })
+        .from(threadTable)
+        .where(eq(threadTable.id, source.threadId))
+        .get();
+      if (!thread || thread.activeMessageId !== assistantMessageId) {
+        throw new RangeError(`Message "${assistantMessageId}" is not the active thread reply.`);
+      }
+      activity = {
+        threadId: source.threadId,
+        lastActivityAt: thread.lastActivityAt,
+        turnCount: thread.turnCount,
+      };
+      target = createOpeningTarget(modelInputs, {
+        threadId: source.threadId,
+        sourceMessageId: assistantMessageId,
+        content: source.content,
+        ...(instructions !== undefined && { instructions }),
+      });
+    } else {
+      const context = requireReplyContext(transaction, source.turnId);
+      if (context.activeMessageId !== assistantMessageId) {
+        throw new RangeError(`Message "${assistantMessageId}" is not the active thread reply.`);
+      }
+      activity = context.activity;
+      target = createReplyTarget(replyPreparer, {
+        ...context,
+        ...(instructions !== undefined && { rewrite: { content: source.content, instructions } }),
+      });
     }
-
-    let regeneration: GuidedRegeneration | undefined;
-    if (instructions !== undefined) {
-      regeneration = { sourceMessageId: assistantMessageId, content: source.content, instructions };
-    }
-
-    return acceptReplyForContext(
+    return acceptForTarget(
       transaction,
+      source.turnId,
       "regeneration",
       requestedConfiguration,
-      replyContext,
-      regeneration,
+      target,
+      activity,
+      { sourceMessageId: assistantMessageId, ...(instructions !== undefined && { instructions }) },
     );
   }
 
-  function acceptReplyForContext(
+  function acceptForTarget(
     transaction: Pick<Database, "insert" | "select">,
+    turnId: TurnId | null,
     intent: GenerationIntent,
     requestedConfiguration: ResolvedModelConfiguration,
-    replyContext: ReturnType<typeof requireReplyContext>,
-    regeneration?: GuidedRegeneration,
+    target: GenerationTarget,
+    threadActivity: ThreadActivity,
+    regeneration?: Generation["regeneration"],
   ): AcceptedGeneration {
-    const { turnId } = replyContext.anchor;
     const configuration = requireResolvedModelConfiguration(requestedConfiguration);
 
     const pendingGeneration = transaction
       .select({ id: generationTable.id })
       .from(generationTable)
-      .where(and(eq(generationTable.turnId, turnId), eq(generationTable.status, "pending")))
+      .where(
+        and(
+          eq(generationTable.threadId, target.threadId),
+          sql`${generationTable.turnId} IS ${turnId}`,
+          eq(generationTable.status, "pending"),
+        ),
+      )
       .get();
 
     if (pendingGeneration) {
-      throw new RangeError(`Turn "${turnId}" already has a pending generation.`);
+      throw new RangeError(
+        `The generation target in thread "${target.threadId}" already has a pending generation.`,
+      );
     }
 
     const storedGeneration = transaction
       .insert(generationTable)
       .values({
         id: ids.generation.create(),
+        threadId: target.threadId,
         turnId,
         intent,
         providerId: configuration.model.providerId,
@@ -363,19 +424,10 @@ export function createGenerations({
       .get();
 
     if (!storedGeneration) {
-      throw new Error(`Could not create a generation for turn "${turnId}".`);
+      throw new Error(`Could not create a generation for thread "${target.threadId}".`);
     }
 
-    const generation = toGeneration(storedGeneration);
-    return {
-      generation,
-      threadActivity: replyContext.activity,
-      target: createReplyTarget(replyPreparer, {
-        anchor: replyContext.anchor,
-        activeMessageId: replyContext.activeMessageId,
-        ...(regeneration && { rewrite: regeneration }),
-      }),
-    };
+    return { generation: toGeneration(storedGeneration), target, threadActivity };
   }
 
   const executeAccepted = Effect.fn("Generations.executeAccepted")(function ({
@@ -551,7 +603,19 @@ export function createGenerations({
     acceptReplyInTransaction,
     executeAccepted,
     executeReply,
-    listLatestForTurns,
+    listLatestForTurns: (turnIds: readonly TurnId[]) => listLatestForTargets(turnIds),
+    listLatestForMessages(messages: readonly Pick<ThreadMessage, "threadId" | "turnId">[]) {
+      const turns: TurnId[] = [];
+      const openings: ThreadId[] = [];
+      for (const message of messages) {
+        if (message.turnId === null) {
+          openings.push(message.threadId);
+        } else {
+          turns.push(message.turnId);
+        }
+      }
+      return listLatestForTargets(turns, openings);
+    },
     resolveConfiguration: modelExecutor.resolveConfiguration,
     generateReply: Effect.fn("Generations.generateReply")(function* (
       request: GenerateReplyRequest,

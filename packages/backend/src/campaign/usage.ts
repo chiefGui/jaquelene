@@ -2,7 +2,6 @@ import { and, count, desc, eq, isNotNull, ne, notExists, sql } from "drizzle-orm
 import type { Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import type { CampaignId, ThreadId } from "#backend/id";
-import { turnTable } from "#backend/thread/schema";
 import { providerAttemptTable } from "#backend/usage/schema";
 import type { CostUsage, TokenUsage, UsageAttribution, UsageCoverage } from "#backend/usage/types";
 import { campaignTable } from "./schema";
@@ -77,10 +76,9 @@ export function createCampaignUsage(database: Database) {
       const preparing = database
         .select({ attempts: count() })
         .from(generationTable)
-        .innerJoin(turnTable, eq(turnTable.id, generationTable.turnId))
         .where(
           and(
-            eq(turnTable.threadId, campaign.threadId),
+            eq(generationTable.threadId, campaign.threadId),
             eq(generationTable.status, "pending"),
             notExists(
               database

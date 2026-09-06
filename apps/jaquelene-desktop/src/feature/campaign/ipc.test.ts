@@ -60,7 +60,7 @@ beforeEach(() => {
 });
 
 describe("campaign IPC", () => {
-  it("passes scenario content through campaign creation and updates", () => {
+  it("passes exact opening and scenario content through campaign creation", () => {
     const campaign = {
       id: ids.campaign.create(),
       title: parseCampaignTitle("A city"),
@@ -74,7 +74,12 @@ describe("campaign IPC", () => {
     const setScenario = vi.fn<Campaigns["setScenario"]>(() => ({ ...campaign, scenario: "" }));
     exposeCampaigns({} as WebFrameMain, campaignsStub({ start, setScenario }));
     const implementation = requireCampaignsImplementation();
-    const input = { title: "A city", scenario: campaign.scenario, composition: [] };
+    const input = {
+      title: "A city",
+      scenario: campaign.scenario,
+      openingScene: "  John wakes up.\nSomeone knocks.\n",
+      composition: [],
+    };
     expect(implementation.start(input)).toEqual(campaign);
     expect(start).toHaveBeenCalledWith(input);
     expect(implementation.setScenario({ id: campaign.id, scenario: "" })).toEqual({

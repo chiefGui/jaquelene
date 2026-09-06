@@ -4,7 +4,7 @@ import {
   ThreadMessageAuthor,
   type ThreadMessage,
   type ThreadMessagePage,
-  type TurnGeneration,
+  type ThreadGeneration,
 } from "@jaquelene/ipc/renderer";
 
 type RetryActivity = Readonly<{
@@ -12,7 +12,7 @@ type RetryActivity = Readonly<{
   status: "pending" | "failed";
 }> | null;
 
-type FailedTurnGeneration = TurnGeneration &
+type FailedThreadGeneration = ThreadGeneration &
   Readonly<{
     status: GenerationStatus.Failed;
   }>;
@@ -24,7 +24,7 @@ type ThreadMessageView = Readonly<{
 }>;
 
 type ThreadReplyFailureView = Readonly<{
-  generation: FailedTurnGeneration;
+  generation: FailedThreadGeneration;
   retrying: boolean;
   retryFailed: boolean;
   canRetry: boolean;
@@ -51,8 +51,8 @@ type ThreadViewStateInput = Readonly<{
 }>;
 
 function isFailedGeneration(
-  generation: TurnGeneration | undefined,
-): generation is FailedTurnGeneration {
+  generation: ThreadGeneration | undefined,
+): generation is FailedThreadGeneration {
   return generation?.status === GenerationStatus.Failed;
 }
 
@@ -70,7 +70,7 @@ export function deriveThreadViewState({
   }
 
   const chronologicalPages = pages.toReversed();
-  const generationByTurn = new Map<string, TurnGeneration>();
+  const generationByTurn = new Map<string | null, ThreadGeneration>();
 
   for (const page of chronologicalPages) {
     for (const generation of page.generations) {

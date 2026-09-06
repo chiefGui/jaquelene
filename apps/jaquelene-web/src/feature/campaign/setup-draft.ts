@@ -8,12 +8,17 @@ type CampaignSetupScenario =
 
 export type CampaignSetupDraft = Readonly<{
   title: string;
+  openingScene: string;
   scenario: CampaignSetupScenario;
   narratorPromptKey?: string;
 }>;
 
 const draftQueryKey = [...campaignQueryKey, "setup-draft"] as const;
-const emptyDraft: CampaignSetupDraft = { title: "", scenario: { mode: "default" } };
+const emptyDraft: CampaignSetupDraft = {
+  title: "",
+  openingScene: "",
+  scenario: { mode: "default" },
+};
 
 export function resolveCampaignSetupValues(
   draft: CampaignSetupDraft,
@@ -21,7 +26,7 @@ export function resolveCampaignSetupValues(
 ): CampaignSetupInput {
   let scenario = defaultScenario;
   if (draft.scenario.mode === "custom") scenario = draft.scenario.text;
-  return { title: draft.title, scenario };
+  return { title: draft.title, scenario, openingScene: draft.openingScene };
 }
 
 export function readCampaignSetupDraft(queryClient: QueryClient): CampaignSetupDraft {
@@ -41,6 +46,7 @@ export function writeCampaignSetupDraft(
   const next = { ...previous, ...patch };
   if (
     previous.title === next.title &&
+    previous.openingScene === next.openingScene &&
     sameScenario(previous.scenario, next.scenario) &&
     previous.narratorPromptKey === next.narratorPromptKey
   ) {

@@ -1,6 +1,7 @@
 import type { FormStore } from "@ariakit/react/form";
 import {
   CAMPAIGN_SCENARIO_MAX_LENGTH,
+  THREAD_MESSAGE_MAX_CODE_UNITS,
   CAMPAIGN_TITLE_MAX_LENGTH,
   campaignSetupInputSchema,
   type CampaignSetupInput,
@@ -14,6 +15,9 @@ export function formatCampaignScenarioIssue() {
 
 export function useStartCampaignFormValidation(form: FormStore<CampaignSetupInput>) {
   useZodFormValidation(form, campaignSetupInputSchema, (issue) => {
+    if (issue.path[0] === "openingScene") {
+      return `Use ${formatCount(THREAD_MESSAGE_MAX_CODE_UNITS)} characters or fewer`;
+    }
     if (issue.path[0] === "scenario") {
       return formatCampaignScenarioIssue();
     }

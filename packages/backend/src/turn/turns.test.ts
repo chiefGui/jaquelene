@@ -23,7 +23,7 @@ import type {
 import { ProviderOperationError } from "#backend/provider/providers";
 import { narratorPromptModule } from "#backend/narrator/module";
 import { createPromptSubsystem } from "#backend/prompt/subsystem";
-import { threadTable } from "#backend/thread/schema";
+import { threadTable, turnTable } from "#backend/thread/schema";
 import {
   appendAssistantMessageInTransaction,
   createThreads,
@@ -103,6 +103,7 @@ async function openTurnEnvironment(generate: TestGenerate, now: () => number = D
   const usage = createUsageHistory(database, vi.fn());
   const generationEngine = createGenerations({
     database,
+    modelInputs: createModelInputResolver(campaigns, promptApplications),
     replyPreparer: createReplyPreparer(
       threads,
       createModelInputResolver(campaigns, promptApplications),
@@ -118,7 +119,7 @@ async function openTurnEnvironment(generate: TestGenerate, now: () => number = D
     createTurns(database, threads, generationEngine).pipe(Scope.provide(scope)),
   );
   databases.push(database);
-  return { database, databasePath, generationEngine, scope, threads, turns };
+  return { campaigns, usage, database, databasePath, generationEngine, scope, threads, turns };
 }
 
 function deferred<Result>() {
@@ -146,6 +147,193 @@ afterEach(async () => {
 });
 
 describe("turns", () => {
+  it("rewrites an opening through the regular lifecycle without creating a player turn", async () => {
+    const result = deferred<ProviderGenerationResult>();
+    const generate = vi
+      .fn<TestGenerate>()
+      .mockImplementationOnce(() => result.promise)
+      .mockResolvedValue({ text: "A fresh opening." });
+    const { campaigns, database, threads, turns } = await openTurnEnvironment(generate);
+    const campaign = campaigns.start({
+      title: "Morning",
+      scenario: "A quiet village.",
+      openingScene: "  John wakes up.\nSomeone knocks.\n",
+      composition: [],
+    });
+    const request = { threadId: campaign.threadId, direction: "older" as const };
+    const initial = turns.listForThread(request);
+    const opening = initial.messages[0]!;
+    expect(initial.generations).toEqual([]);
+    expect(opening).toMatchObject({
+      author: "assistant",
+      turnId: null,
+      parentMessageId: null,
+      sequence: 1,
+    });
+    expect(generate).not.toHaveBeenCalled();
+    const configuration = { model: { providerId: "provider-a", modelId: "maker/model" } };
+    const operation = await Effect.runPromise(
+      turns.regenerate({
+        assistantMessageId: opening.id,
+        configuration,
+        instructions: "Make it ominous.",
+      }),
+    );
+    expect(operation.acceptance.sourceMessage).toEqual(opening);
+    expect(operation.acceptance.generation).toMatchObject({
+      threadId: campaign.threadId,
+      turnId: null,
+      regeneration: { sourceMessageId: opening.id, instructions: "Make it ominous." },
+    });
+    expect(turns.listForThread(request).generations).toEqual([operation.acceptance.generation]);
+    expect(turns.listForThread(request).messages).toEqual([opening]);
+    expect(() => turns.editMessage({ messageId: opening.id, content: "Changed" })).toThrow();
+    expect(() => campaigns.delete(campaign.id)).toThrow();
+    await expect(
+      Effect.runPromise(
+        turns.submit({ threadId: campaign.threadId, content: "Open the door", configuration }),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      Effect.runPromise(turns.regenerate({ assistantMessageId: opening.id, configuration })),
+    ).rejects.toThrow();
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledOnce());
+    const input = generate.mock.calls[0]![0].input;
+    expect(input.instructions).toEqual([
+      expect.objectContaining({ sourceKey: "builtin.narrator.jaquelene" }),
+      expect.objectContaining({ content: "## Scenario\nA quiet village." }),
+    ]);
+    expect(input.dialogue).toEqual([]);
+    expect(input.requestMessages).toEqual([
+      { role: "assistant", content: opening.content },
+      { role: "user", content: expect.stringContaining("Make it ominous.") },
+    ]);
+    result.resolve({ text: "A shadow waits outside." });
+    const completed = await Effect.runPromise(operation.settlement);
+    if (completed.outcome !== "completed")
+      throw new Error("Expected opening regeneration to complete.");
+    expect(completed.assistantActivated).toBe(true);
+    expect(completed.assistantMessage).toMatchObject({
+      turnId: null,
+      parentMessageId: null,
+      content: "A shadow waits outside.",
+    });
+    expect(turns.listForThread(request).messages).toEqual([completed.assistantMessage]);
+    expect(completed.threadActivity.turnCount).toBe(0);
+    expect(threads.getMessage(opening.id)).toEqual(opening);
+    const next = await Effect.runPromise(
+      turns.regenerate({ assistantMessageId: completed.assistantMessage.id, configuration }),
+    );
+    const rewritten = await Effect.runPromise(next.settlement);
+    expect(rewritten.outcome).toBe("completed");
+    expect(generate.mock.calls[1]![0].input.requestMessages?.[0]).toEqual({
+      role: "assistant",
+      content: completed.assistantMessage.content,
+    });
+    expect(generate.mock.calls[1]![0].input.requestMessages?.[1]?.content).not.toContain(
+      "Make it ominous.",
+    );
+    expect(database.select().from(turnTable).all()).toEqual([]);
+    expect(database.select().from(providerAttemptTable).all()).toHaveLength(2);
+    expect(turns.inspect(campaign.threadId)).toEqual({ state: "idle" });
+  });
+
+  it("keeps an edited opening as dialogue and restores it when the first player turn is deleted", async () => {
+    const generate = vi.fn<TestGenerate>().mockResolvedValue({ text: "The door opens." });
+    const { campaigns, database, databasePath, threads, turns } =
+      await openTurnEnvironment(generate);
+    const campaign = campaigns.start({
+      title: "Morning",
+      openingScene: "Someone knocks.",
+      composition: [],
+    });
+    const request = { threadId: campaign.threadId, direction: "older" as const };
+    const opening = turns.listForThread(request).messages[0]!;
+    const edited = turns.editMessage({
+      messageId: opening.id,
+      content: "  Someone knocks twice.\n",
+    });
+    expect(() =>
+      turns.deleteFrom({ threadId: campaign.threadId, userMessageId: opening.id }),
+    ).toThrow();
+    const configuration = { model: { providerId: "provider-a", modelId: "maker/model" } };
+    const submission = await Effect.runPromise(
+      turns.submit({ threadId: campaign.threadId, content: "Who is it?", configuration }),
+    );
+    const reply = await Effect.runPromise(submission.settlement);
+    expect(reply.outcome).toBe("completed");
+    expect(generate.mock.calls[0]![0].input.dialogue).toEqual([
+      { messageId: opening.id, role: "assistant", content: edited.content },
+      { messageId: submission.acceptance.userMessage.id, role: "user", content: "Who is it?" },
+    ]);
+    expect(generate.mock.calls[0]![0].input.requestMessages).toBeUndefined();
+    await expect(
+      Effect.runPromise(turns.regenerate({ assistantMessageId: opening.id, configuration })),
+    ).rejects.toThrow("not the active thread reply");
+    const deletion = turns.deleteFrom({
+      threadId: campaign.threadId,
+      userMessageId: submission.acceptance.userMessage.id,
+    });
+    expect(deletion).toMatchObject({
+      activeMessageId: opening.id,
+      deletedTurnCount: 1,
+      threadActivity: { turnCount: 0 },
+    });
+    expect(turns.listForThread(request).messages).toEqual([edited]);
+    expect(turns.listForThread(request).generations).toEqual([]);
+    const regeneration = await Effect.runPromise(
+      turns.regenerate({ assistantMessageId: opening.id, configuration }),
+    );
+    const regenerated = await Effect.runPromise(regeneration.settlement);
+    if (regenerated.outcome !== "completed")
+      throw new Error("Expected restored opening regeneration.");
+    const reopened = openDatabase(databasePath);
+    databases.push(reopened);
+    expect(createThreads(reopened).listMessages(request).messages).toEqual([
+      regenerated.assistantMessage,
+    ]);
+    expect(database.select().from(turnTable).all()).toEqual([]);
+    expect(threads.getMessage(opening.id)).toEqual(edited);
+  });
+
+  it.each(["provider", "invalid-output", "interrupted"] as const)(
+    "preserves the opening after a %s failure and allows another regeneration",
+    async (failureKind) => {
+      const response = deferred<ProviderGenerationResult>();
+      const generate = vi
+        .fn<TestGenerate>()
+        .mockImplementationOnce(() => response.promise)
+        .mockResolvedValue({ text: "Recovered opening." });
+      const { campaigns, turns } = await openTurnEnvironment(generate);
+      const campaign = campaigns.start({
+        title: "Morning",
+        openingScene: "Someone knocks.",
+        composition: [],
+      });
+      const request = { threadId: campaign.threadId, direction: "older" as const };
+      const opening = turns.listForThread(request).messages[0]!;
+      const configuration = { model: { providerId: "provider-a", modelId: "maker/model" } };
+      const pending = await Effect.runPromise(
+        turns.regenerate({ assistantMessageId: opening.id, configuration }),
+      );
+      await vi.waitFor(() => expect(generate).toHaveBeenCalledOnce());
+      if (failureKind === "provider") response.reject(new Error("Provider unavailable"));
+      else if (failureKind === "invalid-output") response.resolve({ text: "  " });
+      else await Effect.runPromise(pending.cancel);
+      const failure = await Effect.runPromise(pending.settlement);
+      expect(failure).toMatchObject({ outcome: "failed", generation: { failureKind } });
+      expect(turns.listForThread(request)).toMatchObject({
+        messages: [opening],
+        generations: [failure.generation],
+      });
+      expect(turns.inspect(campaign.threadId)).toEqual({ state: "idle" });
+      const next = await Effect.runPromise(
+        turns.regenerate({ assistantMessageId: opening.id, configuration }),
+      );
+      expect((await Effect.runPromise(next.settlement)).outcome).toBe("completed");
+    },
+  );
+
   it("owns configuration before it can initiate shutdown", async () => {
     const { database, generationEngine, scope, threads, turns } = await openTurnEnvironment(
       async () => ({ text: "Unused" }),
@@ -258,7 +446,7 @@ describe("turns", () => {
     expect(database.select().from(providerAttemptTable).all()).toEqual([]);
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
     const retry = await Effect.runPromise(
-      turns.retry({ turnId: operation.acceptance.userMessage.turnId, configuration }),
+      turns.retry({ turnId: operation.acceptance.userMessage.turnId!, configuration }),
     );
     await expect(Effect.runPromise(retry.settlement)).resolves.toMatchObject({
       outcome: "completed",
@@ -498,13 +686,13 @@ describe("turns", () => {
 
     const pendingRetry = Effect.runPromise(
       turns.retry({
-        turnId: failed.sourceMessage.turnId,
+        turnId: failed.sourceMessage.turnId!,
         configuration,
       }),
     );
     expect(turns.inspect(thread.id)).toEqual({
       state: "retrying",
-      turnId: failed.sourceMessage.turnId,
+      turnId: failed.sourceMessage.turnId!,
     });
 
     const retriedOperation = await pendingRetry;
@@ -592,7 +780,9 @@ describe("turns", () => {
 
       await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2));
       expect(generate.mock.calls[1]?.[0].input).toEqual(generate.mock.calls[0]?.[0].input);
-      expect(regeneration.acceptance.generation.regeneration).toBeUndefined();
+      expect(regeneration.acceptance.generation.regeneration).toEqual({
+        sourceMessageId: original.assistantMessage.id,
+      });
       regeneratedReply.resolve({ text: "Regenerated reply" });
       const regenerated = await Effect.runPromise(regeneration.settlement);
 
@@ -1103,6 +1293,7 @@ describe("turns", () => {
           throw acceptanceFailure;
         },
         listLatestForTurns: generationEngine.listLatestForTurns,
+        listLatestForMessages: generationEngine.listLatestForMessages,
         resolveConfiguration: generationEngine.resolveConfiguration,
         executeAccepted() {
           throw new Error("Generation must not be scheduled after failed acceptance.");
@@ -1148,6 +1339,7 @@ describe("turns", () => {
         acceptRegenerationInTransaction: generationEngine.acceptRegenerationInTransaction,
         acceptReplyInTransaction: generationEngine.acceptReplyInTransaction,
         listLatestForTurns: generationEngine.listLatestForTurns,
+        listLatestForMessages: generationEngine.listLatestForMessages,
         resolveConfiguration: generationEngine.resolveConfiguration,
         executeAccepted: () =>
           Effect.tryPromise({ try: () => settlement.promise, catch: (cause) => cause }).pipe(

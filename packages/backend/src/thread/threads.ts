@@ -1,3 +1,4 @@
+import { THREAD_MESSAGE_MAX_CODE_UNITS } from "@jaquelene/domain";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { ids, type MessageId, type ThreadId, type TurnId } from "#backend/id";
@@ -10,7 +11,7 @@ import {
   type Turn,
 } from "./schema";
 
-export const THREAD_MESSAGE_MAX_CODE_UNITS = 100_000;
+export { THREAD_MESSAGE_MAX_CODE_UNITS } from "@jaquelene/domain";
 export const THREAD_MESSAGE_PAGE_MAX_COUNT = 50;
 export const THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET = 128 * 1024;
 
@@ -262,14 +263,14 @@ function activateMessage(
   message: Pick<ThreadMessage, "createdAt" | "id" | "parentMessageId">,
   turnCountIncrement = 0,
 ): ThreadActivity | null {
-  if ((message.parentMessageId === null) !== (expectedMessageId === null)) {
+  if (message.parentMessageId !== null && expectedMessageId === null) {
     return null;
   }
 
-  const expectedHead =
-    expectedMessageId === null
-      ? isNull(threadTable.activeMessageId)
-      : eq(threadTable.activeMessageId, expectedMessageId);
+  let expectedHead = isNull(threadTable.activeMessageId);
+  if (expectedMessageId !== null) {
+    expectedHead = eq(threadTable.activeMessageId, expectedMessageId);
+  }
   const movedHead = database
     .update(threadTable)
     .set({
@@ -483,6 +484,66 @@ export function insertThread(database: Pick<Database, "insert">, createdAt: numb
   return { id: thread.id, createdAt: thread.createdAt };
 }
 
+export function appendOpeningMessageInTransaction(
+  database: Pick<Database, "insert" | "select" | "update">,
+  {
+    threadId,
+    content: value,
+    createdAt,
+    replaceMessageId,
+  }: Readonly<{
+    threadId: ThreadId;
+    content: string;
+    createdAt: number;
+    replaceMessageId: MessageId | null;
+  }>,
+) {
+  const content = requireThreadMessageContent(value);
+  if (replaceMessageId !== null) {
+    const source = database
+      .select({ id: threadMessageTable.id })
+      .from(threadMessageTable)
+      .where(
+        and(
+          eq(threadMessageTable.threadId, threadId),
+          eq(threadMessageTable.id, replaceMessageId),
+          isNull(threadMessageTable.turnId),
+          isNull(threadMessageTable.parentMessageId),
+          eq(threadMessageTable.author, "assistant"),
+        ),
+      )
+      .get();
+    if (!source) {
+      throw new RangeError(`Message "${replaceMessageId}" is not an opening scene in this thread.`);
+    }
+  } else {
+    const thread = database
+      .select({ sequence: threadTable.lastMessageSequence })
+      .from(threadTable)
+      .where(eq(threadTable.id, threadId))
+      .get();
+    if (!thread || thread.sequence !== 0) {
+      throw new RangeError("An opening scene requires a new thread.");
+    }
+  }
+  const allocation = allocateMessageSequence(database, threadId);
+  const record: ThreadMessageRecord = {
+    id: ids.message.create(),
+    threadId,
+    turnId: null,
+    parentMessageId: null,
+    activeChildMessageId: null,
+    sequence: allocation.sequence,
+    author: "assistant",
+    content,
+    createdAt,
+  };
+  database.insert(threadMessageTable).values(record).run();
+  const message = toThreadMessage(record);
+  const threadActivity = activateMessage(database, threadId, replaceMessageId, message);
+  return { message, threadActivity };
+}
+
 export function appendAssistantMessageInTransaction(
   database: Pick<Database, "insert" | "select" | "update">,
   {
@@ -557,7 +618,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       content,
       createdAt,
     };
-    const message = toThreadMessage(record);
+    const message = { ...toThreadMessage(record), turnId: turn.id };
 
     transaction.insert(turnTable).values(turn).run();
     transaction.insert(threadMessageTable).values(record).run();
@@ -614,7 +675,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
 
       return {
         turn,
-        message,
+        message: { ...message, turnId: id },
         activity: { threadId: turn.threadId, lastActivityAt, turnCount },
       };
     },

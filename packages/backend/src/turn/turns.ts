@@ -30,10 +30,11 @@ export type {
   ThreadHistoryDeletion,
 } from "#backend/thread/threads";
 
-type TurnGenerationEngine = Pick<
+type ThreadGenerationEngine = Pick<
   GenerationEngine,
   | "acceptRegenerationInTransaction"
   | "acceptReplyInTransaction"
+  | "listLatestForMessages"
   | "listLatestForTurns"
   | "resolveConfiguration"
   | "executeAccepted"
@@ -164,7 +165,7 @@ function settleGeneration(
 export const createTurns = Effect.fn("Turns.make")(function* (
   database: Database,
   threads: TurnThreads,
-  generations: TurnGenerationEngine,
+  generations: ThreadGenerationEngine,
 ) {
   const context = yield* Effect.context<never>();
   const operations = yield* FiberSet.make<void, unknown>();
@@ -280,9 +281,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
 
     listForThread(request: ListThreadRequest): ThreadActivityPage {
       const page = threads.listMessages(request);
-      const generationsForPage = generations.listLatestForTurns(
-        page.messages.map(({ turnId }) => turnId),
-      );
+      const generationsForPage = generations.listLatestForMessages(page.messages);
 
       return { ...page, generations: generationsForPage };
     },

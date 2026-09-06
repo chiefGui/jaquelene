@@ -125,6 +125,7 @@ function createTurnState(intent: Generation["intent"] = "reply") {
     createdAt: 100,
   };
   const pendingGeneration: Generation = {
+    threadId,
     id: ids.generation.create(),
     turnId,
     intent,
@@ -408,6 +409,7 @@ describe("thread IPC", () => {
       generations: [
         {
           id: acceptance.generation.id,
+          threadId: acceptance.generation.threadId,
           turnId: acceptance.userMessage.turnId,
           providerId: "openrouter",
           modelId: "maker/model",
@@ -550,12 +552,12 @@ describe("thread IPC", () => {
 
     exposeSingleRenderer(activeTarget(), backendTurns, { report });
     const accepted = await requireImplementations().turns.retry({
-      turnId: failed.sourceMessage.turnId,
+      turnId: failed.sourceMessage.turnId!,
       configuration,
     });
 
     expect(retry).toHaveBeenCalledWith({
-      turnId: failed.sourceMessage.turnId,
+      turnId: failed.sourceMessage.turnId!,
       configuration,
     });
     expect(accepted.status).toBe("pending");
@@ -625,6 +627,61 @@ describe("thread IPC", () => {
       }
     },
   );
+
+  it("transports opening acceptance and completion with no player turn", async () => {
+    const { acceptance, completed } = createTurnState("regeneration");
+    const sourceMessage = {
+      ...completed.assistantMessage,
+      id: ids.message.create(),
+      turnId: null,
+      parentMessageId: null,
+      content: "Someone knocks.",
+    };
+    const generation = {
+      ...acceptance.generation,
+      turnId: null,
+      regeneration: { sourceMessageId: sourceMessage.id },
+    };
+    const settled = {
+      ...completed,
+      sourceMessage,
+      assistantMessage: { ...completed.assistantMessage, turnId: null, parentMessageId: null },
+      generation: { ...completed.generation, turnId: null, regeneration: generation.regeneration },
+      threadActivity: { ...completed.threadActivity, turnCount: 0 },
+    };
+    const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(() =>
+      Effect.succeed({
+        acceptance: { sourceMessage, generation, threadActivity: settled.threadActivity },
+        cancel: Effect.void,
+        settlement: Effect.succeed(settled),
+      }),
+    );
+    exposeSingleRenderer(activeTarget(), createBackendTurnsStub({ regenerate }), {
+      report: vi.fn(),
+    });
+    const accepted = await requireImplementations().turns.regenerate({
+      assistantMessageId: sourceMessage.id,
+      configuration: { model: { providerId: "openrouter", modelId: "maker/model" } },
+    });
+    expect(accepted).toMatchObject({
+      threadId: sourceMessage.threadId,
+      turnId: null,
+      regeneration: { sourceMessageId: sourceMessage.id },
+    });
+    await vi.waitFor(() => expect(implementations.dispatchReplyCompleted).toHaveBeenCalledOnce());
+    expect(implementations.dispatchReplyCompleted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceMessage: expect.objectContaining({
+          id: sourceMessage.id,
+          author: "assistant",
+          turnId: null,
+        }),
+        assistantMessage: expect.objectContaining({ turnId: null }),
+        generation: expect.objectContaining({ threadId: sourceMessage.threadId, turnId: null }),
+        threadActivity: expect.objectContaining({ turnCount: 0 }),
+      }),
+    );
+  });
 
   it("labels unexpected regeneration failures as regeneration operations", async () => {
     const cause = new Error("Reply preparation failed");

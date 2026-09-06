@@ -27,9 +27,9 @@ const messageFooterGap = "0.375rem";
 
 type ThreadReplyFailureView = ThreadViewState["messages"][number]["replyFailure"];
 type ThreadReplyRegenerationView = ThreadViewState["messages"][number]["regeneration"];
-type FailedTurnGeneration = NonNullable<ThreadReplyFailureView>["generation"];
+type FailedThreadGeneration = NonNullable<ThreadReplyFailureView>["generation"];
 
-function replyFailureText(generation: FailedTurnGeneration, retrying: boolean) {
+function replyFailureText(generation: FailedThreadGeneration, retrying: boolean) {
   if (retrying) {
     return "Retrying…";
   }
@@ -353,9 +353,9 @@ function renderReplyFailureState({
   failure: ThreadReplyFailureView;
   retryPending: boolean;
   retryReply: (turnId: string) => Promise<void>;
-  turnId: string;
+  turnId: string | null;
 }>) {
-  if (!failure) {
+  if (!failure || turnId === null) {
     return null;
   }
 

@@ -4,7 +4,7 @@ import {
   ThreadMessageAuthor,
   type ThreadMessage,
   type ThreadMessagePage,
-  type TurnGeneration,
+  type ThreadGeneration,
 } from "@jaquelene/ipc/renderer";
 import type { InfiniteData } from "@tanstack/react-query";
 
@@ -16,27 +16,27 @@ export type ThreadTurnUpdate =
   | Readonly<{
       type: "submission-accepted";
       userMessage: ThreadMessage;
-      generation: TurnGeneration;
+      generation: ThreadGeneration;
     }>
   | Readonly<{
       type: "reply-failed";
       sourceMessage: ThreadMessage;
-      generation: TurnGeneration;
+      generation: ThreadGeneration;
     }>
   | Readonly<{
       type: "retry-accepted";
-      generation: TurnGeneration;
+      generation: ThreadGeneration;
     }>
   | Readonly<{
       type: "regeneration-accepted";
       assistantMessageId: string;
-      generation: TurnGeneration;
+      generation: ThreadGeneration;
     }>
   | Readonly<{
       type: "reply-completed";
       sourceMessage: ThreadMessage;
       assistantMessage: ThreadMessage;
-      generation: TurnGeneration;
+      generation: ThreadGeneration;
     }>;
 
 type ThreadCacheReconciliation =
@@ -89,13 +89,13 @@ function hasSamePageContract(page: ThreadMessagePage, contract: ThreadPageContra
   );
 }
 
-function isValidPage(page: ThreadMessagePage, contract: ThreadPageContract) {
+function isValidPage(page: ThreadMessagePage, threadId: string, contract: ThreadPageContract) {
   if (!hasSamePageContract(page, contract) || page.messages.length > contract.messageCountLimit) {
     return false;
   }
 
   let actualContentBytes = 0;
-  const messageTurnIds = new Set<string>();
+  const messageTurnIds = new Set<string | null>();
 
   for (const message of page.messages) {
     if (message.content.length > contract.messageMaxCodeUnits) {
@@ -106,10 +106,14 @@ function isValidPage(page: ThreadMessagePage, contract: ThreadPageContract) {
     messageTurnIds.add(message.turnId);
   }
 
-  const generationTurnIds = new Set<string>();
+  const generationTurnIds = new Set<string | null>();
 
   for (const generation of page.generations) {
-    if (!messageTurnIds.has(generation.turnId) || generationTurnIds.has(generation.turnId)) {
+    if (
+      generation.threadId !== threadId ||
+      !messageTurnIds.has(generation.turnId) ||
+      generationTurnIds.has(generation.turnId)
+    ) {
       return false;
     }
 
@@ -147,7 +151,7 @@ function loadedMessages(data: ThreadQueryData, threadId: string, contract: Threa
   for (let index = 0; index < data.pages.length; index += 1) {
     const page = data.pages[index];
 
-    if (!page || !isValidPage(page, contract)) {
+    if (!page || !isValidPage(page, threadId, contract)) {
       return null;
     }
 
@@ -246,7 +250,7 @@ function partitionMessages(
 
 function rebuildPages(
   messages: readonly ThreadMessage[],
-  generations: readonly TurnGeneration[],
+  generations: readonly ThreadGeneration[],
   contract: ThreadPageContract,
   window: ThreadPageWindow,
 ): ThreadQueryData {
@@ -515,7 +519,7 @@ export function reconcileThreadMessageEdit(
 
 function selectGenerations(
   messages: readonly ThreadMessage[],
-  generations: readonly TurnGeneration[],
+  generations: readonly ThreadGeneration[],
 ) {
   const generationByTurn = new Map(
     generations.map((generation) => [generation.turnId, generation]),
@@ -527,7 +531,7 @@ function selectGenerations(
   });
 }
 
-function compareGenerationOrder(left: TurnGeneration, right: TurnGeneration) {
+function compareGenerationOrder(left: ThreadGeneration, right: ThreadGeneration) {
   return left.startedAt - right.startedAt || left.id.localeCompare(right.id);
 }
 
@@ -538,6 +542,10 @@ function isReplyCompletion(
 }
 
 function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
+  if (update.generation.threadId !== threadId) {
+    return false;
+  }
+
   if (update.type === "retry-accepted") {
     return (
       update.generation.intent === GenerationIntent.Retry &&
@@ -625,7 +633,7 @@ export function reconcileThreadTurn(
   const messages = [...loaded.messages];
   const messageIndexById = loaded.messageIndexById;
 
-  const generationByTurn = new Map<string, TurnGeneration>();
+  const generationByTurn = new Map<string | null, ThreadGeneration>();
 
   for (const page of data.pages) {
     for (const generation of page.generations) {

@@ -31,6 +31,7 @@ describe("campaign setup drafts", () => {
     expect(resolveCampaignSetupValues(draft, "Updated default")).toEqual({
       title: "My campaign",
       scenario: "Updated default",
+      openingScene: "",
     });
     client.clear();
   });
@@ -59,6 +60,7 @@ describe("campaign setup drafts", () => {
     expect(resolveCampaignSetupValues(readCampaignSetupDraft(client), "Latest default")).toEqual({
       title: "",
       scenario: "Latest default",
+      openingScene: "",
     });
     client.clear();
   });
@@ -77,10 +79,30 @@ describe("campaign setup drafts", () => {
       title: values.title,
       scenario: { mode: "custom", text: values.scenario },
       narratorPromptKey: "narrator-a",
+      openingScene: "",
     });
     expect(readCampaignSetupDraft(client)).toBe(draft);
     client.clear();
-    expect(readCampaignSetupDraft(client)).toEqual({ title: "", scenario: { mode: "default" } });
+    expect(readCampaignSetupDraft(client)).toEqual({
+      title: "",
+      scenario: { mode: "default" },
+      openingScene: "",
+    });
+  });
+
+  it("retains the exact opening independently of scenario defaults and newer draft edits", () => {
+    const client = new QueryClient();
+    const openingScene = "  John wakes up.\n\nSomeone knocks.\n";
+    const submitted = writeCampaignSetupDraft(client, { openingScene });
+    expect(
+      resolveCampaignSetupValues(readCampaignSetupDraft(client), "A new default").openingScene,
+    ).toBe(openingScene);
+    const next = writeCampaignSetupDraft(client, { openingScene: "A different opening." });
+    clearSubmittedCampaignSetupDraft(client, submitted);
+    expect(readCampaignSetupDraft(client)).toBe(next);
+    clearSubmittedCampaignSetupDraft(client, next);
+    expect(readCampaignSetupDraft(client).openingScene).toBe("");
+    client.clear();
   });
 
   it("notifies synchronously for edits and clearing, but ignores unrelated queries", () => {

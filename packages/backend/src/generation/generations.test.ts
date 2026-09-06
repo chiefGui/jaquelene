@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { getCampaignUsageAttribution } from "#backend/campaign/usage";
@@ -115,6 +116,7 @@ function openGenerationEnvironment(provider: TestGenerationProvider, now: () => 
   const usage = createUsageHistory(database, changed);
   const generationOptions: GenerationOptions = {
     database,
+    modelInputs: createModelInputResolver(campaigns, promptApplications),
     replyPreparer: createReplyPreparer(
       threads,
       createModelInputResolver(campaigns, promptApplications),
@@ -158,6 +160,129 @@ afterEach(() => {
 });
 
 describe("generations", () => {
+  it("scopes pending opening generations and their latest state to each thread", () => {
+    const { campaigns, database, generations, threads } = openGenerationEnvironment({
+      id: "provider-a",
+      generate: vi.fn(async () => ({ text: "Unused" })),
+    });
+    const first = campaigns.start({ title: "First", openingScene: "One", composition: [] });
+    const second = campaigns.start({ title: "Second", openingScene: "Two", composition: [] });
+    const firstMessage = threads.listMessages({ threadId: first.threadId, direction: "older" })
+      .messages[0]!;
+    const secondMessage = threads.listMessages({ threadId: second.threadId, direction: "older" })
+      .messages[0]!;
+    const configuration = { model: { providerId: "provider-a", modelId: "maker/model" } };
+    const accepted = database.transaction((transaction) =>
+      generations.acceptRegenerationInTransaction(transaction, firstMessage.id, configuration),
+    );
+    const other = database.transaction((transaction) =>
+      generations.acceptRegenerationInTransaction(transaction, secondMessage.id, configuration),
+    );
+    expect(() =>
+      database.transaction((transaction) =>
+        generations.acceptRegenerationInTransaction(transaction, firstMessage.id, configuration),
+      ),
+    ).toThrow("already has a pending generation");
+    expect(generations.listLatestForMessages([firstMessage, secondMessage])).toEqual([
+      accepted.generation,
+      other.generation,
+    ]);
+    expect(generations.listLatestForMessages([secondMessage])).toEqual([other.generation]);
+    const stored = database.select().from(generationTable).all()[0]!;
+    expect(() =>
+      database
+        .insert(generationTable)
+        .values({ ...stored, id: ids.generation.create() })
+        .run(),
+    ).toThrow();
+    expect(() =>
+      database
+        .update(generationTable)
+        .set({ regenerationSourceMessageId: secondMessage.id })
+        .where(eq(generationTable.id, accepted.generation.id))
+        .run(),
+    ).toThrow();
+    generations.recoverInterrupted();
+    expect(generations.listLatestForMessages([firstMessage, secondMessage])).toEqual([
+      expect.objectContaining({
+        id: accepted.generation.id,
+        status: "failed",
+        failureKind: "interrupted",
+      }),
+      expect.objectContaining({
+        id: other.generation.id,
+        status: "failed",
+        failureKind: "interrupted",
+      }),
+    ]);
+  });
+
+  it("keeps late opening output from replacing a player turn that advanced the thread", async () => {
+    const { campaigns, database, generations, threads } = openGenerationEnvironment({
+      id: "provider-a",
+      generate: vi.fn(async () => ({ text: "Rewritten opening." })),
+    });
+    const campaign = campaigns.start({
+      title: "Morning",
+      openingScene: "Someone knocks.",
+      composition: [],
+    });
+    const opening = threads.listMessages({ threadId: campaign.threadId, direction: "older" })
+      .messages[0]!;
+    const accepted = database.transaction((transaction) =>
+      generations.acceptRegenerationInTransaction(transaction, opening.id, {
+        model: { providerId: "provider-a", modelId: "maker/model" },
+      }),
+    );
+    const player = threads.startTurn(campaign.threadId, "Who is it?");
+    const result = await Effect.runPromise(generations.executeAccepted(accepted));
+    if (result.outcome !== "completed") throw new Error("Expected completed generation.");
+    expect(result.threadActivity).toBeNull();
+    expect(
+      threads.listMessages({ threadId: campaign.threadId, direction: "older" }).messages,
+    ).toEqual([opening, player.message]);
+    expect(threads.getMessage(result.message.id)).toEqual(result.message);
+  });
+
+  it("records opening preparation failure without dispatching or changing narration", async () => {
+    const generate = vi.fn(async () => ({ text: "Unused" }));
+    const { campaigns, database, generationOptions, threads } = openGenerationEnvironment({
+      id: "provider-a",
+      generate,
+    });
+    const failure = new Error("Campaign context unavailable");
+    const generations = createGenerations({
+      ...generationOptions,
+      modelInputs: {
+        resolve() {
+          throw failure;
+        },
+      },
+    });
+    const campaign = campaigns.start({
+      title: "Morning",
+      openingScene: "Someone knocks.",
+      composition: [],
+    });
+    const opening = threads.listMessages({ threadId: campaign.threadId, direction: "older" })
+      .messages[0]!;
+    const accepted = database.transaction((transaction) =>
+      generations.acceptRegenerationInTransaction(transaction, opening.id, {
+        model: { providerId: "provider-a", modelId: "maker/model" },
+      }),
+    );
+    expect(await Effect.runPromise(generations.executeAccepted(accepted))).toMatchObject({
+      outcome: "failed",
+      cause: failure,
+      generation: { failureKind: "preparation" },
+    });
+    expect(generate).not.toHaveBeenCalled();
+    expect(
+      threads.listMessages({ threadId: campaign.threadId, direction: "older" }).messages,
+    ).toEqual([opening]);
+    expect(database.select().from(providerAttemptTable).all()).toEqual([]);
+  });
+
   it("routes semantic model input and atomically stores its assistant reply", async () => {
     let timestamp = 100;
     const generate = vi.fn(async () => ({
@@ -230,6 +355,7 @@ describe("generations", () => {
       generation: {
         id: expect.stringMatching(/^generation_/),
         turnId: started.turn.id,
+        threadId: started.turn.threadId,
         intent: "reply",
         providerId: provider.id,
         modelId: "maker/requested-model",
@@ -517,13 +643,13 @@ describe("generations", () => {
         configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
       }),
     );
-    const regenerated = await Effect.runPromise(
-      generations.generateReply({
-        intent: "regeneration",
-        turnId: started.turn.id,
-        configuration: { model: { providerId: provider.id, modelId: "maker/model" } },
+    const accepted = database.transaction((transaction) =>
+      generations.acceptRegenerationInTransaction(transaction, first.message.id, {
+        model: { providerId: provider.id, modelId: "maker/model" },
       }),
     );
+    const regenerated = await Effect.runPromise(generations.executeAccepted(accepted));
+    if (regenerated.outcome !== "completed") throw new Error("Expected regenerated reply.");
 
     expect(regenerated.threadActivity).not.toBeNull();
     expect(first.generation.intent).toBe("reply");
@@ -696,7 +822,7 @@ describe("generations", () => {
     const firstGeneration = Effect.runPromise(generations.generateReply(request));
 
     await expect(Effect.runPromise(generations.generateReply(request))).rejects.toThrow(
-      `Turn "${started.turn.id}" already has a pending generation.`,
+      `The generation target in thread "${thread.id}" already has a pending generation.`,
     );
     await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledOnce());
 
@@ -992,6 +1118,7 @@ describe("generations", () => {
       .values({
         id: generationId,
         turnId: started.turn.id,
+        threadId: started.turn.threadId,
         intent: "reply",
         providerId: provider.id,
         modelId: "maker/model",
@@ -1039,6 +1166,7 @@ describe("generations", () => {
     const second = threads.startTurn(thread.id, "Second");
     const pending = {
       turnId: first.turn.id,
+      threadId: first.turn.threadId,
       intent: "reply" as const,
       providerId: provider.id,
       modelId: "maker/model",
@@ -1064,6 +1192,7 @@ describe("generations", () => {
           id: ids.generation.create(),
           ...pending,
           turnId: second.turn.id,
+          threadId: second.turn.threadId,
           intent: "unknown" as "reply",
         })
         .run(),
@@ -1090,6 +1219,7 @@ describe("generations", () => {
         .values({
           id: ids.generation.create(),
           turnId: second.turn.id,
+          threadId: second.turn.threadId,
           intent: "reply",
           providerId: provider.id,
           modelId: "maker/model",

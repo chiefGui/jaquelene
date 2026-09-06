@@ -286,6 +286,8 @@ type ThreadViewProps = Readonly<{
   threadId: string;
   configuration: ModelConfigurationSelection | null;
   configurationPending: boolean;
+  regenerationConfiguration: ModelConfigurationSelection | null;
+  regenerationConfigurationPending: boolean;
   composerControls: ReactNode;
 }>;
 
@@ -297,6 +299,8 @@ function ThreadViewInstance({
   threadId,
   configuration,
   configurationPending,
+  regenerationConfiguration,
+  regenerationConfigurationPending,
   composerControls,
 }: ThreadViewProps) {
   const queryClient = useQueryClient();
@@ -474,13 +478,16 @@ function ThreadViewInstance({
   );
 
   const regenerateResponse = useCallback(
-    async (assistantMessageId: string, instructions?: string) => {
+    async (
+      assistantMessageId: string,
+      selectedConfiguration: ModelConfigurationSelection,
+      instructions?: string,
+    ) => {
       if (
         historical ||
         operationPending ||
         messageEditActive ||
-        !configuration ||
-        configurationPending ||
+        regenerationConfigurationPending ||
         acceptingRegeneration.current
       ) {
         return false;
@@ -492,7 +499,7 @@ function ThreadViewInstance({
       try {
         await regenerateReply({
           assistantMessageId,
-          configuration: toRequestedModelConfiguration(configuration),
+          configuration: toRequestedModelConfiguration(selectedConfiguration),
           ...(instructions !== undefined && { instructions }),
         });
         return true;
@@ -504,8 +511,7 @@ function ThreadViewInstance({
       }
     },
     [
-      configuration,
-      configurationPending,
+      regenerationConfigurationPending,
       historical,
       messageEditActive,
       operationPending,
@@ -610,7 +616,7 @@ function ThreadViewInstance({
           retryPending={retryPending}
           regenerationRequestPending={regenerateReplyMutation.isPending}
           responseActionsDisabled={
-            operationPending || configurationPending || historyNavigationPending
+            operationPending || regenerationConfigurationPending || historyNavigationPending
           }
           editSession={editSession}
           editPending={editMessageMutation.isPending}
@@ -622,6 +628,7 @@ function ThreadViewInstance({
           deleteFromUserMessage={deleteFromUserMessage}
           loadOlder={loadOlder}
           regenerateResponse={regenerateResponse}
+          regenerationConfiguration={regenerationConfiguration}
           retryReply={retryReply}
         />
         <ThreadControlsLayer onHeightChange={setTimelineBottomInset}>

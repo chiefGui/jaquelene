@@ -1,4 +1,5 @@
 import { Button } from "@jaquelene/ui";
+import type { ModelConfigurationSelection } from "@jaquelene/ipc/renderer";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -68,7 +69,12 @@ type ThreadTimelineProps = Readonly<{
   saveEdit: (messageId: string, content: string) => Promise<void>;
   deleteFromUserMessage: (userMessageId: string) => Promise<void>;
   loadOlder: () => Promise<void>;
-  regenerateResponse: (assistantMessageId: string, instructions?: string) => Promise<boolean>;
+  regenerateResponse: (
+    assistantMessageId: string,
+    configuration: ModelConfigurationSelection,
+    instructions?: string,
+  ) => Promise<boolean>;
+  regenerationConfiguration: ModelConfigurationSelection | null;
   retryReply: (turnId: string) => Promise<void>;
 }>;
 
@@ -96,6 +102,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   deleteFromUserMessage,
   loadOlder,
   regenerateResponse,
+  regenerationConfiguration,
   retryReply,
 }: ThreadTimelineProps) {
   const historyControls = useRef<HTMLDivElement>(null);
@@ -407,6 +414,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                   regenerationRequestPending={regenerationRequestPending}
                   responseActionsDisabled={responseActionsDisabled}
                   regenerateResponse={regenerateResponse}
+                  regenerationConfiguration={regenerationConfiguration}
                   retryPending={retryPending}
                   retryReply={retryReply}
                   editor={editor}

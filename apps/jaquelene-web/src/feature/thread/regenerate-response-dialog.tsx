@@ -3,11 +3,14 @@ import {
   parseRegenerationInstructions,
   regenerationInstructionsSchema,
 } from "@jaquelene/domain";
+import type { ModelConfigurationSelection } from "@jaquelene/ipc/renderer";
 import { Button, Field, Textarea } from "@jaquelene/ui";
 import { Dialog } from "@jaquelene/ui/dialog";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
+import { Link } from "@tanstack/react-router";
 import { useId, useRef, useState, type ReactElement } from "react";
+import { ModelPicker } from "@/feature/model/picker";
 
 export function RegenerateResponseDialog({
   open,
@@ -18,6 +21,7 @@ export function RegenerateResponseDialog({
   requestFailed,
   savedInstructions,
   previousAttemptFailed,
+  initialConfiguration,
   onRegenerate,
 }: Readonly<{
   open: boolean;
@@ -28,10 +32,13 @@ export function RegenerateResponseDialog({
   requestFailed: boolean;
   savedInstructions: string | undefined;
   previousAttemptFailed: boolean;
-  onRegenerate: (instructions?: string) => void;
+  initialConfiguration: ModelConfigurationSelection | null;
+  onRegenerate: (configuration: ModelConfigurationSelection, instructions?: string) => void;
 }>) {
   const [instructions, setInstructions] = useState("");
+  const [configuration, setConfiguration] = useState(initialConfiguration);
   const inputId = useId();
+  const modelId = useId();
   const statusId = useId();
   const input = useRef<HTMLTextAreaElement>(null);
   const valid = regenerationInstructionsSchema.safeParse(instructions).success;
@@ -53,6 +60,7 @@ export function RegenerateResponseDialog({
         initialInstructions = savedInstructions ?? "";
       }
       setInstructions(initialInstructions);
+      setConfiguration(initialConfiguration);
     }
 
     setOpen(nextOpen);
@@ -71,15 +79,54 @@ export function RegenerateResponseDialog({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            if (valid && !disabled) {
-              onRegenerate(parseRegenerationInstructions(instructions));
+            if (valid && !disabled && configuration !== null) {
+              onRegenerate(configuration, parseRegenerationInstructions(instructions));
             }
           }}
         >
           <Dialog.Heading {...stylex.props(styles.heading)}>Regenerate response</Dialog.Heading>
           <Dialog.Description {...stylex.props(styles.description)}>
-            Uses the current settings and may incur provider usage.
+            Try another response if this one isn’t what you wanted.
           </Dialog.Description>
+
+          <Field.Root style={styles.field}>
+            <Field.Label htmlFor={modelId}>Model</Field.Label>
+            <ModelPicker.Root
+              value={configuration?.model ?? null}
+              onValueChange={(model) => {
+                if (disabled) {
+                  return;
+                }
+                if (
+                  configuration?.model.providerId === model.providerId &&
+                  configuration.model.modelId === model.modelId
+                ) {
+                  return;
+                }
+                // Reasoning settings belong to the selected model. A different
+                // model starts with its defaults for this request.
+                setConfiguration({ model });
+              }}
+            >
+              <ModelPicker.Trigger
+                id={modelId}
+                type="button"
+                disabled={disabled}
+                style={styles.model}
+              />
+              <ModelPicker.Empty>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={disabled}
+                  render={<Link to="/settings/providers" />}
+                >
+                  Connect provider
+                </Button>
+              </ModelPicker.Empty>
+              <ModelPicker.Content style={styles.modelPopover} />
+            </ModelPicker.Root>
+          </Field.Root>
 
           <Field.Root style={styles.field}>
             <Field.Label htmlFor={inputId}>Instructions (optional)</Field.Label>
@@ -122,7 +169,7 @@ export function RegenerateResponseDialog({
             <Dialog.Dismiss disabled={pending} render={<Button type="button" variant="ghost" />}>
               Cancel
             </Dialog.Dismiss>
-            <Button type="submit" disabled={disabled || !valid}>
+            <Button type="submit" disabled={disabled || !valid || configuration === null}>
               Regenerate
             </Button>
           </div>
@@ -147,6 +194,8 @@ const styles = stylex.create({
     marginTop: "0.75rem",
   },
   field: { marginTop: "1.25rem" },
+  model: { width: "100%", minWidth: 0 },
+  modelPopover: { zIndex: 101 },
   input: { resize: "none" },
   previous: {
     color: colors.foregroundSecondary,

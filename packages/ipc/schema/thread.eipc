@@ -1,5 +1,13 @@
 module jaquelene
 
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface RegenerationPreferences {
+  getDefaultModel() -> ModelSelection?
+  setDefaultModel(selection: ModelSelection?) -> ModelSelection?
+}
+
 subtype ThreadMessageContent = string(
   minLength: 1
   maxLength: 100000

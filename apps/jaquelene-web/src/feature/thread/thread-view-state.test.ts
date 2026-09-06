@@ -66,6 +66,17 @@ function page(status: GenerationStatus): ThreadMessagePage {
 }
 
 describe("thread view state", () => {
+  it("allows opening regeneration to choose a model when the campaign has none", () => {
+    const state = deriveThreadViewState({
+      pages: [page(GenerationStatus.Completed)],
+      regenerationRequestMessageId: null,
+      retryActivity: null,
+      actionsAvailable: true,
+      hasModel: false,
+    });
+    expect(state.messages[1]?.regeneration).toEqual({ status: "available", canRegenerate: true });
+  });
+
   it.each([GenerationStatus.Completed, GenerationStatus.Failed])(
     "exposes saved guidance for a %s regeneration",
     (status) => {

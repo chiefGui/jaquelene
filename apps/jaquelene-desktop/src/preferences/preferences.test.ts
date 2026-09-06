@@ -25,6 +25,65 @@ afterEach(() => {
 });
 
 describe("preferences storage", () => {
+  it("persists and clears a regeneration default independently of the campaign default", () => {
+    const directory = createUserDataDirectory();
+    const campaignModel = {
+      providerId: "provider-a",
+      modelId: "model-a",
+      name: "Model A",
+      brandId: "brand-a",
+    };
+    const regenerationModel = {
+      providerId: "provider-b",
+      modelId: "model-b",
+      name: "Model B",
+      brandId: "brand-b",
+    };
+    const preferences = createPreferences(directory);
+    preferences.campaign.setDefaultModel(campaignModel);
+    expect(preferences.regeneration.getDefaultModel()).toBeNull();
+    const selected = preferences.regeneration.setDefaultModel(regenerationModel);
+    expect(selected).toEqual(regenerationModel);
+    regenerationModel.name = "Changed input";
+    if (selected !== null) {
+      selected.modelId = "Changed output";
+    }
+    const restored = createPreferences(directory);
+    expect(restored.regeneration.getDefaultModel()).toEqual({
+      providerId: "provider-b",
+      modelId: "model-b",
+      name: "Model B",
+      brandId: "brand-b",
+    });
+    expect(restored.campaign.getDefaultModel()).toEqual(campaignModel);
+    expect(() => restored.regeneration.setDefaultModel({ ...campaignModel, modelId: " " })).toThrow(
+      TypeError,
+    );
+    expect(createPreferences(directory).regeneration.getDefaultModel()?.modelId).toBe("model-b");
+    expect(restored.regeneration.setDefaultModel(null)).toBeNull();
+    const cleared = createPreferences(directory);
+    expect(cleared.regeneration.getDefaultModel()).toBeNull();
+    expect(cleared.campaign.getDefaultModel()).toEqual(campaignModel);
+  });
+
+  it("opens existing preferences without a regeneration group without resetting them", () => {
+    const directory = createUserDataDirectory();
+    const defaultModel = {
+      providerId: "provider-a",
+      modelId: "model-a",
+      name: "Model A",
+      brandId: "brand-a",
+    };
+    writeFileSync(
+      join(directory, "preferences.json"),
+      JSON.stringify({ campaign: { defaultModel }, diagnostics: { writeToDisk: false } }),
+    );
+    const preferences = createPreferences(directory);
+    expect(preferences.campaign.getDefaultModel()).toEqual(defaultModel);
+    expect(preferences.diagnostics.get()).toEqual({ writeToDisk: false });
+    expect(preferences.regeneration.getDefaultModel()).toBeNull();
+  });
+
   it("persists independently owned preference groups", () => {
     const directory = createUserDataDirectory();
     const preferences = createPreferences(directory);
@@ -113,6 +172,12 @@ describe("preferences storage", () => {
       brandId: "brand-a",
     });
     preferences.diagnostics.setWriteToDisk(false);
+    preferences.regeneration.setDefaultModel({
+      providerId: "provider-b",
+      modelId: "model-b",
+      name: "Model B",
+      brandId: "brand-b",
+    });
     listener.mockClear();
 
     preferences.deleteAll();
@@ -124,6 +189,7 @@ describe("preferences storage", () => {
       motion: MotionPreference.System,
     });
     expect(preferences.campaign.getDefaultModel()).toBeNull();
+    expect(preferences.regeneration.getDefaultModel()).toBeNull();
     expect(preferences.diagnostics.get()).toEqual({ writeToDisk: true });
     expect(listener).toHaveBeenCalledOnce();
     expect(listener).toHaveBeenCalledWith({

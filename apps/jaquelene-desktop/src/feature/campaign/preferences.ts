@@ -1,5 +1,6 @@
 import type { Schema } from "electron-store";
 import { requireModelSelection, type ModelSelection } from "@/feature/model/catalog";
+import { modelSelectionStorageSchema } from "@/feature/model/selection-schema";
 
 export type CampaignPreferenceValues = {
   defaultModel?: ModelSelection;
@@ -14,17 +15,7 @@ export const campaignPreferencesSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    defaultModel: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        providerId: { type: "string", minLength: 1 },
-        modelId: { type: "string", minLength: 1 },
-        name: { type: "string", minLength: 1 },
-        brandId: { type: "string", minLength: 1 },
-      },
-      required: ["providerId", "modelId", "name", "brandId"],
-    },
+    defaultModel: modelSelectionStorageSchema,
   },
 } satisfies Schema<{ campaign: CampaignPreferenceValues }>["campaign"];
 

@@ -1,0 +1,69 @@
+import type { ModelSelection } from "@jaquelene/ipc/renderer";
+import { Button, Item } from "@jaquelene/ui";
+import { colors } from "@jaquelene/ui/tokens.stylex";
+import * as stylex from "@stylexjs/stylex";
+import { Link } from "@tanstack/react-router";
+import { useId } from "react";
+import { ModelPicker } from "./picker";
+
+export function DefaultModelSetting({
+  description,
+  model,
+  pending,
+  error,
+  onSelect,
+  onClear,
+}: Readonly<{
+  description: string;
+  model: ModelSelection | null;
+  pending: boolean;
+  error: boolean;
+  onSelect: (model: ModelSelection) => void;
+  onClear?: () => void;
+}>) {
+  const controlId = useId();
+  const descriptionId = useId();
+  const errorId = useId();
+  const labelId = useId();
+  let describedBy = descriptionId;
+  if (error) {
+    describedBy = `${descriptionId} ${errorId}`;
+  }
+
+  return (
+    <Item.Root>
+      <Item.Content>
+        <Item.Label id={labelId} render={<label htmlFor={controlId} />}>
+          Default model
+        </Item.Label>
+        <Item.Description id={descriptionId}>{description}</Item.Description>
+        {error && (
+          <Item.Description id={errorId} role="alert" style={styles.error}>
+            Couldn't save the default model.
+          </Item.Description>
+        )}
+      </Item.Content>
+      <Item.Value>
+        <ModelPicker.Root value={model} onValueChange={onSelect}>
+          <ModelPicker.Trigger
+            id={controlId}
+            aria-labelledby={labelId}
+            aria-describedby={describedBy}
+            disabled={pending}
+          />
+          <ModelPicker.Empty>
+            <Button render={<Link to="/settings/providers" replace />}>Connect a provider</Button>
+          </ModelPicker.Empty>
+          <ModelPicker.Content />
+        </ModelPicker.Root>
+        {model !== null && onClear !== undefined && (
+          <Button type="button" variant="ghost" disabled={pending} onClick={onClear}>
+            Clear
+          </Button>
+        )}
+      </Item.Value>
+    </Item.Root>
+  );
+}
+
+const styles = stylex.create({ error: { color: colors.foregroundDanger } });

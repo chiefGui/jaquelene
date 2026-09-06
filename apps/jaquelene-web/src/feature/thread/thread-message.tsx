@@ -4,6 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   GenerationFailureKind,
   ThreadMessageAuthor,
+  type ModelConfigurationSelection,
   type ThreadMessage,
 } from "@jaquelene/ipc/renderer";
 import { Button, IconButton, Skeleton, Timestamp } from "@jaquelene/ui";
@@ -191,6 +192,7 @@ function AssistantMessageToolbar({
   regeneration,
   requestPending,
   regenerateResponse,
+  regenerationConfiguration,
 }: Readonly<{
   actionsDisabled: boolean;
   createdAt: number;
@@ -199,7 +201,12 @@ function AssistantMessageToolbar({
   onEdit: () => void;
   regeneration: ThreadReplyRegenerationView;
   requestPending: boolean;
-  regenerateResponse: (assistantMessageId: string, instructions?: string) => Promise<boolean>;
+  regenerateResponse: (
+    assistantMessageId: string,
+    configuration: ModelConfigurationSelection,
+    instructions?: string,
+  ) => Promise<boolean>;
+  regenerationConfiguration: ModelConfigurationSelection | null;
 }>) {
   const [open, setOpen] = useState(false);
   const [requestFailed, setRequestFailed] = useState(false);
@@ -218,10 +225,10 @@ function AssistantMessageToolbar({
     }
   }
 
-  async function regenerate(instructions?: string) {
+  async function regenerate(configuration: ModelConfigurationSelection, instructions?: string) {
     setRequestFailed(false);
 
-    if (await regenerateResponse(messageId, instructions)) {
+    if (await regenerateResponse(messageId, configuration, instructions)) {
       setOpen(false);
     } else {
       setRequestFailed(true);
@@ -264,7 +271,10 @@ function AssistantMessageToolbar({
           requestFailed={requestFailed}
           savedInstructions={regeneration.instructions}
           previousAttemptFailed={regeneration.status === "failed"}
-          onRegenerate={(instructions) => void regenerate(instructions)}
+          initialConfiguration={regenerationConfiguration}
+          onRegenerate={(configuration, instructions) =>
+            void regenerate(configuration, instructions)
+          }
         />
 
         <Tooltip>Regenerate response</Tooltip>
@@ -403,6 +413,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   regenerationRequestPending,
   responseActionsDisabled,
   regenerateResponse,
+  regenerationConfiguration,
   retryPending,
   retryReply,
   editor,
@@ -418,7 +429,12 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   actionsDisabled: boolean;
   regenerationRequestPending: boolean;
   responseActionsDisabled: boolean;
-  regenerateResponse: (assistantMessageId: string, instructions?: string) => Promise<boolean>;
+  regenerateResponse: (
+    assistantMessageId: string,
+    configuration: ModelConfigurationSelection,
+    instructions?: string,
+  ) => Promise<boolean>;
+  regenerationConfiguration: ModelConfigurationSelection | null;
   retryPending: boolean;
   retryReply: (turnId: string) => Promise<void>;
   editor: ThreadMessageEditorProps | null;
@@ -453,6 +469,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
           regeneration={regeneration}
           requestPending={regenerationRequestPending}
           regenerateResponse={regenerateResponse}
+          regenerationConfiguration={regenerationConfiguration}
         />
       );
     }

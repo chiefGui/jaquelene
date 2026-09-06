@@ -92,7 +92,8 @@ function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
 }
 
 function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {
-  const database = openDatabase(createDatabasePath());
+  const databasePath = createDatabasePath();
+  const database = openDatabase(databasePath);
   const { applications: promptApplications } = createPromptSubsystem(database, [
     narratorPromptModule,
   ]);
@@ -120,7 +121,7 @@ function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.no
   });
   databases.push(database);
   closeSupervisors.push(supervised.close);
-  return { database, generationEngine, threads, turns };
+  return { database, databasePath, generationEngine, threads, turns };
 }
 
 function deferred<Result>() {
@@ -320,87 +321,220 @@ describe("turns", () => {
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
   });
 
-  it("regenerates the active assistant reply while retaining it until settlement", async () => {
-    const regeneratedReply = deferred<ProviderGenerationResult>();
+  it.each([undefined, "", " \n\t "])(
+    "preserves the exact model input with %j guidance and retains the active reply until settlement",
+    async (instructions) => {
+      const regeneratedReply = deferred<ProviderGenerationResult>();
+      const generate = vi
+        .fn<TestGenerate>()
+        .mockResolvedValueOnce({ text: "Original reply" })
+        .mockImplementationOnce(() => regeneratedReply.promise);
+      let timestamp = 300;
+      const { database, threads, turns } = openTurnEnvironment(generate, () => timestamp++);
+      const thread = threads.create();
+      const configuration = {
+        model: { providerId: "provider-a", modelId: "maker/model" },
+      };
+      const submission = await turns.submit({
+        threadId: thread.id,
+        content: "Hello",
+        configuration,
+      });
+      const original = await submission.settlement;
+
+      if (original.outcome !== "completed") {
+        throw new Error("Expected the original reply to complete.");
+      }
+
+      const pendingRegeneration = turns.regenerate({
+        assistantMessageId: original.assistantMessage.id,
+        configuration,
+        ...(instructions !== undefined && { instructions }),
+      });
+      expect(turns.inspect(thread.id)).toEqual({
+        state: "regenerating",
+        assistantMessageId: original.assistantMessage.id,
+      });
+
+      const regeneration = await pendingRegeneration;
+
+      expect(regeneration.acceptance.userMessage).toEqual(submission.acceptance.userMessage);
+      expect(regeneration.acceptance.generation).toEqual(
+        expect.objectContaining({ intent: "regeneration", status: "pending" }),
+      );
+      expect(regeneration.acceptance.threadActivity).toEqual(original.threadActivity);
+      expect(turns.inspect(thread.id)).toEqual({
+        state: "generating",
+        intent: "regeneration",
+        turnId: submission.acceptance.userMessage.turnId,
+        generationId: regeneration.acceptance.generation.id,
+      });
+      expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
+        messages: [submission.acceptance.userMessage, original.assistantMessage],
+        generations: [regeneration.acceptance.generation],
+        ...threadPageMetadata([submission.acceptance.userMessage, original.assistantMessage]),
+      });
+
+      await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2));
+      expect(generate.mock.calls[1]?.[0].input).toEqual(generate.mock.calls[0]?.[0].input);
+      expect(regeneration.acceptance.generation.regeneration).toBeUndefined();
+      regeneratedReply.resolve({ text: "Regenerated reply" });
+      const regenerated = await regeneration.settlement;
+
+      if (regenerated.outcome !== "completed") {
+        throw new Error("Expected regeneration to complete.");
+      }
+
+      expect(regenerated.assistantMessage).toEqual(
+        expect.objectContaining({ author: "assistant", content: "Regenerated reply" }),
+      );
+      expect(regenerated.assistantActivated).toBe(true);
+      expect(regenerated.threadActivity).toEqual({
+        threadId: thread.id,
+        lastActivityAt: regenerated.assistantMessage.createdAt,
+        turnCount: original.threadActivity.turnCount,
+      });
+      expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
+        messages: [submission.acceptance.userMessage, regenerated.assistantMessage],
+        generations: [regenerated.generation],
+        ...threadPageMetadata([submission.acceptance.userMessage, regenerated.assistantMessage]),
+      });
+      expect(database.select().from(generationTable).all()).toHaveLength(2);
+      await expect(
+        turns.regenerate({
+          assistantMessageId: original.assistantMessage.id,
+          configuration,
+        }),
+      ).rejects.toThrow(
+        `Message "${original.assistantMessage.id}" is not the active thread reply.`,
+      );
+      expect(generate).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("sends guidance only for its generation and persists it across reopening the database", async () => {
     const generate = vi
       .fn<TestGenerate>()
       .mockResolvedValueOnce({ text: "Original reply" })
-      .mockImplementationOnce(() => regeneratedReply.promise);
-    let timestamp = 300;
-    const { database, threads, turns } = openTurnEnvironment(generate, () => timestamp++);
+      .mockResolvedValueOnce({ text: "Short replacement" })
+      .mockResolvedValueOnce({ text: "Fresh replacement" })
+      .mockResolvedValueOnce({ text: "Next reply" });
+    const { databasePath, threads, turns } = openTurnEnvironment(generate);
     const thread = threads.create();
-    const configuration = {
-      model: { providerId: "provider-a", modelId: "maker/model" },
-    };
-    const submission = await turns.submit({
-      threadId: thread.id,
-      content: "Hello",
-      configuration,
-    });
+    const configuration = { model: { providerId: "provider-a", modelId: "maker/model" } };
+    const submission = await turns.submit({ threadId: thread.id, content: "Hello", configuration });
     const original = await submission.settlement;
-
     if (original.outcome !== "completed") {
-      throw new Error("Expected the original reply to complete.");
+      throw new Error("Expected the original reply.");
     }
 
-    const pendingRegeneration = turns.regenerate({
+    const guided = await turns.regenerate({
       assistantMessageId: original.assistantMessage.id,
       configuration,
+      instructions: "  Make it shorter.\nKeep the ending.  ",
     });
-    expect(turns.inspect(thread.id)).toEqual({
-      state: "regenerating",
-      assistantMessageId: original.assistantMessage.id,
-    });
-
-    const regeneration = await pendingRegeneration;
-
-    expect(regeneration.acceptance.userMessage).toEqual(submission.acceptance.userMessage);
-    expect(regeneration.acceptance.generation).toEqual(
-      expect.objectContaining({ intent: "regeneration", status: "pending" }),
-    );
-    expect(regeneration.acceptance.threadActivity).toEqual(original.threadActivity);
-    expect(turns.inspect(thread.id)).toEqual({
-      state: "generating",
-      intent: "regeneration",
-      turnId: submission.acceptance.userMessage.turnId,
-      generationId: regeneration.acceptance.generation.id,
-    });
-    expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
-      messages: [submission.acceptance.userMessage, original.assistantMessage],
-      generations: [regeneration.acceptance.generation],
-      ...threadPageMetadata([submission.acceptance.userMessage, original.assistantMessage]),
-    });
-
-    await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2));
-    regeneratedReply.resolve({ text: "Regenerated reply" });
-    const regenerated = await regeneration.settlement;
-
-    if (regenerated.outcome !== "completed") {
-      throw new Error("Expected regeneration to complete.");
+    const completed = await guided.settlement;
+    if (completed.outcome !== "completed") {
+      throw new Error("Expected guided regeneration to complete.");
     }
-
-    expect(regenerated.assistantMessage).toEqual(
-      expect.objectContaining({ author: "assistant", content: "Regenerated reply" }),
+    expect(generate.mock.calls[1]?.[0].input).toEqual({
+      ...generate.mock.calls[0]?.[0].input,
+      requestMessages: [
+        { role: "assistant", content: "Original reply" },
+        {
+          role: "user",
+          content:
+            "Generate a replacement for the preceding assistant response to the original user request, applying the instructions below. Return the complete replacement response.\n\nInstructions:\nMake it shorter.\nKeep the ending.",
+        },
+      ],
+    });
+    expect(completed.assistantMessage.parentMessageId).toBe(submission.acceptance.userMessage.id);
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toEqual([
+      submission.acceptance.userMessage,
+      completed.assistantMessage,
+    ]);
+    const reopened = openDatabase(databasePath);
+    databases.push(reopened);
+    expect(reopened.select().from(generationTable).all()).toContainEqual(
+      expect.objectContaining({
+        id: guided.acceptance.generation.id,
+        regenerationSourceMessageId: original.assistantMessage.id,
+        regenerationInstructions: "Make it shorter.\nKeep the ending.",
+      }),
     );
-    expect(regenerated.assistantActivated).toBe(true);
-    expect(regenerated.threadActivity).toEqual({
-      threadId: thread.id,
-      lastActivityAt: regenerated.assistantMessage.createdAt,
-      turnCount: original.threadActivity.turnCount,
+
+    const blank = await turns.regenerate({
+      assistantMessageId: completed.assistantMessage.id,
+      configuration,
     });
-    expect(turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
-      messages: [submission.acceptance.userMessage, regenerated.assistantMessage],
-      generations: [regenerated.generation],
-      ...threadPageMetadata([submission.acceptance.userMessage, regenerated.assistantMessage]),
+    const fresh = await blank.settlement;
+    if (fresh.outcome !== "completed") {
+      throw new Error("Expected blank regeneration to complete.");
+    }
+    expect(generate.mock.calls[2]?.[0].input).toEqual(generate.mock.calls[0]?.[0].input);
+    const next = await turns.submit({ threadId: thread.id, content: "Continue", configuration });
+    await next.settlement;
+    expect(generate.mock.calls[3]?.[0].input).toEqual({
+      instructions: generate.mock.calls[0]?.[0].input.instructions,
+      dialogue: [
+        { messageId: submission.acceptance.userMessage.id, role: "user", content: "Hello" },
+        { messageId: fresh.assistantMessage.id, role: "assistant", content: "Fresh replacement" },
+        { messageId: next.acceptance.userMessage.id, role: "user", content: "Continue" },
+      ],
     });
-    expect(database.select().from(generationTable).all()).toHaveLength(2);
+    // Source references must not prevent the existing history deletion operation.
+    turns.deleteFrom({ threadId: thread.id, userMessageId: submission.acceptance.userMessage.id });
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toEqual([]);
+  });
+
+  it("rejects oversized guidance before accepting or calling the provider", async () => {
+    const generate = vi.fn<TestGenerate>().mockResolvedValue({ text: "Original reply" });
+    const { threads, turns, database } = openTurnEnvironment(generate);
+    const thread = threads.create();
+    const configuration = { model: { providerId: "provider-a", modelId: "maker/model" } };
+    const submission = await turns.submit({ threadId: thread.id, content: "Hello", configuration });
+    const original = await submission.settlement;
+    if (original.outcome !== "completed") {
+      throw new Error("Expected the original reply.");
+    }
     await expect(
       turns.regenerate({
         assistantMessageId: original.assistantMessage.id,
         configuration,
+        instructions: "a".repeat(2_001),
       }),
-    ).rejects.toThrow(`Message "${original.assistantMessage.id}" is not the active thread reply.`);
-    expect(generate).toHaveBeenCalledTimes(2);
+    ).rejects.toThrow("at most 2,000");
+    expect(generate).toHaveBeenCalledOnce();
+    expect(database.select().from(generationTable).all()).toHaveLength(1);
+    expect(turns.inspect(thread.id)).toEqual({ state: "idle" });
+  });
+
+  it("retains guidance when an accepted generation is recovered as interrupted", async () => {
+    const generate = vi.fn<TestGenerate>().mockResolvedValue({ text: "Original reply" });
+    const { database, generationEngine, threads, turns } = openTurnEnvironment(generate);
+    const thread = threads.create();
+    const configuration = { model: { providerId: "provider-a", modelId: "maker/model" } };
+    const submitted = await turns.submit({ threadId: thread.id, content: "Hello", configuration });
+    const original = await submitted.settlement;
+    if (original.outcome !== "completed") {
+      throw new Error("Expected the original reply.");
+    }
+    database.transaction((transaction) =>
+      generationEngine.acceptRegenerationInTransaction(
+        transaction,
+        original.assistantMessage.id,
+        configuration,
+        "Shorter.",
+      ),
+    );
+    generationEngine.recoverInterrupted();
+    expect(turns.listForThread({ threadId: thread.id, direction: "older" }).generations[0]).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        failureKind: "interrupted",
+        regeneration: { sourceMessageId: original.assistantMessage.id, instructions: "Shorter." },
+      }),
+    );
   });
 
   it("keeps the active reply after failed regeneration and allows another attempt", async () => {
@@ -438,6 +572,7 @@ describe("turns", () => {
     const failedAttempt = await turns.regenerate({
       assistantMessageId: original.assistantMessage.id,
       configuration,
+      instructions: "Make it shorter.",
     });
     const failed = await failedAttempt.settlement;
 
@@ -463,6 +598,12 @@ describe("turns", () => {
       }),
     );
     expect(failed.failure.cause).toBeInstanceOf(ModelProviderError);
+    const saved = turns.listForThread({ threadId: thread.id, direction: "older" }).generations[0]
+      ?.regeneration;
+    expect(saved).toEqual({
+      sourceMessageId: original.assistantMessage.id,
+      instructions: "Make it shorter.",
+    });
     expect(turns.listForThread({ threadId: thread.id, direction: "older" }).messages).toEqual([
       submission.acceptance.userMessage,
       original.assistantMessage,
@@ -471,8 +612,10 @@ describe("turns", () => {
     const retryAttempt = await turns.regenerate({
       assistantMessageId: original.assistantMessage.id,
       configuration,
+      ...(saved !== undefined && { instructions: saved.instructions }),
     });
     const recovered = await retryAttempt.settlement;
+    expect(generate.mock.calls[2]?.[0].input).toEqual(generate.mock.calls[1]?.[0].input);
 
     expect(recovered).toEqual(
       expect.objectContaining({

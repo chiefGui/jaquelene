@@ -3,17 +3,18 @@ import {
   DialogDescription,
   DialogDisclosure,
   DialogDismiss,
-  DialogHeading,
+  DialogHeading as AriakitDialogHeading,
   DialogProvider,
   useDialogContext,
   type DialogProps as AriakitDialogProps,
+  type DialogHeadingProps as AriakitDialogHeadingProps,
 } from "@ariakit/react/dialog";
 import { useStoreState } from "@ariakit/react/store";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import * as m from "motion/react-m";
 
-import { colors, radii, shadows } from "../tokens.stylex";
+import { colors, radii, shadows, tokens } from "../tokens.stylex";
 import { MotionPresence, overlayTransition } from "./motion";
 
 export type DialogProps = Omit<
@@ -75,6 +76,14 @@ function DialogContent({ style, ...props }: DialogProps) {
   );
 }
 
+export type DialogHeadingProps = Omit<AriakitDialogHeadingProps, "className" | "style"> & {
+  style?: StyleXStyles;
+};
+
+function DialogHeading({ style, ...props }: DialogHeadingProps) {
+  return <AriakitDialogHeading {...props} {...stylex.props(styles.heading, style)} />;
+}
+
 export const Dialog = {
   Root: DialogProvider,
   Trigger: DialogDisclosure,
@@ -85,6 +94,14 @@ export const Dialog = {
 } as const;
 
 const styles = stylex.create({
+  heading: {
+    color: colors.foregroundPrimary,
+    fontSize: tokens.fontSizeSmall,
+    fontWeight: 500,
+    lineHeight: tokens.lineHeightSmall,
+    margin: 0,
+    textBox: "trim-both text",
+  },
   backdrop: {
     backgroundColor: colors.backgroundScrim,
   },

@@ -14,6 +14,8 @@ export type DialogueMessage = Readonly<{
 export type ModelInput = Readonly<{
   instructions: readonly ResolvedInstruction[];
   dialogue: readonly DialogueMessage[];
+  // Execution-only context is never part of the persisted conversation.
+  requestMessages?: readonly Pick<DialogueMessage, "role" | "content">[];
 }>;
 
 function requireText(value: string, field: string) {
@@ -54,5 +56,17 @@ export function requireModelInput(input: ModelInput): ModelInput {
     return { messageId, role, content };
   });
 
-  return { instructions, dialogue };
+  if (input.requestMessages === undefined) {
+    return { instructions, dialogue };
+  }
+
+  const requestMessages = input.requestMessages.map(({ role, content }) => {
+    requireText(content, "request message content");
+    if (role !== "user" && role !== "assistant") {
+      throw new TypeError(`A model input contains unsupported request message role "${role}".`);
+    }
+    return { role, content };
+  });
+
+  return { instructions, dialogue, requestMessages };
 }

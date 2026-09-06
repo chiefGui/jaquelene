@@ -1,5 +1,13 @@
 module jaquelene
 
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface RegenerationPreferences {
+  getDefaultModel() -> ModelSelection?
+  setDefaultModel(selection: ModelSelection) -> ModelSelection
+}
+
 subtype ThreadMessageContent = string(
   minLength: 1
   maxLength: 100000
@@ -109,6 +117,18 @@ structure TurnGeneration {
   outputMessageId?: string
   startedAt: UnixTimeMilliseconds
   finishedAt?: UnixTimeMilliseconds
+  regeneration?: ReplyRegeneration
+}
+
+zod_reference RegenerationInstructions {
+  import = "@jaquelene/domain"
+  type = "RegenerationInstructions"
+  schema = "regenerationInstructionsSchema"
+}
+
+structure ReplyRegeneration {
+  sourceMessageId: string
+  instructions: RegenerationInstructions
 }
 
 structure ThreadMessagePageRequest {
@@ -142,6 +162,7 @@ structure RetryTurnRequest {
 structure RegenerateReplyRequest {
   assistantMessageId: string
   configuration: RequestedModelConfiguration
+  instructions?: RegenerationInstructions
 }
 
 structure EditThreadMessageRequest {

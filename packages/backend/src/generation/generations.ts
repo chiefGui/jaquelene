@@ -1,4 +1,5 @@
 import { and, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
+import { parseRegenerationInstructions } from "@jaquelene/domain";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "#backend/database/database";
 import type { RequestedModelConfiguration } from "#backend/model/configuration";
@@ -65,6 +66,7 @@ export type AcceptedReplyGeneration = Readonly<{
   generation: Generation;
   anchor: ReplyAnchor;
   activeMessageId: MessageId | null;
+  regenerationSourceContent?: string;
 }>;
 
 export type GenerationOptions = Readonly<{
@@ -336,10 +338,13 @@ export function createGenerations({
     transaction: Pick<Database, "insert" | "select">,
     assistantMessageId: MessageId,
     requestedConfiguration: ResolvedModelConfiguration,
+    requestedInstructions?: string,
   ): AcceptedReplyGeneration {
+    const instructions = parseRegenerationInstructions(requestedInstructions);
     const source = transaction
       .select({
         author: threadMessageTable.author,
+        content: threadMessageTable.content,
         turnId: generationTable.turnId,
       })
       .from(generationTable)
@@ -374,13 +379,25 @@ export function createGenerations({
       throw new RangeError(`Message "${assistantMessageId}" is not the active thread reply.`);
     }
 
-    return acceptReplyForContext(
+    let regeneration: Generation["regeneration"];
+    if (instructions !== undefined) {
+      regeneration = { sourceMessageId: assistantMessageId, instructions };
+    }
+
+    const accepted = acceptReplyForContext(
       transaction,
       source.turnId,
       "regeneration",
       requestedConfiguration,
       replyContext,
+      regeneration,
     );
+
+    if (regeneration === undefined) {
+      return accepted;
+    }
+
+    return { ...accepted, regenerationSourceContent: source.content };
   }
 
   function acceptReplyForContext(
@@ -389,6 +406,7 @@ export function createGenerations({
     intent: GenerationIntent,
     requestedConfiguration: ResolvedModelConfiguration,
     replyContext: ReturnType<typeof requireReplyContext>,
+    regeneration?: Generation["regeneration"],
   ): AcceptedReplyGeneration {
     const configuration = requireResolvedModelConfiguration(requestedConfiguration);
 
@@ -412,6 +430,8 @@ export function createGenerations({
         modelId: configuration.model.modelId,
         reasoningPreset: configuration.reasoning?.preset ?? null,
         reasoningPresetSource: configuration.reasoning?.source ?? null,
+        regenerationSourceMessageId: regeneration?.sourceMessageId ?? null,
+        regenerationInstructions: regeneration?.instructions ?? null,
         status: "pending",
         startedAt: now(),
       })
@@ -427,7 +447,7 @@ export function createGenerations({
   }
 
   async function executeAcceptedReply(
-    { generation, anchor, activeMessageId }: AcceptedReplyGeneration,
+    { generation, anchor, activeMessageId, regenerationSourceContent }: AcceptedReplyGeneration,
     signal?: AbortSignal,
   ): Promise<ReplyGenerationExecution> {
     if (signal?.aborted) {
@@ -444,6 +464,25 @@ export function createGenerations({
         ),
         anchor,
       );
+
+      if (generation.regeneration !== undefined) {
+        if (regenerationSourceContent === undefined) {
+          throw new Error("Guided regeneration requires its accepted source response.");
+        }
+
+        input = {
+          ...input,
+          requestMessages: [
+            { role: "assistant", content: regenerationSourceContent },
+            {
+              role: "user",
+              content:
+                "Generate a replacement for the preceding assistant response to the original user request, applying the instructions below. Return the complete replacement response.\n\nInstructions:\n" +
+                generation.regeneration.instructions,
+            },
+          ],
+        };
+      }
     } catch (cause) {
       let failureKind: GenerationFailureKind = "preparation";
 

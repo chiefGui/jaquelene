@@ -68,6 +68,40 @@ function requestBody(request: ReturnType<typeof completion>["request"]) {
 }
 
 describe("OpenRouter generation provider", () => {
+  it("appends regeneration guidance after scenario instructions and dialogue", async () => {
+    const input = generationRequest();
+    const { provider, request } = completion();
+    await Effect.runPromise(
+      provider.generate({
+        ...input,
+        input: {
+          ...input.input,
+          instructions: [
+            { sourceKey: "narrator", content: "Narrate clearly." },
+            { sourceKey: "scenario", content: "## Scenario\nA lost kingdom." },
+          ],
+          requestMessages: [
+            { role: "assistant", content: "Original reply" },
+            { role: "user", content: "Replace it with a shorter response." },
+          ],
+        },
+      }),
+    );
+    expect(await requestBody(request)).toEqual(
+      expect.objectContaining({
+        messages: [
+          { role: "system", content: "Narrate clearly.\n\n## Scenario\nA lost kingdom." },
+          { role: "user", content: "Earlier message" },
+          { role: "assistant", content: "Earlier reply" },
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "Original reply" },
+          { role: "user", content: "Replace it with a shorter response." },
+        ],
+      }),
+    );
+    expect(request).toHaveBeenCalledOnce();
+  });
+
   it("sends narrator and scenario as one system message before dialogue", async () => {
     const { provider, request } = completion();
     const input = generationRequest();

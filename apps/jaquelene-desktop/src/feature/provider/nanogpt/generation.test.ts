@@ -77,6 +77,37 @@ function requestBody(request: HttpClientRequest.HttpClientRequest) {
 }
 
 describe("NanoGPT generation provider", () => {
+  it("appends regeneration guidance after scenario instructions and dialogue", async () => {
+    const input = generationRequest();
+    const { client, execute } = transport();
+    const provider = createNanoGptGeneration(connection(), client);
+    await Effect.runPromise(
+      provider.generate({
+        ...input,
+        input: {
+          ...input.input,
+          instructions: [
+            { sourceKey: "narrator", content: "Narrate clearly." },
+            { sourceKey: "scenario", content: "## Scenario\nA lost kingdom." },
+          ],
+          requestMessages: [
+            { role: "assistant", content: "Original reply" },
+            { role: "user", content: "Replace it with a shorter response." },
+          ],
+        },
+      }),
+    );
+    expect(requestBody(execute.mock.calls[0]![0]).messages).toEqual([
+      { role: "system", content: "Narrate clearly.\n\n## Scenario\nA lost kingdom." },
+      { role: "user", content: "Earlier message" },
+      { role: "assistant", content: "Earlier reply" },
+      { role: "user", content: "Hello" },
+      { role: "assistant", content: "Original reply" },
+      { role: "user", content: "Replace it with a shorter response." },
+    ]);
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
   it("sends narrator and scenario as one system message before dialogue", async () => {
     const { client, execute } = transport();
     const provider = createNanoGptGeneration(connection(), client);

@@ -1,4 +1,5 @@
 import type { Database } from "#backend/database/database";
+import { parseRegenerationInstructions } from "@jaquelene/domain";
 import type { RequestedModelConfiguration } from "#backend/model/configuration";
 import type {
   AcceptedReplyGeneration,
@@ -71,6 +72,7 @@ export type RetryTurnRequest = {
 export type RegenerateReplyRequest = {
   assistantMessageId: MessageId;
   configuration: RequestedModelConfiguration;
+  instructions?: string;
   signal?: AbortSignal;
 };
 
@@ -321,8 +323,10 @@ export function createTurns(
     async regenerate({
       assistantMessageId,
       configuration: requestedConfiguration,
+      instructions: requestedInstructions,
       signal,
     }: RegenerateReplyRequest): Promise<TurnOperation> {
+      const instructions = parseRegenerationInstructions(requestedInstructions);
       const configuration = copyRequestedModelConfiguration(requestedConfiguration);
       assertNotAborted(signal);
       const assistantMessage = threads.getMessage(assistantMessageId);
@@ -355,6 +359,7 @@ export function createTurns(
               transaction,
               assistantMessageId,
               resolvedConfiguration,
+              instructions,
             ),
           );
           const acceptance = {

@@ -99,12 +99,12 @@ export function deriveThreadViewState({
         generation?.intent === GenerationIntent.Regeneration &&
         generation.status === GenerationStatus.Failed
       ) {
-        regeneration = { status: "failed", canRegenerate: hasModel };
+        regeneration = { status: "failed", canRegenerate: true };
       } else if (
         generation?.status === GenerationStatus.Completed &&
         generation.outputMessageId === message.id
       ) {
-        regeneration = { status: "available", canRegenerate: hasModel };
+        regeneration = { status: "available", canRegenerate: true };
       }
     }
 

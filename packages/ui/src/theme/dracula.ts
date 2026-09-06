@@ -63,6 +63,7 @@ export const draculaTheme = stylex.createTheme(colors, {
 
   // Semantic foregrounds
   foregroundDanger: "oklch(0.78 0.14 34)",
+  foregroundWarning: "oklch(0.82045 0.13312 73.33)",
   foregroundSuccess: "oklch(0.86812 0.23551 141.97)",
   foregroundReasoning: "oklch(0.8 0.14 353)",
 

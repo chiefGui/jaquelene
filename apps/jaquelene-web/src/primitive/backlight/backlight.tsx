@@ -40,7 +40,6 @@ type BacklightUniforms = {
     palette_first_blend: number[];
     palette_second_blend: number[];
     palette_start: number[];
-    pixel_scale: number;
   };
 };
 
@@ -183,12 +182,11 @@ function createUniforms(): BacklightUniforms {
       resolution: [1, 1],
       time: 0,
       border_radius: 1,
-      outset: 1,
+      outset: backlightOutset,
       palette_end: [0, 0, 0, 1],
       palette_first_blend: [0, 0, 0, 1],
       palette_second_blend: [0, 0, 0, 1],
       palette_start: [0, 0, 0, 1],
-      pixel_scale: 1,
     },
   };
 }
@@ -284,7 +282,6 @@ function attachEngine(currentEngine: BacklightEngine, canvas: HTMLCanvasElement)
   params.palette_first_blend = paletteFirstBlend;
   params.palette_second_blend = paletteSecondBlend;
   params.palette_end = paletteEnd;
-  params.outset = backlightOutset;
 
   const readGeometry = () => {
     const style = getComputedStyle(host);
@@ -445,8 +442,11 @@ function useBacklight(canvas: HTMLCanvasElement | null, mode: BacklightMode) {
     }
 
     if (!mode.active) {
-      // Stop drawing immediately, but retain the last frame for the opacity fade.
-      attachment.current?.setMode(latestMode.current);
+      if (!attachment.current) {
+        return;
+      }
+
+      // Retain the stopped attachment's last frame until its opacity fade ends.
       const timer = window.setTimeout(() => {
         attachment.current?.dispose();
         attachment.current = undefined;
@@ -455,7 +455,6 @@ function useBacklight(canvas: HTMLCanvasElement | null, mode: BacklightMode) {
     }
 
     if (attachment.current) {
-      attachment.current.setMode(latestMode.current);
       return;
     }
 

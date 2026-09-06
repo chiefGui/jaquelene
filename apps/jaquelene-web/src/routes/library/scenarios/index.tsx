@@ -11,8 +11,8 @@ import { PromptDeleteAction } from "@/feature/prompt/delete-action";
 import { promptKindsQuery, promptPagesQuery } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
-import { EmptyState } from "@/primitive/empty-state";
 import { EditIcon } from "@/primitive/icons";
+import { PromptLibraryItem, promptLibraryItemStyles } from "@/feature/prompt/library-item";
 
 export const Route = createFileRoute("/library/scenarios/")({
   loader: async ({ context }) => {
@@ -64,56 +64,54 @@ function ScenariosRoute() {
                 <Button.Label>Create</Button.Label>
               </Button>
             </Item.SectionHeader>
-            {scenarios.length === 0 && (
-              <EmptyState.Root>
-                <EmptyState.Title>No scenarios yet</EmptyState.Title>
-                <EmptyState.Description>
-                  Create a setting to reuse across campaigns.
-                </EmptyState.Description>
-              </EmptyState.Root>
-            )}
             <Item.Group render={<ul />} variant="separated">
-              {scenarios.map((scenario) => (
-                <Item.Root
-                  key={scenario.key}
-                  render={<li {...stylex.props(stylex.defaultMarker())} />}
-                >
-                  <Item.Content>
-                    <Item.Label render={<h3 />} style={styles.title}>
-                      {scenario.title}
-                    </Item.Label>
-                    <p {...stylex.props(styles.body)}>{scenario.body}</p>
-                  </Item.Content>
-                  {scenario.origin === PromptOrigin.Custom && (
-                    <Item.Value style={styles.actions}>
-                      <Tooltip.Root>
-                        <Tooltip.Anchor
-                          render={
-                            <IconButton.Root
-                              aria-label={`Edit ${scenario.title}`}
-                              style={styles.action}
-                              render={
-                                <Link
-                                  to="/library/scenarios/$promptKey/edit"
-                                  params={{ promptKey: scenario.key }}
-                                  replace
-                                />
-                              }
-                            >
-                              <IconButton.Icon render={<HugeiconsIcon icon={EditIcon} />} />
-                            </IconButton.Root>
-                          }
-                        />
-                        <Tooltip>Edit</Tooltip>
-                      </Tooltip.Root>
-                      <PromptDeleteAction
-                        prompt={scenario}
-                        style={styles.action}
-                        description="Campaigns that copied this scenario keep their text. This can't be undone."
-                      />
-                    </Item.Value>
-                  )}
+              {scenarios.length === 0 && (
+                <Item.Root render={<li />} inset="none">
+                  <Button
+                    variant="ghost"
+                    style={styles.createFirst}
+                    render={<Link to="/library/scenarios/new" replace />}
+                  >
+                    Create your first scenario
+                  </Button>
                 </Item.Root>
+              )}
+              {scenarios.map((scenario) => (
+                <PromptLibraryItem
+                  key={scenario.key}
+                  prompt={scenario}
+                  actions={
+                    scenario.origin === PromptOrigin.Custom && (
+                      <>
+                        <Tooltip.Root>
+                          <Tooltip.Anchor
+                            render={
+                              <IconButton.Root
+                                aria-label={`Edit ${scenario.title}`}
+                                style={promptLibraryItemStyles.action}
+                                render={
+                                  <Link
+                                    to="/library/scenarios/$promptKey/edit"
+                                    params={{ promptKey: scenario.key }}
+                                    replace
+                                  />
+                                }
+                              >
+                                <IconButton.Icon render={<HugeiconsIcon icon={EditIcon} />} />
+                              </IconButton.Root>
+                            }
+                          />
+                          <Tooltip>Edit</Tooltip>
+                        </Tooltip.Root>
+                        <PromptDeleteAction
+                          prompt={scenario}
+                          style={promptLibraryItemStyles.action}
+                          description="Campaigns that copied this scenario keep their text. This can't be undone."
+                        />
+                      </>
+                    )
+                  }
+                />
               ))}
             </Item.Group>
             {pages.hasNextPage && (
@@ -141,29 +139,7 @@ function ScenariosRoute() {
 
 const styles = stylex.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  title: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  actions: { display: "flex", gap: "0.25rem" },
-  action: {
-    height: "2rem",
-    width: "2rem",
-    opacity: {
-      default: 0,
-      [stylex.when.ancestor(":hover")]: 1,
-      [stylex.when.ancestor(":focus-within")]: 1,
-    },
-  },
-  body: {
-    color: colors.foregroundSecondary,
-    display: "-webkit-box",
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    margin: 0,
-    overflow: "hidden",
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap",
-    WebkitBoxOrient: "vertical",
-    WebkitLineClamp: 3,
-  },
+  createFirst: { minHeight: "5rem", outlineOffset: -3, width: "100%" },
   loadMore: { marginBlockStart: "0.75rem" },
   error: { color: colors.foregroundDanger, fontSize: tokens.fontSizeSmall },
 });

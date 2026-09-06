@@ -1,5 +1,5 @@
-import Idea01Icon from "@hugeicons/core-free-icons/Idea01Icon";
-import Bookmark02Icon from "@hugeicons/core-free-icons/Bookmark02Icon";
+import AiConcertIcon from "@hugeicons/core-free-icons/AiConcertIcon";
+import { ScenarioIcon } from "@/primitive/icons";
 import type { NavigationDestination } from "@/application/navigation";
 import { Outlet, createFileRoute, useMatchRoute } from "@tanstack/react-router";
 import { PrimarySidebar } from "@/layout/primary-sidebar";
@@ -32,15 +32,15 @@ function LibrarySidebar() {
           {
             activeOptions: { exact: false },
             id: "narrator",
-            icon: Idea01Icon,
-            label: "Narrator",
+            icon: AiConcertIcon,
+            label: "Narrators",
             replace: true,
             to: "/library/narrator",
           },
           {
             activeOptions: { exact: false },
             id: "scenarios",
-            icon: Bookmark02Icon,
+            icon: ScenarioIcon,
             label: "Scenarios",
             replace: true,
             to: "/library/scenarios",

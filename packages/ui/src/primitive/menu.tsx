@@ -3,12 +3,10 @@ import {
   MenuButton,
   MenuItem,
   MenuProvider,
-  MenuSeparator,
   useMenuContext,
   type MenuItemProps,
   type MenuProps,
   type MenuProviderProps,
-  type MenuSeparatorProps,
 } from "@ariakit/react/menu";
 import { useStoreState } from "@ariakit/react/store";
 import * as stylex from "@stylexjs/stylex";
@@ -49,11 +47,7 @@ function Item({ style, ...props }: Styleable<MenuItemProps>) {
   return <MenuItem {...props} {...stylex.props(styles.item, style)} />;
 }
 
-function Separator({ style, ...props }: Styleable<MenuSeparatorProps>) {
-  return <MenuSeparator {...props} {...stylex.props(styles.separator, style)} />;
-}
-
-export const Menu = { Root, Trigger: MenuButton, Content, Item, Separator } as const;
+export const Menu = { Root, Trigger: MenuButton, Content, Item } as const;
 
 const styles = stylex.create({
   content: {
@@ -96,13 +90,5 @@ const styles = stylex.create({
     padding: "0.5rem 0.75rem",
     textAlign: "start",
     textDecoration: "none",
-  },
-  separator: {
-    border: 0,
-    borderBlockStartColor: colors.borderOverlay,
-    borderBlockStartStyle: "solid",
-    borderBlockStartWidth: 1,
-    flexShrink: 0,
-    margin: "0.125rem 0",
   },
 });

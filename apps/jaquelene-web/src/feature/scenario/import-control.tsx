@@ -1,6 +1,10 @@
 import { scenarioPromptKindKey } from "@jaquelene/domain";
 import type { Prompt } from "@jaquelene/ipc/renderer";
-import { Button } from "@jaquelene/ui";
+import { IconButton } from "@jaquelene/ui";
+import { MenuItem } from "@ariakit/react/menu";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Tooltip } from "@jaquelene/ui/tooltip";
+import { ScenarioIcon } from "@/primitive/icons";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { Menu } from "@jaquelene/ui/menu";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -13,6 +17,8 @@ import {
   useMarkdownEditorDocument,
 } from "@/feature/markdown/editor/markdown-editor-root";
 import { promptPagesQuery } from "@/feature/prompt/query";
+import { PromptChoiceText } from "@/feature/prompt/choice-text";
+import { PromptPickerFooter } from "@/feature/prompt/picker-footer";
 
 export function ScenarioImportControl() {
   const { disabled, readOnly } = useMarkdownEditorConfiguration("ScenarioImport");
@@ -42,15 +48,24 @@ export function ScenarioImportControl() {
   return (
     <>
       <Menu.Root open={open} setOpen={setOpen}>
-        <Menu.Trigger
-          ref={trigger}
-          disabled={unavailable}
-          render={<Button variant="ghost" size="small" />}
-        >
-          Use scenario
-        </Menu.Trigger>
+        <Tooltip.Root>
+          <Tooltip.Anchor
+            render={
+              <Menu.Trigger
+                ref={trigger}
+                disabled={unavailable}
+                render={
+                  <IconButton.Root aria-label="Use scenario" size="small" shape="squircle">
+                    <IconButton.Icon render={<HugeiconsIcon icon={ScenarioIcon} />} />
+                  </IconButton.Root>
+                }
+              />
+            }
+          />
+          <Tooltip>Use scenario</Tooltip>
+        </Tooltip.Root>
         <Menu.Content
-          aria-label="Library scenarios"
+          aria-label="Scenarios"
           autoFocusOnHide={replacement === null}
           style={styles.menu}
         >
@@ -60,9 +75,12 @@ export function ScenarioImportControl() {
             </p>
           )}
           {scenarios.map((scenario) => (
-            <Menu.Item key={scenario.key} onClick={() => select(scenario)} style={styles.scenario}>
-              <span {...stylex.props(styles.title)}>{scenario.title}</span>
-              <span {...stylex.props(styles.description)}>{scenario.body.slice(0, 160)}</span>
+            <Menu.Item
+              key={scenario.key}
+              aria-label={scenario.title}
+              onClick={() => select(scenario)}
+            >
+              <PromptChoiceText title={scenario.title} description={scenario.body} />
             </Menu.Item>
           ))}
           {!pages.isPending && !pages.isError && scenarios.length === 0 && (
@@ -99,8 +117,14 @@ export function ScenarioImportControl() {
               {loadMoreLabel}
             </Menu.Item>
           )}
-          <Menu.Separator />
-          <Menu.Item render={<Link to="/library/scenarios" />}>Manage scenarios</Menu.Item>
+          <PromptPickerFooter.Root>
+            <PromptPickerFooter.Action
+              navigation
+              render={<MenuItem render={<Link to="/library/scenarios" />} />}
+            >
+              Manage scenarios
+            </PromptPickerFooter.Action>
+          </PromptPickerFooter.Root>
         </Menu.Content>
       </Menu.Root>
       <ConfirmDialog
@@ -110,8 +134,8 @@ export function ScenarioImportControl() {
           if (!nextOpen) setReplacement(null);
         }}
         finalFocus={trigger}
-        heading="Replace scenario text?"
-        description="Your current text will be replaced with the selected library scenario."
+        heading="Replace scenario?"
+        description="Your current text will be replaced with the selected scenario."
         confirmLabel="Replace"
         pending={unavailable}
         onConfirm={() => {
@@ -128,18 +152,6 @@ export function ScenarioImportControl() {
 
 const styles = stylex.create({
   menu: { width: "20rem" },
-  scenario: { flexDirection: "column", gap: "0.25rem" },
-  title: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  description: {
-    color: colors.foregroundSecondary,
-    display: "-webkit-box",
-    fontSize: tokens.fontSizeXSmall,
-    lineHeight: tokens.lineHeightXSmall,
-    overflow: "hidden",
-    overflowWrap: "anywhere",
-    WebkitBoxOrient: "vertical",
-    WebkitLineClamp: 2,
-  },
   status: {
     color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,

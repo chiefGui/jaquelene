@@ -48,7 +48,7 @@ function EditScenarioRoute() {
           <Item.Root>
             <Item.Content>
               <Item.Label>Delete</Item.Label>
-              <Item.Description>Permanently remove this library scenario.</Item.Description>
+              <Item.Description>Permanently remove this scenario.</Item.Description>
             </Item.Content>
             <PromptDeleteAction
               prompt={prompt}

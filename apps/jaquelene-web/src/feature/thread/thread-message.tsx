@@ -311,8 +311,9 @@ function MessageContent({
 
   return (
     <div aria-busy={regenerating || undefined} {...stylex.props(styles.bubble)}>
-      {regenerating && <Backlight active />}
       <Markdown content={message.content} />
+      {/* Preserve Markdown's :first-child spacing when the decoration mounts. */}
+      {regenerating && <Backlight active />}
     </div>
   );
 }

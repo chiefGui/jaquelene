@@ -61,7 +61,7 @@ description: Improve existing code through deletion, simplification, and extensi
 - Describe in plain language, focusing on value.
 - Keep it brief.
 - Use two sections:
-  - Better: benefits of the changes.
-  - Worse: drawbacks of the changes. State "None identified" when applicable.
+  - Better: bullet list with benefits of the changes.
+  - Worse: bullet list with drawbacks of the changes. "None identified" when applicable.
 - Omit file inventories, implementation walkthroughs, and design-pattern names.
 - Support claimed benefits with evidence.

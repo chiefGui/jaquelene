@@ -1,5 +1,3 @@
-ALTER TABLE `generations` ADD `regeneration_source_message_id` text;--> statement-breakpoint
-ALTER TABLE `generations` ADD `regeneration_instructions` text;--> statement-breakpoint
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
 CREATE TABLE `__new_generations` (
 	`id` text PRIMARY KEY NOT NULL,

@@ -84,7 +84,6 @@ export {
   regenerationInstructionsSchema,
   type RegenerationInstructions,
 } from "./thread/regeneration";
-export { composeRegenerationConfiguration } from "./thread/regeneration-configuration";
 export {
   ThreadTranscriptEntryKind,
   threadTranscriptEntrySchema,

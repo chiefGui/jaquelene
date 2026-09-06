@@ -1,7 +1,5 @@
-import {
-  composeCampaignGenerationConfiguration,
-  composeRegenerationConfiguration,
-} from "@jaquelene/domain";
+import { composeCampaignGenerationConfiguration } from "@jaquelene/domain";
+import type { ModelConfigurationSelection } from "@jaquelene/ipc/renderer";
 import { tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -60,7 +58,10 @@ function CampaignRoute() {
   const effectiveConfigurationPending =
     generationPreferencesPending ||
     (campaign?.generationPreferences?.model === undefined && defaultModelPending);
-  const regenerationConfiguration = composeRegenerationConfiguration(defaultRegenerationModel);
+  let regenerationConfiguration: ModelConfigurationSelection | null = null;
+  if (defaultRegenerationModel !== null) {
+    regenerationConfiguration = { model: defaultRegenerationModel };
+  }
 
   if (!campaign) {
     return (

@@ -1,13 +1,9 @@
-import type { RequestedModelConfiguration } from "../model/configuration";
-
-export function composeRegenerationConfiguration<Model, ReasoningPreset>(
+export function composeRegenerationConfiguration<Model>(
   defaultModel: Model | null,
-  campaignConfiguration: RequestedModelConfiguration<Model, ReasoningPreset> | null,
-): RequestedModelConfiguration<Model, ReasoningPreset> | null {
+): { model: Model } | null {
   if (defaultModel === null) {
-    return campaignConfiguration;
+    return null;
   }
 
-  // A regeneration default is independent of the campaign's reasoning settings.
   return { model: defaultModel };
 }

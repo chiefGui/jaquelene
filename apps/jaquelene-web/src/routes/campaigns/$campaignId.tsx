@@ -60,13 +60,7 @@ function CampaignRoute() {
   const effectiveConfigurationPending =
     generationPreferencesPending ||
     (campaign?.generationPreferences?.model === undefined && defaultModelPending);
-  const regenerationConfiguration = composeRegenerationConfiguration(
-    defaultRegenerationModel,
-    effectiveConfiguration,
-  );
-  const regenerationConfigurationPending =
-    defaultRegenerationModelPending ||
-    (defaultRegenerationModel === null && effectiveConfigurationPending);
+  const regenerationConfiguration = composeRegenerationConfiguration(defaultRegenerationModel);
 
   if (!campaign) {
     return (
@@ -103,7 +97,7 @@ function CampaignRoute() {
           configuration={effectiveConfiguration}
           configurationPending={effectiveConfigurationPending}
           regenerationConfiguration={regenerationConfiguration}
-          regenerationConfigurationPending={regenerationConfigurationPending}
+          regenerationConfigurationPending={defaultRegenerationModelPending}
           composerControls={
             <CampaignGenerationControls
               campaignId={campaign.id}

@@ -56,7 +56,7 @@ function GeneralRoute() {
             </Item.SectionHeader>
             <Item.Group>
               <DefaultModelSetting
-                description="Preselected for regeneration. If unset, uses the campaign model."
+                description="Preselected for regeneration. If unset, choose a model each time."
                 model={defaultRegenerationModel}
                 pending={setDefaultRegenerationModel.isPending}
                 error={setDefaultRegenerationModel.isError}

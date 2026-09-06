@@ -115,9 +115,6 @@ export function RegenerateResponseDialog({
               }
             />
           </div>
-          <Dialog.Description {...stylex.props(styles.description)}>
-            Try another response if this one isn’t what you wanted.
-          </Dialog.Description>
 
           <Field.Root style={[styles.field, styles.modelField]}>
             <FormLabel name="configuration" render={<Field.Label style={styles.label} />}>
@@ -197,12 +194,6 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: "1rem",
-  },
-  description: {
-    color: colors.foregroundSecondary,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.75rem",
   },
   field: { marginTop: "1.25rem" },
   label: {

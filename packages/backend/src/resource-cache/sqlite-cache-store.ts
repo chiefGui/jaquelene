@@ -142,17 +142,11 @@ function selectorClause(selector: CacheSelector) {
     values.push(selector.key);
   }
 
-  return {
-    sql: whereClause(clauses),
-    values,
-  };
-}
-
-function whereClause(clauses: readonly string[]) {
-  if (clauses.length === 0) {
-    return "";
+  let sql = "";
+  if (clauses.length > 0) {
+    sql = ` WHERE ${clauses.join(" AND ")}`;
   }
-  return ` WHERE ${clauses.join(" AND ")}`;
+  return { sql, values };
 }
 
 function readCounts(database: DatabaseSync, selector?: CacheSelector) {

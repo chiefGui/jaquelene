@@ -423,6 +423,35 @@ describe("resource cache", () => {
     expect(settled).toBe(true);
   });
 
+  it("reports current memory usage when shutdown overtakes storage inspection", async () => {
+    const started = Promise.withResolvers<void>();
+    const releaseInspection = Promise.withResolvers<void>();
+    const memory = createMemoryStore();
+    const inspect = vi.fn(memory.store.inspect);
+    const { cache, close } = await testCache({ ...memory.store, inspect });
+    const resource = cache.define(definition(() => Effect.succeed({ value: "cached" })));
+    await run(resource.resolve({ key: "catalog" }));
+    inspect.mockReturnValueOnce(
+      Effect.promise(() => {
+        started.resolve();
+        return releaseInspection.promise;
+      }).pipe(Effect.andThen(memory.store.inspect())),
+    );
+
+    const inspection = run(cache.inspect());
+    await started.promise;
+    const closing = close();
+    releaseInspection.resolve();
+    await closing;
+
+    await expect(inspection).resolves.toMatchObject({
+      state: "closed",
+      hotEntries: 0,
+      hotBytes: 0,
+      refreshes: 0,
+    });
+  });
+
   it("keeps successful source data in bounded memory when persistence fails visibly", async () => {
     const failure = new Error("Disk is read-only.");
     const memory = createMemoryStore();

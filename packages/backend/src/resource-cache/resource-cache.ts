@@ -135,7 +135,7 @@ export type CachedResource<Input, Value> = Readonly<{
     input: Input,
     options?: Readonly<{ force?: boolean }>,
   ) => Effect.Effect<ResourceSnapshot<Value>, unknown>;
-  peek: (input: Input) => Effect.Effect<ResourceSnapshot<Value>, unknown>;
+  peek: (input: Input) => Effect.Effect<ResourceSnapshot<Value>>;
   invalidate: (
     selector?: Readonly<{ scope?: string; key?: string }>,
   ) => Effect.Effect<void, unknown>;
@@ -148,7 +148,7 @@ export type ResourceCache = Readonly<{
   subscribe: (listener: (event: ResourceCacheEvent) => void) => () => void;
   invalidate: (selector: CacheSelector) => Effect.Effect<void, unknown>;
   clear: Effect.Effect<void, unknown>;
-  inspect: (selector?: CacheSelector) => Effect.Effect<ResourceCacheInspection, unknown>;
+  inspect: (selector?: CacheSelector) => Effect.Effect<ResourceCacheInspection>;
 }>;
 
 export class ResourceUnavailableError extends Schema.TaggedError<ResourceUnavailableError>()(
@@ -281,7 +281,7 @@ const interruptJobs = Effect.fnUntraced(function* (
 export const createResourceCache = Effect.fn("ResourceCache.make")(function* (
   store: CacheStore,
   options: ResourceCacheOptions,
-): Effect.fn.Return<ResourceCache, unknown, Scope.Scope> {
+): Effect.fn.Return<ResourceCache, never, Scope.Scope> {
   if (!Number.isSafeInteger(options.maxHotEntries) || options.maxHotEntries < 1) {
     throw new RangeError("The resource cache requires a positive hot-entry limit.");
   }
@@ -294,11 +294,7 @@ export const createResourceCache = Effect.fn("ResourceCache.make")(function* (
   const now = () => clock.currentTimeMillisUnsafe();
   const namespaces = new Set<string>();
   const entries = new Map<string, RuntimeEntry<any, any>>();
-  const hydrations = yield* FiberMap.make<
-    RuntimeEntry<any, any>,
-    RuntimeEntry<any, any>,
-    unknown
-  >();
+  const hydrations = yield* FiberMap.make<RuntimeEntry<any, any>, RuntimeEntry<any, any>, never>();
   const refreshes = yield* FiberMap.make<
     RuntimeEntry<any, any>,
     ResourceSnapshot<unknown>,
@@ -425,10 +421,10 @@ export const createResourceCache = Effect.fn("ResourceCache.make")(function* (
 
   // Mutations enter one FIFO queue. Reads wait for writes already admitted, but
   // do not block invalidation; their lifetime is still drained before SQLite closes.
-  const enqueueMutation = Effect.fnUntraced(function* <Value>(
-    operation: Effect.Effect<Value, unknown>,
+  const enqueueMutation = Effect.fnUntraced(function* <Value, Failure>(
+    operation: Effect.Effect<Value, Failure>,
   ) {
-    const result = Deferred.makeUnsafe<Value, unknown>();
+    const result = Deferred.makeUnsafe<Value, Failure>();
     latestMutation = Deferred.await(result).pipe(Effect.exit, Effect.asVoid);
     yield* Queue.offer(
       mutations,
@@ -443,12 +439,16 @@ export const createResourceCache = Effect.fn("ResourceCache.make")(function* (
     return Deferred.await(result);
   });
 
-  const mutate = Effect.fnUntraced(function* <Value>(operation: Effect.Effect<Value, unknown>) {
+  const mutate = Effect.fnUntraced(function* <Value, Failure>(
+    operation: Effect.Effect<Value, Failure>,
+  ) {
     const result = yield* enqueueMutation(operation);
     return yield* result;
   }, Effect.uninterruptible);
 
-  const read = Effect.fnUntraced(function* <Value>(operation: Effect.Effect<Value, unknown>) {
+  const read = Effect.fnUntraced(function* <Value, Failure>(
+    operation: Effect.Effect<Value, Failure>,
+  ) {
     const fiber = yield* FiberSet.run(
       reads,
       latestMutation.pipe(
@@ -530,7 +530,6 @@ export const createResourceCache = Effect.fn("ResourceCache.make")(function* (
       entry.discardAt = stored.discardAt;
       entry.persistence = "durable";
       touch(entry);
-      trimEntries(entry);
     } else {
       entry.revision = nextRevision();
       report({ operation: "decode", address, error: Cause.squash(decoded.cause) });
@@ -698,7 +697,7 @@ export const createResourceCache = Effect.fn("ResourceCache.make")(function* (
       entries.delete(cacheAddressKey(entry.address));
       entry.revision = invalidationRevision;
     }
-    let deletion: Effect.Effect<void, unknown> = deletePersisted(selector, invalidationRevision);
+    let deletion: Effect.Effect<void, unknown>;
     if (clear) {
       deletion = store.clear(invalidationRevision).pipe(
         Effect.tap(() => Effect.sync(() => persistenceRecovered("clear"))),
@@ -706,6 +705,8 @@ export const createResourceCache = Effect.fn("ResourceCache.make")(function* (
           Effect.sync(() => persistenceFailed("clear", { operation: "clear", error })),
         ),
       );
+    } else {
+      deletion = deletePersisted(selector, invalidationRevision);
     }
     // Publish the persistence barrier before yielding to interrupted work or new readers.
     const deleted = yield* enqueueMutation(deletion);
@@ -850,17 +851,6 @@ export const createResourceCache = Effect.fn("ResourceCache.make")(function* (
     invalidate,
     clear,
     inspect: Effect.fn("ResourceCache.inspect")(function* (selector?: CacheSelector) {
-      let hotEntries = 0;
-      let hotBytes = 0;
-      for (const entry of entries.values()) {
-        if (
-          (!selector || cacheAddressMatches(entry.address, selector)) &&
-          entry.value !== undefined
-        ) {
-          hotEntries += 1;
-          hotBytes += entry.payloadBytes;
-        }
-      }
       let storeInspection;
       if (state === "open") {
         storeInspection = yield* read(store.inspect(selector)).pipe(
@@ -872,6 +862,17 @@ export const createResourceCache = Effect.fn("ResourceCache.make")(function* (
             }),
           ),
         );
+      }
+      let hotEntries = 0;
+      let hotBytes = 0;
+      for (const entry of entries.values()) {
+        if (
+          (!selector || cacheAddressMatches(entry.address, selector)) &&
+          entry.value !== undefined
+        ) {
+          hotEntries += 1;
+          hotBytes += entry.payloadBytes;
+        }
       }
       let persistence: "durable" | "degraded" = "durable";
       if (persistenceFailures.size > 0) {

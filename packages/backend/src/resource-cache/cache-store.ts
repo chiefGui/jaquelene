@@ -1,3 +1,5 @@
+import type { Effect } from "effect";
+
 export type CacheAddress = Readonly<{
   namespace: string;
   scope: string;
@@ -45,4 +47,3 @@ export function cacheAddressMatches(address: CacheAddress, selector: CacheSelect
     (selector.key === undefined || selector.key === address.key)
   );
 }
-import type { Effect } from "effect";

@@ -62,7 +62,7 @@ export function ScenarioImportControl() {
               />
             }
           />
-          <Tooltip>Use scenario</Tooltip>
+          <Tooltip>Scenario</Tooltip>
         </Tooltip.Root>
         <Menu.Content
           aria-label="Scenarios"

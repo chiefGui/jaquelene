@@ -305,9 +305,6 @@ function NewCampaignRoute() {
                   >
                     Define the setting, universe, flavor, and other permanent details of this
                     campaign.
-                    <br />
-                    Think of aesthetics, important characters, public facts, and settings like New
-                    York in 1920.
                   </FormDescription>
                   <FormControl
                     name={form.names.scenario}

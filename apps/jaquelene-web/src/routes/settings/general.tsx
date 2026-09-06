@@ -72,5 +72,5 @@ function GeneralRoute() {
 }
 
 const styles = stylex.create({
-  sections: { display: "flex", flexDirection: "column", gap: "2rem" },
+  sections: { display: "flex", flexDirection: "column", gap: "1.5rem" },
 });

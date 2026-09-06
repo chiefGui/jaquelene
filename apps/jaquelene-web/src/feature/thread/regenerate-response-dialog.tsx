@@ -20,7 +20,6 @@ import { Button, Field, Textarea } from "@jaquelene/ui";
 import { Dialog } from "@jaquelene/ui/dialog";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { Link } from "@tanstack/react-router";
 import { useRef, type ReactElement } from "react";
 import { ModelPicker } from "@/feature/model/picker";
 
@@ -116,7 +115,7 @@ export function RegenerateResponseDialog({
           </Dialog.Description>
 
           <Field.Root style={styles.field}>
-            <FormLabel name="configuration" render={<Field.Label />}>
+            <FormLabel name="configuration" render={<Field.Label style={styles.label} />}>
               Model
             </FormLabel>
             <ModelPicker.Root
@@ -146,23 +145,13 @@ export function RegenerateResponseDialog({
                   />
                 }
               />
-              <ModelPicker.Empty>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={disabled || busy}
-                  render={<Link to="/settings/providers" />}
-                >
-                  Connect provider
-                </Button>
-              </ModelPicker.Empty>
               <ModelPicker.Content style={styles.modelPopover} />
             </ModelPicker.Root>
-            <FormError name="configuration" render={<Field.Error style={styles.fieldError} />} />
+            <FormError name="configuration" render={<Field.Error />} />
           </Field.Root>
 
           <Field.Root style={styles.field}>
-            <FormLabel name={form.names.instructions} render={<Field.Label />}>
+            <FormLabel name={form.names.instructions} render={<Field.Label style={styles.label} />}>
               Instructions (optional)
             </FormLabel>
             <FormInput
@@ -171,15 +160,12 @@ export function RegenerateResponseDialog({
                 <Textarea
                   ref={input}
                   readOnly={busy}
-                  placeholder="Make it more ominous, or shorten the second paragraph…"
+                  placeholder="Make it shorter, make it cinematic, surprise me, etc."
                   style={styles.input}
                 />
               }
             />
-            <FormError
-              name={form.names.instructions}
-              render={<Field.Error style={styles.fieldError} />}
-            />
+            <FormError name={form.names.instructions} render={<Field.Error />} />
           </Field.Root>
 
           <p role="alert" {...stylex.props(styles.status)}>
@@ -214,24 +200,25 @@ const styles = stylex.create({
     marginTop: "0.75rem",
   },
   field: { marginTop: "1.25rem" },
+  label: {
+    color: colors.foregroundSecondary,
+    fontWeight: 400,
+    textBox: "trim-both text",
+  },
   model: { width: "100%", minWidth: 0 },
   modelPopover: { zIndex: 101 },
   input: { resize: "none" },
-  fieldError: {
-    display: { default: "block", ":empty": "block" },
-    minHeight: tokens.lineHeightXSmall,
-  },
   status: {
     color: colors.foregroundDanger,
+    display: { default: "block", ":empty": "none" },
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
     marginTop: "0.5rem",
-    minHeight: tokens.lineHeightSmall,
   },
   actions: {
     display: "flex",
     gap: "0.25rem",
     justifyContent: "flex-end",
-    marginTop: "0.75rem",
+    marginTop: "1.5rem",
   },
 });

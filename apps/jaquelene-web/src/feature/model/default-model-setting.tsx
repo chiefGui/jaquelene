@@ -1,8 +1,7 @@
 import type { ModelSelection } from "@jaquelene/ipc/renderer";
-import { Button, Item } from "@jaquelene/ui";
+import { Item } from "@jaquelene/ui";
 import { colors } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { Link } from "@tanstack/react-router";
 import { useId } from "react";
 import { ModelPicker } from "./picker";
 
@@ -49,9 +48,6 @@ export function DefaultModelSetting({
             aria-describedby={describedBy}
             disabled={pending}
           />
-          <ModelPicker.Empty>
-            <Button render={<Link to="/settings/providers" replace />}>Connect a provider</Button>
-          </ModelPicker.Empty>
           <ModelPicker.Content />
         </ModelPicker.Root>
       </Item.Value>

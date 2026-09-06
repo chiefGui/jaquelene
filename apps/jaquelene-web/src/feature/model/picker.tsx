@@ -465,12 +465,6 @@ function ModelPickerValue({
 }
 
 function ModelPickerTrigger({ children, style, ...props }: SelectProps) {
-  const { pickerStatus } = useModelPicker("Trigger");
-
-  if (pickerStatus === "empty") {
-    return null;
-  }
-
   return (
     <Select {...props} style={[styles.trigger, style]}>
       {children ?? <ModelPickerValue />}
@@ -478,10 +472,27 @@ function ModelPickerTrigger({ children, style, ...props }: SelectProps) {
   );
 }
 
-function ModelPickerEmpty({ children }: { children: ReactNode }) {
-  const { pickerStatus } = useModelPicker("Empty");
+function ModelPickerConnectProvider() {
+  const combobox = useComboboxContext();
+  const matchRoute = useMatchRoute();
+  const settingsActive = Boolean(matchRoute({ to: "/settings", fuzzy: true }));
 
-  return pickerStatus === "empty" ? children : null;
+  return (
+    <div {...stylex.props(styles.centerState)}>
+      <div>
+        <p {...stylex.props(styles.stateMessage)}>Connect a provider to choose a model.</p>
+        <div {...stylex.props(styles.stateActions)}>
+          <Button
+            type="button"
+            onClick={() => combobox?.setOpen(false)}
+            render={<Link to="/settings/providers" replace={settingsActive} />}
+          >
+            Connect provider
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ModelPickerList({ options }: { options: ModelOption[] }) {
@@ -743,10 +754,6 @@ function ModelPickerContent({ style, ...props }: ModelPickerContentProps) {
   const mounted = useStoreState(combobox, "mounted") ?? false;
   const { activeTab, pickerStatus, selectTab, tabs } = useModelPicker("Content");
 
-  if (pickerStatus !== "ready") {
-    return null;
-  }
-
   return (
     <Popover.Presence present={mounted}>
       <ComboboxPopover
@@ -757,68 +764,75 @@ function ModelPickerContent({ style, ...props }: ModelPickerContentProps) {
         {...props}
         render={<Popover.Surface />}
         role="dialog"
-        {...stylex.props(styles.content, style)}
+        {...stylex.props(styles.content, pickerStatus === "empty" && styles.emptyContent, style)}
       >
-        <TabProvider selectedId={activeTab.tabId} setSelectedId={selectTab} orientation="vertical">
-          <div {...stylex.props(styles.contentLayout)}>
-            <TabList aria-label="Model sources" {...stylex.props(styles.tabList)}>
-              {tabs.map((tab) => {
-                const label = tab.type === "favorites" ? "Favorites" : tab.brandName;
+        {pickerStatus === "empty" && <ModelPickerConnectProvider />}
+        {pickerStatus === "ready" && (
+          <TabProvider
+            selectedId={activeTab.tabId}
+            setSelectedId={selectTab}
+            orientation="vertical"
+          >
+            <div {...stylex.props(styles.contentLayout)}>
+              <TabList aria-label="Model sources" {...stylex.props(styles.tabList)}>
+                {tabs.map((tab) => {
+                  const label = tab.type === "favorites" ? "Favorites" : tab.brandName;
 
-                return (
-                  <Tooltip.Root key={tab.tabId} placement="left">
-                    <Tooltip.Anchor
-                      render={
-                        <Tab
-                          id={tab.tabId}
-                          aria-label={label}
-                          render={<Button variant="ghost" style={styles.tabButton} />}
-                        />
-                      }
-                    >
-                      {tab.type === "favorites" ? (
-                        <HugeiconsIcon
-                          icon={StarIcon}
-                          size={16}
-                          strokeWidth={1.5}
-                          aria-hidden="true"
-                          {...stylex.props(styles.tabMark)}
-                        />
-                      ) : (
-                        <ProviderMark brandId={tab.brandId} style={styles.tabMark} />
-                      )}
-                    </Tooltip.Anchor>
+                  return (
+                    <Tooltip.Root key={tab.tabId} placement="left">
+                      <Tooltip.Anchor
+                        render={
+                          <Tab
+                            id={tab.tabId}
+                            aria-label={label}
+                            render={<Button variant="ghost" style={styles.tabButton} />}
+                          />
+                        }
+                      >
+                        {tab.type === "favorites" ? (
+                          <HugeiconsIcon
+                            icon={StarIcon}
+                            size={16}
+                            strokeWidth={1.5}
+                            aria-hidden="true"
+                            {...stylex.props(styles.tabMark)}
+                          />
+                        ) : (
+                          <ProviderMark brandId={tab.brandId} style={styles.tabMark} />
+                        )}
+                      </Tooltip.Anchor>
 
-                    <Tooltip>{label}</Tooltip>
-                  </Tooltip.Root>
-                );
-              })}
-            </TabList>
+                      <Tooltip>{label}</Tooltip>
+                    </Tooltip.Root>
+                  );
+                })}
+              </TabList>
 
-            <TabPanel tabId={activeTab.tabId} tabIndex={-1} {...stylex.props(styles.tabPanel)}>
-              <div {...stylex.props(styles.search)}>
-                <HugeiconsIcon
-                  icon={Search01Icon}
-                  size={16}
-                  strokeWidth={1.5}
-                  aria-hidden="true"
-                  {...stylex.props(styles.searchIcon)}
-                />
-                <Combobox
-                  autoSelect="always"
-                  getAutoSelectId={(items) =>
-                    items.find((item) => !item.disabled && item.value)?.id
-                  }
-                  aria-label="Search models"
-                  placeholder="Search models..."
-                  render={<Input variant="ghost" style={styles.searchInput} />}
-                />
-              </div>
+              <TabPanel tabId={activeTab.tabId} tabIndex={-1} {...stylex.props(styles.tabPanel)}>
+                <div {...stylex.props(styles.search)}>
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    size={16}
+                    strokeWidth={1.5}
+                    aria-hidden="true"
+                    {...stylex.props(styles.searchIcon)}
+                  />
+                  <Combobox
+                    autoSelect="always"
+                    getAutoSelectId={(items) =>
+                      items.find((item) => !item.disabled && item.value)?.id
+                    }
+                    aria-label="Search models"
+                    placeholder="Search models..."
+                    render={<Input variant="ghost" style={styles.searchInput} />}
+                  />
+                </div>
 
-              <ModelPickerModels />
-            </TabPanel>
-          </div>
-        </TabProvider>
+                <ModelPickerModels />
+              </TabPanel>
+            </div>
+          </TabProvider>
+        )}
       </ComboboxPopover>
     </Popover.Presence>
   );
@@ -828,7 +842,6 @@ export const ModelPicker = {
   Root: ModelPickerRoot,
   Trigger: ModelPickerTrigger,
   Value: ModelPickerValue,
-  Empty: ModelPickerEmpty,
   Content: ModelPickerContent,
 } as const;
 
@@ -1182,6 +1195,10 @@ const styles = stylex.create({
     gridTemplateColumns: "3.0625rem minmax(0, 1fr)",
     height: "100%",
     minHeight: 0,
+  },
+  emptyContent: {
+    height: "auto",
+    width: "24rem",
   },
   tabList: {
     alignItems: "center",

@@ -10,11 +10,9 @@ import type {
   ModelReasoningCapability,
   ReasoningPreset,
 } from "@jaquelene/ipc/renderer";
-import { Button } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { useId, useMemo } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { modelsForProviderQuery } from "@/feature/model/catalog-query";
@@ -117,11 +115,6 @@ export function CampaignGenerationControls({
         >
           <ModelPicker.Value />
         </ModelPicker.Trigger>
-        <ModelPicker.Empty>
-          <Button variant="ghost" render={<Link to="/settings/providers" />}>
-            Connect provider
-          </Button>
-        </ModelPicker.Empty>
         <ModelPicker.Content />
       </ModelPicker.Root>
 

@@ -64,7 +64,7 @@ function createDatabasePath() {
 }
 
 function modelExecutor(generate: TestGenerate): ModelExecutor {
-  const executor = createModelExecutor(
+  return createModelExecutor(
     {
       getModel: Effect.fnUntraced(function* (reference) {
         if (reference.providerId !== "provider-a") {
@@ -89,8 +89,6 @@ function modelExecutor(generate: TestGenerate): ModelExecutor {
       },
     },
   );
-
-  return executor;
 }
 
 async function openTurnEnvironment(generate: TestGenerate, now: () => number = Date.now) {

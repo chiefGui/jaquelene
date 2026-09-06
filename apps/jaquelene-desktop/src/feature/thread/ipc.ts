@@ -2,6 +2,7 @@ import { Cause, Exit, type Effect, type Fiber } from "effect";
 import type {
   Generation,
   GenerationFailureKind,
+  RequestedModelConfiguration,
   ThreadActivity,
   ThreadHistoryDeletion,
   ThreadMessage,
@@ -21,6 +22,7 @@ import {
   Threads as ThreadsIpc,
   Turns as TurnsIpc,
   type ITurnsDispatcher,
+  type RequestedModelConfiguration as IpcRequestedModelConfiguration,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
 import {
@@ -42,6 +44,16 @@ type ThreadChangeOperation =
   | TurnGenerationOperation
   | "thread.history.delete"
   | "thread.message.edit";
+
+function fromIpcModelConfiguration(
+  configuration: IpcRequestedModelConfiguration,
+): RequestedModelConfiguration {
+  const model = { ...configuration.model };
+  if (configuration.reasoningPreset === undefined) {
+    return { model };
+  }
+  return { model, reasoningPreset: fromIpcReasoningPreset(configuration.reasoningPreset) };
+}
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
   switch (author) {
@@ -342,16 +354,7 @@ export function createThreadMessaging(
             turns.submit({
               threadId: ids.thread.parse(request.threadId),
               content: request.content,
-              configuration: {
-                model: { ...request.configuration.model },
-                ...(request.configuration.reasoningPreset === undefined
-                  ? {}
-                  : {
-                      reasoningPreset: fromIpcReasoningPreset(
-                        request.configuration.reasoningPreset,
-                      ),
-                    }),
-              },
+              configuration: fromIpcModelConfiguration(request.configuration),
             }),
           );
           observeSettlement("thread.turn.submit", operation.settlement);
@@ -361,16 +364,7 @@ export function createThreadMessaging(
           const operation = await runtime.runPromise(
             turns.retry({
               turnId: ids.turn.parse(request.turnId),
-              configuration: {
-                model: { ...request.configuration.model },
-                ...(request.configuration.reasoningPreset === undefined
-                  ? {}
-                  : {
-                      reasoningPreset: fromIpcReasoningPreset(
-                        request.configuration.reasoningPreset,
-                      ),
-                    }),
-              },
+              configuration: fromIpcModelConfiguration(request.configuration),
             }),
           );
           observeSettlement("thread.turn.retry", operation.settlement);
@@ -380,16 +374,7 @@ export function createThreadMessaging(
           const operation = await runtime.runPromise(
             turns.regenerate({
               assistantMessageId: ids.message.parse(request.assistantMessageId),
-              configuration: {
-                model: { ...request.configuration.model },
-                ...(request.configuration.reasoningPreset === undefined
-                  ? {}
-                  : {
-                      reasoningPreset: fromIpcReasoningPreset(
-                        request.configuration.reasoningPreset,
-                      ),
-                    }),
-              },
+              configuration: fromIpcModelConfiguration(request.configuration),
             }),
           );
           observeSettlement("thread.reply.regenerate", operation.settlement);

@@ -201,7 +201,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
     starting: StartingTurnOperation,
     configuration: RequestedModelConfiguration,
     accept: (configuration: ResolvedModelConfiguration) => AcceptedTurn,
-  ) {
+  ): Effect.fn.Return<TurnOperation, TurnAdmissionError> {
     return yield* Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
         const lease = yield* Effect.try({
@@ -257,7 +257,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
           acceptance,
           settlement: Deferred.await(settled),
           cancel: interruptOperations([fiber]).pipe(Effect.orDie),
-        } satisfies TurnOperation;
+        };
       }),
     );
   });

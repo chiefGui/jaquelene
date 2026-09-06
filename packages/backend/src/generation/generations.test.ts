@@ -101,8 +101,7 @@ function providerGeneration(provider?: TestGenerationProvider): Pick<Providers, 
 }
 
 function modelExecutor(provider?: TestGenerationProvider): ModelExecutor {
-  const executor = createModelExecutor(modelResolver(provider), providerGeneration(provider));
-  return executor;
+  return createModelExecutor(modelResolver(provider), providerGeneration(provider));
 }
 
 function openGenerationEnvironment(provider: TestGenerationProvider, now: () => number = Date.now) {
@@ -1155,7 +1154,7 @@ describe("generations", () => {
     const { database, generationOptions, threads } = openGenerationEnvironment(provider);
     const thread = threads.create();
     const started = threads.startTurn(thread.id, "Hello");
-    const prepare = vi.fn(() => Effect.never);
+    const prepare = vi.fn(() => Effect.promise(() => new Promise<never>(() => {})));
     const generations = createGenerations({
       ...generationOptions,
       replyPreparer: { prepare },

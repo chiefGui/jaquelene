@@ -11,10 +11,12 @@ export function createPromptSubsystem(
 ) {
   const prompts = createPrompts(database, modules, now);
   const applications = createPromptApplicationRegistry(
-    modules.map((module) => ({
-      kind: module.definition.key,
-      apply: module.createApplication(prompts).apply,
-    })),
+    modules.flatMap((module) => {
+      if (!module.createApplication) {
+        return [];
+      }
+      return [{ kind: module.definition.key, apply: module.createApplication(prompts).apply }];
+    }),
   );
 
   return { applications, prompts };

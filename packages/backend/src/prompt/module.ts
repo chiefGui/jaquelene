@@ -4,7 +4,7 @@ import type { PromptKindRegistration } from "./types";
 
 export type PromptKindModule = PromptKindRegistration &
   Readonly<{
-    createApplication: (
+    createApplication?: (
       prompts: Pick<PromptEngine, "resolveCampaignPrompt">,
     ) => Pick<PromptApplication, "apply">;
   }>;

@@ -52,6 +52,7 @@ type WithoutChildren<Props> = Props extends unknown ? Omit<Props, "children"> : 
 
 export type MarkdownEditorProps = WithoutChildren<MarkdownEditorRootProps> & {
   style?: StyleXStyles;
+  toolbarActions?: ReactNode;
 };
 
 const MarkdownPreview = lazy(async () => {
@@ -352,13 +353,16 @@ function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsP
 
 const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent({
   style,
+  toolbarActions,
 }: {
   style: StyleXStyles | undefined;
+  toolbarActions: ReactNode;
 }) {
   return (
     <MarkdownEditorFrame style={style}>
       <MarkdownEditorToolbar>
         <MarkdownEditorFormattingActions />
+        {toolbarActions}
         <MarkdownEditorPreviewToggle style={styles.previewTogglePlacement} />
       </MarkdownEditorToolbar>
       <MarkdownEditorContent />
@@ -370,10 +374,10 @@ const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent(
 });
 
 const MarkdownEditorDefault = forwardRef<HTMLElement, MarkdownEditorProps>(
-  function MarkdownEditorDefault({ style, ...props }, ref) {
+  function MarkdownEditorDefault({ style, toolbarActions, ...props }, ref) {
     return (
       <MarkdownEditorRoot {...props} ref={ref}>
-        <MarkdownEditorDefaultContent style={style} />
+        <MarkdownEditorDefaultContent style={style} toolbarActions={toolbarActions} />
       </MarkdownEditorRoot>
     );
   },

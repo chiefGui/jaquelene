@@ -5,6 +5,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
+import { ScenarioImportControl } from "@/feature/scenario/import-control";
 import { formatCampaignScenarioIssue } from "./form";
 import { useSetCampaignScenario } from "./query";
 
@@ -68,6 +69,7 @@ function ScenarioEditor({ campaign, onClose }: { campaign: Campaign; onClose: ()
         <MarkdownEditor.Frame>
           <MarkdownEditor.Toolbar>
             <MarkdownEditor.FormattingActions />
+            <ScenarioImportControl />
             <MarkdownEditor.PreviewToggle style={styles.preview} />
           </MarkdownEditor.Toolbar>
           <MarkdownEditor.Content />

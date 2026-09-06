@@ -100,11 +100,17 @@ describe("prompts", () => {
         description: "Defines the world in which the campaign takes place.",
       },
       builtInPrompts: [],
-      createApplication: () => ({ apply: () => [] }),
     } satisfies PromptKindModule;
-    const { prompts } = createPromptSubsystem(database, [setting, testPromptModule]);
+    const { prompts, applications } = createPromptSubsystem(database, [setting, testPromptModule]);
 
     expect(prompts.listKinds()).toEqual([setting.definition, testPromptKind]);
+    const campaign = createCampaigns(database).start({
+      title: "Library-only kinds",
+      composition: [],
+    });
+    expect(applications.resolve({ threadId: campaign.threadId, campaign })).toEqual([
+      { sourceKey: testBuiltInPrompt.key, content: testBuiltInPrompt.body },
+    ]);
     expect(() => prompts.list({ kind: parsePromptKindKey("unregistered") })).toThrow(
       'Prompt kind "unregistered" does not exist.',
     );

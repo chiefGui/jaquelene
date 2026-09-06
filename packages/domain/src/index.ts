@@ -28,6 +28,7 @@ export type {
   RequestedModelConfiguration,
 } from "./model/configuration";
 export { narratorPromptKindKey } from "./narrator/prompt-kind";
+export { scenarioPromptKindKey } from "./scenario/prompt-kind";
 export {
   PROMPT_BODY_MAX_LENGTH,
   PROMPT_BODY_MAX_UTF16_LENGTH,

@@ -25,6 +25,7 @@ import {
 } from "#backend/storage/area";
 import type { StorageDeletion, StorageUsage } from "#backend/storage/storage";
 import { jaqueleneNarratorPromptDefinition, narratorPromptKind } from "#backend/narrator/module";
+import { scenarioPromptModule } from "#backend/scenario/module";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
@@ -435,7 +436,10 @@ describe("backend", () => {
       generate: () => Effect.succeed({ text: "The voyage begins." }),
     });
     const first = await openBackend(backendOptions(databasePath, [provider]));
-    expect(first.prompts.listKinds()).toEqual([narratorPromptKind]);
+    expect(first.prompts.listKinds()).toEqual([
+      narratorPromptKind,
+      scenarioPromptModule.definition,
+    ]);
     expect(first.prompts.list({ kind: narratorPromptKind.key }).prompts).toEqual([
       {
         ...jaqueleneNarratorPromptDefinition,
@@ -551,6 +555,54 @@ describe("backend", () => {
     } finally {
       await runtime.dispose();
     }
+  });
+
+  it("keeps copied library scenarios independent through edits, deletion, and reopen", async () => {
+    const databasePath = createDatabasePath();
+    const backend = await openBackend(backendOptions(databasePath, []));
+    const kind = scenarioPromptModule.definition.key;
+    expect(backend.prompts.list({ kind }).prompts).toEqual([]);
+    expect(backend.prompts.getDefault(kind)).toEqual({ kind, promptKey: null, source: "none" });
+    const scenario = backend.prompts.create({
+      kind,
+      title: "The drowned city",
+      body: "A city beneath the sea.",
+    });
+    const campaign = backend.campaigns.start({
+      title: "Voyage",
+      scenario: scenario.body,
+      composition: [],
+    });
+    const blank = backend.campaigns.start({ title: "No setting", composition: [] });
+    expect(backend.prompts.getCampaignSelection(campaign.id, kind)).toMatchObject({
+      effectivePromptKey: null,
+      source: "none",
+    });
+    expect(backend.threads.getTranscript(blank.threadId).entries).toHaveLength(1);
+    backend.prompts.update(scenario.key, { title: "Changed", body: "A city in the sky." });
+    expect(backend.prompts.get(scenario.key)?.body).toBe("A city in the sky.");
+    expect(backend.campaigns.get(campaign.id)?.scenario).toBe(scenario.body);
+    backend.campaigns.setScenario(campaign.id, "An independent campaign edit.");
+    expect(backend.prompts.get(scenario.key)?.body).toBe("A city in the sky.");
+    expect(backend.prompts.delete(scenario.key)).toEqual({ kind });
+    expect(backend.prompts.list({ kind }).prompts).toEqual([]);
+    await backend.close();
+
+    await using reopened = await openBackend(backendOptions(databasePath, []));
+    expect(reopened.prompts.get(scenario.key)).toBeNull();
+    expect(reopened.campaigns.get(campaign.id)?.scenario).toBe("An independent campaign edit.");
+    expect(reopened.threads.getTranscript(campaign.threadId).entries).toEqual([
+      {
+        kind: "instruction",
+        sourceKey: jaqueleneNarratorPromptDefinition.key,
+        content: jaqueleneNarratorPromptDefinition.body,
+      },
+      {
+        kind: "instruction",
+        sourceKey: `campaign.${campaign.id}.scenario`,
+        content: "## Scenario\nAn independent campaign edit.",
+      },
+    ]);
   });
 
   it("uses edited narrator and scenario content on subsequent turns and allows clearing the scenario", async () => {

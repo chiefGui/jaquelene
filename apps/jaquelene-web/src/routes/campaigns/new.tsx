@@ -24,6 +24,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
 import { useStartCampaignFormValidation } from "@/feature/campaign/form";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
+import { ScenarioImportControl } from "@/feature/scenario/import-control";
 import { useStartCampaign } from "@/feature/campaign/query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { promptDefaultQuery, promptPagesQuery, promptQuery } from "@/feature/prompt/query";
@@ -232,6 +233,7 @@ function NewCampaignRoute() {
                 render={
                   <MarkdownEditor
                     value={scenario}
+                    toolbarActions={<ScenarioImportControl />}
                     onValueChange={(value) => form.setValue(form.names.scenario, value)}
                     maxLength={CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH}
                     readOnly={submitting || Boolean(createdCampaign)}

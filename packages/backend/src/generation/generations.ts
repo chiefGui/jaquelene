@@ -1,7 +1,6 @@
 import { Cause, Effect, Exit } from "effect";
-import { and, eq, gt, inArray, notExists, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { parseRegenerationInstructions } from "@jaquelene/domain";
-import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "#backend/database/database";
 import type { RequestedModelConfiguration } from "#backend/model/configuration";
 import { requireThreadMessageContent, type ThreadActivity } from "#backend/thread/threads";
@@ -214,72 +213,39 @@ export function createGenerations({
     return { outcome: "failed", generation: toGeneration(failedGeneration), cause };
   }
 
+  function prepareLatestGeneration(target: SQL) {
+    return database
+      .select()
+      .from(generationTable)
+      .where(target)
+      .orderBy(desc(generationTable.startedAt), desc(generationTable.id))
+      .limit(1)
+      .prepare();
+  }
+
+  const latestTurnGeneration = prepareLatestGeneration(
+    eq(generationTable.turnId, sql.placeholder("turnId")),
+  );
+  const latestOpeningGeneration = prepareLatestGeneration(
+    and(eq(generationTable.threadId, sql.placeholder("threadId")), isNull(generationTable.turnId))!,
+  );
+
   function listLatestForTargets(
     turnIds: readonly TurnId[],
     openingThreadIds: readonly ThreadId[] = [],
   ) {
-    const uniqueTurnIds = [...new Set(turnIds)];
-
-    const uniqueOpeningThreadIds = [...new Set(openingThreadIds)];
-    if (uniqueTurnIds.length === 0 && uniqueOpeningThreadIds.length === 0) {
-      return [];
-    }
-
-    const targets: SQL[] = [];
-    if (uniqueTurnIds.length > 0) {
-      targets.push(inArray(generationTable.turnId, uniqueTurnIds));
-    }
-    if (uniqueOpeningThreadIds.length > 0) {
-      targets.push(
-        and(
-          sql`${generationTable.turnId} IS NULL`,
-          inArray(generationTable.threadId, uniqueOpeningThreadIds),
-        )!,
-      );
-    }
-    const newerGeneration = alias(generationTable, "newer_generation");
-    const storedGenerations = database
-      .select()
-      .from(generationTable)
-      .where(
-        and(
-          or(...targets),
-          notExists(
-            database
-              .select({ id: newerGeneration.id })
-              .from(newerGeneration)
-              .where(
-                and(
-                  eq(newerGeneration.threadId, generationTable.threadId),
-                  sql`${newerGeneration.turnId} IS ${generationTable.turnId}`,
-                  or(
-                    gt(newerGeneration.startedAt, generationTable.startedAt),
-                    and(
-                      eq(newerGeneration.startedAt, generationTable.startedAt),
-                      gt(newerGeneration.id, generationTable.id),
-                    ),
-                  ),
-                ),
-              ),
-          ),
-        ),
-      )
-      .all();
-    const generationByTurn = new Map(
-      storedGenerations.map((storedGeneration) => {
-        const generation = toGeneration(storedGeneration);
-        return [generation.turnId ?? generation.threadId, generation];
-      }),
-    );
-
-    return [...uniqueTurnIds, ...uniqueOpeningThreadIds].flatMap((turnId) => {
-      const generation = generationByTurn.get(turnId);
-
+    // Reuse prepared index lookups; page loading should not scan previous attempts.
+    const generations = [
+      ...[...new Set(turnIds)].map((turnId) => latestTurnGeneration.get({ turnId })),
+      ...[...new Set(openingThreadIds)].map((threadId) =>
+        latestOpeningGeneration.get({ threadId }),
+      ),
+    ];
+    return generations.flatMap((generation) => {
       if (!generation) {
         return [];
       }
-
-      return [generation];
+      return [toGeneration(generation)];
     });
   }
 

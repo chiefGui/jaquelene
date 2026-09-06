@@ -217,6 +217,69 @@ describe("generations", () => {
     ]);
   });
 
+  it("selects the latest attempt by time and identity for each distinct opening and player turn", () => {
+    const { campaigns, database, generations, threads } = openGenerationEnvironment({
+      id: "provider-a",
+      generate: vi.fn(async () => ({ text: "Unused" })),
+    });
+    const campaign = campaigns.start({
+      title: "Morning",
+      openingScene: "Someone knocks.",
+      composition: [],
+    });
+    const opening = threads.listMessages({ threadId: campaign.threadId, direction: "older" })
+      .messages[0]!;
+    const player = threads.startTurn(campaign.threadId, "Who is it?").message;
+    const other = campaigns.start({
+      title: "Elsewhere",
+      openingScene: "Night falls.",
+      composition: [],
+    });
+    const otherOpening = threads.listMessages({ threadId: other.threadId, direction: "older" })
+      .messages[0]!;
+    const missing = threads.startTurn(threads.create().id, "No attempts").message;
+    const expected = [];
+    for (const message of [player, opening, otherOpening]) {
+      let target = {
+        intent: "reply" as "reply" | "regeneration",
+        regenerationSourceMessageId: null as typeof opening.id | null,
+      };
+      if (message.turnId === null) {
+        target = { intent: "regeneration", regenerationSourceMessageId: message.id };
+      }
+      const attempts = [30, 10, 30, 20].map((startedAt) => ({
+        ...target,
+        id: ids.generation.create(),
+        threadId: message.threadId,
+        turnId: message.turnId,
+        providerId: "provider-a",
+        modelId: "maker/model",
+        status: "failed" as const,
+        failureKind: "preparation" as const,
+        startedAt,
+        finishedAt: startedAt,
+      }));
+      database.insert(generationTable).values(attempts).run();
+      expected.push(attempts[2]!.id);
+    }
+    const latest = generations.listLatestForMessages([
+      opening,
+      player,
+      otherOpening,
+      opening,
+      missing,
+      player,
+    ]);
+    expect(latest.map(({ id }) => id)).toEqual(expected);
+    expect(
+      generations
+        .listLatestForTurns([player.turnId, missing.turnId, player.turnId])
+        .map(({ id }) => id),
+    ).toEqual([expected[0]]);
+    expect(generations.listLatestForMessages([])).toEqual([]);
+    expect(generations.listLatestForTurns([])).toEqual([]);
+  });
+
   it("keeps late opening output from replacing a player turn that advanced the thread", async () => {
     const { campaigns, database, generations, threads } = openGenerationEnvironment({
       id: "provider-a",

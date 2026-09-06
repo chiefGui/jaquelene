@@ -10,7 +10,7 @@ import {
   type Usage,
 } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
-import { Context, Effect, Exit, FiberSet, Layer, Schema, Scope } from "effect";
+import { Context, Effect, Exit, type Fiber, FiberSet, Layer, Schema, Scope } from "effect";
 import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import {
@@ -45,6 +45,9 @@ const preloadPath = join(import.meta.dirname, "../preload/preload.cjs");
 type WindowState = "absent" | "opening" | "open" | "closing";
 
 type EffectRunner = <Success, Failure>(effect: Effect.Effect<Success, Failure>) => Promise<Success>;
+type EffectFork = <Success, Failure>(
+  effect: Effect.Effect<Success, Failure>,
+) => Fiber.Fiber<Success, Failure>;
 
 type OpenWindow = {
   browserWindow: BrowserWindow;
@@ -91,7 +94,9 @@ export class MainWindowService extends Context.Service<MainWindowService, MainWi
       const localState = yield* LocalStateService;
       const preferences = yield* PreferencesService;
       const renderer = yield* RendererService;
-      const runEffect = yield* FiberSet.makeRuntimePromise();
+      const ipcOperations = yield* FiberSet.make();
+      const runEffect = yield* FiberSet.runtimePromise(ipcOperations)();
+      const forkEffect = yield* FiberSet.runtime(ipcOperations)();
 
       const manager = yield* Effect.acquireRelease(
         Effect.sync(() =>
@@ -110,6 +115,7 @@ export class MainWindowService extends Context.Service<MainWindowService, MainWi
             providers: backend.providers,
             storage: backend.storage,
             runEffect,
+            forkEffect,
             usage: backend.usage,
           }),
         ),
@@ -183,6 +189,7 @@ function createMainWindowManager({
   providers,
   storage,
   runEffect,
+  forkEffect,
   usage,
 }: {
   rendererUrl: string;
@@ -199,9 +206,13 @@ function createMainWindowManager({
   providers: Providers;
   storage: Backend["storage"];
   runEffect: EffectRunner;
+  forkEffect: EffectFork;
   usage: Usage;
 }): MainWindowManager {
-  const threadMessaging = createThreadMessaging(threads, turns, diagnostics);
+  const threadMessaging = createThreadMessaging(threads, turns, diagnostics, {
+    runPromise: runEffect,
+    runFork: forkEffect,
+  });
   let state: "open" | "closing" | "closed" = "open";
   let windowState: WindowState = "absent";
   let currentWindow: OpenWindow | undefined;

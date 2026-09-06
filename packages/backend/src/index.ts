@@ -132,6 +132,7 @@ export type {
   SetCampaignPromptSelectionInput,
 } from "#backend/prompt/types";
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
+export { TurnAdmissionError } from "#backend/turn/turns";
 export type { Threads } from "#backend/thread/subsystem";
 export type { ThreadActivity } from "#backend/thread/threads";
 export type {

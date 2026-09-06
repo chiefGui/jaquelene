@@ -37,10 +37,6 @@ type OperationEntry = Readonly<{
   operation: ActiveThreadOperation;
 }>;
 
-function copyInspection(operation: ActiveThreadOperation): ThreadOperationInspection {
-  return { ...operation };
-}
-
 export function createThreadOperationCoordinator() {
   const operations = new Map<ThreadId, OperationEntry>();
 
@@ -58,15 +54,12 @@ export function createThreadOperationCoordinator() {
     }
 
     const owner = Symbol(threadId);
-    let released = false;
     operations.set(threadId, { owner, operation: starting });
 
     function release() {
-      if (!released && operations.get(threadId)?.owner === owner) {
+      if (operations.get(threadId)?.owner === owner) {
         operations.delete(threadId);
       }
-
-      released = true;
     }
 
     if (starting.state === "editing" || starting.state === "truncating") {
@@ -77,7 +70,7 @@ export function createThreadOperationCoordinator() {
       generating(turnId: TurnId, generationId: GenerationId, intent: GenerationIntent) {
         const current = operations.get(threadId);
 
-        if (released || current?.owner !== owner) {
+        if (current?.owner !== owner) {
           throw new Error(`Thread "${threadId}" operation ownership was lost.`);
         }
 
@@ -104,7 +97,10 @@ export function createThreadOperationCoordinator() {
 
     inspect(threadId: ThreadId): ThreadOperationInspection {
       const active = operations.get(threadId);
-      return active ? copyInspection(active.operation) : { state: "idle" };
+      if (!active) {
+        return { state: "idle" };
+      }
+      return { ...active.operation };
     },
   };
 }

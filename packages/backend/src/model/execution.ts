@@ -82,27 +82,6 @@ export type ModelExecutor = Readonly<{
   ) => Effect.Effect<ModelExecutionResult, ModelExecutionError>;
 }>;
 
-export type ModelExecutionRunner = Readonly<{
-  resolveConfiguration: (
-    configuration: RequestedModelConfiguration,
-    signal?: AbortSignal,
-  ) => Promise<ResolvedModelConfiguration>;
-  execute: (request: ModelExecutionRequest, signal?: AbortSignal) => Promise<ModelExecutionResult>;
-}>;
-
-type RunModelEffect = <Success, Failure>(
-  effect: Effect.Effect<Success, Failure>,
-  options: Readonly<{ signal: AbortSignal | undefined }>,
-) => Promise<Success>;
-
-function interruptionCause(signal: AbortSignal) {
-  if (Predicate.isError(signal.reason)) {
-    return signal.reason;
-  }
-
-  return new Error("Model execution was interrupted.", { cause: signal.reason });
-}
-
 function messageForCause(cause: unknown, fallback: string) {
   if (Predicate.isError(cause) && cause.message) {
     return cause.message;
@@ -121,36 +100,6 @@ function requestError(cause: unknown) {
 
 function providerError(cause: unknown) {
   return new ModelProviderError({ cause });
-}
-
-export function createModelExecutionRunner(
-  executor: ModelExecutor,
-  runModelEffect: RunModelEffect,
-): ModelExecutionRunner {
-  function run<Success, Failure>(effect: Effect.Effect<Success, Failure>, signal?: AbortSignal) {
-    const running = runModelEffect(effect, { signal });
-
-    if (!signal) {
-      return running;
-    }
-
-    return running.catch((cause: unknown) => {
-      if (signal.aborted) {
-        throw interruptionCause(signal);
-      }
-
-      throw cause;
-    });
-  }
-
-  return {
-    resolveConfiguration(configuration, signal) {
-      return run(executor.resolveConfiguration(configuration), signal);
-    },
-    execute(request, signal) {
-      return run(executor.execute(request), signal);
-    },
-  };
 }
 
 function copyRequestedModelConfiguration(

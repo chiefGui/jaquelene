@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as NodePath from "@effect/platform-node/NodePath";
 import { PromptOrigin } from "@jaquelene/domain";
-import { Context, Deferred, Effect, Layer, Logger, ManagedRuntime, Path } from "effect";
+import { Context, Deferred, Effect, Exit, Layer, Logger, ManagedRuntime, Path } from "effect";
 import { FileTreeService } from "#backend/filesystem/file-tree";
 import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
@@ -453,14 +453,16 @@ describe("backend", () => {
       title: "Voyage",
       composition: [{ kind: narratorPromptKind.key }],
     });
-    const submittedOperation = await first.turns.submit({
-      threadId: campaign.threadId,
-      content: "Begin",
-      configuration: {
-        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
-      },
-    });
-    const submitted = await submittedOperation.settlement;
+    const submittedOperation = await Effect.runPromise(
+      first.turns.submit({
+        threadId: campaign.threadId,
+        content: "Begin",
+        configuration: {
+          model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+        },
+      }),
+    );
+    const submitted = await Effect.runPromise(submittedOperation.settlement);
 
     if (submitted.outcome !== "completed") {
       throw new Error("Expected the submitted reply to complete.");
@@ -524,11 +526,13 @@ describe("backend", () => {
       const changed = vi.fn();
       backend.usage.subscribe(changed);
       const campaign = backend.campaigns.start({ title: "Voyage", composition: [] });
-      const operation = await backend.turns.submit({
-        threadId: campaign.threadId,
-        content: "Begin",
-        configuration: { model: { providerId: provider.descriptor.id, modelId: "maker/model" } },
-      });
+      const operation = await Effect.runPromise(
+        backend.turns.submit({
+          threadId: campaign.threadId,
+          content: "Begin",
+          configuration: { model: { providerId: provider.descriptor.id, modelId: "maker/model" } },
+        }),
+      );
       await vi.waitFor(() => expect(changed).toHaveBeenCalledOnce());
       expect(backend.usage.getOverview("all-time").attempts.pending).toBe(1);
       providerResult.resolve({
@@ -536,7 +540,7 @@ describe("backend", () => {
         usage: { tokens: { input: { total: 3 }, output: { total: 2 }, total: 5 } },
       });
 
-      await expect(operation.settlement).resolves.toMatchObject({
+      await expect(Effect.runPromise(operation.settlement)).resolves.toMatchObject({
         outcome: "completed",
         generation: { status: "completed" },
         assistantMessage: { content: "The voyage begins." },
@@ -631,25 +635,33 @@ describe("backend", () => {
       model: { providerId: provider.descriptor.id, modelId: "maker/model" },
     };
 
-    await (
-      await backend.turns.submit({
-        threadId: campaign.threadId,
-        content: "Begin",
-        configuration,
-      })
-    ).settlement;
+    await Effect.runPromise(
+      (
+        await Effect.runPromise(
+          backend.turns.submit({
+            threadId: campaign.threadId,
+            content: "Begin",
+            configuration,
+          }),
+        )
+      ).settlement,
+    );
     backend.prompts.update(prompt.key, {
       title: "Still private",
       body: "Use an ominous tone.",
     });
     backend.campaigns.setScenario(campaign.id, "A kingdom at war.");
-    await (
-      await backend.turns.submit({
-        threadId: campaign.threadId,
-        content: "Continue",
-        configuration,
-      })
-    ).settlement;
+    await Effect.runPromise(
+      (
+        await Effect.runPromise(
+          backend.turns.submit({
+            threadId: campaign.threadId,
+            content: "Continue",
+            configuration,
+          }),
+        )
+      ).settlement,
+    );
 
     expect(inputs.map(({ instructions }) => instructions)).toEqual([
       [
@@ -678,13 +690,17 @@ describe("backend", () => {
     ]);
     expect(JSON.stringify(inputs)).not.toContain("Private");
     backend.campaigns.setScenario(campaign.id, " \n\t");
-    await (
-      await backend.turns.submit({
-        threadId: campaign.threadId,
-        content: "Continue without a scenario",
-        configuration,
-      })
-    ).settlement;
+    await Effect.runPromise(
+      (
+        await Effect.runPromise(
+          backend.turns.submit({
+            threadId: campaign.threadId,
+            content: "Continue without a scenario",
+            configuration,
+          }),
+        )
+      ).settlement,
+    );
     expect(inputs[2]?.instructions).toEqual([
       { sourceKey: prompt.key, content: "Use an ominous tone." },
     ]);
@@ -709,13 +725,15 @@ describe("backend", () => {
       title: "Disposable campaign",
       composition: [{ kind: narratorPromptKind.key }],
     });
-    const operation = await backend.turns.submit({
-      threadId: campaign.threadId,
-      content: "Begin",
-      configuration: {
-        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
-      },
-    });
+    const operation = await Effect.runPromise(
+      backend.turns.submit({
+        threadId: campaign.threadId,
+        content: "Begin",
+        configuration: {
+          model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+        },
+      }),
+    );
     await providerStarted.promise;
 
     expect(() => backend.campaigns.delete(campaign.id)).toThrow(
@@ -728,7 +746,7 @@ describe("backend", () => {
         tokens: { input: { total: 3 }, output: { total: 2 }, total: 5 },
       },
     });
-    await operation.settlement;
+    await Effect.runPromise(operation.settlement);
     expect(backend.campaignUsage.get(campaign.id)).toMatchObject({
       attempts: { completed: 1 },
       tokens: { total: 5 },
@@ -893,17 +911,19 @@ describe("backend", () => {
     });
     const backend = await openBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
-    const pending = await backend.turns.submit({
-      threadId: thread.id,
-      content: "Hello",
-      configuration: {
-        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
-      },
-    });
+    const pending = await Effect.runPromise(
+      backend.turns.submit({
+        threadId: thread.id,
+        content: "Hello",
+        configuration: {
+          model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+        },
+      }),
+    );
     await Effect.runPromise(Deferred.await(providerStarted));
 
     const closing = backend.close();
-    const interrupted = await pending.settlement;
+    const interrupted = await Effect.runPromise(pending.settlement);
     await closing;
 
     if (interrupted.outcome !== "failed") {
@@ -933,16 +953,18 @@ describe("backend", () => {
     const provider = providerAdapter("provider-a", { generate });
     const backend = await openBackend(backendOptions(databasePath, [provider]));
     const thread = backend.threads.create();
-    const pending = await backend.turns.submit({
-      threadId: thread.id,
-      content: "Hello",
-      configuration: {
-        model: { providerId: provider.descriptor.id, modelId: "maker/model" },
-      },
-    });
+    const pending = await Effect.runPromise(
+      backend.turns.submit({
+        threadId: thread.id,
+        content: "Hello",
+        configuration: {
+          model: { providerId: provider.descriptor.id, modelId: "maker/model" },
+        },
+      }),
+    );
 
     const closing = backend.close();
-    const interrupted = await pending.settlement;
+    const interrupted = await Effect.runPromise(pending.settlement);
     await closing;
 
     expect(generate).not.toHaveBeenCalled();
@@ -958,6 +980,55 @@ describe("backend", () => {
     });
     await reopened.close();
   });
+
+  it.each(["defect", "failure"] as const)(
+    "preserves provider cleanup %s while settling interrupted generation and usage",
+    async (kind) => {
+      const databasePath = createDatabasePath();
+      const started = Deferred.makeUnsafe<void>();
+      const cleanupFailure = new Error("Provider cleanup failed.");
+      let cleanup: Effect.Effect<never, Error> = Effect.die(cleanupFailure);
+      if (kind === "failure") {
+        cleanup = Effect.fail(cleanupFailure);
+      }
+      const provider = providerAdapter("provider-a", {
+        generate: () =>
+          Effect.acquireUseRelease(
+            Deferred.succeed(started, undefined),
+            () => Effect.never,
+            () => cleanup,
+          ),
+      });
+      const backend = await openBackend(backendOptions(databasePath, [provider]));
+      const thread = backend.threads.create();
+      const operation = await backend.run(
+        backend.turns.submit({
+          threadId: thread.id,
+          content: "Hello",
+          configuration: { model: { providerId: "provider-a", modelId: "maker/model" } },
+        }),
+      );
+      await Effect.runPromise(Deferred.await(started));
+      const settlement = Effect.runPromiseExit(operation.settlement);
+
+      await expect(backend.close()).rejects.toThrow("Provider cleanup failed.");
+      expect(Exit.isFailure(await settlement)).toBe(true);
+      expect(backend.turns.inspect(thread.id)).toEqual({ state: "idle" });
+      const database = openDatabase(databasePath);
+      try {
+        expect(database.select().from(generationTable).get()).toMatchObject({
+          status: "failed",
+          failureKind: "interrupted",
+        });
+        expect(database.select().from(providerAttemptTable).get()).toMatchObject({
+          status: "failed",
+          failureKind: "interrupted",
+        });
+      } finally {
+        closeDatabase(database);
+      }
+    },
+  );
 
   it("recovers reply state and all provider attempts before exposing reopened services", async () => {
     const databasePath = createDatabasePath();

@@ -9,6 +9,7 @@ import {
 import { useStoreState } from "@ariakit/react/store";
 import { Tab, TabList, TabPanel, TabProvider } from "@ariakit/react/tab";
 import { VisuallyHidden } from "@ariakit/react/visually-hidden";
+import Alert02Icon from "@hugeicons/core-free-icons/Alert02Icon";
 import Brain01Icon from "@hugeicons/core-free-icons/Brain01Icon";
 import RoboticIcon from "@hugeicons/core-free-icons/RoboticIcon";
 import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
@@ -464,10 +465,41 @@ function ModelPickerValue({
   );
 }
 
-function ModelPickerTrigger({ children, style, ...props }: SelectProps) {
+function ModelPickerTrigger({
+  children,
+  style,
+  "aria-describedby": ariaDescribedBy,
+  ...props
+}: SelectProps) {
+  const { pickerStatus, tabs, value } = useModelPicker("Trigger");
+  const warningId = useId();
+  let warning: string | undefined;
+  if (pickerStatus === "empty") {
+    warning = "No providers connected. Connect a provider to choose a model.";
+  } else if (value && !tabs.some((tab) => tab.type === "provider" && tab.id === value.providerId)) {
+    warning =
+      "This model's provider is disconnected. Choose another model or reconnect the provider.";
+  }
+  let describedBy = ariaDescribedBy;
+  if (warning) {
+    describedBy = [ariaDescribedBy, warningId].filter(Boolean).join(" ");
+  }
+
   return (
-    <Select {...props} style={[styles.trigger, style]}>
+    <Select {...props} aria-describedby={describedBy} style={[styles.trigger, style]}>
       {children ?? <ModelPickerValue />}
+      {warning && (
+        <>
+          <HugeiconsIcon
+            icon={Alert02Icon}
+            size={14}
+            strokeWidth={1.5}
+            aria-hidden="true"
+            {...stylex.props(styles.providerWarning)}
+          />
+          <VisuallyHidden id={warningId}>{warning}</VisuallyHidden>
+        </>
+      )}
     </Select>
   );
 }
@@ -849,6 +881,10 @@ const interactiveBackground = colors.backgroundInteractive;
 const focusOutline = colors.focusRing;
 
 const styles = stylex.create({
+  providerWarning: {
+    color: colors.foregroundWarning,
+    flexShrink: 0,
+  },
   selectedModelMark: {
     color: colors.foregroundSecondary,
     gridColumnStart: "1",

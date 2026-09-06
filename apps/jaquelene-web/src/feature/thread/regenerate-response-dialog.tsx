@@ -13,7 +13,6 @@ import { useStoreState } from "@ariakit/react/store";
 import {
   REGENERATION_INSTRUCTIONS_MAX_LENGTH,
   parseRegenerationInstructions,
-  regenerationInstructionsSchema,
 } from "@jaquelene/domain";
 import type { ModelConfigurationSelection } from "@jaquelene/ipc/renderer";
 import { Button, Field, Textarea } from "@jaquelene/ui";
@@ -62,12 +61,6 @@ export function RegenerateResponseDialog({
     form.setErrors({});
     if (state.values.configuration === null) {
       form.setError("configuration", "Choose a model.");
-    }
-    if (!regenerationInstructionsSchema.safeParse(state.values.instructions).success) {
-      form.setError(
-        form.names.instructions,
-        `Use ${REGENERATION_INSTRUCTIONS_MAX_LENGTH.toLocaleString("en-US")} characters or fewer.`,
-      );
     }
   });
   useFormSubmit(form, async (state) => {
@@ -160,12 +153,12 @@ export function RegenerateResponseDialog({
                 <Textarea
                   ref={input}
                   readOnly={busy}
+                  maxLength={REGENERATION_INSTRUCTIONS_MAX_LENGTH}
                   placeholder="Make it shorter, make it cinematic, surprise me, etc."
                   style={styles.input}
                 />
               }
             />
-            <FormError name={form.names.instructions} render={<Field.Error />} />
           </Field.Root>
 
           <p role="alert" {...stylex.props(styles.status)}>

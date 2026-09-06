@@ -501,9 +501,9 @@ describe("turns", () => {
       turns.regenerate({
         assistantMessageId: original.assistantMessage.id,
         configuration,
-        instructions: "a".repeat(4_001),
+        instructions: "a".repeat(2_001),
       }),
-    ).rejects.toThrow("at most 4,000");
+    ).rejects.toThrow("at most 2,000");
     expect(generate).toHaveBeenCalledOnce();
     expect(database.select().from(generationTable).all()).toHaveLength(1);
     expect(turns.inspect(thread.id)).toEqual({ state: "idle" });

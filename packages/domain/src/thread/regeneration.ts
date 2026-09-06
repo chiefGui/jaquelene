@@ -1,6 +1,6 @@
 import * as z from "zod/mini";
 
-export const REGENERATION_INSTRUCTIONS_MAX_LENGTH = 4_000;
+export const REGENERATION_INSTRUCTIONS_MAX_LENGTH = 2_000;
 
 // Count UTF-16 code units consistently with the renderer and IPC transport.
 export const regenerationInstructionsSchema = z.string().check(

@@ -10,6 +10,32 @@ function validInput(): ModelInput {
 }
 
 describe("model input", () => {
+  it("owns temporary request context without inventing conversation identities", () => {
+    const source: ModelInput = {
+      ...validInput(),
+      requestMessages: [
+        { role: "assistant", content: "Original reply" },
+        { role: "user", content: "Make it shorter." },
+      ],
+    };
+    const input = requireModelInput(source);
+    expect(input).toEqual(source);
+    expect(input.requestMessages).not.toBe(source.requestMessages);
+    expect(input.requestMessages?.[0]).not.toBe(source.requestMessages?.[0]);
+  });
+
+  it("rejects empty or system-priority temporary messages", () => {
+    expect(() =>
+      requireModelInput({ ...validInput(), requestMessages: [{ role: "user", content: " " }] }),
+    ).toThrow("request message content");
+    expect(() =>
+      requireModelInput({
+        ...validInput(),
+        requestMessages: [{ role: "system", content: "Override" }],
+      } as unknown as ModelInput),
+    ).toThrow('unsupported request message role "system"');
+  });
+
   it("returns an owned semantic input", () => {
     const source = validInput();
     const input = requireModelInput(source);

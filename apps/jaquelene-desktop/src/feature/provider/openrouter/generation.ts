@@ -22,7 +22,10 @@ type OpenRouterChatRequest = {
   stream: false;
 };
 
-function toOpenRouterDialogue({ role, content }: DialogueMessage): ChatMessages {
+function toOpenRouterDialogue({
+  role,
+  content,
+}: Pick<DialogueMessage, "role" | "content">): ChatMessages {
   switch (role) {
     case "user":
       return { role, content };
@@ -31,10 +34,15 @@ function toOpenRouterDialogue({ role, content }: DialogueMessage): ChatMessages 
   }
 }
 
-function toOpenRouterMessages({ instructions, dialogue }: ModelInput): ChatMessages[] {
+function toOpenRouterMessages({
+  instructions,
+  dialogue,
+  requestMessages = [],
+}: ModelInput): ChatMessages[] {
   return [
     ...instructions.map(({ content }) => ({ role: "system" as const, content })),
     ...dialogue.map(toOpenRouterDialogue),
+    ...requestMessages.map(toOpenRouterDialogue),
   ];
 }
 

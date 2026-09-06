@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { REGENERATION_INSTRUCTIONS_MAX_LENGTH } from "@jaquelene/domain";
 import {
   check,
   foreignKey,
@@ -43,6 +44,8 @@ export const generationTable = sqliteTable(
     status: text({ enum: generationStatuses }).notNull(),
     failureKind: text("failure_kind", { enum: generationFailureKinds }),
     outputMessageId: text("output_message_id").$type<MessageId>(),
+    regenerationSourceMessageId: text("regeneration_source_message_id").$type<MessageId>(),
+    regenerationInstructions: text("regeneration_instructions"),
     startedAt: integer("started_at").notNull(),
     finishedAt: integer("finished_at"),
   },
@@ -53,6 +56,19 @@ export const generationTable = sqliteTable(
       foreignColumns: [threadMessageTable.turnId, threadMessageTable.id],
       name: "generations_output_message_fk",
     }),
+    foreignKey({
+      columns: [generation.turnId, generation.regenerationSourceMessageId],
+      foreignColumns: [threadMessageTable.turnId, threadMessageTable.id],
+      name: "generations_regeneration_source_fk",
+    }),
+    check(
+      "generations_regeneration_valid",
+      sql`(${generation.regenerationSourceMessageId} IS NULL AND ${generation.regenerationInstructions} IS NULL)
+        OR (${generation.intent} = 'regeneration'
+          AND ${generation.regenerationSourceMessageId} IS NOT NULL
+          AND ${generation.regenerationInstructions} IS NOT NULL
+          AND length(trim(${generation.regenerationInstructions})) BETWEEN 1 AND ${sql.raw(String(REGENERATION_INSTRUCTIONS_MAX_LENGTH))})`,
+    ),
     index("generations_turn_started_at_idx").on(
       generation.turnId,
       generation.startedAt,
@@ -111,8 +127,15 @@ export const generationTable = sqliteTable(
 );
 
 export type StoredGeneration = typeof generationTable.$inferSelect;
-export type Generation = Omit<StoredGeneration, "reasoningPreset" | "reasoningPresetSource"> & {
+export type Generation = Omit<
+  StoredGeneration,
+  | "reasoningPreset"
+  | "reasoningPresetSource"
+  | "regenerationSourceMessageId"
+  | "regenerationInstructions"
+> & {
   reasoning?: ResolvedReasoning;
+  regeneration?: Readonly<{ sourceMessageId: MessageId; instructions: string }>;
 };
 export type GenerationIntent = (typeof generationIntents)[number];
 export type GenerationFailureKind = (typeof generationFailureKinds)[number];
@@ -120,10 +143,23 @@ export type GenerationFailureKind = (typeof generationFailureKinds)[number];
 export function toGeneration({
   reasoningPreset,
   reasoningPresetSource,
+  regenerationSourceMessageId,
+  regenerationInstructions,
   ...generation
 }: StoredGeneration): Generation {
+  const result: Generation = { ...generation };
+  if ((regenerationSourceMessageId === null) !== (regenerationInstructions === null)) {
+    throw new TypeError(`Generation "${generation.id}" has incomplete regeneration metadata.`);
+  }
+  if (regenerationSourceMessageId !== null && regenerationInstructions !== null) {
+    result.regeneration = {
+      sourceMessageId: regenerationSourceMessageId,
+      instructions: regenerationInstructions,
+    };
+  }
+
   if (reasoningPreset === null && reasoningPresetSource === null) {
-    return generation;
+    return result;
   }
 
   if (reasoningPreset === null || reasoningPresetSource === null) {
@@ -131,7 +167,7 @@ export function toGeneration({
   }
 
   return {
-    ...generation,
+    ...result,
     reasoning: requireResolvedReasoning({
       preset: reasoningPreset,
       source: reasoningPresetSource,

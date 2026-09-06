@@ -68,6 +68,36 @@ function requestBody(request: ReturnType<typeof completion>["request"]) {
 }
 
 describe("OpenRouter generation provider", () => {
+  it("appends execution-only context at its original priority", async () => {
+    const input = generationRequest();
+    const { provider, request } = completion();
+    await Effect.runPromise(
+      provider.generate({
+        ...input,
+        input: {
+          ...input.input,
+          requestMessages: [
+            { role: "assistant", content: "Original reply" },
+            { role: "user", content: "Replace it with a shorter response." },
+          ],
+        },
+      }),
+    );
+    expect(await requestBody(request)).toEqual(
+      expect.objectContaining({
+        messages: [
+          { role: "system", content: "Instruction" },
+          { role: "user", content: "Earlier message" },
+          { role: "assistant", content: "Earlier reply" },
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "Original reply" },
+          { role: "user", content: "Replace it with a shorter response." },
+        ],
+      }),
+    );
+    expect(request).toHaveBeenCalledOnce();
+  });
+
   it("sends the exact dialogue, credential, and attribution fields and normalizes accounting", async () => {
     const input = generationRequest();
     const { provider, request } = completion(

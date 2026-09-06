@@ -115,6 +115,7 @@ function toIpcGeneration(generation: Generation) {
     turnId: generation.turnId,
     providerId: generation.providerId,
     modelId: generation.modelId,
+    ...(generation.regeneration && { regeneration: { ...generation.regeneration } }),
     ...(generation.reasoning
       ? {
           reasoning: {
@@ -364,6 +365,7 @@ export function createThreadMessaging(
         async regenerate(request) {
           const operation = await turns.regenerate({
             assistantMessageId: ids.message.parse(request.assistantMessageId),
+            ...(request.instructions !== undefined && { instructions: request.instructions }),
             configuration: {
               model: { ...request.configuration.model },
               ...(request.configuration.reasoningPreset === undefined

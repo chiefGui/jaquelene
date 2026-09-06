@@ -492,44 +492,63 @@ describe("thread IPC", () => {
     );
   });
 
-  it("maps regeneration and publishes its settlement", async () => {
-    const { acceptance, completed } = createTurnState("regeneration");
-    const assistantMessageId = ids.message.create();
-    const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(async () => ({
-      acceptance,
-      settlement: Promise.resolve(completed),
-    }));
-    const backendTurns = createBackendTurnsStub({ regenerate });
+  it.each([undefined, "Shorter."])(
+    "maps regeneration with %j instructions and publishes its settlement",
+    async (instructions) => {
+      const { acceptance, completed } = createTurnState("regeneration");
+      const assistantMessageId = ids.message.create();
+      if (instructions !== undefined) {
+        acceptance.generation.regeneration = { sourceMessageId: assistantMessageId, instructions };
+        completed.generation.regeneration = { sourceMessageId: assistantMessageId, instructions };
+      }
+      const regenerate = vi.fn<ThreadMessagingTurns["regenerate"]>(async () => ({
+        acceptance,
+        settlement: Promise.resolve(completed),
+      }));
+      const backendTurns = createBackendTurnsStub({ regenerate });
 
-    exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
-    const accepted = await requireImplementations().turns.regenerate({
-      assistantMessageId,
-      configuration: {
-        model: { providerId: "openrouter", modelId: "maker/model" },
-        reasoningPreset: ReasoningPreset.High,
-      },
-    });
-
-    expect(regenerate).toHaveBeenCalledWith({
-      assistantMessageId,
-      configuration: {
-        model: { providerId: "openrouter", modelId: "maker/model" },
-        reasoningPreset: "high",
-      },
-    });
-    expect(accepted).toEqual(
-      expect.objectContaining({
-        id: acceptance.generation.id,
-        intent: GenerationIntent.Regeneration,
-        status: "pending",
-        reasoning: {
-          preset: ReasoningPreset.High,
-          source: ReasoningPresetSource.Selection,
+      exposeSingleRenderer(activeTarget(), backendTurns, { report: vi.fn() });
+      const accepted = await requireImplementations().turns.regenerate({
+        assistantMessageId,
+        ...(instructions !== undefined && { instructions }),
+        configuration: {
+          model: { providerId: "openrouter", modelId: "maker/model" },
+          reasoningPreset: ReasoningPreset.High,
         },
-      }),
-    );
-    await vi.waitFor(() => expect(implementations.dispatchReplyCompleted).toHaveBeenCalledOnce());
-  });
+      });
+
+      expect(regenerate).toHaveBeenCalledWith({
+        assistantMessageId,
+        ...(instructions !== undefined && { instructions }),
+        configuration: {
+          model: { providerId: "openrouter", modelId: "maker/model" },
+          reasoningPreset: "high",
+        },
+      });
+      expect(accepted).toEqual(
+        expect.objectContaining({
+          id: acceptance.generation.id,
+          intent: GenerationIntent.Regeneration,
+          status: "pending",
+          reasoning: {
+            preset: ReasoningPreset.High,
+            source: ReasoningPresetSource.Selection,
+          },
+        }),
+      );
+      await vi.waitFor(() => expect(implementations.dispatchReplyCompleted).toHaveBeenCalledOnce());
+      expect(accepted.regeneration).toEqual(acceptance.generation.regeneration);
+      if (instructions !== undefined) {
+        expect(implementations.dispatchReplyCompleted).toHaveBeenCalledWith(
+          expect.objectContaining({
+            generation: expect.objectContaining({
+              regeneration: acceptance.generation.regeneration,
+            }),
+          }),
+        );
+      }
+    },
+  );
 
   it("labels unexpected regeneration failures as regeneration operations", async () => {
     const cause = new Error("Reply preparation failed");

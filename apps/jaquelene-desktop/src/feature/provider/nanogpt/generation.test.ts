@@ -77,6 +77,33 @@ function requestBody(request: HttpClientRequest.HttpClientRequest) {
 }
 
 describe("NanoGPT generation provider", () => {
+  it("appends execution-only context at its original priority", async () => {
+    const input = generationRequest();
+    const { client, execute } = transport();
+    const provider = createNanoGptGeneration(connection(), client);
+    await Effect.runPromise(
+      provider.generate({
+        ...input,
+        input: {
+          ...input.input,
+          requestMessages: [
+            { role: "assistant", content: "Original reply" },
+            { role: "user", content: "Replace it with a shorter response." },
+          ],
+        },
+      }),
+    );
+    expect(requestBody(execute.mock.calls[0]![0]).messages).toEqual([
+      { role: "system", content: "Instruction" },
+      { role: "user", content: "Earlier message" },
+      { role: "assistant", content: "Earlier reply" },
+      { role: "user", content: "Hello" },
+      { role: "assistant", content: "Original reply" },
+      { role: "user", content: "Replace it with a shorter response." },
+    ]);
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
   it("sends the credential, semantic input, and accounting request through the HTTP client", async () => {
     const request = generationRequest();
     const { client, execute } = transport();

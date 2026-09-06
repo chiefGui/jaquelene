@@ -66,6 +66,34 @@ function page(status: GenerationStatus): ThreadMessagePage {
 }
 
 describe("thread view state", () => {
+  it.each([GenerationStatus.Completed, GenerationStatus.Failed])(
+    "exposes saved guidance for a %s regeneration",
+    (status) => {
+      const current = page(GenerationStatus.Completed);
+      const generation = current.generations[0]!;
+      const state = deriveThreadViewState({
+        pages: [
+          {
+            ...current,
+            generations: [
+              {
+                ...generation,
+                intent: GenerationIntent.Regeneration,
+                status,
+                regeneration: { sourceMessageId: "previous-assistant", instructions: "Shorter." },
+              },
+            ],
+          },
+        ],
+        regenerationRequestMessageId: null,
+        retryActivity: null,
+        actionsAvailable: true,
+        hasModel: true,
+      });
+      expect(state.messages[1]?.regeneration?.instructions).toBe("Shorter.");
+    },
+  );
+
   it("tracks pending replies without adding inline message state", () => {
     const state = deriveThreadViewState({
       pages: [page(GenerationStatus.Pending)],

@@ -7,7 +7,6 @@ import {
   type ThreadMessage,
 } from "@jaquelene/ipc/renderer";
 import { Button, IconButton, Skeleton, Timestamp } from "@jaquelene/ui";
-import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
@@ -16,6 +15,7 @@ import { EditIcon, RegenerateIcon } from "@/primitive/icons";
 import { Backlight } from "@/primitive/backlight/backlight";
 import { Markdown } from "../markdown/markdown";
 import type { SubmitTurnVariables } from "./query";
+import { RegenerateResponseDialog } from "./regenerate-response-dialog";
 import { ThreadMessageDeleteConfirmation } from "./thread-message-delete-confirmation";
 import type { ThreadMessageEditorProps } from "./thread-message-editor";
 import type { ThreadViewState } from "./thread-view-state";
@@ -199,7 +199,7 @@ function AssistantMessageToolbar({
   onEdit: () => void;
   regeneration: ThreadReplyRegenerationView;
   requestPending: boolean;
-  regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
+  regenerateResponse: (assistantMessageId: string, instructions?: string) => Promise<boolean>;
 }>) {
   const [open, setOpen] = useState(false);
   const [requestFailed, setRequestFailed] = useState(false);
@@ -218,10 +218,10 @@ function AssistantMessageToolbar({
     }
   }
 
-  async function regenerate() {
+  async function regenerate(instructions?: string) {
     setRequestFailed(false);
 
-    if (await regenerateResponse(messageId)) {
+    if (await regenerateResponse(messageId, instructions)) {
       setOpen(false);
     } else {
       setRequestFailed(true);
@@ -242,7 +242,7 @@ function AssistantMessageToolbar({
       onEdit={onEdit}
     >
       <Tooltip.Root>
-        <ConfirmDialog
+        <RegenerateResponseDialog
           open={open}
           setOpen={setConfirmationOpen}
           trigger={
@@ -259,12 +259,12 @@ function AssistantMessageToolbar({
               }
             />
           }
-          heading="Regenerate response?"
-          description="This creates another response using the current settings and may incur provider usage."
-          confirmLabel="Regenerate"
           pending={requestPending}
-          error={requestFailed ? "Couldn't start regeneration." : undefined}
-          onConfirm={() => void regenerate()}
+          disabled={disabled}
+          requestFailed={requestFailed}
+          savedInstructions={regeneration.instructions}
+          previousAttemptFailed={regeneration.status === "failed"}
+          onRegenerate={(instructions) => void regenerate(instructions)}
         />
 
         <Tooltip>Regenerate response</Tooltip>
@@ -418,7 +418,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   actionsDisabled: boolean;
   regenerationRequestPending: boolean;
   responseActionsDisabled: boolean;
-  regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
+  regenerateResponse: (assistantMessageId: string, instructions?: string) => Promise<boolean>;
   retryPending: boolean;
   retryReply: (turnId: string) => Promise<void>;
   editor: ThreadMessageEditorProps | null;

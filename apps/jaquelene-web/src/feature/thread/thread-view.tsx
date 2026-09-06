@@ -474,7 +474,7 @@ function ThreadViewInstance({
   );
 
   const regenerateResponse = useCallback(
-    async (assistantMessageId: string) => {
+    async (assistantMessageId: string, instructions?: string) => {
       if (
         historical ||
         operationPending ||
@@ -493,6 +493,7 @@ function ThreadViewInstance({
         await regenerateReply({
           assistantMessageId,
           configuration: toRequestedModelConfiguration(configuration),
+          ...(instructions !== undefined && { instructions }),
         });
         return true;
       } catch (cause) {

@@ -33,6 +33,7 @@ type ThreadReplyFailureView = Readonly<{
 type ThreadReplyRegenerationView = Readonly<{
   status: "available" | "failed" | "pending";
   canRegenerate: boolean;
+  instructions?: string;
 }>;
 
 export type ThreadViewState = Readonly<{
@@ -105,6 +106,10 @@ export function deriveThreadViewState({
         generation.outputMessageId === message.id
       ) {
         regeneration = { status: "available", canRegenerate: hasModel };
+      }
+
+      if (regeneration !== null && generation?.regeneration !== undefined) {
+        regeneration = { ...regeneration, instructions: generation.regeneration.instructions };
       }
     }
 

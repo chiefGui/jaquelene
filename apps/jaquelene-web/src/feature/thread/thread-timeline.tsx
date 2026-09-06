@@ -68,7 +68,7 @@ type ThreadTimelineProps = Readonly<{
   saveEdit: (messageId: string, content: string) => Promise<void>;
   deleteFromUserMessage: (userMessageId: string) => Promise<void>;
   loadOlder: () => Promise<void>;
-  regenerateResponse: (assistantMessageId: string) => Promise<boolean>;
+  regenerateResponse: (assistantMessageId: string, instructions?: string) => Promise<boolean>;
   retryReply: (turnId: string) => Promise<void>;
 }>;
 

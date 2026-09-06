@@ -70,6 +70,12 @@ export {
   type ProviderConfigureResult,
 } from "./provider/configuration";
 export {
+  REGENERATION_INSTRUCTIONS_MAX_LENGTH,
+  parseRegenerationInstructions,
+  regenerationInstructionsSchema,
+  type RegenerationInstructions,
+} from "./thread/regeneration";
+export {
   ThreadTranscriptEntryKind,
   threadTranscriptEntrySchema,
   threadTranscriptInstructionSchema,

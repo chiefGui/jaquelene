@@ -366,13 +366,16 @@ export function useRegenerateReply(threadId: string) {
     mutationFn: ({
       assistantMessageId,
       configuration,
+      instructions,
     }: {
       assistantMessageId: string;
       configuration: RequestedModelConfiguration;
+      instructions?: string;
     }) =>
       regenerateReply({
         assistantMessageId,
         configuration: copyRequestedModelConfiguration(configuration),
+        ...(instructions !== undefined && { instructions }),
       }),
     onSuccess(generation, { assistantMessageId }) {
       refreshCampaignUsage(queryClient);

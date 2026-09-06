@@ -69,7 +69,10 @@ function optionalCount(candidate: unknown, description: string) {
   return requireCount(candidate, description);
 }
 
-function toNanoGptDialogue({ role, content }: DialogueMessage): NanoGptChatMessage {
+function toNanoGptDialogue({
+  role,
+  content,
+}: Pick<DialogueMessage, "role" | "content">): NanoGptChatMessage {
   switch (role) {
     case "user":
       return { role, content };
@@ -78,10 +81,15 @@ function toNanoGptDialogue({ role, content }: DialogueMessage): NanoGptChatMessa
   }
 }
 
-function toNanoGptMessages({ instructions, dialogue }: ModelInput): NanoGptChatMessage[] {
+function toNanoGptMessages({
+  instructions,
+  dialogue,
+  requestMessages = [],
+}: ModelInput): NanoGptChatMessage[] {
   return [
     ...instructions.map(({ content }) => ({ role: "system" as const, content })),
     ...dialogue.map(toNanoGptDialogue),
+    ...requestMessages.map(toNanoGptDialogue),
   ];
 }
 

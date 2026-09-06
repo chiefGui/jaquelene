@@ -520,9 +520,11 @@ export function Backlight({ active }: { active: boolean }) {
 }
 
 const styles = stylex.create({
-  // Contain scroll overflow while allowing the glow to paint beyond the host.
+  // Layout containment makes the oversized canvas ink overflow, so the glow
+  // cannot extend an ancestor's scroll range (including the sticky composer).
   container: {
     borderRadius: "inherit",
+    contain: "layout",
     inset: 0,
     overflow: "clip",
     overflowClipMargin: `${backlightOutset}px`,

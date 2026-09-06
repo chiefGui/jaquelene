@@ -645,93 +645,76 @@ export function reconcileThreadTurn(
     return CURRENT;
   }
 
+  const latestMessage = messages.at(-1);
   if (update.type === "regeneration-accepted") {
-    const assistantIndex = messageIndexById.get(update.assistantMessageId);
-    const assistantMessage = assistantIndex === undefined ? undefined : messages[assistantIndex];
+    if (
+      latestMessage?.id !== update.assistantMessageId ||
+      latestMessage.author !== ThreadMessageAuthor.Assistant ||
+      latestMessage.turnId !== update.generation.turnId
+    ) {
+      return RELOAD;
+    }
+  } else {
+    let sourceMessage: ThreadMessage | undefined;
+    if (update.type === "retry-accepted") {
+      sourceMessage = messages.find(
+        ({ author, turnId }) =>
+          author === ThreadMessageAuthor.User && turnId === update.generation.turnId,
+      );
+    } else if (update.type === "submission-accepted") {
+      sourceMessage = update.userMessage;
+    } else {
+      sourceMessage = update.sourceMessage;
+    }
+
+    if (!sourceMessage) {
+      return RELOAD;
+    }
+
+    const sourceIndex = messageIndexById.get(sourceMessage.id) ?? -1;
 
     if (
-      assistantIndex !== messages.length - 1 ||
-      assistantMessage?.author !== ThreadMessageAuthor.Assistant ||
-      assistantMessage.turnId !== update.generation.turnId
+      isReplyCompletion(update) &&
+      currentGeneration?.id === update.generation.id &&
+      currentGeneration.status === GenerationStatus.Completed &&
+      latestMessage?.id === update.assistantMessage.id
+    ) {
+      return CURRENT;
+    }
+
+    if (
+      sourceIndex === -1 &&
+      latestMessage !== undefined &&
+      sourceMessage.sequence <= latestMessage.sequence
     ) {
       return RELOAD;
     }
 
-    generationByTurn.set(update.generation.turnId, update.generation);
-
-    return {
-      outcome: "updated",
-      data: retainThreadHistory(
-        rebuildPages(messages, [...generationByTurn.values()], contract, {
-          latest: true,
-          newestCursor: undefined,
-          oldestCursor: data.pages.at(-1)?.olderCursor,
-        }),
-        "newest",
-      ),
-    };
-  }
-
-  let sourceMessage: ThreadMessage | undefined;
-  if (update.type === "retry-accepted") {
-    sourceMessage = messages.find(
-      ({ author, turnId }) =>
-        author === ThreadMessageAuthor.User && turnId === update.generation.turnId,
-    );
-  } else if (update.type === "submission-accepted") {
-    sourceMessage = update.userMessage;
-  } else {
-    sourceMessage = update.sourceMessage;
-  }
-
-  if (!sourceMessage) {
-    return RELOAD;
-  }
-
-  const sourceIndex = messageIndexById.get(sourceMessage.id) ?? -1;
-  const latestMessage = messages.at(-1);
-
-  if (
-    isReplyCompletion(update) &&
-    currentGeneration?.id === update.generation.id &&
-    currentGeneration.status === GenerationStatus.Completed &&
-    latestMessage?.id === update.assistantMessage.id
-  ) {
-    return CURRENT;
-  }
-
-  if (
-    sourceIndex === -1 &&
-    latestMessage !== undefined &&
-    sourceMessage.sequence <= latestMessage.sequence
-  ) {
-    return RELOAD;
-  }
-
-  if (update.type === "retry-accepted" && sourceIndex !== messages.length - 1) {
-    return RELOAD;
-  }
-
-  if (sourceMessage.author === ThreadMessageAuthor.Assistant) {
-    // A replacement can settle with only its source response loaded; its player
-    // message may live outside this bounded history window.
-    if (sourceIndex !== messages.length - 1 || sourceIndex === -1) {
+    if (update.type === "retry-accepted" && sourceIndex !== messages.length - 1) {
       return RELOAD;
     }
-    if (isReplyCompletion(update)) {
-      messages[sourceIndex] = update.assistantMessage;
-    }
-  } else {
-    if (isReplyCompletion(update) && sourceIndex !== -1 && sourceIndex !== messages.length - 1) {
-      return RELOAD;
-    }
-    if (sourceIndex === -1) {
-      messages.push(sourceMessage);
+
+    if (sourceMessage.author === ThreadMessageAuthor.Assistant) {
+      // A replacement can settle with only its source response loaded; its player
+      // message may live outside this bounded history window.
+      if (sourceIndex !== messages.length - 1 || sourceIndex === -1) {
+        return RELOAD;
+      }
+      if (isReplyCompletion(update)) {
+        messages[sourceIndex] = update.assistantMessage;
+      }
     } else {
-      messages[sourceIndex] = sourceMessage;
-    }
-    if (isReplyCompletion(update)) {
-      messages.push(update.assistantMessage);
+      if (isReplyCompletion(update) && sourceIndex !== -1 && sourceIndex !== messages.length - 1) {
+        return RELOAD;
+      }
+      if (sourceIndex === -1) {
+        messages.push(sourceMessage);
+      } else {
+        messages[sourceIndex] = sourceMessage;
+      }
+      if (isReplyCompletion(update)) {
+        messages.push(update.assistantMessage);
+      }
     }
   }
 

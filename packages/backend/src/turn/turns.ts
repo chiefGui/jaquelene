@@ -202,7 +202,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
   );
 
   type AcceptedOperation = {
-    acceptance: GenerationAcceptance;
+    sourceMessage: ThreadMessage;
     acceptedGeneration: AcceptedGeneration;
   };
 
@@ -241,7 +241,12 @@ export const createTurns = Effect.fn("Turns.make")(function* (
             yield* Deferred.failCause(accepted, admission.cause);
             return yield* Effect.failCause(admission.cause);
           }
-          const { acceptance, acceptedGeneration } = admission.value;
+          const { sourceMessage, acceptedGeneration } = admission.value;
+          const acceptance: GenerationAcceptance = {
+            sourceMessage,
+            generation: acceptedGeneration.generation,
+            threadActivity: acceptedGeneration.threadActivity,
+          };
           lease.generating(acceptance.generation.id, acceptance.generation.intent);
           yield* Deferred.succeed(accepted, acceptance);
           const execution = yield* generations.executeAccepted(acceptedGeneration);
@@ -336,7 +341,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
         configuration,
         (resolvedConfiguration) => {
           return database.transaction((transaction) => {
-            const { turn, message, activity } = threads.startTurnInTransaction(
+            const { turn, message } = threads.startTurnInTransaction(
               transaction,
               threadId,
               content,
@@ -347,13 +352,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
               "reply",
               resolvedConfiguration,
             );
-            const acceptance = {
-              sourceMessage: message,
-              generation: acceptedGeneration.generation,
-              threadActivity: activity,
-            } satisfies GenerationAcceptance;
-
-            return { acceptance, acceptedGeneration };
+            return { sourceMessage: message, acceptedGeneration };
           });
         },
       );
@@ -399,13 +398,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
               resolvedConfiguration,
             ),
           );
-          const acceptance = {
-            sourceMessage: input.message,
-            generation: acceptedGeneration.generation,
-            threadActivity: input.activity,
-          } satisfies GenerationAcceptance;
-
-          return { acceptance, acceptedGeneration };
+          return { sourceMessage: input.message, acceptedGeneration };
         },
       );
     }),
@@ -447,13 +440,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
               instructions,
             ),
           );
-          const acceptance = {
-            sourceMessage: assistantMessage,
-            generation: acceptedGeneration.generation,
-            threadActivity: acceptedGeneration.threadActivity,
-          } satisfies GenerationAcceptance;
-
-          return { acceptance, acceptedGeneration };
+          return { sourceMessage: assistantMessage, acceptedGeneration };
         },
       );
     }),

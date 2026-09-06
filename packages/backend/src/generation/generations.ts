@@ -276,7 +276,7 @@ export function createGenerations({
   ): AcceptedGeneration {
     const replyContext = requireReplyContext(transaction, turnId);
 
-    return acceptReplyForContext(transaction, turnId, intent, requestedConfiguration, replyContext);
+    return acceptReplyForContext(transaction, intent, requestedConfiguration, replyContext);
   }
 
   function acceptRegenerationInTransaction(
@@ -315,26 +315,23 @@ export function createGenerations({
       regeneration = { sourceMessageId: assistantMessageId, content: source.content, instructions };
     }
 
-    const accepted = acceptReplyForContext(
+    return acceptReplyForContext(
       transaction,
-      source.turnId,
       "regeneration",
       requestedConfiguration,
       replyContext,
       regeneration,
     );
-
-    return accepted;
   }
 
   function acceptReplyForContext(
     transaction: Pick<Database, "insert" | "select">,
-    turnId: TurnId,
     intent: GenerationIntent,
     requestedConfiguration: ResolvedModelConfiguration,
     replyContext: ReturnType<typeof requireReplyContext>,
     regeneration?: GuidedRegeneration,
   ): AcceptedGeneration {
+    const { turnId } = replyContext.anchor;
     const configuration = requireResolvedModelConfiguration(requestedConfiguration);
 
     const pendingGeneration = transaction
@@ -374,7 +371,8 @@ export function createGenerations({
       generation,
       threadActivity: replyContext.activity,
       target: createReplyTarget(replyPreparer, {
-        ...replyContext,
+        anchor: replyContext.anchor,
+        activeMessageId: replyContext.activeMessageId,
         ...(regeneration && { rewrite: regeneration }),
       }),
     };

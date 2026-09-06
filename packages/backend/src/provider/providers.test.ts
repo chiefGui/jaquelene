@@ -258,7 +258,7 @@ describe("provider subsystem", () => {
       { id: "built-in", name: "Built in", brandId: "local" },
     ]);
     await expect(
-      subsystem.run(subsystem.generations.get("local-provider")!.generate(generationRequest())),
+      subsystem.run(subsystem.providers.generate("local-provider", generationRequest())),
     ).resolves.toEqual({ text: "Local reply" });
     const paths = [join(process.cwd(), "api-key-provider.json")];
     const area = createProviderStorageArea(configured.descriptor.id, paths);
@@ -268,6 +268,27 @@ describe("provider subsystem", () => {
       paths,
     });
     await subsystem.close();
+  });
+
+  it("rejects unknown providers during model lookup and generation", async () => {
+    const subsystem = await createTestProviders(
+      [configurationFreeProvider()],
+      await createTestResourceCache(),
+    );
+
+    await expect(
+      subsystem.models.getModel({ providerId: "missing-provider", modelId: "built-in" }),
+    ).rejects.toThrow('Unknown provider "missing-provider".');
+    const error = await subsystem.run(
+      Effect.flip(subsystem.providers.generate("missing-provider", generationRequest())),
+    );
+
+    expect(error).toBeInstanceOf(ProviderOperationError);
+    expect(error).toMatchObject({
+      providerId: "missing-provider",
+      operation: "generate",
+      cause: expect.any(RangeError),
+    });
   });
 
   it("preserves valid reasoning capabilities and rejects inconsistent ones", async () => {
@@ -659,7 +680,7 @@ describe("provider subsystem", () => {
     );
     await subsystem.run(subsystem.providers.configureApiKey(adapter.descriptor.id, "secret"));
     const generating = subsystem.runExit(
-      subsystem.generations.get(adapter.descriptor.id)!.generate(generationRequest()),
+      subsystem.providers.generate(adapter.descriptor.id, generationRequest()),
     );
     await subsystem.run(Deferred.await(generationStarted));
     const clearing = subsystem.run(subsystem.providers.clearConfiguration(adapter.descriptor.id));
@@ -726,7 +747,7 @@ describe("provider subsystem", () => {
     });
     const subsystem = await createTestProviders([adapter], await createTestResourceCache());
     const generating = subsystem.fork(
-      subsystem.generations.get(adapter.descriptor.id)!.generate(generationRequest()),
+      subsystem.providers.generate(adapter.descriptor.id, generationRequest()),
     );
     await subsystem.run(Deferred.await(started));
     await subsystem.run(Fiber.interrupt(generating));
@@ -845,14 +866,15 @@ describe("provider subsystem", () => {
     );
     await subsystem.run(Deferred.await(started));
     const clearing = subsystem.fork(subsystem.providers.clearConfiguration(adapter.descriptor.id));
-    const route = subsystem.generations.get(adapter.descriptor.id)!;
-    await expect(subsystem.run(route.generate(generationRequest()))).rejects.toThrow(
-      "disconnecting",
-    );
+    await expect(
+      subsystem.run(subsystem.providers.generate(adapter.descriptor.id, generationRequest())),
+    ).rejects.toThrow("disconnecting");
     await subsystem.run(Fiber.interrupt(clearing));
 
     expect(clear).not.toHaveBeenCalled();
-    await expect(subsystem.run(route.generate(generationRequest()))).resolves.toEqual({
+    await expect(
+      subsystem.run(subsystem.providers.generate(adapter.descriptor.id, generationRequest())),
+    ).resolves.toEqual({
       text: "Generated reply",
     });
     await subsystem.run(Deferred.succeed(release, undefined));
@@ -959,7 +981,7 @@ describe("provider subsystem", () => {
     const subsystem = await createTestProviders([adapter], await createTestResourceCache());
     await subsystem.run(subsystem.providers.configureApiKey(adapter.descriptor.id, "initial"));
     const generating = subsystem.runExit(
-      subsystem.generations.get(adapter.descriptor.id)!.generate(generationRequest()),
+      subsystem.providers.generate(adapter.descriptor.id, generationRequest()),
     );
     await subsystem.run(Deferred.await(generationStarted));
     const clearing = subsystem.run(subsystem.providers.clearConfiguration(adapter.descriptor.id));
@@ -982,10 +1004,9 @@ describe("provider subsystem", () => {
     const release = Deferred.makeUnsafe<void>();
     const adapter = configurationFreeProvider();
     const subsystem = await createTestProviders([adapter], await createTestResourceCache());
-    const route = subsystem.generations.get(adapter.descriptor.id)!;
     const caller = Effect.runFork(
       Effect.gen(function* () {
-        yield* route.generate(generationRequest());
+        yield* subsystem.providers.generate(adapter.descriptor.id, generationRequest());
         yield* Deferred.succeed(continued, undefined);
         yield* Deferred.await(release);
         return "continued";
@@ -1038,9 +1059,7 @@ describe("provider subsystem", () => {
       await subsystem.run(subsystem.providers.configureApiKey(adapter.descriptor.id, "second"));
       expect(await listModels(subsystem, adapter.descriptor.id)).toMatchObject([{ id: "model-2" }]);
       await expect(
-        subsystem.run(
-          subsystem.generations.get(adapter.descriptor.id)!.generate(generationRequest()),
-        ),
+        subsystem.run(subsystem.providers.generate(adapter.descriptor.id, generationRequest())),
       ).resolves.toEqual({ text: "Generated reply" });
       expect(list).toHaveBeenCalledTimes(2);
     } finally {
@@ -1180,10 +1199,13 @@ describe("provider subsystem", () => {
       },
     });
     const subsystem = await createTestProviders([adapter], await createTestResourceCache());
-    const route = subsystem.generations.get(adapter.descriptor.id)!;
     const cancelledRequest = generationRequest();
-    const cancelled = subsystem.fork(route.generate(cancelledRequest));
-    const surviving = subsystem.run(route.generate(generationRequest()));
+    const cancelled = subsystem.fork(
+      subsystem.providers.generate(adapter.descriptor.id, cancelledRequest),
+    );
+    const surviving = subsystem.run(
+      subsystem.providers.generate(adapter.descriptor.id, generationRequest()),
+    );
     await subsystem.run(Deferred.await(bothStarted));
     await subsystem.run(Fiber.interrupt(cancelled));
 
@@ -1252,7 +1274,7 @@ describe("provider subsystem", () => {
     });
     const subsystem = await createTestProviders([adapter], await createTestResourceCache());
     const caller = subsystem.fork(
-      subsystem.generations.get(adapter.descriptor.id)!.generate(generationRequest()),
+      subsystem.providers.generate(adapter.descriptor.id, generationRequest()),
     );
     await subsystem.run(Deferred.await(started));
     await subsystem.run(Fiber.interrupt(caller));
@@ -1288,7 +1310,7 @@ describe("provider subsystem", () => {
     const subsystem = await createTestProviders([adapter], await createTestResourceCache());
     await subsystem.run(subsystem.providers.configureApiKey(adapter.descriptor.id, "secret"));
     const generating = subsystem.runExit(
-      subsystem.generations.get(adapter.descriptor.id)!.generate(generationRequest()),
+      subsystem.providers.generate(adapter.descriptor.id, generationRequest()),
     );
     await subsystem.run(Deferred.await(started));
     const clearing = await subsystem.runExit(
@@ -1343,7 +1365,7 @@ describe("provider subsystem", () => {
     const subsystem = await createTestProviders([adapter], await createTestResourceCache());
     await subsystem.run(subsystem.providers.configureApiKey(adapter.descriptor.id, "initial"));
     const generating = subsystem.runExit(
-      subsystem.generations.get(adapter.descriptor.id)!.generate(generationRequest()),
+      subsystem.providers.generate(adapter.descriptor.id, generationRequest()),
     );
     await subsystem.run(Deferred.await(generationStarted));
     const configuring = subsystem.run(
@@ -1409,7 +1431,7 @@ describe("provider subsystem", () => {
     const subsystem = await createTestProviders([first, second], await createTestResourceCache());
     const generations = [first, second].map((adapter) =>
       Effect.runPromiseExit(
-        subsystem.generations.get(adapter.descriptor.id)!.generate(generationRequest()),
+        subsystem.providers.generate(adapter.descriptor.id, generationRequest()),
       ),
     );
     await subsystem.run(Deferred.await(firstStarted));
@@ -1443,8 +1465,9 @@ describe("provider subsystem", () => {
       },
     });
     const subsystem = await createTestProviders([adapter], await createTestResourceCache());
-    const route = subsystem.generations.get(adapter.descriptor.id)!;
-    const generating = subsystem.runExit(route.generate(generationRequest()));
+    const generating = subsystem.runExit(
+      subsystem.providers.generate(adapter.descriptor.id, generationRequest()),
+    );
     await subsystem.run(Deferred.await(started));
     await subsystem.close();
     const exit = await generating;
@@ -1455,9 +1478,9 @@ describe("provider subsystem", () => {
     await expect(listModels(subsystem, adapter.descriptor.id)).rejects.toThrow(
       "Providers are closed.",
     );
-    await expect(Effect.runPromise(route.generate(generationRequest()))).rejects.toThrow(
-      "Providers are closed.",
-    );
+    await expect(
+      Effect.runPromise(subsystem.providers.generate(adapter.descriptor.id, generationRequest())),
+    ).rejects.toThrow("Providers are closed.");
   });
 
   it("rejects duplicate identities without requiring provider-specific methods", async () => {

@@ -65,16 +65,10 @@ export type Providers = Readonly<{
     apiKey: string,
   ) => Effect.Effect<ProviderConfigureResult, ProviderOperationError>;
   clearConfiguration: (providerId: ProviderId) => Effect.Effect<void, ProviderOperationError>;
-}>;
-
-export type ProviderGenerationRoute = Readonly<{
   generate: (
+    providerId: ProviderId,
     request: ProviderGenerationRequest,
   ) => Effect.Effect<ProviderGenerationResult, ProviderOperationError>;
-}>;
-
-export type ProviderGenerationRouter = Readonly<{
-  get: (providerId: ProviderId) => ProviderGenerationRoute | undefined;
 }>;
 
 type OperationFiber = Fiber.Fiber<unknown, ProviderOperationError>;
@@ -233,6 +227,8 @@ const createProviders = Effect.fnUntraced(function* (
       Queue.bounded<Fiber.Fiber<unknown, unknown>>(0),
       Queue.shutdown,
     ).pipe(Effect.provideService(Scope.Scope, operationScope));
+    // Accept the next configuration only after the previous operation's cleanup.
+    // A semaphore permits new callers to overtake changes already waiting.
     yield* Effect.forever(Effect.flatMap(Queue.take(queue), Fiber.await)).pipe(
       Effect.forkIn(operationScope),
     );
@@ -308,6 +304,21 @@ const createProviders = Effect.fnUntraced(function* (
       Effect.try({ try: () => requireAvailable(provider), catch: fail }).pipe(
         Effect.andThen(effect.pipe(Effect.mapError(fail))),
       ),
+    );
+  });
+
+  const generate = Effect.fn("Providers.generate")(function* (
+    providerId: ProviderId,
+    request: ProviderGenerationRequest,
+  ) {
+    const provider = yield* Effect.try({
+      try: () => requireProvider(providerId),
+      catch: operationError(providerId, "generate"),
+    });
+    return yield* useProvider(
+      provider,
+      "generate",
+      Effect.suspend(() => provider.adapter.generation.generate(request)),
     );
   });
 
@@ -477,6 +488,8 @@ const createProviders = Effect.fnUntraced(function* (
         }),
         () =>
           Effect.acquireUseRelease(
+            // Start draining immediately, then reserve this clear's place in the
+            // configuration queue before waiting for active requests to finish.
             interruptOperations([...provider.uses]).pipe(
               Effect.forkChild({ startImmediately: true }),
             ),
@@ -507,6 +520,7 @@ const createProviders = Effect.fnUntraced(function* (
               }),
             (draining, exit) => {
               if (Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)) {
+                // Cancellation still waits for cleanup before reopening admission.
                 return Fiber.join(draining);
               }
               return Effect.void;
@@ -540,24 +554,11 @@ const createProviders = Effect.fnUntraced(function* (
     inspectConfiguration: (providerId) => inspectConfiguration(requireProvider(providerId).adapter),
     configureApiKey,
     clearConfiguration,
+    generate,
   };
-  const generationRoutes = new Map<ProviderId, ProviderGenerationRoute>(
-    [...providersById.values()].map((provider) => [
-      provider.adapter.descriptor.id,
-      {
-        generate: (request) =>
-          useProvider(
-            provider,
-            "generate",
-            Effect.suspend(() => provider.adapter.generation.generate(request)),
-          ),
-      },
-    ]),
-  );
   return {
     providers,
     models: modelCatalog.models,
-    generations: { get: (providerId: ProviderId) => generationRoutes.get(providerId) },
   };
 });
 
@@ -566,7 +567,6 @@ export class ProvidersService extends Context.Service<
   {
     readonly providers: Providers;
     readonly models: Models;
-    readonly generations: ProviderGenerationRouter;
   }
 >()("@jaquelene/backend/Providers") {
   static readonly layer = (factories: readonly ProviderFactory[]) =>

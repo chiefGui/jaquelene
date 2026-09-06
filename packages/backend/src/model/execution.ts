@@ -13,7 +13,7 @@ import {
   type ModelReference,
   type ProviderGenerationRequest,
 } from "#backend/provider/provider";
-import { ProvidersService, type ProviderGenerationRouter } from "#backend/provider/providers";
+import { ProvidersService, type Providers } from "#backend/provider/providers";
 import { normalizeProviderAccounting, type ProviderAccounting } from "#backend/provider/accounting";
 
 export type ResolvedModelConfiguration = Readonly<{
@@ -153,17 +153,6 @@ export function createModelExecutionRunner(
   };
 }
 
-function requireProvider(providers: ProviderGenerationRouter, model: ModelReference) {
-  requireModelReference(model);
-  const provider = providers.get(model.providerId);
-
-  if (!provider) {
-    throw new RangeError(`Unknown model provider "${model.providerId}".`);
-  }
-
-  return provider;
-}
-
 function copyRequestedModelConfiguration(
   configuration: RequestedModelConfiguration,
 ): RequestedModelConfiguration {
@@ -266,7 +255,7 @@ function toProviderRequest(request: ModelExecutionRequest): ProviderGenerationRe
 
 export function createModelExecutor(
   models: Pick<Models, "getModel">,
-  providers: ProviderGenerationRouter,
+  providers: Pick<Providers, "generate">,
 ): ModelExecutor {
   const resolveConfiguration = Effect.fn("ModelExecutor.resolveConfiguration")(function* (
     requestedConfiguration: RequestedModelConfiguration,
@@ -275,7 +264,6 @@ export function createModelExecutor(
       try: () => {
         const copied = copyRequestedModelConfiguration(requestedConfiguration);
         requireRequestedModelConfiguration(copied);
-        requireProvider(providers, copied.model);
         return copied;
       },
       catch: configurationError,
@@ -313,12 +301,8 @@ export function createModelExecutor(
       try: () => requireModelExecutionRequest(request),
       catch: requestError,
     });
-    const provider = yield* Effect.try({
-      try: () => requireProvider(providers, validated.configuration.model),
-      catch: providerError,
-    });
-    const providerResult = yield* provider
-      .generate(toProviderRequest(validated))
+    const providerResult = yield* providers
+      .generate(validated.configuration.model.providerId, toProviderRequest(validated))
       .pipe(Effect.mapError(providerError));
     const normalized = normalizeProviderAccounting(providerResult);
 
@@ -347,7 +331,7 @@ export class ModelExecutionService extends Context.Service<ModelExecutionService
     this,
     Effect.gen(function* () {
       const providers = yield* ProvidersService;
-      return ModelExecutionService.of(createModelExecutor(providers.models, providers.generations));
+      return ModelExecutionService.of(createModelExecutor(providers.models, providers.providers));
     }),
   );
 }

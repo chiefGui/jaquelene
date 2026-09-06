@@ -64,34 +64,24 @@ function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
     {
       async getModel(reference) {
         if (reference.providerId !== "provider-a") {
-          throw new RangeError(`Unknown test model provider "${reference.providerId}".`);
+          throw new RangeError(`Unknown provider "${reference.providerId}".`);
         }
 
         return { id: reference.modelId, name: "Test model", brandId: "test" };
       },
     },
     {
-      get(providerId) {
-        if (providerId !== "provider-a") {
-          return undefined;
-        }
-
-        return {
-          generate: (request) =>
-            Effect.tryPromise({
-              try: (signal) => generate({ ...request, signal }),
-              catch: (cause) => cause,
-            }).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new ProviderOperationError({
-                    providerId,
-                    operation: "generate",
-                    cause,
-                  }),
-              ),
-            ),
-        };
+      generate(providerId, request) {
+        return Effect.tryPromise({
+          try: (signal) => {
+            if (providerId !== "provider-a") {
+              throw new RangeError(`Unknown provider "${providerId}".`);
+            }
+            return generate({ ...request, signal });
+          },
+          catch: (cause) =>
+            new ProviderOperationError({ providerId, operation: "generate", cause }),
+        });
       },
     },
   );
@@ -762,7 +752,7 @@ describe("turns", () => {
           model: { providerId: "missing-provider", modelId: "maker/model" },
         },
       }),
-    ).rejects.toThrow('Unknown model provider "missing-provider".');
+    ).rejects.toThrow('Unknown provider "missing-provider".');
     await expect(
       turns.submit({ threadId: thread.id, content: "  ", configuration }),
     ).rejects.toThrow(TypeError);

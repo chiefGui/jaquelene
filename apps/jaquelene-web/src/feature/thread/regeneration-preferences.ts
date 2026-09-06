@@ -21,9 +21,9 @@ export const defaultRegenerationModelQuery = queryOptions({
 
 export function setDefaultRegenerationModelMutationOptions(queryClient: QueryClient) {
   return mutationOptions<
-    ModelSelection | null,
+    ModelSelection,
     Error,
-    ModelSelection | null,
+    ModelSelection,
     {
       previousModel: ModelSelection | null | undefined;
     }
@@ -40,11 +40,7 @@ export function setDefaultRegenerationModelMutationOptions(queryClient: QueryCli
       const previousModel = queryClient.getQueryData<ModelSelection | null>(
         defaultRegenerationModelQuery.queryKey,
       );
-      let nextModel = selection;
-      if (selection !== null) {
-        nextModel = { ...selection };
-      }
-      queryClient.setQueryData(defaultRegenerationModelQuery.queryKey, nextModel);
+      queryClient.setQueryData(defaultRegenerationModelQuery.queryKey, { ...selection });
       return { previousModel };
     },
     onError(_error, _selection, context) {

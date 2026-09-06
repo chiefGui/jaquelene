@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 describe("preferences storage", () => {
-  it("persists and clears a regeneration default independently of the campaign default", () => {
+  it("persists and changes a regeneration default independently of the campaign default", () => {
     const directory = createUserDataDirectory();
     const campaignModel = {
       providerId: "provider-a",
@@ -45,9 +45,7 @@ describe("preferences storage", () => {
     const selected = preferences.regeneration.setDefaultModel(regenerationModel);
     expect(selected).toEqual(regenerationModel);
     regenerationModel.name = "Changed input";
-    if (selected !== null) {
-      selected.modelId = "Changed output";
-    }
+    selected.modelId = "Changed output";
     const restored = createPreferences(directory);
     expect(restored.regeneration.getDefaultModel()).toEqual({
       providerId: "provider-b",
@@ -60,10 +58,10 @@ describe("preferences storage", () => {
       TypeError,
     );
     expect(createPreferences(directory).regeneration.getDefaultModel()?.modelId).toBe("model-b");
-    expect(restored.regeneration.setDefaultModel(null)).toBeNull();
-    const cleared = createPreferences(directory);
-    expect(cleared.regeneration.getDefaultModel()).toBeNull();
-    expect(cleared.campaign.getDefaultModel()).toEqual(campaignModel);
+    expect(restored.regeneration.setDefaultModel(campaignModel)).toEqual(campaignModel);
+    const updated = createPreferences(directory);
+    expect(updated.regeneration.getDefaultModel()).toEqual(campaignModel);
+    expect(updated.campaign.getDefaultModel()).toEqual(campaignModel);
   });
 
   it("opens existing preferences without a regeneration group without resetting them", () => {

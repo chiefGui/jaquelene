@@ -5,7 +5,7 @@ module jaquelene
 [ContextBridge]
 interface RegenerationPreferences {
   getDefaultModel() -> ModelSelection?
-  setDefaultModel(selection: ModelSelection?) -> ModelSelection?
+  setDefaultModel(selection: ModelSelection) -> ModelSelection
 }
 
 subtype ThreadMessageContent = string(

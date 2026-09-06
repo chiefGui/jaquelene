@@ -1,4 +1,5 @@
 ﻿import { Item } from "@jaquelene/ui";
+import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -35,7 +36,7 @@ function GeneralRoute() {
     <>
       <SettingsLandingHeader />
       <ContentPane.Viewport>
-        <ContentPane.Body>
+        <ContentPane.Body style={styles.sections}>
           <Item.Section aria-labelledby="campaign-heading">
             <Item.SectionHeader>
               <Item.Heading id="campaign-heading">Campaign</Item.Heading>
@@ -56,12 +57,11 @@ function GeneralRoute() {
             </Item.SectionHeader>
             <Item.Group>
               <DefaultModelSetting
-                description="Preselected for regeneration. If unset, choose a model each time."
+                description="Preselected when regenerating a response."
                 model={defaultRegenerationModel}
                 pending={setDefaultRegenerationModel.isPending}
                 error={setDefaultRegenerationModel.isError}
                 onSelect={(model) => setDefaultRegenerationModel.mutate(model)}
-                onClear={() => setDefaultRegenerationModel.mutate(null)}
               />
             </Item.Group>
           </Item.Section>
@@ -70,3 +70,7 @@ function GeneralRoute() {
     </>
   );
 }
+
+const styles = stylex.create({
+  sections: { display: "flex", flexDirection: "column", gap: "2rem" },
+});

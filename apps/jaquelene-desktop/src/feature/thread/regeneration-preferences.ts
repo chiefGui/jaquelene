@@ -24,11 +24,7 @@ export function createRegenerationPreferences(storage: {
       }
       return { ...model };
     },
-    setDefaultModel(selection: ModelSelection | null) {
-      if (selection === null) {
-        storage.write({});
-        return null;
-      }
+    setDefaultModel(selection: ModelSelection) {
       requireModelSelection(selection);
       const defaultModel = { ...selection };
       storage.write({ defaultModel });

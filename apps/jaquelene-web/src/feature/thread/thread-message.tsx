@@ -269,12 +269,8 @@ function AssistantMessageToolbar({
           pending={requestPending}
           disabled={disabled}
           requestFailed={requestFailed}
-          savedInstructions={regeneration.instructions}
-          previousAttemptFailed={regeneration.status === "failed"}
           initialConfiguration={regenerationConfiguration}
-          onRegenerate={(configuration, instructions) =>
-            void regenerate(configuration, instructions)
-          }
+          onRegenerate={regenerate}
         />
 
         <Tooltip>Regenerate response</Tooltip>

@@ -1,4 +1,16 @@
 import {
+  Form as AriakitForm,
+  FormControl,
+  FormError,
+  FormInput,
+  FormLabel,
+  useFormStore,
+  useFormSubmit,
+  useFormValidate,
+  useFormValue,
+} from "@ariakit/react/form";
+import { useStoreState } from "@ariakit/react/store";
+import {
   REGENERATION_INSTRUCTIONS_MAX_LENGTH,
   parseRegenerationInstructions,
   regenerationInstructionsSchema,
@@ -9,7 +21,7 @@ import { Dialog } from "@jaquelene/ui/dialog";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { Link } from "@tanstack/react-router";
-import { useId, useRef, useState, type ReactElement } from "react";
+import { useRef, type ReactElement } from "react";
 import { ModelPicker } from "@/feature/model/picker";
 
 export function RegenerateResponseDialog({
@@ -19,8 +31,6 @@ export function RegenerateResponseDialog({
   pending,
   disabled,
   requestFailed,
-  savedInstructions,
-  previousAttemptFailed,
   initialConfiguration,
   onRegenerate,
 }: Readonly<{
@@ -30,37 +40,55 @@ export function RegenerateResponseDialog({
   pending: boolean;
   disabled: boolean;
   requestFailed: boolean;
-  savedInstructions: string | undefined;
-  previousAttemptFailed: boolean;
   initialConfiguration: ModelConfigurationSelection | null;
-  onRegenerate: (configuration: ModelConfigurationSelection, instructions?: string) => void;
+  onRegenerate: (
+    configuration: ModelConfigurationSelection,
+    instructions?: string,
+  ) => Promise<void>;
 }>) {
-  const [instructions, setInstructions] = useState("");
-  const [configuration, setConfiguration] = useState(initialConfiguration);
-  const inputId = useId();
-  const modelId = useId();
-  const statusId = useId();
+  const form = useFormStore({
+    defaultValues: { configuration: initialConfiguration, instructions: "" },
+  });
+  const configuration = useFormValue<ModelConfigurationSelection | null>(form, "configuration");
+  const submitting = useStoreState(form, "submitting");
+  const hasSubmitted = useStoreState(
+    form,
+    ["submitFailed", "submitSucceed"],
+    (state) => state.submitFailed > 0 || state.submitSucceed > 0,
+  );
+  const busy = pending || submitting;
   const input = useRef<HTMLTextAreaElement>(null);
-  const valid = regenerationInstructionsSchema.safeParse(instructions).success;
-  let error = "";
-  if (!valid) {
-    error = `Use ${REGENERATION_INSTRUCTIONS_MAX_LENGTH.toLocaleString("en-US")} characters or fewer.`;
-  } else if (requestFailed) {
-    error = "Couldn't start regeneration. Try again.";
-  }
+
+  useFormValidate(form, (state) => {
+    form.setErrors({});
+    if (state.values.configuration === null) {
+      form.setError("configuration", "Choose a model.");
+    }
+    if (!regenerationInstructionsSchema.safeParse(state.values.instructions).success) {
+      form.setError(
+        form.names.instructions,
+        `Use ${REGENERATION_INSTRUCTIONS_MAX_LENGTH.toLocaleString("en-US")} characters or fewer.`,
+      );
+    }
+  });
+  useFormSubmit(form, async (state) => {
+    if (disabled || state.values.configuration === null) {
+      return;
+    }
+    await onRegenerate(
+      state.values.configuration,
+      parseRegenerationInstructions(state.values.instructions),
+    );
+  });
 
   function changeOpen(nextOpen: boolean) {
-    if (pending) {
+    if (busy) {
       return;
     }
 
     if (nextOpen) {
-      let initialInstructions = "";
-      if (previousAttemptFailed) {
-        initialInstructions = savedInstructions ?? "";
-      }
-      setInstructions(initialInstructions);
-      setConfiguration(initialConfiguration);
+      form.reset();
+      form.setValues({ configuration: initialConfiguration, instructions: "" });
     }
 
     setOpen(nextOpen);
@@ -72,17 +100,15 @@ export function RegenerateResponseDialog({
       <Dialog.Content
         style={styles.dialog}
         initialFocus={input}
-        aria-busy={pending || undefined}
-        hideOnEscape={!pending}
+        aria-busy={busy || undefined}
+        hideOnEscape={!busy}
         hideOnInteractOutside={false}
       >
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (valid && !disabled && configuration !== null) {
-              onRegenerate(configuration, parseRegenerationInstructions(instructions));
-            }
-          }}
+        <AriakitForm
+          store={form}
+          resetOnSubmit={false}
+          validateOnBlur={hasSubmitted}
+          validateOnChange={hasSubmitted}
         >
           <Dialog.Heading {...stylex.props(styles.heading)}>Regenerate response</Dialog.Heading>
           <Dialog.Description {...stylex.props(styles.description)}>
@@ -90,11 +116,13 @@ export function RegenerateResponseDialog({
           </Dialog.Description>
 
           <Field.Root style={styles.field}>
-            <Field.Label htmlFor={modelId}>Model</Field.Label>
+            <FormLabel name="configuration" render={<Field.Label />}>
+              Model
+            </FormLabel>
             <ModelPicker.Root
               value={configuration?.model ?? null}
               onValueChange={(model) => {
-                if (disabled) {
+                if (disabled || busy) {
                   return;
                 }
                 if (
@@ -105,20 +133,24 @@ export function RegenerateResponseDialog({
                 }
                 // Reasoning settings belong to the selected model. A different
                 // model starts with its defaults for this request.
-                setConfiguration({ model });
+                form.setValue("configuration", { model });
               }}
             >
-              <ModelPicker.Trigger
-                id={modelId}
-                type="button"
-                disabled={disabled}
-                style={styles.model}
+              <FormControl
+                name="configuration"
+                render={
+                  <ModelPicker.Trigger
+                    type="button"
+                    disabled={disabled || busy}
+                    style={styles.model}
+                  />
+                }
               />
               <ModelPicker.Empty>
                 <Button
                   type="button"
                   variant="ghost"
-                  disabled={disabled}
+                  disabled={disabled || busy}
                   render={<Link to="/settings/providers" />}
                 >
                   Connect provider
@@ -126,54 +158,42 @@ export function RegenerateResponseDialog({
               </ModelPicker.Empty>
               <ModelPicker.Content style={styles.modelPopover} />
             </ModelPicker.Root>
+            <FormError name="configuration" render={<Field.Error style={styles.fieldError} />} />
           </Field.Root>
 
           <Field.Root style={styles.field}>
-            <Field.Label htmlFor={inputId}>Instructions (optional)</Field.Label>
-            <Textarea
-              ref={input}
-              id={inputId}
-              value={instructions}
-              readOnly={pending}
-              aria-invalid={!valid || undefined}
-              aria-describedby={statusId}
-              placeholder="Make it more ominous, or shorten the second paragraph…"
-              onChange={(event) => setInstructions(event.currentTarget.value)}
-              style={styles.input}
+            <FormLabel name={form.names.instructions} render={<Field.Label />}>
+              Instructions (optional)
+            </FormLabel>
+            <FormInput
+              name={form.names.instructions}
+              render={
+                <Textarea
+                  ref={input}
+                  readOnly={busy}
+                  placeholder="Make it more ominous, or shorten the second paragraph…"
+                  style={styles.input}
+                />
+              }
+            />
+            <FormError
+              name={form.names.instructions}
+              render={<Field.Error style={styles.fieldError} />}
             />
           </Field.Root>
 
-          {savedInstructions && !previousAttemptFailed && (
-            <details {...stylex.props(styles.previous)}>
-              <summary>Previous instructions</summary>
-              <p {...stylex.props(styles.previousText)}>{savedInstructions}</p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="small"
-                disabled={pending}
-                onClick={() => {
-                  setInstructions(savedInstructions);
-                  input.current?.focus();
-                }}
-              >
-                Use instructions
-              </Button>
-            </details>
-          )}
-
-          <p id={statusId} role="alert" {...stylex.props(styles.status)}>
-            {error}
+          <p role="alert" {...stylex.props(styles.status)}>
+            {requestFailed && "Couldn't start regeneration. Try again."}
           </p>
           <div {...stylex.props(styles.actions)}>
-            <Dialog.Dismiss disabled={pending} render={<Button type="button" variant="ghost" />}>
+            <Dialog.Dismiss disabled={busy} render={<Button type="button" variant="ghost" />}>
               Cancel
             </Dialog.Dismiss>
-            <Button type="submit" disabled={disabled || !valid || configuration === null}>
+            <Button type="submit" disabled={disabled || busy}>
               Regenerate
             </Button>
           </div>
-        </form>
+        </AriakitForm>
       </Dialog.Content>
     </Dialog.Root>
   );
@@ -197,18 +217,9 @@ const styles = stylex.create({
   model: { width: "100%", minWidth: 0 },
   modelPopover: { zIndex: 101 },
   input: { resize: "none" },
-  previous: {
-    color: colors.foregroundSecondary,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    marginTop: "0.75rem",
-  },
-  previousText: {
-    marginBlock: "0.5rem",
-    maxHeight: "8rem",
-    overflowY: "auto",
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap",
+  fieldError: {
+    display: { default: "block", ":empty": "block" },
+    minHeight: tokens.lineHeightXSmall,
   },
   status: {
     color: colors.foregroundDanger,

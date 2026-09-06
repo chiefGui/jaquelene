@@ -12,14 +12,12 @@ export function DefaultModelSetting({
   pending,
   error,
   onSelect,
-  onClear,
 }: Readonly<{
   description: string;
   model: ModelSelection | null;
   pending: boolean;
   error: boolean;
   onSelect: (model: ModelSelection) => void;
-  onClear?: () => void;
 }>) {
   const controlId = useId();
   const descriptionId = useId();
@@ -56,11 +54,6 @@ export function DefaultModelSetting({
           </ModelPicker.Empty>
           <ModelPicker.Content />
         </ModelPicker.Root>
-        {model !== null && onClear !== undefined && (
-          <Button type="button" variant="ghost" disabled={pending} onClick={onClear}>
-            Clear
-          </Button>
-        )}
       </Item.Value>
     </Item.Root>
   );

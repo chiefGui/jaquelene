@@ -27,30 +27,28 @@ beforeEach(() => {
 });
 
 describe("default regeneration model mutation", () => {
-  it.each([nextModel, null])(
-    "shows and persists selection %j without changing campaign preferences",
-    async (selection) => {
-      const client = new QueryClient();
-      const save = Promise.withResolvers<ModelSelection | null>();
-      preferences.setDefaultModel.mockReturnValue(save.promise);
-      client.setQueryData(defaultRegenerationModelQuery.queryKey, previousModel);
-      const campaignKey = ["preferences", "campaign", "default-model"];
-      client.setQueryData(campaignKey, previousModel);
-      const mutation = new MutationObserver(
-        client,
-        setDefaultRegenerationModelMutationOptions(client),
-      );
-      const pending = mutation.mutate(selection);
-      await vi.waitFor(() =>
-        expect(client.getQueryData(defaultRegenerationModelQuery.queryKey)).toEqual(selection),
-      );
-      save.resolve(selection);
-      await expect(pending).resolves.toEqual(selection);
-      expect(preferences.setDefaultModel).toHaveBeenCalledWith(selection);
-      expect(client.getQueryData(campaignKey)).toEqual(previousModel);
-      client.clear();
-    },
-  );
+  it("shows and persists the selection without changing campaign preferences", async () => {
+    const selection = nextModel;
+    const client = new QueryClient();
+    const save = Promise.withResolvers<ModelSelection>();
+    preferences.setDefaultModel.mockReturnValue(save.promise);
+    client.setQueryData(defaultRegenerationModelQuery.queryKey, previousModel);
+    const campaignKey = ["preferences", "campaign", "default-model"];
+    client.setQueryData(campaignKey, previousModel);
+    const mutation = new MutationObserver(
+      client,
+      setDefaultRegenerationModelMutationOptions(client),
+    );
+    const pending = mutation.mutate(selection);
+    await vi.waitFor(() =>
+      expect(client.getQueryData(defaultRegenerationModelQuery.queryKey)).toEqual(selection),
+    );
+    save.resolve(selection);
+    await expect(pending).resolves.toEqual(selection);
+    expect(preferences.setDefaultModel).toHaveBeenCalledWith(selection);
+    expect(client.getQueryData(campaignKey)).toEqual(previousModel);
+    client.clear();
+  });
 
   it.each([previousModel, null, undefined])(
     "restores previous value %j after a failed save",
@@ -70,17 +68,4 @@ describe("default regeneration model mutation", () => {
       client.clear();
     },
   );
-
-  it("restores the model when clearing its default fails", async () => {
-    const client = new QueryClient();
-    client.setQueryData(defaultRegenerationModelQuery.queryKey, previousModel);
-    preferences.setDefaultModel.mockRejectedValue(new Error("Could not clear."));
-    const mutation = new MutationObserver(
-      client,
-      setDefaultRegenerationModelMutationOptions(client),
-    );
-    await expect(mutation.mutate(null)).rejects.toThrow("Could not clear.");
-    expect(client.getQueryData(defaultRegenerationModelQuery.queryKey)).toEqual(previousModel);
-    client.clear();
-  });
 });

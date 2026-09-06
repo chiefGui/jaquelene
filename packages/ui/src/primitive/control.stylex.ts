@@ -18,14 +18,14 @@ export const control = stylex.create({
   filled: {
     backgroundColor: {
       default: colors.backgroundNeutralSubtlest,
-      ':not(:disabled):not([aria-disabled="true"]):not([readonly]):hover':
+      ':not(:disabled):not([aria-disabled="true"]):not([data-disabled="true"]):not([readonly]):not([data-readonly="true"]):hover':
         colors.backgroundInteractive,
     },
     borderColor: {
       default: colors.borderDefault,
-      ':is(:focus, [data-focus-visible], [aria-expanded="true"])': colors.borderFocus,
-      ':is([aria-invalid="true"])': colors.borderDanger,
-      ':is([aria-invalid="true"]):is(:focus, [data-focus-visible], [aria-expanded="true"])':
+      ':is(:focus-within, [data-focus-visible], [aria-expanded="true"])': colors.borderFocus,
+      ':is([aria-invalid="true"], [data-invalid="true"])': colors.borderDanger,
+      ':is([aria-invalid="true"], [data-invalid="true"]):is(:focus-within, [data-focus-visible], [aria-expanded="true"])':
         colors.borderDangerFocus,
     },
     borderRadius: radii.control,

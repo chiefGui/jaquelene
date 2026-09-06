@@ -6,14 +6,14 @@ import {
   useComboboxContext,
 } from "@ariakit/react/combobox";
 import { useStoreState } from "@ariakit/react/store";
-import { Button, ControlIcon } from "@jaquelene/ui";
+import { ControlIcon } from "@jaquelene/ui";
 import { Popover } from "@jaquelene/ui/popover";
 import { Select } from "@jaquelene/ui/select";
-import { colors, radii, shadows, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, radii, shadows } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useId, useState, type ReactElement } from "react";
-
-const descriptionMaxLength = 180;
+import { PromptChoiceText } from "./choice-text";
+import { PromptPickerFooter } from "./picker-footer";
 
 export type PromptSelectOption = Readonly<{
   description: string;
@@ -41,23 +41,6 @@ type PromptSelectProps = {
   value: string;
 };
 
-function summarizeDescription(description: string) {
-  const normalized = description.replace(/\s+/gu, " ").trim();
-
-  if (normalized.length <= descriptionMaxLength) {
-    return normalized;
-  }
-
-  let end = descriptionMaxLength - 1;
-  const lastCodeUnit = normalized.charCodeAt(end - 1);
-
-  if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) {
-    end -= 1;
-  }
-
-  return `${normalized.slice(0, end).trimEnd()}…`;
-}
-
 function PromptOption({ option }: { option: PromptSelectOption }) {
   const descriptionId = useId();
 
@@ -74,12 +57,11 @@ function PromptOption({ option }: { option: PromptSelectOption }) {
         <ControlIcon.Check style={styles.selectedIcon} />
       </ComboboxItemCheck>
 
-      <span {...stylex.props(styles.optionText)}>
-        <span {...stylex.props(styles.optionTitle)}>{option.title}</span>
-        <span id={descriptionId} {...stylex.props(styles.optionDescription)}>
-          {summarizeDescription(option.description)}
-        </span>
-      </span>
+      <PromptChoiceText
+        title={option.title}
+        description={option.description}
+        descriptionId={descriptionId}
+      />
     </ComboboxItem>
   );
 }
@@ -120,30 +102,22 @@ function PromptSelectContent({
         </ComboboxList>
 
         {hasMore || footerAction ? (
-          <div {...stylex.props(styles.footer)}>
+          <PromptPickerFooter.Root>
             {hasMore ? (
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={loadingMore}
-                onClick={onLoadMore}
-                style={styles.footerAction}
-              >
+              <PromptPickerFooter.Action type="button" disabled={loadingMore} onClick={onLoadMore}>
                 {loadingMore ? "Loading…" : "Load more"}
-              </Button>
+              </PromptPickerFooter.Action>
             ) : null}
             {footerAction ? (
-              <Button
-                variant="ghost"
+              <PromptPickerFooter.Action
+                navigation
                 render={footerAction.render}
                 onClick={() => combobox?.setOpen(false)}
-                style={styles.footerAction}
               >
-                <Button.Label>{footerAction.label}</Button.Label>
-                <ControlIcon.Chevron style={styles.footerActionIcon} />
-              </Button>
+                {footerAction.label}
+              </PromptPickerFooter.Action>
             ) : null}
-          </div>
+          </PromptPickerFooter.Root>
         ) : null}
       </ComboboxPopover>
     </Popover.Presence>
@@ -173,6 +147,7 @@ export function PromptSelect({
 
   return (
     <Select.Root
+      placement="bottom-start"
       open={open}
       setOpen={setOpen}
       selectedValue={value}
@@ -218,7 +193,7 @@ const activeBackground = colors.backgroundInteractive;
 
 const styles = stylex.create({
   trigger: {
-    justifySelf: "end",
+    marginInlineStart: "auto",
     maxWidth: "12rem",
     minWidth: 0,
     width: "fit-content",
@@ -283,46 +258,4 @@ const styles = stylex.create({
     marginTop: "0.125rem",
   },
   selectedIcon: { height: "0.875rem", width: "0.875rem" },
-  optionText: {
-    display: "block",
-    gridColumnStart: "2",
-    gridRowStart: "1",
-    minWidth: 0,
-  },
-  optionTitle: {
-    display: "block",
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
-    lineHeight: tokens.lineHeightSmall,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  optionDescription: {
-    color: {
-      default: colors.foregroundSecondary,
-      [stylex.when.ancestor('[aria-selected="true"]')]: colors.foregroundPrimary,
-    },
-    display: "-webkit-box",
-    fontSize: tokens.fontSizeXSmall,
-    lineHeight: tokens.lineHeightXSmall,
-    marginTop: "0.125rem",
-    overflow: "hidden",
-    overflowWrap: "anywhere",
-    WebkitBoxOrient: "vertical",
-    WebkitLineClamp: 2,
-  },
-  footer: {
-    borderBlockStartColor: colors.borderOverlay,
-    borderBlockStartStyle: "solid",
-    borderBlockStartWidth: 1,
-    display: "grid",
-    flexShrink: 0,
-    gap: "0.25rem",
-    marginInline: "-0.25rem",
-    paddingBlockStart: "0.25rem",
-    paddingInline: "0.25rem",
-  },
-  footerAction: { justifyContent: "space-between", width: "100%" },
-  footerActionIcon: { height: "0.75rem", width: "0.75rem" },
 });

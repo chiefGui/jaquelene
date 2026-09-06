@@ -27,11 +27,12 @@ export function createModelInputResolver(
 ): ModelInputResolver {
   return {
     resolve({ threadId, messages }) {
+      const campaign = campaigns.getContextForThread(threadId);
       return requireModelInput({
-        instructions: promptApplications.resolve({
-          threadId,
-          campaign: campaigns.getContextForThread(threadId),
-        }),
+        instructions: [
+          ...promptApplications.resolve({ threadId, campaign }),
+          ...(campaign?.instructions ?? []),
+        ],
         dialogue: messages.map(({ id: messageId, author: role, content }) => ({
           messageId,
           role,

@@ -181,11 +181,12 @@ export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProp
       onChange: onValueChange,
     });
 
+    const hasContent = /\S/u.test(value);
     useLayoutEffect(() => {
-      if (invalid && mode === "preview") {
+      if ((invalid || !hasContent) && mode === "preview") {
         setMode("edit");
       }
-    }, [invalid, mode, setMode]);
+    }, [hasContent, invalid, mode, setMode]);
 
     const configuration = useMemo<MarkdownEditorConfiguration>(
       () => ({

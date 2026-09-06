@@ -37,6 +37,7 @@ function toIpcCampaign(campaign: Campaign): IpcCampaign {
   return {
     id: campaign.id,
     title: campaign.title,
+    scenario: campaign.scenario,
     threadId: campaign.threadId,
     startedAt: campaign.startedAt,
     lastActivityAt: campaign.lastActivityAt,
@@ -78,10 +79,11 @@ function fromIpcPreferences(preferences: IpcCampaignGenerationPreferences) {
 
 export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
   CampaignsIpc.for(target).setImplementation({
-    start({ title, composition }) {
+    start({ title, scenario, composition }) {
       return toIpcCampaign(
         campaigns.start({
           title,
+          ...(scenario !== undefined && { scenario }),
           composition: composition.map(({ kind, promptKey }) => ({
             kind: promptKindKeySchema.parse(kind),
             ...(promptKey ? { promptKey: promptKeySchema.parse(promptKey) } : {}),
@@ -107,6 +109,13 @@ export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
     rename({ id, title }) {
       const campaign = campaigns.rename(ids.campaign.parse(id), title);
       return campaign ? toIpcCampaign(campaign) : null;
+    },
+    setScenario({ id, scenario }) {
+      const campaign = campaigns.setScenario(ids.campaign.parse(id), scenario);
+      if (!campaign) {
+        return null;
+      }
+      return toIpcCampaign(campaign);
     },
     setGenerationPreferences(id, preferences) {
       const campaign = campaigns.setGenerationPreferences(

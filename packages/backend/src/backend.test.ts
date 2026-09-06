@@ -25,6 +25,7 @@ import {
 } from "#backend/storage/area";
 import type { StorageDeletion, StorageUsage } from "#backend/storage/storage";
 import { jaqueleneNarratorPromptDefinition, narratorPromptKind } from "#backend/narrator/module";
+import { scenarioPromptModule } from "#backend/scenario/module";
 import {
   createThreads,
   THREAD_MESSAGE_MAX_CODE_UNITS,
@@ -437,7 +438,10 @@ describe("backend", () => {
       generate: () => Effect.succeed({ text: "The voyage begins." }),
     });
     const first = await openBackend(backendOptions(databasePath, [provider]));
-    expect(first.prompts.listKinds()).toEqual([narratorPromptKind]);
+    expect(first.prompts.listKinds()).toEqual([
+      narratorPromptKind,
+      scenarioPromptModule.definition,
+    ]);
     expect(first.prompts.list({ kind: narratorPromptKind.key }).prompts).toEqual([
       {
         ...jaqueleneNarratorPromptDefinition,
@@ -555,7 +559,55 @@ describe("backend", () => {
     }
   });
 
-  it("uses an edited narrator prompt on the next turn of an existing campaign", async () => {
+  it("keeps copied library scenarios independent through edits, deletion, and reopen", async () => {
+    const databasePath = createDatabasePath();
+    const backend = await openBackend(backendOptions(databasePath, []));
+    const kind = scenarioPromptModule.definition.key;
+    expect(backend.prompts.list({ kind }).prompts).toEqual([]);
+    expect(backend.prompts.getDefault(kind)).toEqual({ kind, promptKey: null, source: "none" });
+    const scenario = backend.prompts.create({
+      kind,
+      title: "The drowned city",
+      body: "A city beneath the sea.",
+    });
+    const campaign = backend.campaigns.start({
+      title: "Voyage",
+      scenario: scenario.body,
+      composition: [],
+    });
+    const blank = backend.campaigns.start({ title: "No setting", composition: [] });
+    expect(backend.prompts.getCampaignSelection(campaign.id, kind)).toMatchObject({
+      effectivePromptKey: null,
+      source: "none",
+    });
+    expect(backend.threads.getTranscript(blank.threadId).entries).toHaveLength(1);
+    backend.prompts.update(scenario.key, { title: "Changed", body: "A city in the sky." });
+    expect(backend.prompts.get(scenario.key)?.body).toBe("A city in the sky.");
+    expect(backend.campaigns.get(campaign.id)?.scenario).toBe(scenario.body);
+    backend.campaigns.setScenario(campaign.id, "An independent campaign edit.");
+    expect(backend.prompts.get(scenario.key)?.body).toBe("A city in the sky.");
+    expect(backend.prompts.delete(scenario.key)).toEqual({ kind });
+    expect(backend.prompts.list({ kind }).prompts).toEqual([]);
+    await backend.close();
+
+    await using reopened = await openBackend(backendOptions(databasePath, []));
+    expect(reopened.prompts.get(scenario.key)).toBeNull();
+    expect(reopened.campaigns.get(campaign.id)?.scenario).toBe("An independent campaign edit.");
+    expect(reopened.threads.getTranscript(campaign.threadId).entries).toEqual([
+      {
+        kind: "instruction",
+        sourceKey: jaqueleneNarratorPromptDefinition.key,
+        content: jaqueleneNarratorPromptDefinition.body,
+      },
+      {
+        kind: "instruction",
+        sourceKey: `campaign.${campaign.id}.scenario`,
+        content: "## Scenario\nAn independent campaign edit.",
+      },
+    ]);
+  });
+
+  it("uses edited narrator and scenario content on subsequent turns and allows clearing the scenario", async () => {
     const inputs: ModelInput[] = [];
     const provider = providerAdapter("provider-a", {
       generate: ({ input }) =>
@@ -572,6 +624,7 @@ describe("backend", () => {
     });
     const campaign = backend.campaigns.start({
       title: "Changing direction",
+      scenario: "A lost kingdom.",
       composition: [{ kind: narratorPromptKind.key, promptKey: prompt.key }],
     });
     const configuration = {
@@ -589,6 +642,7 @@ describe("backend", () => {
       title: "Still private",
       body: "Use an ominous tone.",
     });
+    backend.campaigns.setScenario(campaign.id, "A kingdom at war.");
     await (
       await backend.turns.submit({
         threadId: campaign.threadId,
@@ -598,8 +652,17 @@ describe("backend", () => {
     ).settlement;
 
     expect(inputs.map(({ instructions }) => instructions)).toEqual([
-      [{ sourceKey: prompt.key, content: "Use a hopeful tone." }],
-      [{ sourceKey: prompt.key, content: "Use an ominous tone." }],
+      [
+        { sourceKey: prompt.key, content: "Use a hopeful tone." },
+        { sourceKey: `campaign.${campaign.id}.scenario`, content: "## Scenario\nA lost kingdom." },
+      ],
+      [
+        { sourceKey: prompt.key, content: "Use an ominous tone." },
+        {
+          sourceKey: `campaign.${campaign.id}.scenario`,
+          content: "## Scenario\nA kingdom at war.",
+        },
+      ],
     ]);
     expect(
       backend.threads
@@ -607,12 +670,29 @@ describe("backend", () => {
         .entries.map(({ kind, content }) => ({ kind, content })),
     ).toEqual([
       { kind: "instruction", content: "Use an ominous tone." },
+      { kind: "instruction", content: "## Scenario\nA kingdom at war." },
       { kind: "message", content: "Begin" },
       { kind: "message", content: "Reply 1" },
       { kind: "message", content: "Continue" },
       { kind: "message", content: "Reply 2" },
     ]);
     expect(JSON.stringify(inputs)).not.toContain("Private");
+    backend.campaigns.setScenario(campaign.id, " \n\t");
+    await (
+      await backend.turns.submit({
+        threadId: campaign.threadId,
+        content: "Continue without a scenario",
+        configuration,
+      })
+    ).settlement;
+    expect(inputs[2]?.instructions).toEqual([
+      { sourceKey: prompt.key, content: "Use an ominous tone." },
+    ]);
+    expect(
+      backend.threads
+        .getTranscript(campaign.threadId)
+        .entries.filter(({ kind }) => kind === "instruction"),
+    ).toEqual([{ kind: "instruction", sourceKey: prompt.key, content: "Use an ominous tone." }]);
   });
 
   it("deletes settled campaign content without deleting its usage history", async () => {

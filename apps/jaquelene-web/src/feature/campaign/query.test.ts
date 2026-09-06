@@ -14,6 +14,7 @@ const campaignsIpc = vi.hoisted(() => ({
   get: vi.fn(),
   list: vi.fn(),
   rename: vi.fn(),
+  setScenario: vi.fn(),
   setGenerationPreferences: vi.fn(),
   start: vi.fn(),
 }));
@@ -46,6 +47,7 @@ import {
   campaignUsageRecordQueryKey,
   threadQueryPrefix,
 } from "@/feature/cache-keys";
+import { readCampaignSetupDraft, writeCampaignSetupDraft } from "./setup-draft";
 
 function modelSelection(id: string): ModelSelection {
   return {
@@ -70,6 +72,7 @@ function campaign(generationPreferences?: CampaignGenerationPreferences): Campai
   return {
     id: "campaign-a",
     title: "Campaign A",
+    scenario: "",
     threadId: "thread-a",
     startedAt: 100,
     lastActivityAt: 100,
@@ -129,12 +132,51 @@ beforeEach(() => {
 });
 
 describe("campaign start mutation", () => {
+  it("clears the submitted draft on success even after leaving campaign setup", async () => {
+    const client = createQueryClient();
+    const started = campaign();
+    const pending = deferred<Campaign>();
+    campaignsIpc.start.mockReturnValue(pending.promise);
+    const draft = writeCampaignSetupDraft(client, {
+      title: started.title,
+      scenario: { mode: "custom", text: "" },
+      narratorPromptKey: "narrator-a",
+    });
+    const mutation = new MutationObserver(client, startCampaignMutationOptions(client));
+    const unsubscribe = mutation.subscribe(() => {});
+    const request = mutation.mutate({ title: started.title, composition: [] });
+    await vi.waitFor(() => expect(campaignsIpc.start).toHaveBeenCalled());
+    expect(readCampaignSetupDraft(client)).toBe(draft);
+    unsubscribe();
+    pending.resolve(started);
+    await request;
+    expect(readCampaignSetupDraft(client)).toEqual({ title: "", scenario: { mode: "default" } });
+    client.clear();
+  });
+
+  it("keeps the setup draft when campaign creation fails", async () => {
+    const client = createQueryClient();
+    const draft = writeCampaignSetupDraft(client, {
+      title: "Try again",
+      scenario: { mode: "custom", text: "Mars" },
+      narratorPromptKey: "narrator-a",
+    });
+    campaignsIpc.start.mockRejectedValue(new Error("Unavailable"));
+    const mutation = new MutationObserver(client, startCampaignMutationOptions(client));
+    await expect(mutation.mutate({ title: "Try again", composition: [] })).rejects.toThrow(
+      "Unavailable",
+    );
+    expect(readCampaignSetupDraft(client)).toBe(draft);
+    client.clear();
+  });
+
   it("publishes a started campaign immediately and schedules list reconciliation", async () => {
     const queryClient = createQueryClient();
     const existing = campaign();
     const started: Campaign = {
       id: "campaign-new",
       title: "New campaign",
+      scenario: "",
       threadId: "thread-new",
       startedAt: 200,
       lastActivityAt: 200,
@@ -167,6 +209,7 @@ describe("campaign start mutation", () => {
     const started: Campaign = {
       id: "campaign-new",
       title: "New campaign",
+      scenario: "",
       threadId: "thread-new",
       startedAt: 500,
       lastActivityAt: 500,

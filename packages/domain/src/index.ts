@@ -1,3 +1,11 @@
+export { campaignSetupInputSchema, type CampaignSetupInput } from "./campaign/setup";
+export {
+  CAMPAIGN_SCENARIO_MAX_LENGTH,
+  CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH,
+  campaignScenarioSchema,
+  parseCampaignScenario,
+  type CampaignScenario,
+} from "./campaign/scenario";
 export {
   CAMPAIGN_TITLE_MAX_LENGTH,
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,
@@ -20,6 +28,7 @@ export type {
   RequestedModelConfiguration,
 } from "./model/configuration";
 export { narratorPromptKindKey } from "./narrator/prompt-kind";
+export { scenarioPromptKindKey } from "./scenario/prompt-kind";
 export {
   PROMPT_BODY_MAX_LENGTH,
   PROMPT_BODY_MAX_UTF16_LENGTH,

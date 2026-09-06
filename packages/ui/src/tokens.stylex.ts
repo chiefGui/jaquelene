@@ -98,6 +98,8 @@ export const colors = stylex.defineVars({
 });
 
 export const tokens = stylex.defineConsts({
+  // Shared control appearance
+  controlPlaceholderColor: `color-mix(in oklch, ${colors.foregroundSecondary} 65%, transparent)`,
   // Control geometry
   controlHeight: "2rem",
   controlHeightSmall: "1.5rem",
@@ -105,6 +107,7 @@ export const tokens = stylex.defineConsts({
   controlIconSizeSmall: "0.75rem",
 
   // Typography
+  descriptionMaxWidth: "48ch",
   fontGeist: '"Geist Variable", ui-sans-serif, system-ui, sans-serif',
   fontInter: '"Inter Variable", ui-sans-serif, system-ui, sans-serif',
   fontMono:

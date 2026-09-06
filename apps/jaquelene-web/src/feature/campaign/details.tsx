@@ -22,6 +22,7 @@ import { useIsThreadOperationPending } from "@/feature/thread/query";
 import { summarizeCosts } from "@/feature/usage/presentation";
 import { ContentPane } from "@/layout/content-pane";
 import { useDeleteCampaign, useIsCampaignMutationPending } from "./query";
+import { CampaignScenarioControl } from "./scenario-control";
 
 function DeleteAction({ campaign, replyActive }: { campaign: Campaign; replyActive: boolean }) {
   const deleteCampaign = useDeleteCampaign(campaign);
@@ -123,10 +124,12 @@ export function CampaignDetailsSkeleton() {
     <>
       <ContentPane.AsideViewport role="status" aria-label="Loading campaign details">
         <ContentPane.AsideBody aria-hidden="true">
-          <Item.Root inset="none" style={styles.loadingControl}>
-            <Skeleton style={styles.loadingLabel} />
-            <Skeleton style={styles.loadingSelect} />
-          </Item.Root>
+          {Array.from({ length: 2 }, (_, index) => (
+            <Item.Root key={index} inset="none" style={styles.loadingControl}>
+              <Skeleton style={styles.loadingLabel} />
+              <Skeleton style={styles.loadingSelect} />
+            </Item.Root>
+          ))}
         </ContentPane.AsideBody>
 
         <ContentPane.AsideBody render={<dl />} style={styles.metrics} aria-hidden="true">
@@ -163,6 +166,7 @@ export function CampaignDetails({
       <ContentPane.AsideViewport>
         <ContentPane.AsideBody>
           <CampaignNarratorControl campaignId={campaign.id} />
+          <CampaignScenarioControl campaign={campaign} />
         </ContentPane.AsideBody>
 
         <ContentPane.AsideBody render={<dl />} style={styles.metrics}>

@@ -77,6 +77,40 @@ function requestBody(request: HttpClientRequest.HttpClientRequest) {
 }
 
 describe("NanoGPT generation provider", () => {
+  it("sends narrator and scenario as one system message before dialogue", async () => {
+    const { client, execute } = transport();
+    const provider = createNanoGptGeneration(connection(), client);
+    const request = generationRequest();
+    await Effect.runPromise(
+      provider.generate({
+        ...request,
+        input: {
+          ...request.input,
+          instructions: [
+            { sourceKey: "narrator", content: "Narrate clearly." },
+            { sourceKey: "scenario", content: "## Scenario\nA lost kingdom." },
+          ],
+        },
+      }),
+    );
+    expect(requestBody(execute.mock.calls[0]![0]).messages).toEqual([
+      { role: "system", content: "Narrate clearly.\n\n## Scenario\nA lost kingdom." },
+      ...request.input.dialogue.map(({ role, content }) => ({ role, content })),
+    ]);
+  });
+
+  it("omits the system message when no instructions are present", async () => {
+    const { client, execute } = transport();
+    const provider = createNanoGptGeneration(connection(), client);
+    const request = generationRequest();
+    await Effect.runPromise(
+      provider.generate({ ...request, input: { ...request.input, instructions: [] } }),
+    );
+    expect(requestBody(execute.mock.calls[0]![0]).messages).toEqual(
+      request.input.dialogue.map(({ role, content }) => ({ role, content })),
+    );
+  });
+
   it("sends the credential, semantic input, and accounting request through the HTTP client", async () => {
     const request = generationRequest();
     const { client, execute } = transport();

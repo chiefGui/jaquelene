@@ -3,7 +3,8 @@ import EyeIcon from "@hugeicons/core-free-icons/EyeIcon";
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { formatPluralizedCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
-import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
+import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
+import { control } from "@jaquelene/ui/control.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -52,6 +53,7 @@ type WithoutChildren<Props> = Props extends unknown ? Omit<Props, "children"> : 
 
 export type MarkdownEditorProps = WithoutChildren<MarkdownEditorRootProps> & {
   style?: StyleXStyles;
+  toolbarActions?: ReactNode;
 };
 
 const MarkdownPreview = lazy(async () => {
@@ -98,7 +100,7 @@ function MarkdownEditorFrame({ style, ...props }: StyleableDivProps) {
       data-disabled={disabled || undefined}
       data-invalid={invalid || undefined}
       data-readonly={readOnly || undefined}
-      {...stylex.props(styles.frame, style, stylex.defaultMarker())}
+      {...stylex.props(control.filled, styles.frame, style, stylex.defaultMarker())}
     />
   );
 }
@@ -188,6 +190,10 @@ type MarkdownEditorPreviewToggleProps = Omit<
 
 function MarkdownEditorPreviewToggle({ style, ...props }: MarkdownEditorPreviewToggleProps) {
   const { disabled, mode, setMode } = useMarkdownEditorConfiguration("PreviewToggle");
+  const { value } = useMarkdownEditorDocument("PreviewToggle");
+  if (!value.trim() && mode === "edit") {
+    return null;
+  }
   let icon = EyeIcon;
   let label = "Preview";
   let nextMode: "edit" | "preview" = "preview";
@@ -352,13 +358,16 @@ function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsP
 
 const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent({
   style,
+  toolbarActions,
 }: {
   style: StyleXStyles | undefined;
+  toolbarActions: ReactNode;
 }) {
   return (
     <MarkdownEditorFrame style={style}>
       <MarkdownEditorToolbar>
         <MarkdownEditorFormattingActions />
+        {toolbarActions}
         <MarkdownEditorPreviewToggle style={styles.previewTogglePlacement} />
       </MarkdownEditorToolbar>
       <MarkdownEditorContent />
@@ -370,10 +379,10 @@ const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent(
 });
 
 const MarkdownEditorDefault = forwardRef<HTMLElement, MarkdownEditorProps>(
-  function MarkdownEditorDefault({ style, ...props }, ref) {
+  function MarkdownEditorDefault({ style, toolbarActions, ...props }, ref) {
     return (
       <MarkdownEditorRoot {...props} ref={ref}>
-        <MarkdownEditorDefaultContent style={style} />
+        <MarkdownEditorDefaultContent style={style} toolbarActions={toolbarActions} />
       </MarkdownEditorRoot>
     );
   },
@@ -396,16 +405,6 @@ export const MarkdownEditor = Object.assign(MarkdownEditorDefault, {
 
 const styles = stylex.create({
   frame: {
-    backgroundColor: colors.backgroundNeutralSubtlest,
-    borderColor: {
-      default: colors.borderSubtle,
-      ":focus-within": colors.borderFocus,
-      ':is([data-invalid="true"])': colors.borderDanger,
-      ':is([data-invalid="true"]):focus-within': colors.borderDangerFocus,
-    },
-    borderRadius: radii.control,
-    borderStyle: "solid",
-    borderWidth: 1,
     color: colors.foregroundPrimary,
     display: "flex",
     flexDirection: "column",
@@ -421,7 +420,7 @@ const styles = stylex.create({
   },
   toolbar: {
     alignItems: "center",
-    borderBottomColor: colors.borderSubtle,
+    borderBottomColor: colors.borderDefault,
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
     display: "flex",
@@ -443,7 +442,7 @@ const styles = stylex.create({
   },
   status: {
     alignItems: "center",
-    borderTopColor: colors.borderSubtle,
+    borderTopColor: colors.borderDefault,
     borderTopStyle: "solid",
     borderTopWidth: 1,
     color: colors.foregroundSecondary,

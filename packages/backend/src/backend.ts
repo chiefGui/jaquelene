@@ -7,6 +7,7 @@ import { GenerationService } from "#backend/generation/subsystem";
 import { ModelExecutionService } from "#backend/model/execution";
 import { ModelInputService } from "#backend/model/input-resolver";
 import { narratorPromptModule } from "#backend/narrator/module";
+import { scenarioPromptModule } from "#backend/scenario/module";
 import { PromptService } from "#backend/prompt/subsystem";
 import type { Prompts } from "#backend/prompt/types";
 import type { ProviderFactory } from "#backend/provider/provider";
@@ -79,6 +80,7 @@ const readBackend = Effect.gen(function* () {
       return campaignEngine.delete(id);
     },
     rename: campaignEngine.rename,
+    setScenario: campaignEngine.setScenario,
     setGenerationPreferences: campaignEngine.setGenerationPreferences,
   };
 
@@ -104,7 +106,7 @@ function createConfiguredBackendLayer<StorageRequirements>(
   const databaseLayer = DatabaseService.layer(databasePath);
   const resourceCacheLayer = ResourceCacheService.layer(cacheOptions);
   const campaignsLayer = CampaignService.layer().pipe(Layer.provide(databaseLayer));
-  const promptsLayer = PromptService.layer([narratorPromptModule]).pipe(
+  const promptsLayer = PromptService.layer([narratorPromptModule, scenarioPromptModule]).pipe(
     Layer.provide(databaseLayer),
   );
   const usageLayer = UsageService.layer.pipe(Layer.provide(databaseLayer));

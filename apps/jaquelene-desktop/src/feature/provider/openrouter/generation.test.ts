@@ -68,6 +68,40 @@ function requestBody(request: ReturnType<typeof completion>["request"]) {
 }
 
 describe("OpenRouter generation provider", () => {
+  it("sends narrator and scenario as one system message before dialogue", async () => {
+    const { provider, request } = completion();
+    const input = generationRequest();
+    await Effect.runPromise(
+      provider.generate({
+        ...input,
+        input: {
+          ...input.input,
+          instructions: [
+            { sourceKey: "narrator", content: "Narrate clearly." },
+            { sourceKey: "scenario", content: "## Scenario\nA lost kingdom." },
+          ],
+        },
+      }),
+    );
+    expect(await requestBody(request)).toMatchObject({
+      messages: [
+        { role: "system", content: "Narrate clearly.\n\n## Scenario\nA lost kingdom." },
+        ...input.input.dialogue.map(({ role, content }) => ({ role, content })),
+      ],
+    });
+  });
+
+  it("omits the system message when no instructions are present", async () => {
+    const { provider, request } = completion();
+    const input = generationRequest();
+    await Effect.runPromise(
+      provider.generate({ ...input, input: { ...input.input, instructions: [] } }),
+    );
+    expect(await requestBody(request)).toMatchObject({
+      messages: input.input.dialogue.map(({ role, content }) => ({ role, content })),
+    });
+  });
+
   it("sends the exact dialogue, credential, and attribution fields and normalizes accounting", async () => {
     const input = generationRequest();
     const { provider, request } = completion(

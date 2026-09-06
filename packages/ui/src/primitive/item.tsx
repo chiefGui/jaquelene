@@ -131,7 +131,7 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     margin: 0,
-    maxWidth: "48ch",
+    maxWidth: tokens.descriptionMaxWidth,
     textBox: "trim-both text",
   },
   groupSurface: {
@@ -179,6 +179,7 @@ const styles = stylex.create({
     textBox: "trim-both text",
   },
   description: {
+    maxWidth: tokens.descriptionMaxWidth,
     color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,

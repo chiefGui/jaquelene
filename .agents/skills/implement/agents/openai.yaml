@@ -1,0 +1,7 @@
+interface:
+  display_name: "Implement"
+  short_description: "Implement scoped changes with simple design"
+  default_prompt: "Use $implement to implement the requested behavior."
+
+policy:
+  allow_implicit_invocation: false

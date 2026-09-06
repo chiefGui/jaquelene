@@ -1,63 +1,48 @@
-import type { ApiKeyVerificationResult } from "../api-key-configuration";
+import { Effect, Schema } from "effect";
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http";
 
-const currentKeyEndpoint = "https://openrouter.ai/api/v1/key";
+const decodeKey = HttpClientResponse.schemaBodyJson(
+  Schema.Struct({
+    data: Schema.Struct({ label: Schema.NonEmptyString }),
+  }),
+);
 
-export async function verifyOpenRouterApiKey(
-  apiKey: string,
-  signal: AbortSignal,
-): Promise<ApiKeyVerificationResult> {
-  let response: Response;
+export const verifyOpenRouterApiKey = Effect.fn("OpenRouter.verifyApiKey")(
+  function* (apiKey: string, client: HttpClient.HttpClient) {
+    const response = yield* HttpClientRequest.get("https://openrouter.ai/api/v1/key").pipe(
+      HttpClientRequest.acceptJson,
+      HttpClientRequest.bearerToken(apiKey),
+      HttpClient.withScope(client).execute,
+    );
 
-  try {
-    response = await fetch(currentKeyEndpoint, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
-    });
-  } catch (cause) {
-    signal.throwIfAborted();
-
-    if (cause instanceof TypeError || cause instanceof DOMException) {
-      return { state: "unavailable" };
+    if (response.status === 401 || response.status === 403) {
+      return { state: "rejected" as const };
     }
 
-    throw cause;
-  }
-
-  if (response.status === 401 || response.status === 403) {
-    return { state: "rejected" };
-  }
-
-  if (!response.ok) {
-    return { state: "unavailable" };
-  }
-
-  let body: unknown;
-
-  try {
-    body = await response.json();
-  } catch (cause) {
-    if (cause instanceof SyntaxError) {
-      return { state: "unavailable" };
+    if (response.status < 200 || response.status >= 300) {
+      return { state: "unavailable" as const };
     }
 
-    throw cause;
-  }
+    const body = yield* decodeKey(response);
+    return { state: "configured" as const, keyLabel: body.data.label };
+  },
+  Effect.scoped,
+  Effect.timeout(10_000),
+  Effect.catchTags({
+    TimeoutError: () => Effect.succeed({ state: "unavailable" as const }),
+    SchemaError: () => Effect.succeed({ state: "unavailable" as const }),
+    HttpClientError: (error) => {
+      const reason = error.reason;
 
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("data" in body) ||
-    typeof body.data !== "object" ||
-    body.data === null ||
-    !("label" in body.data) ||
-    typeof body.data.label !== "string" ||
-    !body.data.label
-  ) {
-    return { state: "unavailable" };
-  }
+      if (
+        reason._tag === "TransportError" &&
+        !(reason.cause instanceof TypeError) &&
+        !(reason.cause instanceof DOMException)
+      ) {
+        return Effect.fail(reason.cause);
+      }
 
-  return { state: "configured", keyLabel: body.data.label };
-}
+      return Effect.succeed({ state: "unavailable" as const });
+    },
+  }),
+);

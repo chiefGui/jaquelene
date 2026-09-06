@@ -2,6 +2,7 @@ import * as NodePath from "@effect/platform-node/NodePath";
 import { BackendService, nodeFileTreeLayer } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
 import { Effect, Layer } from "effect";
+import { FetchHttpClient, HttpClient } from "effect/unstable/http";
 import { safeStorage } from "electron";
 import {
   ApplicationDiagnosticsService,
@@ -34,6 +35,7 @@ function createBackendLayer() {
     Effect.gen(function* () {
       const configuration = yield* DesktopConfigurationService;
       const diagnostics = yield* ApplicationDiagnosticsService;
+      const httpClient = yield* HttpClient.HttpClient;
       const { databasePath, cachePath } = getApplicationDatabasePaths(
         configuration.userDataDirectory,
       );
@@ -51,6 +53,7 @@ function createBackendLayer() {
       const providers = createProviderFactories(
         configuration.userDataDirectory,
         credentialProtection,
+        httpClient,
       );
 
       return BackendService.layer({
@@ -86,6 +89,11 @@ export function createDesktopApplicationLayer({
   const filesystemLayer = nodeFileTreeLayer.pipe(Layer.provideMerge(NodePath.layer));
   const backendLayer = createBackendLayer().pipe(
     Layer.provide(filesystemLayer),
+    Layer.provide(
+      FetchHttpClient.layer.pipe(
+        Layer.provide(Layer.succeed(HttpClient.TracerPropagationEnabled, false)),
+      ),
+    ),
     Layer.provideMerge(environmentLayer),
   );
 

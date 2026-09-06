@@ -302,7 +302,7 @@ function createMainWindowManager({
           preferences.appearance.userInterface,
         ),
       );
-      exposeProviders(browserWindow.webContents.mainFrame, providers);
+      exposeProviders(browserWindow.webContents.mainFrame, providers, runEffect);
       exposeStorage(browserWindow.webContents.mainFrame, storage, runEffect);
       await addFinalizer(scope, exposeUsage(browserWindow.webContents, usage));
 

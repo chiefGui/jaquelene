@@ -20,7 +20,7 @@ import type {
   ProviderGenerationRequest,
   ProviderGenerationResult,
 } from "#backend/provider/provider";
-import type { ProviderGenerationRouter } from "#backend/provider/providers";
+import { ProviderOperationError, type Providers } from "#backend/provider/providers";
 import {
   jaqueleneNarratorPromptDefinition,
   narratorPromptKind,
@@ -70,7 +70,7 @@ function modelResolver(provider?: TestGenerationProvider) {
   return {
     async getModel(reference: { providerId: string; modelId: string }) {
       if (!provider || reference.providerId !== provider.id) {
-        throw new RangeError(`Unknown test model provider "${reference.providerId}".`);
+        throw new RangeError(`Unknown provider "${reference.providerId}".`);
       }
 
       return {
@@ -83,23 +83,24 @@ function modelResolver(provider?: TestGenerationProvider) {
   };
 }
 
-function generationRouter(provider?: TestGenerationProvider): ProviderGenerationRouter {
+function providerGeneration(provider?: TestGenerationProvider): Pick<Providers, "generate"> {
   return {
-    get(providerId) {
-      if (!provider || provider.id !== providerId) {
-        return undefined;
-      }
-
-      return {
-        generate: (request, signal) =>
-          provider.generate({ ...request, ...(signal ? { signal } : {}) }),
-      };
+    generate(providerId, request) {
+      return Effect.tryPromise({
+        try: (signal) => {
+          if (!provider || provider.id !== providerId) {
+            throw new RangeError(`Unknown provider "${providerId}".`);
+          }
+          return provider.generate({ ...request, signal });
+        },
+        catch: (cause) => new ProviderOperationError({ providerId, operation: "generate", cause }),
+      });
     },
   };
 }
 
 function modelExecutionRunner(provider?: TestGenerationProvider): ModelExecutionRunner {
-  const executor = createModelExecutor(modelResolver(provider), generationRouter(provider));
+  const executor = createModelExecutor(modelResolver(provider), providerGeneration(provider));
   return createModelExecutionRunner(executor, (effect, options) =>
     Effect.runPromise(effect, options),
   );
@@ -762,7 +763,15 @@ describe("generations", () => {
 
     await expect(providerFailure).rejects.toBeInstanceOf(ModelProviderError);
     await expect(providerFailure).rejects.toEqual(
-      expect.objectContaining({ cause: failure, message: failure.message }),
+      expect.objectContaining({
+        cause: expect.objectContaining({
+          _tag: "ProviderOperationError",
+          providerId: provider.id,
+          operation: "generate",
+          cause: failure,
+        }),
+        message: failure.message,
+      }),
     );
     await expect(
       generations.generateReply({
@@ -1091,7 +1100,7 @@ describe("generations", () => {
           model: { providerId: "missing-provider", modelId: "maker/model" },
         },
       }),
-    ).rejects.toThrow('Unknown model provider "missing-provider".');
+    ).rejects.toThrow('Unknown provider "missing-provider".');
     expect(provider.generate).not.toHaveBeenCalled();
     expect(database.select().from(generationTable).all()).toEqual([]);
   });

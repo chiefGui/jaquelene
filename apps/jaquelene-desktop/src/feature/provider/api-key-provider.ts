@@ -5,11 +5,14 @@ import type {
   ProviderGenerationAdapter,
   ProviderModelsAdapter,
 } from "@jaquelene/backend";
+import { Effect } from "effect";
+import type { HttpClient } from "effect/unstable/http";
 import {
   createApiKeyConfiguration,
   getApiKeyConfigurationStoragePaths,
   type ApiKeyConfiguration,
   type ApiKeyConfigurationDependencies,
+  type ApiKeyVerificationResult,
 } from "./api-key-configuration";
 
 export type ApiKeyCredentialProtection = Pick<
@@ -20,15 +23,25 @@ export type ApiKeyCredentialProtection = Pick<
 export type ApiKeyProviderDefinition = Readonly<{
   descriptor: ProviderDescriptor;
   apiKeyPrefixes: readonly string[];
-  verifyApiKey: ApiKeyConfigurationDependencies["verify"];
-  createModels: (configuration: ApiKeyConfiguration) => ProviderModelsAdapter;
-  createGeneration: (configuration: ApiKeyConfiguration) => ProviderGenerationAdapter;
+  verifyApiKey: (
+    apiKey: string,
+    client: HttpClient.HttpClient,
+  ) => Effect.Effect<ApiKeyVerificationResult, unknown>;
+  createModels: (
+    configuration: ApiKeyConfiguration,
+    client: HttpClient.HttpClient,
+  ) => ProviderModelsAdapter;
+  createGeneration: (
+    configuration: ApiKeyConfiguration,
+    client: HttpClient.HttpClient,
+  ) => ProviderGenerationAdapter;
 }>;
 
 function createApiKeyProvider(
   userDataDirectory: string,
   definition: ApiKeyProviderDefinition,
   credentialProtection: ApiKeyCredentialProtection,
+  client: HttpClient.HttpClient,
 ): ProviderAdapter {
   const { descriptor } = definition;
   const configuration = createApiKeyConfiguration(
@@ -40,15 +53,15 @@ function createApiKeyProvider(
     },
     {
       ...credentialProtection,
-      verify: definition.verifyApiKey,
+      verify: (apiKey) => definition.verifyApiKey(apiKey, client),
     },
   );
 
   return {
     descriptor,
     configuration,
-    models: definition.createModels(configuration),
-    generation: definition.createGeneration(configuration),
+    models: definition.createModels(configuration, client),
+    generation: definition.createGeneration(configuration, client),
   };
 }
 
@@ -56,13 +69,14 @@ export function createApiKeyProviderFactory(
   userDataDirectory: string,
   definition: ApiKeyProviderDefinition,
   credentialProtection: ApiKeyCredentialProtection,
+  client: HttpClient.HttpClient,
 ): ProviderFactory {
   return {
     id: definition.descriptor.id,
     storagePaths: getApiKeyConfigurationStoragePaths(userDataDirectory, definition.descriptor.id),
-    create(signal) {
-      signal.throwIfAborted();
-      return createApiKeyProvider(userDataDirectory, definition, credentialProtection);
-    },
+    create: Effect.try({
+      try: () => createApiKeyProvider(userDataDirectory, definition, credentialProtection, client),
+      catch: (cause) => cause,
+    }),
   };
 }

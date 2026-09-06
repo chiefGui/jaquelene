@@ -17,16 +17,24 @@ export type DesktopApplication = Readonly<{
   stop: () => Promise<Exit.Exit<void, Error>>;
 }>;
 
-function asError(error: unknown, message: string) {
-  if (error instanceof Error) {
-    return error;
-  }
-
-  return new Error(message, { cause: error });
-}
-
 function errorFromCause(cause: Cause.Cause<Error>, message: string) {
-  const errors = Cause.prettyErrors(cause);
+  const errors: Error[] = [];
+  for (const reason of cause.reasons) {
+    if (Cause.isInterruptReason(reason)) {
+      continue;
+    }
+    let error: unknown;
+    if (Cause.isFailReason(reason)) {
+      error = reason.error;
+    } else {
+      error = reason.defect;
+    }
+    if (error instanceof Error) {
+      errors.push(error);
+    } else {
+      errors.push(new Error(message, { cause: error }));
+    }
+  }
 
   if (errors.length === 1) {
     return errors[0]!;
@@ -74,23 +82,21 @@ export function launchDesktopApplication({
     signal: applicationAbortController.signal,
   });
   const result = executionResult.then(async (exit): Promise<Exit.Exit<void, Error>> => {
-    try {
-      await runtime.dispose();
+    const disposal = await Effect.runPromiseExit(runtime.disposeEffect);
+    if (Exit.isSuccess(disposal)) {
       return exit;
-    } catch (error) {
-      const disposalError = asError(error, "Could not dispose the desktop application runtime.");
-
-      if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
-        return Exit.fail(
-          new AggregateError(
-            [...Cause.prettyErrors(exit.cause), disposalError],
-            "Desktop application execution and cleanup failed.",
-          ),
-        );
-      }
-
-      return Exit.fail(disposalError);
     }
+    if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
+      return Exit.fail(
+        errorFromCause(
+          Cause.combine(exit.cause, disposal.cause),
+          "Desktop application execution and cleanup failed.",
+        ),
+      );
+    }
+    return Exit.fail(
+      errorFromCause(disposal.cause, "Could not dispose the desktop application runtime."),
+    );
   });
   let stopPromise: Promise<Exit.Exit<void, Error>> | undefined;
 

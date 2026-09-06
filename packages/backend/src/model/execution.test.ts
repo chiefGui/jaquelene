@@ -1,12 +1,8 @@
-import { Effect } from "effect";
+import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { ids } from "#backend/id";
 import type { ModelReasoningCapability } from "#backend/model/reasoning";
-import type {
-  ProviderGenerationRequest,
-  ProviderGenerationResult,
-} from "#backend/provider/provider";
-import type { ProviderGenerationRouter } from "#backend/provider/providers";
+import { ProviderOperationError } from "#backend/provider/providers";
 import {
   createModelExecutor,
   ModelConfigurationError,
@@ -37,23 +33,6 @@ function modelCatalog(reasoning?: ModelReasoningCapability) {
   };
 }
 
-function generationRouter(
-  generate: (
-    request: ProviderGenerationRequest,
-    signal?: AbortSignal,
-  ) => Promise<ProviderGenerationResult>,
-): ProviderGenerationRouter {
-  return {
-    get(providerId) {
-      if (providerId !== "provider-a") {
-        return undefined;
-      }
-
-      return { generate };
-    },
-  };
-}
-
 function modelInput() {
   return {
     instructions: [{ sourceKey: "test.instruction", content: "Be concise." }],
@@ -67,10 +46,9 @@ describe("model executor", () => {
       defaultPreset: "medium",
       supportedPresets: ["high", "medium", "low"],
     });
-    const executor = createModelExecutor(
-      models,
-      generationRouter(vi.fn(async () => ({ text: "Reply" }))),
-    );
+    const executor = createModelExecutor(models, {
+      generate: () => Effect.succeed({ text: "Reply" }),
+    });
 
     await expect(
       Effect.runPromise(
@@ -90,14 +68,16 @@ describe("model executor", () => {
   });
 
   it("executes independent model input and normalizes provider accounting", async () => {
-    const generate = vi.fn(async () => ({
-      text: "Reply",
-      providerGenerationId: "provider-generation-1",
-      usage: {
-        tokens: { input: { total: 3 }, output: { total: 2 }, total: 5 },
-      },
-    }));
-    const executor = createModelExecutor(modelCatalog(), generationRouter(generate));
+    const generate = vi.fn(() =>
+      Effect.succeed({
+        text: "Reply",
+        providerGenerationId: "provider-generation-1",
+        usage: {
+          tokens: { input: { total: 3 }, output: { total: 2 }, total: 5 },
+        },
+      }),
+    );
+    const executor = createModelExecutor(modelCatalog(), { generate });
     const input = modelInput();
 
     await expect(
@@ -123,29 +103,24 @@ describe("model executor", () => {
         },
       },
     });
-    expect(generate).toHaveBeenCalledWith(
-      {
-        executionId: "execution-1",
-        modelId: "maker/model",
-        input,
-      },
-      expect.any(AbortSignal),
-    );
+    expect(generate).toHaveBeenCalledWith("provider-a", {
+      executionId: "execution-1",
+      modelId: "maker/model",
+      input,
+    });
   });
 
   it("returns usable accounting when provider accounting is invalid", async () => {
-    const executor = createModelExecutor(
-      modelCatalog(),
-      generationRouter(
-        vi.fn(async () => ({
+    const executor = createModelExecutor(modelCatalog(), {
+      generate: () =>
+        Effect.succeed({
           text: "Reply",
           providerGenerationId: "provider-generation-1",
           usage: {
             tokens: { input: { total: 3 }, output: { total: 2 }, total: 1 },
           },
-        })),
-      ),
-    );
+        }),
+    });
 
     const result = await Effect.runPromise(
       executor.execute({
@@ -172,9 +147,38 @@ describe("model executor", () => {
 
   it("classifies invalid configuration before model lookup", async () => {
     const models = modelCatalog();
+    const executor = createModelExecutor(models, {
+      generate: () => Effect.succeed({ text: "Reply" }),
+    });
+
+    const error = await Effect.runPromise(
+      Effect.flip(
+        executor.resolveConfiguration({
+          model: { providerId: " ", modelId: "maker/model" },
+        }),
+      ),
+    );
+
+    expect(error).toBeInstanceOf(ModelConfigurationError);
+    expect(error).toEqual(
+      expect.objectContaining({
+        _tag: "ModelConfigurationError",
+        cause: expect.any(TypeError),
+        message: "A model reference requires provider and model identities.",
+      }),
+    );
+    expect(models.getModel).not.toHaveBeenCalled();
+  });
+
+  it("preserves model lookup failures as configuration failures", async () => {
+    const failure = new RangeError('Unknown provider "missing-provider".');
     const executor = createModelExecutor(
-      models,
-      generationRouter(vi.fn(async () => ({ text: "Reply" }))),
+      {
+        getModel: async () => {
+          throw failure;
+        },
+      },
+      { generate: () => Effect.succeed({ text: "Reply" }) },
     );
 
     const error = await Effect.runPromise(
@@ -186,19 +190,12 @@ describe("model executor", () => {
     );
 
     expect(error).toBeInstanceOf(ModelConfigurationError);
-    expect(error).toEqual(
-      expect.objectContaining({
-        _tag: "ModelConfigurationError",
-        cause: expect.any(RangeError),
-        message: 'Unknown model provider "missing-provider".',
-      }),
-    );
-    expect(models.getModel).not.toHaveBeenCalled();
+    expect(error.cause).toBe(failure);
   });
 
   it("classifies invalid execution requests before provider invocation", async () => {
-    const generate = vi.fn(async () => ({ text: "Reply" }));
-    const executor = createModelExecutor(modelCatalog(), generationRouter(generate));
+    const generate = vi.fn(() => Effect.succeed({ text: "Reply" }));
+    const executor = createModelExecutor(modelCatalog(), { generate });
     const error = await Effect.runPromise(
       Effect.flip(
         executor.execute({
@@ -223,15 +220,14 @@ describe("model executor", () => {
   });
 
   it("classifies provider failures in the Effect error channel", async () => {
-    const failure = new Error("Provider unavailable");
-    const executor = createModelExecutor(
-      modelCatalog(),
-      generationRouter(
-        vi.fn(async () => {
-          throw failure;
-        }),
-      ),
-    );
+    const failure = new ProviderOperationError({
+      providerId: "provider-a",
+      operation: "generate",
+      cause: new Error("Provider unavailable"),
+    });
+    const executor = createModelExecutor(modelCatalog(), {
+      generate: () => Effect.fail(failure),
+    });
 
     const error = await Effect.runPromise(
       Effect.flip(
@@ -253,5 +249,66 @@ describe("model executor", () => {
         message: failure.message,
       }),
     );
+  });
+
+  it("interrupts provider execution and waits for its cleanup", async () => {
+    const started = Promise.withResolvers<void>();
+    const cleanup = vi.fn();
+    const executor = createModelExecutor(modelCatalog(), {
+      generate: () =>
+        Effect.acquireUseRelease(
+          Effect.sync(() => started.resolve()),
+          () => Effect.never,
+          () => Effect.sync(cleanup),
+        ),
+    });
+    const controller = new AbortController();
+    const result = Effect.runPromiseExit(
+      executor.execute({
+        executionId: "execution-1",
+        configuration: {
+          model: { providerId: "provider-a", modelId: "maker/model" },
+        },
+        input: modelInput(),
+      }),
+      { signal: controller.signal },
+    );
+
+    await started.promise;
+    controller.abort(new Error("Caller interrupted execution."));
+    const exit = await result;
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      expect(Cause.hasInterruptsOnly(exit.cause)).toBe(true);
+    }
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("preserves provider defects without classifying them as operational failures", async () => {
+    const defect = new Error("Provider implementation defect.");
+    const executor = createModelExecutor(modelCatalog(), {
+      generate: () => Effect.die(defect),
+    });
+
+    const exit = await Effect.runPromiseExit(
+      executor.execute({
+        executionId: "execution-1",
+        configuration: {
+          model: { providerId: "provider-a", modelId: "maker/model" },
+        },
+        input: modelInput(),
+      }),
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      expect(exit.cause.reasons).toHaveLength(1);
+      const reason = exit.cause.reasons[0]!;
+      expect(Cause.isDieReason(reason)).toBe(true);
+      if (Cause.isDieReason(reason)) {
+        expect(reason.defect).toBe(defect);
+      }
+    }
   });
 });

@@ -1,3 +1,5 @@
+import { Effect } from "effect";
+import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import { chatResultFromJSON, type ChatMessages, type ChatResult } from "@openrouter/sdk/models";
 import {
   createGenerationUsage,
@@ -20,12 +22,6 @@ type OpenRouterChatRequest = {
   stream: false;
 };
 
-type SendOpenRouterChat = (
-  apiKey: string,
-  request: OpenRouterChatRequest,
-  signal: AbortSignal,
-) => Promise<ChatResult>;
-
 function toOpenRouterDialogue({ role, content }: DialogueMessage): ChatMessages {
   switch (role) {
     case "user":
@@ -42,48 +38,49 @@ function toOpenRouterMessages({ instructions, dialogue }: ModelInput): ChatMessa
   ];
 }
 
-async function sendOpenRouterChat(
-  apiKey: string,
-  request: Parameters<SendOpenRouterChat>[1],
-  signal: AbortSignal,
-): Promise<ChatResult> {
-  const operationSignal = AbortSignal.any([signal, AbortSignal.timeout(300_000)]);
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "X-OpenRouter-Metadata": "enabled",
-      "X-OpenRouter-Title": "Jaquelene",
-    },
-    body: JSON.stringify(request),
-    signal: operationSignal,
-  });
+const sendOpenRouterChat = Effect.fn("OpenRouter.sendChat")(
+  function* (apiKey: string, request: OpenRouterChatRequest, client: HttpClient.HttpClient) {
+    const response = yield* HttpClientRequest.post(
+      "https://openrouter.ai/api/v1/chat/completions",
+    ).pipe(
+      HttpClientRequest.bearerToken(apiKey),
+      HttpClientRequest.setHeaders({
+        "X-OpenRouter-Metadata": "enabled",
+        "X-OpenRouter-Title": "Jaquelene",
+      }),
+      HttpClientRequest.bodyJsonUnsafe(request),
+      HttpClient.withScope(client).execute,
+    );
 
-  const body = await response.text();
+    const body = yield* response.text;
 
-  if (!response.ok) {
-    let cause: unknown = body;
+    if (response.status < 200 || response.status >= 300) {
+      let cause: unknown = body;
 
-    try {
-      cause = JSON.parse(body);
-    } catch {
-      // Preserve the response body when OpenRouter does not return JSON.
+      try {
+        cause = JSON.parse(body);
+      } catch {
+        // Preserve the response body when OpenRouter does not return JSON.
+      }
+
+      return yield* Effect.fail(
+        new Error(`OpenRouter rejected the generation request with status ${response.status}.`, {
+          cause,
+        }),
+      );
     }
 
-    throw new Error(`OpenRouter rejected the generation request with status ${response.status}.`, {
-      cause,
-    });
-  }
+    const result = chatResultFromJSON(body);
 
-  const result = chatResultFromJSON(body);
+    if (!result.ok) {
+      return yield* Effect.fail(result.error);
+    }
 
-  if (!result.ok) {
-    throw result.error;
-  }
-
-  return result.value;
-}
+    return result.value;
+  },
+  Effect.scoped,
+  Effect.timeout(300_000),
+);
 
 function getResponseText(result: ChatResult) {
   const choice = result.choices.find(({ index }) => index === 0) ?? result.choices[0];
@@ -149,74 +146,82 @@ function successfulUpstreamProvider(result: ChatResult) {
   );
 }
 
+function normalizeResult(result: ChatResult) {
+  const { choice, text } = getResponseText(result);
+  const upstreamProviderId = successfulUpstreamProvider(result);
+  const cacheRead = optionalCount(result.usage?.promptTokensDetails?.cachedTokens);
+  const cacheWrite = optionalCount(result.usage?.promptTokensDetails?.cacheWriteTokens);
+  const reasoningTokens = optionalCount(result.usage?.completionTokensDetails?.reasoningTokens);
+  let finishReason: string | undefined;
+  let usage: GenerationUsage | undefined;
+
+  if (choice.finishReason) {
+    finishReason = choice.finishReason;
+  }
+
+  if (result.usage) {
+    let cost: GenerationCost | undefined;
+
+    if (result.usage.cost !== null && result.usage.cost !== undefined) {
+      cost = {
+        currency: "USD",
+        amountNanos: usdToNanos(result.usage.cost),
+        source: "provider-reported",
+      };
+    }
+
+    usage = createGenerationUsage({
+      inputTotal: result.usage.promptTokens,
+      inputCacheRead: cacheRead,
+      inputCacheWrite: cacheWrite,
+      outputTotal: result.usage.completionTokens,
+      outputReasoning: reasoningTokens,
+      total: result.usage.totalTokens,
+      cost,
+    });
+  }
+
+  return createProviderGenerationResult({
+    text,
+    providerGenerationId: result.id,
+    resolvedModelId: result.model,
+    upstreamProviderId,
+    finishReason,
+    usage,
+  });
+}
+
 export function createOpenRouterGeneration(
   configuration: Pick<ApiKeyConfiguration, "withApiKey">,
-  send: SendOpenRouterChat = sendOpenRouterChat,
+  client: HttpClient.HttpClient,
 ): ProviderGenerationAdapter {
   return {
-    generate: (request, signal) =>
-      configuration.withApiKey(async (apiKey) => {
-        const reasoning = encodeOpenRouterReasoning(request.reasoning);
-        const chatRequest: OpenRouterChatRequest = {
-          model: request.modelId,
-          messages: toOpenRouterMessages(request.input),
-          metadata: { jaquelene_execution_id: request.executionId },
-          stream: false,
-        };
+    generate: Effect.fn("openrouter.generate")((request) =>
+      configuration.withApiKey(
+        Effect.fnUntraced(function* (apiKey) {
+          const reasoning = encodeOpenRouterReasoning(request.reasoning);
+          const chatRequest: OpenRouterChatRequest = {
+            model: request.modelId,
+            messages: toOpenRouterMessages(request.input),
+            metadata: { jaquelene_execution_id: request.executionId },
+            stream: false,
+          };
 
-        if (request.groupId !== undefined) {
-          chatRequest.session_id = request.groupId;
-        }
-
-        if (reasoning !== undefined) {
-          chatRequest.reasoning = reasoning;
-        }
-
-        const result = await send(apiKey, chatRequest, signal);
-        const { choice, text } = getResponseText(result);
-        const upstreamProviderId = successfulUpstreamProvider(result);
-        const cacheRead = optionalCount(result.usage?.promptTokensDetails?.cachedTokens);
-        const cacheWrite = optionalCount(result.usage?.promptTokensDetails?.cacheWriteTokens);
-        const reasoningTokens = optionalCount(
-          result.usage?.completionTokensDetails?.reasoningTokens,
-        );
-        let finishReason: string | undefined;
-        let usage: GenerationUsage | undefined;
-
-        if (choice.finishReason) {
-          finishReason = choice.finishReason;
-        }
-
-        if (result.usage) {
-          let cost: GenerationCost | undefined;
-
-          if (result.usage.cost !== null && result.usage.cost !== undefined) {
-            cost = {
-              currency: "USD",
-              amountNanos: usdToNanos(result.usage.cost),
-              source: "provider-reported",
-            };
+          if (request.groupId !== undefined) {
+            chatRequest.session_id = request.groupId;
           }
 
-          usage = createGenerationUsage({
-            inputTotal: result.usage.promptTokens,
-            inputCacheRead: cacheRead,
-            inputCacheWrite: cacheWrite,
-            outputTotal: result.usage.completionTokens,
-            outputReasoning: reasoningTokens,
-            total: result.usage.totalTokens,
-            cost,
-          });
-        }
+          if (reasoning !== undefined) {
+            chatRequest.reasoning = reasoning;
+          }
 
-        return createProviderGenerationResult({
-          text,
-          providerGenerationId: result.id,
-          resolvedModelId: result.model,
-          upstreamProviderId,
-          finishReason,
-          usage,
-        });
-      }),
+          const result = yield* sendOpenRouterChat(apiKey, chatRequest, client);
+          return yield* Effect.try({
+            try: () => normalizeResult(result),
+            catch: (cause) => cause,
+          });
+        }),
+      ),
+    ),
   };
 }

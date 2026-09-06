@@ -6,6 +6,18 @@
       "sourceType": "github",
       "skillPath": "skills/effect-ts/SKILL.md",
       "computedHash": "8ce37a6ae9c8cff7c60a01d2e22c47acd7b23cf3243098612e07792ec1e3db6e"
+    },
+    "implement": {
+      "source": "chiefGui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/implement/SKILL.md",
+      "computedHash": "eb27a00c7f89c098992125caad3a092618ce1f9999ce3a92dc96533a10ab5414"
+    },
+    "polish": {
+      "source": "chiefGui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/polish/SKILL.md",
+      "computedHash": "649e1089c860395e84ed81f06f4721eee6d3cb1ece205fa28e6651fdc77bf729"
     }
   }
 }

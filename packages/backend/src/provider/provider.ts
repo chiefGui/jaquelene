@@ -1,4 +1,5 @@
 import type { ApiKeyProviderConfiguration, ProviderConfigureResult } from "@jaquelene/domain";
+import type { Effect, Scope } from "effect";
 import type { ModelInput } from "#backend/model/input";
 import type { ModelReasoningCapability, ResolvedReasoning } from "#backend/model/reasoning";
 
@@ -232,22 +233,21 @@ export type ProviderConfigurationAdapter =
   | Readonly<{
       kind: "api-key";
       inspect: () => ApiKeyProviderConfigurationSnapshot;
-      configure: (apiKey: string, signal: AbortSignal) => Promise<ProviderConfigureResult>;
-      clear: () => Promise<void>;
+      configure: (apiKey: string) => Effect.Effect<ProviderConfigureResult, unknown>;
+      clear: Effect.Effect<void, unknown>;
     }>
   | Readonly<{
       kind: "none";
     }>;
 
 export type ProviderModelsAdapter = Readonly<{
-  list: (signal: AbortSignal) => Promise<readonly ProviderModel[]>;
+  list: Effect.Effect<readonly ProviderModel[], unknown>;
 }>;
 
 export type ProviderGenerationAdapter = Readonly<{
   generate: (
     request: ProviderGenerationRequest,
-    signal: AbortSignal,
-  ) => Promise<ProviderGenerationResult>;
+  ) => Effect.Effect<ProviderGenerationResult, unknown>;
 }>;
 
 export type ProviderAdapter = Readonly<{
@@ -255,13 +255,11 @@ export type ProviderAdapter = Readonly<{
   configuration: ProviderConfigurationAdapter;
   models: ProviderModelsAdapter;
   generation: ProviderGenerationAdapter;
-  [Symbol.dispose]?: () => void;
-  [Symbol.asyncDispose]?: () => PromiseLike<void>;
 }>;
 
 export type ProviderFactory = Readonly<{
   id: ProviderId;
   /** Owned API-key configuration paths; null for configuration-free providers. */
   storagePaths: readonly string[] | null;
-  create: (signal: AbortSignal) => ProviderAdapter | PromiseLike<ProviderAdapter>;
+  create: Effect.Effect<ProviderAdapter, unknown, Scope.Scope>;
 }>;

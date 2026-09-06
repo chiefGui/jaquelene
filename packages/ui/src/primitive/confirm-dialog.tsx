@@ -43,7 +43,7 @@ export function ConfirmDialog({
         hideOnInteractOutside={false}
         {...(finalFocus === undefined ? {} : { finalFocus })}
       >
-        <Dialog.Heading {...stylex.props(styles.heading)}>{heading}</Dialog.Heading>
+        <Dialog.Heading>{heading}</Dialog.Heading>
         <Dialog.Description {...stylex.props(styles.description)}>{description}</Dialog.Description>
 
         {error ? (
@@ -66,12 +66,6 @@ export function ConfirmDialog({
 }
 
 const styles = stylex.create({
-  heading: {
-    fontSize: tokens.fontSizeLarge,
-    fontWeight: 600,
-    lineHeight: tokens.lineHeightLarge,
-    textBox: "trim-both text",
-  },
   description: {
     color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,

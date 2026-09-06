@@ -105,7 +105,7 @@ export function RegenerateResponseDialog({
           validateOnChange={hasSubmitted}
         >
           <div {...stylex.props(styles.header)}>
-            <Dialog.Heading {...stylex.props(styles.heading)}>Regenerate response</Dialog.Heading>
+            <Dialog.Heading>Regenerate response</Dialog.Heading>
             <Dialog.Dismiss
               disabled={busy}
               render={
@@ -197,12 +197,6 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: "1rem",
-  },
-  heading: {
-    fontSize: tokens.fontSizeLarge,
-    fontWeight: 600,
-    lineHeight: tokens.lineHeightLarge,
-    textBox: "trim-both text",
   },
   description: {
     color: colors.foregroundSecondary,

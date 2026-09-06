@@ -10,7 +10,7 @@ import {
   type Usage,
 } from "@jaquelene/backend";
 import { ErrorSeverity } from "@jaquelene/diagnostics";
-import { Context, Effect, Exit, type Fiber, FiberSet, Layer, Schema, Scope } from "effect";
+import { Cause, Context, Deferred, Effect, Exit, Fiber, FiberSet, Layer, Schema } from "effect";
 import { app, BrowserWindow, screen, shell } from "electron";
 import { join } from "node:path";
 import {
@@ -49,24 +49,20 @@ type EffectFork = <Success, Failure>(
   effect: Effect.Effect<Success, Failure>,
 ) => Fiber.Fiber<Success, Failure>;
 
-type OpenWindow = {
+type ReadyWindow = {
   browserWindow: BrowserWindow;
-  scope: Scope.Closeable;
-  loaded: Promise<void>;
   restoreMaximized: boolean;
-  maximizedRestored: boolean;
-  closePromise?: Promise<void>;
+};
+
+type WindowSession = {
+  state: Exclude<WindowState, "absent">;
+  ready: Deferred.Deferred<ReadyWindow, MainWindowShowError>;
+  lifetime: Fiber.Fiber<void, MainWindowShowError>;
 };
 
 export type MainWindowInspection = Readonly<{
   state: "open" | "closing" | "closed";
   window: WindowState;
-}>;
-
-type MainWindowManager = Readonly<{
-  show: (signal?: AbortSignal) => Promise<void>;
-  inspect: () => MainWindowInspection;
-  [Symbol.asyncDispose]: () => Promise<void>;
 }>;
 
 export class MainWindowShowError extends Schema.TaggedError<MainWindowShowError>()(
@@ -98,40 +94,23 @@ export class MainWindowService extends Context.Service<MainWindowService, MainWi
       const runEffect = yield* FiberSet.runtimePromise(ipcOperations)();
       const forkEffect = yield* FiberSet.runtime(ipcOperations)();
 
-      const manager = yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          createMainWindowManager({
-            rendererUrl: renderer.url,
-            diagnostics,
-            localState,
-            campaigns: backend.campaigns,
-            campaignUsage: backend.campaignUsage,
-            prompts: backend.prompts,
-            threads: backend.threads,
-            turns: backend.turns,
-            modelCatalog: backend.models,
-            favoriteModels,
-            preferences,
-            providers: backend.providers,
-            storage: backend.storage,
-            runEffect,
-            forkEffect,
-            usage: backend.usage,
-          }),
-        ),
-        (windowManager) => Effect.promise(() => windowManager[Symbol.asyncDispose]()),
-      );
-
-      return MainWindowService.of({
-        show: Effect.tryPromise({
-          try: (signal) => manager.show(signal),
-          catch: (cause) =>
-            new MainWindowShowError({
-              message: "Could not show the main window.",
-              cause,
-            }),
-        }),
-        inspect: manager.inspect,
+      return yield* createMainWindow({
+        rendererUrl: renderer.url,
+        diagnostics,
+        localState,
+        campaigns: backend.campaigns,
+        campaignUsage: backend.campaignUsage,
+        prompts: backend.prompts,
+        threads: backend.threads,
+        turns: backend.turns,
+        modelCatalog: backend.models,
+        favoriteModels,
+        preferences,
+        providers: backend.providers,
+        storage: backend.storage,
+        runEffect,
+        forkEffect,
+        usage: backend.usage,
       });
     }),
   );
@@ -146,35 +125,11 @@ function isSafeExternalUrl(rawUrl: string) {
   }
 }
 
-function interrupted(signal: AbortSignal) {
-  if (signal.reason instanceof Error) {
-    return signal.reason;
-  }
-
-  return new Error("Window operation was interrupted.", { cause: signal.reason });
+function showError(cause: unknown) {
+  return new MainWindowShowError({ message: "Could not show the main window.", cause });
 }
 
-function waitForSignal<Result>(result: Promise<Result>, signal?: AbortSignal) {
-  if (!signal) {
-    return result;
-  }
-
-  if (signal.aborted) {
-    result.catch(() => undefined);
-    return Promise.reject(interrupted(signal));
-  }
-
-  let removeListener: (() => void) | undefined;
-  const interruption = new Promise<never>((_resolve, reject) => {
-    const onAbort = () => reject(interrupted(signal));
-    signal.addEventListener("abort", onAbort, { once: true });
-    removeListener = () => signal.removeEventListener("abort", onAbort);
-  });
-
-  return Promise.race([result, interruption]).finally(removeListener);
-}
-
-function createMainWindowManager({
+const createMainWindow = Effect.fn("MainWindow.make")(function* ({
   rendererUrl,
   diagnostics,
   localState,
@@ -208,119 +163,112 @@ function createMainWindowManager({
   runEffect: EffectRunner;
   forkEffect: EffectFork;
   usage: Usage;
-}): MainWindowManager {
+}) {
   const threadMessaging = createThreadMessaging(threads, turns, diagnostics, {
     runPromise: runEffect,
     runFork: forkEffect,
   });
-  let state: "open" | "closing" | "closed" = "open";
-  let windowState: WindowState = "absent";
-  let currentWindow: OpenWindow | undefined;
-  let opening: Promise<OpenWindow> | undefined;
-  let closePromise: Promise<void> | undefined;
+  let state: MainWindowInspection["state"] = "open";
+  let currentWindow: WindowSession | undefined;
 
-  function addFinalizer(scope: Scope.Closeable, finalize: () => void) {
-    return runEffect(Scope.addFinalizer(scope, Effect.sync(finalize)));
-  }
-
-  function requireOpen() {
-    if (state !== "open") {
-      throw new Error("Main window manager is closed.");
-    }
-  }
-
-  function closeWindow(opened: OpenWindow) {
-    if (!opened.closePromise) {
-      windowState = "closing";
-      const closing = runEffect(Scope.close(opened.scope, Exit.void));
-      opened.closePromise = closing.finally(() => {
-        if (currentWindow === opened) {
-          currentWindow = undefined;
-          windowState = "absent";
+  yield* Effect.addFinalizer(() =>
+    Effect.gen(function* () {
+      state = "closing";
+      const session = currentWindow;
+      if (session) {
+        session.state = "closing";
+        yield* Fiber.interrupt(session.lifetime);
+        const exit = yield* Fiber.await(session.lifetime);
+        if (Exit.isFailure(exit)) {
+          const reasons = exit.cause.reasons.filter((reason) => !Cause.isInterruptReason(reason));
+          if (reasons.length > 0) {
+            return yield* Effect.failCause(Cause.fromReasons(reasons)).pipe(Effect.orDie);
+          }
         }
-      });
-    }
+      }
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          state = "closed";
+        }),
+      ),
+    ),
+  );
 
-    return opened.closePromise;
-  }
-
-  async function openWindow() {
-    const scope = await runEffect(Scope.make("sequential"));
-    let opened: OpenWindow | undefined;
-
-    try {
+  const openWindow = Effect.fn("MainWindow.open")(
+    function* (session: WindowSession) {
       const mainWindowState = localState.loadMainWindowState(
         screen.getAllDisplays().map(({ workArea }) => workArea),
       );
-      const browserWindow = new BrowserWindow({
-        ...(mainWindowState?.bounds ?? { width: 1180, height: 780 }),
-        minWidth: 860,
-        minHeight: 620,
-        // Electron's native window background parser does not support OKLCH.
-        backgroundColor: "rgb(7, 8, 12)",
-        show: false,
-        title: app.name,
-        webPreferences: {
-          contextIsolation: true,
-          nodeIntegration: false,
-          preload: preloadPath,
-          sandbox: true,
-          webSecurity: true,
-          ...createInterfaceScaleWebPreferences(preferences.appearance.userInterface.get().scale),
-        },
-      });
-      await addFinalizer(scope, () => {
-        if (!browserWindow.isDestroyed()) {
-          browserWindow.destroy();
-        }
-      });
-
-      const openedWindow: OpenWindow = {
-        browserWindow,
-        scope,
-        loaded: Promise.resolve(),
-        restoreMaximized: mainWindowState?.maximized ?? false,
-        maximizedRestored: false,
-      };
-      opened = openedWindow;
-      currentWindow = openedWindow;
-      windowState = "opening";
+      const browserWindow = yield* Effect.acquireRelease(
+        Effect.sync(
+          () =>
+            new BrowserWindow({
+              ...(mainWindowState?.bounds ?? { width: 1180, height: 780 }),
+              minWidth: 860,
+              minHeight: 620,
+              // Electron's native window background parser does not support OKLCH.
+              backgroundColor: "rgb(7, 8, 12)",
+              show: false,
+              title: app.name,
+              webPreferences: {
+                contextIsolation: true,
+                nodeIntegration: false,
+                preload: preloadPath,
+                sandbox: true,
+                webSecurity: true,
+                ...createInterfaceScaleWebPreferences(
+                  preferences.appearance.userInterface.get().scale,
+                ),
+              },
+            }),
+        ),
+        (window) =>
+          Effect.sync(() => {
+            if (!window.isDestroyed()) {
+              window.destroy();
+            }
+          }),
+      );
 
       const onClosed = () => {
-        void closeWindow(openedWindow).catch((error: unknown) => {
-          diagnostics.report({
-            severity: ErrorSeverity.Error,
-            operation: "window.release",
-            error,
-          });
-        });
+        session.state = "closing";
+        session.lifetime.interruptUnsafe();
       };
       browserWindow.once("closed", onClosed);
-      await addFinalizer(scope, () => browserWindow.off("closed", onClosed));
+      yield* Effect.addFinalizer(() => Effect.sync(() => browserWindow.off("closed", onClosed)));
 
       exposePrompts(browserWindow.webContents.mainFrame, prompts);
       exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
       exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
       exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);
       exposeCampaignUsage(browserWindow.webContents.mainFrame, campaignUsage);
-      await addFinalizer(scope, threadMessaging.expose(browserWindow.webContents.mainFrame));
+      yield* Effect.acquireRelease(
+        Effect.sync(() => threadMessaging.expose(browserWindow.webContents.mainFrame)),
+        (release) => Effect.sync(release),
+      );
       exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);
       exposeRegenerationPreferences(browserWindow.webContents.mainFrame, preferences.regeneration);
-      await addFinalizer(
-        scope,
-        exposeModelCatalog(browserWindow.webContents, modelCatalog, runEffect),
+      yield* Effect.acquireRelease(
+        Effect.sync(() => exposeModelCatalog(browserWindow.webContents, modelCatalog, runEffect)),
+        (release) => Effect.sync(release),
       );
       exposeFavoriteModels(browserWindow.webContents.mainFrame, favoriteModels);
-      await addFinalizer(
-        scope,
-        exposeUserInterfacePreferences(
-          browserWindow.webContents,
-          preferences.appearance.userInterface,
+      yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          exposeUserInterfacePreferences(
+            browserWindow.webContents,
+            preferences.appearance.userInterface,
+          ),
         ),
+        (release) => Effect.sync(release),
       );
       exposeProviders(browserWindow.webContents.mainFrame, providers, runEffect);
       exposeStorage(browserWindow.webContents.mainFrame, storage, runEffect);
-      await addFinalizer(scope, exposeUsage(browserWindow.webContents, usage));
+      yield* Effect.acquireRelease(
+        Effect.sync(() => exposeUsage(browserWindow.webContents, usage)),
+        (release) => Effect.sync(release),
+      );
 
       const saveWindowState = () => {
         localState.saveMainWindowState({
@@ -329,7 +277,9 @@ function createMainWindowManager({
         });
       };
       browserWindow.on("close", saveWindowState);
-      await addFinalizer(scope, () => browserWindow.off("close", saveWindowState));
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => browserWindow.off("close", saveWindowState)),
+      );
       browserWindow.removeMenu();
 
       browserWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -352,84 +302,102 @@ function createMainWindowManager({
         }
       };
       browserWindow.webContents.on("will-navigate", preventExternalNavigation);
-      await addFinalizer(scope, () =>
-        browserWindow.webContents.off("will-navigate", preventExternalNavigation),
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() =>
+          browserWindow.webContents.off("will-navigate", preventExternalNavigation),
+        ),
       );
 
-      openedWindow.loaded = browserWindow.loadURL(rendererUrl);
-      return openedWindow;
-    } catch (error) {
-      try {
-        if (opened) {
-          await closeWindow(opened);
-        } else {
-          await runEffect(Scope.close(scope, Exit.void));
-        }
-      } catch (closeError) {
-        throw new AggregateError(
-          [error, closeError],
-          "Could not close the main window after it failed to open.",
-        );
-      }
+      yield* Effect.interruptible(
+        Effect.tryPromise({
+          try: () => browserWindow.loadURL(rendererUrl),
+          catch: showError,
+        }),
+      );
+      yield* Deferred.succeed(session.ready, {
+        browserWindow,
+        restoreMaximized: mainWindowState?.maximized ?? false,
+      });
+      yield* Effect.interruptible(Effect.never);
+    },
+    Effect.catchDefect((cause) => Effect.fail(showError(cause))),
+    // Native acquisition and cleanup registration stay atomic; loading and idle waiting can stop.
+    Effect.uninterruptible,
+  );
 
-      throw error;
-    }
+  function startWindow(): WindowSession {
+    const ready = Deferred.makeUnsafe<ReadyWindow, MainWindowShowError>();
+    const session: WindowSession = {
+      state: "opening",
+      ready,
+      // Publish the session before Electron can call back into the application.
+      lifetime: forkEffect(
+        Effect.yieldNow.pipe(
+          Effect.andThen(() => Effect.scoped(openWindow(session))),
+          Effect.onExit((exit) =>
+            Effect.sync(() => {
+              if (currentWindow === session) {
+                currentWindow = undefined;
+              }
+              if (Exit.isFailure(exit)) {
+                const notified = Deferred.doneUnsafe(ready, Exit.failCause(exit.cause));
+                if (!notified && state === "open" && !Cause.hasInterruptsOnly(exit.cause)) {
+                  diagnostics.report({
+                    severity: ErrorSeverity.Error,
+                    operation: "window.release",
+                    error: Cause.squash(exit.cause),
+                  });
+                }
+              }
+            }),
+          ),
+        ),
+      ),
+    };
+    currentWindow = session;
+    return session;
   }
 
-  async function show(signal?: AbortSignal) {
-    requireOpen();
-    signal?.throwIfAborted();
-    const opened =
-      currentWindow ??
-      (await (opening ??= openWindow().finally(() => {
-        opening = undefined;
-      })));
-    await waitForSignal(opened.loaded, signal);
-    const { browserWindow } = opened;
-
-    if (state !== "open" || currentWindow !== opened || browserWindow.isDestroyed()) {
+  const show = Effect.fn("MainWindow.show")(function* () {
+    while (true) {
+      const session = yield* Effect.try({
+        try: () => {
+          if (state !== "open") {
+            throw new Error("Main window manager is closed.");
+          }
+          return currentWindow ?? startWindow();
+        },
+        catch: showError,
+      });
+      if (session.state === "closing") {
+        yield* Fiber.await(session.lifetime);
+        continue;
+      }
+      const opened = yield* Deferred.await(session.ready);
+      yield* Effect.try({
+        try: () => {
+          const { browserWindow } = opened;
+          if (state !== "open" || currentWindow !== session || browserWindow.isDestroyed()) {
+            return;
+          }
+          if (opened.restoreMaximized) {
+            browserWindow.maximize();
+            opened.restoreMaximized = false;
+          }
+          if (browserWindow.isMinimized()) {
+            browserWindow.restore();
+          }
+          browserWindow.show();
+          session.state = "open";
+        },
+        catch: showError,
+      });
       return;
     }
+  });
 
-    windowState = "open";
-
-    if (!opened.maximizedRestored && opened.restoreMaximized) {
-      opened.maximizedRestored = true;
-      browserWindow.maximize();
-    }
-
-    if (browserWindow.isMinimized()) {
-      browserWindow.restore();
-    }
-
-    browserWindow.show();
-  }
-
-  function close() {
-    if (!closePromise) {
-      state = "closing";
-      closePromise = (async () => {
-        try {
-          await opening;
-        } catch {
-          // The opening path owns and closes its partially acquired window.
-        }
-
-        if (currentWindow) {
-          await closeWindow(currentWindow);
-        }
-      })().finally(() => {
-        state = "closed";
-        windowState = "absent";
-      });
-    }
-
-    return closePromise;
-  }
-
-  return {
-    show,
-    inspect: () => ({ state, window: windowState }),
-    [Symbol.asyncDispose]: close,
-  };
-}
+  return MainWindowService.of({
+    show: show(),
+    inspect: () => ({ state, window: currentWindow?.state ?? "absent" }),
+  });
+});

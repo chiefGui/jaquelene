@@ -1,15 +1,14 @@
 import { tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-
-const headerHeight = "2.75rem";
+import { shellLayout } from "./layout-tokens.stylex";
 
 export const shellChrome = stylex.create({
   header: {
     alignItems: "center",
     display: "flex",
     flexShrink: 0,
-    height: headerHeight,
+    height: shellLayout.headerHeight,
     minWidth: 0,
-    paddingInlineEnd: `calc((${headerHeight} - ${tokens.controlHeight}) / 2)`,
+    paddingInlineEnd: `calc((${shellLayout.headerHeight} - ${tokens.controlHeight}) / 2)`,
   },
 });

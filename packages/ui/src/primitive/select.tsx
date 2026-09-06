@@ -17,6 +17,7 @@ import type { ComponentProps } from "react";
 
 import { colors, radii, shadows, tokens } from "../tokens.stylex";
 import { ControlIcon } from "./control-icon";
+import { control } from "./control.stylex";
 import { Popover } from "./popover";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
@@ -41,7 +42,13 @@ function SelectTrigger({ children, style, variant = "filled", ...props }: Select
   return (
     <ComboboxSelect
       {...props}
-      {...stylex.props(styles.trigger, styles[variant], style, stylex.defaultMarker())}
+      {...stylex.props(
+        control.root,
+        styles.trigger,
+        variantStyles[variant],
+        style,
+        stylex.defaultMarker(),
+      )}
     >
       {children ?? <SelectValue />}
       <ControlIcon.Chevron style={styles.chevron} />
@@ -109,47 +116,23 @@ export const Select = Object.assign(SelectTrigger, {
 
 const interactiveBackground = colors.backgroundInteractive;
 const focusRing = `inset 0 0 0 1px ${colors.borderFocus}`;
-const focusedControlShadow = `${focusRing}, ${shadows.control}`;
 
 const styles = stylex.create({
   trigger: {
     alignItems: "center",
     borderRadius: radii.control,
+    display: "inline-flex",
+    flexShrink: 0,
+    gap: "0.75rem",
+    justifyContent: "space-between",
+  },
+  ghost: {
     color: {
       default: colors.foregroundSecondary,
       ":not(:disabled):hover": colors.foregroundPrimary,
       ':is([aria-expanded="true"])': colors.foregroundPrimary,
       ":is([data-focus-visible])": colors.foregroundPrimary,
     },
-    display: "inline-flex",
-    flexShrink: 0,
-    fontSize: tokens.fontSizeSmall,
-    gap: "0.75rem",
-    height: tokens.controlHeight,
-    justifyContent: "space-between",
-    lineHeight: tokens.lineHeightSmall,
-    opacity: {
-      default: 1,
-      ":disabled": 0.5,
-    },
-    outline: "none",
-    paddingInline: "0.625rem",
-  },
-  filled: {
-    backgroundColor: {
-      default: colors.backgroundNeutralSubtlest,
-      ":not(:disabled):hover": interactiveBackground,
-    },
-    borderColor: colors.borderDefault,
-    borderStyle: "solid",
-    borderWidth: 1,
-    boxShadow: {
-      default: shadows.control,
-      ':is([aria-expanded="true"])': focusedControlShadow,
-      ":is([data-focus-visible])": focusedControlShadow,
-    },
-  },
-  ghost: {
     backgroundColor: {
       default: "transparent",
       ":not(:disabled):hover": interactiveBackground,
@@ -241,3 +224,8 @@ const styles = stylex.create({
     width: "0.875rem",
   },
 });
+
+const variantStyles = {
+  filled: control.filled,
+  ghost: styles.ghost,
+} satisfies Record<SelectVariant, StyleXStyles>;

@@ -10,10 +10,10 @@ export function createCacheStorageArea(cachePath: string): StorageArea<ResourceC
     category: StorageCategory.Cache,
     paths: getCacheStoragePaths(cachePath),
     delete: ResourceCacheService.use((cache) =>
-      Effect.tryPromise({
-        try: () => cache.clear(),
-        catch: (cause) => new StorageAreaDeleteError({ areaId: id, cause }),
-      }).pipe(Effect.uninterruptible),
+      cache.clear.pipe(
+        Effect.mapError((cause) => new StorageAreaDeleteError({ areaId: id, cause })),
+        Effect.uninterruptible,
+      ),
     ),
   };
 }

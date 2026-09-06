@@ -268,10 +268,9 @@ export function createModelExecutor(
       },
       catch: configurationError,
     });
-    const model = yield* Effect.tryPromise({
-      try: (signal) => models.getModel(configuration.model, signal),
-      catch: configurationError,
-    });
+    const model = yield* models
+      .getModel(configuration.model)
+      .pipe(Effect.mapError(configurationError));
 
     return yield* Effect.try({
       try: () => {

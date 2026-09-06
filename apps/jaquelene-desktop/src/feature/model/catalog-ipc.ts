@@ -7,10 +7,12 @@ import {
   type ModelCatalogSnapshot as IpcModelCatalogSnapshot,
 } from "@jaquelene/ipc/main";
 import type { WebContents } from "electron";
+import { Effect } from "effect";
+import type { ModelCatalogSnapshot } from "@jaquelene/backend";
 import type { ModelCatalog } from "./catalog";
 import { toIpcReasoningPreset } from "./reasoning-preset";
 
-type CatalogModel = Awaited<ReturnType<ModelCatalog["getModels"]>>["models"][number];
+type CatalogModel = ModelCatalogSnapshot["models"][number];
 
 function toIpcModel(model: CatalogModel): IpcAvailableModel {
   const { reasoning, ...modelSnapshot } = model;
@@ -27,9 +29,7 @@ function toIpcModel(model: CatalogModel): IpcAvailableModel {
   };
 }
 
-function toIpcSnapshot(
-  snapshot: Awaited<ReturnType<ModelCatalog["getModels"]>>,
-): IpcModelCatalogSnapshot {
+function toIpcSnapshot(snapshot: ModelCatalogSnapshot): IpcModelCatalogSnapshot {
   const refresh = (() => {
     switch (snapshot.refresh.state) {
       case "idle":
@@ -63,11 +63,17 @@ function toIpcSnapshot(
   };
 }
 
-export function exposeModelCatalog(target: WebContents, catalog: ModelCatalog) {
+export function exposeModelCatalog(
+  target: WebContents,
+  catalog: ModelCatalog,
+  runEffect: <Success, Failure>(effect: Effect.Effect<Success, Failure>) => Promise<Success>,
+) {
   const dispatcher = ModelCatalogIpc.for(target.mainFrame).setImplementation({
     listProviders: () => [...catalog.listProviders()],
-    getModels: async (providerId) => toIpcSnapshot(await catalog.getModels(providerId)),
-    refreshModels: async (providerId) => toIpcSnapshot(await catalog.refreshModels(providerId)),
+    getModels: (providerId) =>
+      runEffect(catalog.getModels(providerId).pipe(Effect.map(toIpcSnapshot))),
+    refreshModels: (providerId) =>
+      runEffect(catalog.refreshModels(providerId).pipe(Effect.map(toIpcSnapshot))),
   });
   const unsubscribeCatalog = catalog.subscribe((providerId, revision) => {
     if (!target.isDestroyed()) {

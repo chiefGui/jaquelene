@@ -68,18 +68,20 @@ type TestGenerationProvider = {
 
 function modelResolver(provider?: TestGenerationProvider) {
   return {
-    async getModel(reference: { providerId: string; modelId: string }) {
+    getModel: Effect.fnUntraced(function* (reference: { providerId: string; modelId: string }) {
       if (!provider || reference.providerId !== provider.id) {
-        throw new RangeError(`Unknown provider "${reference.providerId}".`);
+        return yield* Effect.fail(new RangeError(`Unknown provider "${reference.providerId}".`));
       }
-
-      return {
+      const model = {
         id: reference.modelId,
         name: "Test model",
         brandId: "test",
-        ...(provider.reasoning ? { reasoning: provider.reasoning } : {}),
       };
-    },
+      if (provider.reasoning) {
+        return { ...model, reasoning: provider.reasoning };
+      }
+      return model;
+    }),
   };
 }
 

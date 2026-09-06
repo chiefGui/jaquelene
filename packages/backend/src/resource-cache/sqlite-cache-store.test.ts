@@ -1,11 +1,27 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Effect, Exit, Scope } from "effect";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { StoredCacheEntry } from "./cache-store";
 import { openSqliteCacheStore } from "./sqlite-cache-store";
 
 const directories: string[] = [];
+const scopes = new Set<Scope.Closeable>();
+const run = Effect.runPromise;
+
+async function openStore(path: string, options: Parameters<typeof openSqliteCacheStore>[1]) {
+  const scope = Scope.makeUnsafe();
+  scopes.add(scope);
+  const store = await run(openSqliteCacheStore(path, options).pipe(Scope.provide(scope)));
+  return {
+    store,
+    close: async () => {
+      await run(Scope.close(scope, Exit.void));
+      scopes.delete(scope);
+    },
+  };
+}
 
 function cachePath() {
   const directory = mkdtempSync(join(tmpdir(), "jaquelene-resource-cache-"));
@@ -28,7 +44,11 @@ function entry(key: string, storedAt: number, payloadBytes = 8): StoredCacheEntr
   };
 }
 
-afterEach(() => {
+afterEach(async () => {
+  for (const scope of scopes) {
+    await run(Scope.close(scope, Exit.void));
+  }
+  scopes.clear();
   vi.restoreAllMocks();
 
   for (const directory of directories.splice(0)) {
@@ -40,49 +60,49 @@ describe("SQLite cache store", () => {
   it("persists entries across reopen and evicts the oldest within global bounds", async () => {
     const path = cachePath();
     const reportFailure = vi.fn();
-    const first = await openSqliteCacheStore(path, {
+    const { store: first, close: closeFirst } = await openStore(path, {
       maxEntries: 2,
       maxBytes: 64,
       reportFailure,
     });
-    await first.write(entry("a", 1));
-    await first.write(entry("b", 2));
-    await first.write(entry("c", 3));
-    await expect(first.inspect()).resolves.toMatchObject({ entries: 2, logicalBytes: 16 });
-    await expect(first.read(entry("a", 1))).resolves.toBeUndefined();
-    await first.close();
+    await run(first.write(entry("a", 1)));
+    await run(first.write(entry("b", 2)));
+    await run(first.write(entry("c", 3)));
+    await expect(run(first.inspect())).resolves.toMatchObject({ entries: 2, logicalBytes: 16 });
+    await expect(run(first.read(entry("a", 1)))).resolves.toBeUndefined();
+    await closeFirst();
 
-    const reopened = await openSqliteCacheStore(path, {
+    const { store: reopened, close: closeReopened } = await openStore(path, {
       maxEntries: 2,
       maxBytes: 64,
       reportFailure,
     });
-    await expect(reopened.read(entry("b", 2))).resolves.toMatchObject({ key: "b" });
-    await expect(reopened.read(entry("c", 3))).resolves.toMatchObject({ key: "c" });
-    await reopened.clear(4);
-    await expect(reopened.inspect()).resolves.toEqual({
+    await expect(run(reopened.read(entry("b", 2)))).resolves.toMatchObject({ key: "b" });
+    await expect(run(reopened.read(entry("c", 3)))).resolves.toMatchObject({ key: "c" });
+    await run(reopened.clear(4));
+    await expect(run(reopened.inspect())).resolves.toEqual({
       entries: 0,
       logicalBytes: 0,
       revision: 4,
     });
-    await reopened.close();
+    await closeReopened();
     expect(reportFailure).not.toHaveBeenCalled();
   });
 
   it("rejects an entry larger than the persistent byte budget", async () => {
-    const store = await openSqliteCacheStore(cachePath(), {
+    const { store, close } = await openStore(cachePath(), {
       maxEntries: 2,
       maxBytes: 8,
       reportFailure: vi.fn(),
     });
 
-    await expect(store.write(entry("large", 1, 9))).rejects.toThrow(RangeError);
-    await expect(store.inspect()).resolves.toEqual({
+    await expect(run(store.write(entry("large", 1, 9)))).rejects.toThrow(RangeError);
+    await expect(run(store.inspect())).resolves.toEqual({
       entries: 0,
       logicalBytes: 0,
       revision: 0,
     });
-    await store.close();
+    await close();
   });
 
   it("recreates only the replaceable cache when its database is corrupt", async () => {
@@ -90,13 +110,13 @@ describe("SQLite cache store", () => {
     const reportFailure = vi.fn();
     writeFileSync(path, "not a sqlite database");
 
-    const store = await openSqliteCacheStore(path, {
+    const { store, close } = await openStore(path, {
       maxEntries: 2,
       maxBytes: 64,
       reportFailure,
     });
 
-    await expect(store.inspect()).resolves.toEqual({
+    await expect(run(store.inspect())).resolves.toEqual({
       entries: 0,
       logicalBytes: 0,
       revision: 0,
@@ -109,7 +129,7 @@ describe("SQLite cache store", () => {
       2,
       expect.objectContaining({ operation: "recover" }),
     );
-    await store.close();
+    await close();
   });
 
   it("recovers a corrupt cache even when failure reporting throws", async () => {
@@ -121,13 +141,13 @@ describe("SQLite cache store", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     writeFileSync(path, "not a sqlite database");
 
-    const store = await openSqliteCacheStore(path, {
+    const { store, close } = await openStore(path, {
       maxEntries: 2,
       maxBytes: 64,
       reportFailure,
     });
 
-    await expect(store.inspect()).resolves.toEqual({
+    await expect(run(store.inspect())).resolves.toEqual({
       entries: 0,
       logicalBytes: 0,
       revision: 0,
@@ -138,6 +158,6 @@ describe("SQLite cache store", () => {
       "Could not report a resource cache storage failure.",
       expect.objectContaining({ errors: expect.arrayContaining([reporterFailure]) }),
     );
-    await store.close();
+    await close();
   });
 });

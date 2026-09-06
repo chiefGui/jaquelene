@@ -43,9 +43,9 @@ export type ModelCatalogSnapshot = Readonly<{
 
 export type Models = Readonly<{
   listProviders: () => readonly ModelProvider[];
-  getModels: (providerId: ProviderId, signal?: AbortSignal) => Promise<ModelCatalogSnapshot>;
-  getModel: (reference: ModelReference, signal?: AbortSignal) => Promise<ProviderModel>;
-  refreshModels: (providerId: ProviderId, signal?: AbortSignal) => Promise<ModelCatalogSnapshot>;
+  getModels: (providerId: ProviderId) => Effect.Effect<ModelCatalogSnapshot, unknown>;
+  getModel: (reference: ModelReference) => Effect.Effect<ProviderModel, unknown>;
+  refreshModels: (providerId: ProviderId) => Effect.Effect<ModelCatalogSnapshot, unknown>;
   subscribe: (listener: (providerId: ProviderId, revision: number) => void) => () => void;
 }>;
 
@@ -161,14 +161,6 @@ function decodeValue(payload: Uint8Array): ModelCatalogValue {
   return { providerId, models: requireModels(providerId, value.models) };
 }
 
-function operationOptions(signal: AbortSignal | undefined) {
-  if (signal) {
-    return { signal };
-  }
-
-  return {};
-}
-
 function toCatalogSnapshot(snapshot: ResourceSnapshot<ModelCatalogValue>): ModelCatalogSnapshot {
   if (snapshot.availability.state !== "available") {
     throw new Error("The model catalog cache returned no value after resolving it.");
@@ -184,29 +176,27 @@ function toCatalogSnapshot(snapshot: ResourceSnapshot<ModelCatalogValue>): Model
   };
 }
 
-async function exposeCatalogFailure(operation: () => Promise<ModelCatalogSnapshot>) {
-  try {
-    return await operation();
-  } catch (error) {
-    if (error instanceof ResourceUnavailableError && error.cause instanceof Error) {
-      throw error.cause;
-    }
-
-    throw error;
-  }
+function exposeCatalogFailure<Value>(operation: Effect.Effect<Value, unknown>) {
+  return operation.pipe(
+    Effect.mapError((error) => {
+      if (error instanceof ResourceUnavailableError && error.cause instanceof Error) {
+        return error.cause;
+      }
+      return error;
+    }),
+  );
 }
 
 export type ModelCatalog = Readonly<{
   models: Models;
-  invalidateProvider: (providerId: ProviderId) => Promise<void>;
+  invalidateProvider: (providerId: ProviderId) => Effect.Effect<void, unknown>;
   close: () => void;
 }>;
 
-export const createModelCatalog = Effect.fnUntraced(function* (
+export function createModelCatalog(
   cache: ResourceCache,
   dependencies: ModelCatalogDependencies,
-): Effect.fn.Return<ModelCatalog> {
-  const runPromise = Effect.runPromiseWith(yield* Effect.context());
+): ModelCatalog {
   const resource: CachedResource<ModelCatalogSource, ModelCatalogValue> = cache.define({
     namespace,
     address: ({ providerId, configurationRevision }) => ({
@@ -234,13 +224,16 @@ export const createModelCatalog = Effect.fnUntraced(function* (
       timeout: 12 * 1_000,
       maxEntryBytes: 8 * 1_024 * 1_024,
     },
-    async load(source, signal) {
-      const models = await runPromise(dependencies.load(source), { signal });
-      return {
-        providerId: source.providerId,
-        models: requireModels(source.providerId, models),
-      };
-    },
+    load: Effect.fnUntraced(function* (source) {
+      const models = yield* dependencies.load(source);
+      return yield* Effect.try({
+        try: () => ({
+          providerId: source.providerId,
+          models: requireModels(source.providerId, models),
+        }),
+        catch: (cause) => cause,
+      });
+    }),
   });
 
   const listeners = new Set<(providerId: ProviderId, revision: number) => void>();
@@ -272,28 +265,22 @@ export const createModelCatalog = Effect.fnUntraced(function* (
     }
   });
 
+  const getModels = Effect.fnUntraced(function* (providerId: ProviderId) {
+    const source = yield* Effect.try({
+      try: () => dependencies.getSource(providerId),
+      catch: (cause) => cause,
+    });
+    return toCatalogSnapshot(yield* exposeCatalogFailure(resource.resolve(source)));
+  });
+
   return {
     models: {
       listProviders: dependencies.listProviders,
-      getModels(providerId, signal) {
-        return exposeCatalogFailure(async () =>
-          toCatalogSnapshot(
-            await resource.resolve(dependencies.getSource(providerId), operationOptions(signal)),
-          ),
-        );
-      },
-      async getModel(reference, signal) {
-        requireModelReference(reference);
-        const snapshot = await exposeCatalogFailure(async () =>
-          toCatalogSnapshot(
-            await resource.resolve(
-              dependencies.getSource(reference.providerId),
-              operationOptions(signal),
-            ),
-          ),
-        );
+      getModels,
+      getModel: Effect.fnUntraced(function* (reference: ModelReference) {
+        yield* Effect.try({ try: () => requireModelReference(reference), catch: (cause) => cause });
+        const snapshot = yield* getModels(reference.providerId);
         let index = modelIndexes.get(reference.providerId);
-
         if (!index || index.revision !== snapshot.revision) {
           index = {
             revision: snapshot.revision,
@@ -301,27 +288,25 @@ export const createModelCatalog = Effect.fnUntraced(function* (
           };
           modelIndexes.set(reference.providerId, index);
         }
-
         const model = index.modelsById.get(reference.modelId);
-
         if (!model) {
-          throw new RangeError(
-            `Provider "${reference.providerId}" does not expose model "${reference.modelId}".`,
+          return yield* Effect.fail(
+            new RangeError(
+              `Provider "${reference.providerId}" does not expose model "${reference.modelId}".`,
+            ),
           );
         }
-
         return model;
-      },
-      refreshModels(providerId, signal) {
-        return exposeCatalogFailure(async () =>
-          toCatalogSnapshot(
-            await resource.refresh(dependencies.getSource(providerId), {
-              ...operationOptions(signal),
-              force: true,
-            }),
-          ),
+      }),
+      refreshModels: Effect.fnUntraced(function* (providerId: ProviderId) {
+        const source = yield* Effect.try({
+          try: () => dependencies.getSource(providerId),
+          catch: (cause) => cause,
+        });
+        return toCatalogSnapshot(
+          yield* exposeCatalogFailure(resource.refresh(source, { force: true })),
         );
-      },
+      }),
       subscribe(listener) {
         listeners.add(listener);
         return () => listeners.delete(listener);
@@ -334,4 +319,4 @@ export const createModelCatalog = Effect.fnUntraced(function* (
       modelIndexes.clear();
     },
   };
-});
+}

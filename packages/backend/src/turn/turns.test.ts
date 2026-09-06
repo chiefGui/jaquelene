@@ -62,13 +62,13 @@ function createDatabasePath() {
 function modelExecutionRunner(generate: TestGenerate): ModelExecutionRunner {
   const executor = createModelExecutor(
     {
-      async getModel(reference) {
+      getModel: Effect.fnUntraced(function* (reference) {
         if (reference.providerId !== "provider-a") {
-          throw new RangeError(`Unknown provider "${reference.providerId}".`);
+          return yield* Effect.fail(new RangeError(`Unknown provider "${reference.providerId}".`));
         }
 
         return { id: reference.modelId, name: "Test model", brandId: "test" };
-      },
+      }),
     },
     {
       generate(providerId, request) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { ids } from "#backend/id";
-import { requireModelInput, type ModelInput } from "./input";
+import { composeSystemPrompt, requireModelInput, type ModelInput } from "./input";
 
 function validInput(): ModelInput {
   return {
@@ -10,6 +10,16 @@ function validInput(): ModelInput {
 }
 
 describe("model input", () => {
+  it("composes instructions as one system prompt without an empty section", () => {
+    const narrator = { sourceKey: "narrator", content: "Narrate clearly." };
+    const scenario = { sourceKey: "scenario", content: "## Scenario\nA lost kingdom." };
+    expect(composeSystemPrompt([narrator, scenario])).toBe(
+      "Narrate clearly.\n\n## Scenario\nA lost kingdom.",
+    );
+    expect(composeSystemPrompt([narrator])).toBe("Narrate clearly.");
+    expect(composeSystemPrompt([])).toBe("");
+  });
+
   it("returns an owned semantic input", () => {
     const source = validInput();
     const input = requireModelInput(source);

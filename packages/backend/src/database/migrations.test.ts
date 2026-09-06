@@ -43,6 +43,11 @@ describe("database migrations", () => {
       expect(tables).not.toContain("scenarios");
       expect(tables).not.toContain("roleplay_instructions");
 
+      const campaignColumns = client.prepare("PRAGMA table_info(campaigns)").all();
+      expect(campaignColumns).toContainEqual(
+        expect.objectContaining({ name: "scenario", type: "TEXT", notnull: 1, dflt_value: "''" }),
+      );
+
       const attemptColumns = client
         .prepare("PRAGMA table_info(provider_attempts)")
         .all()

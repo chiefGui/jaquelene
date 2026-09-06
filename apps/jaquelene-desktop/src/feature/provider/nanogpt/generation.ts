@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import {
+  composeSystemPrompt,
   createGenerationUsage,
   createProviderGenerationResult,
   type DialogueMessage,
@@ -79,10 +80,12 @@ function toNanoGptDialogue({ role, content }: DialogueMessage): NanoGptChatMessa
 }
 
 function toNanoGptMessages({ instructions, dialogue }: ModelInput): NanoGptChatMessage[] {
-  return [
-    ...instructions.map(({ content }) => ({ role: "system" as const, content })),
-    ...dialogue.map(toNanoGptDialogue),
-  ];
+  const messages: NanoGptChatMessage[] = [];
+  const systemPrompt = composeSystemPrompt(instructions);
+  if (systemPrompt) {
+    messages.push({ role: "system", content: systemPrompt });
+  }
+  return [...messages, ...dialogue.map(toNanoGptDialogue)];
 }
 
 function getResponseChoice(result: JsonObject) {

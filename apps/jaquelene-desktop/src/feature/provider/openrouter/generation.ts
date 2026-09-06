@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import { chatResultFromJSON, type ChatMessages, type ChatResult } from "@openrouter/sdk/models";
 import {
+  composeSystemPrompt,
   createGenerationUsage,
   createProviderGenerationResult,
   type DialogueMessage,
@@ -32,10 +33,12 @@ function toOpenRouterDialogue({ role, content }: DialogueMessage): ChatMessages 
 }
 
 function toOpenRouterMessages({ instructions, dialogue }: ModelInput): ChatMessages[] {
-  return [
-    ...instructions.map(({ content }) => ({ role: "system" as const, content })),
-    ...dialogue.map(toOpenRouterDialogue),
-  ];
+  const messages: ChatMessages[] = [];
+  const systemPrompt = composeSystemPrompt(instructions);
+  if (systemPrompt) {
+    messages.push({ role: "system", content: systemPrompt });
+  }
+  return [...messages, ...dialogue.map(toOpenRouterDialogue)];
 }
 
 const sendOpenRouterChat = Effect.fn("OpenRouter.sendChat")(

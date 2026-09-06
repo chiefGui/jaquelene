@@ -1,3 +1,11 @@
+export { campaignSetupInputSchema, type CampaignSetupInput } from "./campaign/setup";
+export {
+  CAMPAIGN_SCENARIO_MAX_LENGTH,
+  CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH,
+  campaignScenarioSchema,
+  parseCampaignScenario,
+  type CampaignScenario,
+} from "./campaign/scenario";
 export {
   CAMPAIGN_TITLE_MAX_LENGTH,
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,

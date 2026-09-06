@@ -14,6 +14,7 @@ const campaignsIpc = vi.hoisted(() => ({
   get: vi.fn(),
   list: vi.fn(),
   rename: vi.fn(),
+  setScenario: vi.fn(),
   setGenerationPreferences: vi.fn(),
   start: vi.fn(),
 }));
@@ -70,6 +71,7 @@ function campaign(generationPreferences?: CampaignGenerationPreferences): Campai
   return {
     id: "campaign-a",
     title: "Campaign A",
+    scenario: "",
     threadId: "thread-a",
     startedAt: 100,
     lastActivityAt: 100,
@@ -135,6 +137,7 @@ describe("campaign start mutation", () => {
     const started: Campaign = {
       id: "campaign-new",
       title: "New campaign",
+      scenario: "",
       threadId: "thread-new",
       startedAt: 200,
       lastActivityAt: 200,
@@ -167,6 +170,7 @@ describe("campaign start mutation", () => {
     const started: Campaign = {
       id: "campaign-new",
       title: "New campaign",
+      scenario: "",
       threadId: "thread-new",
       startedAt: 500,
       lastActivityAt: 500,

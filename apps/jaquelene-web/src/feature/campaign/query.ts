@@ -34,6 +34,7 @@ const listCampaigns = requireIpcMethod(Campaigns?.list);
 const getCampaign = requireIpcMethod(Campaigns?.get);
 const deleteCampaign = requireIpcMethod(Campaigns?.delete);
 const renameCampaign = requireIpcMethod(Campaigns?.rename);
+const setCampaignScenario = requireIpcMethod(Campaigns?.setScenario);
 const setCampaignGenerationPreferences = requireIpcMethod(Campaigns?.setGenerationPreferences);
 export { campaignQueryKey } from "@/feature/cache-keys";
 
@@ -436,6 +437,25 @@ export function useRenameCampaign(id: string) {
     onSuccess(campaign) {
       cacheCampaign(queryClient, campaign);
       updateCampaignSummaryTitle(queryClient, campaign);
+    },
+  });
+}
+
+export function useSetCampaignScenario(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation<Campaign, Error, string>({
+    ...ipcMutationOptions,
+    mutationKey: [...campaignMutationKey(id), "scenario"],
+    scope: campaignMutationScope(id),
+    async mutationFn(scenario) {
+      const campaign = await setCampaignScenario({ id, scenario });
+      if (!campaign) {
+        throw new Error(`Campaign "${id}" is unavailable.`);
+      }
+      return campaign;
+    },
+    onSuccess(campaign) {
+      cacheCampaign(queryClient, campaign);
     },
   });
 }

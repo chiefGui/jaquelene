@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "99e162c1-05a1-4a5d-86e2-1c6892c55e6c",
+  "id": "18093a4d-82fe-41cd-8f5c-7da2cdd7dec6",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -131,6 +131,16 @@
       "default": null,
       "generated": null,
       "name": "title",
+      "entityType": "columns",
+      "table": "campaigns"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "''",
+      "generated": null,
+      "name": "scenario",
       "entityType": "columns",
       "table": "campaigns"
     },
@@ -1633,6 +1643,12 @@
     {
       "value": "\"started_at\" >= 0",
       "name": "campaigns_started_at_nonnegative",
+      "entityType": "checks",
+      "table": "campaigns"
+    },
+    {
+      "value": "length(\"scenario\") <= 20000 AND (\"scenario\" = '' OR length(trim(\"scenario\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0)",
+      "name": "campaigns_scenario_valid",
       "entityType": "checks",
       "table": "campaigns"
     },

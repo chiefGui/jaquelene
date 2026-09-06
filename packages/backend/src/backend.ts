@@ -79,6 +79,7 @@ const readBackend = Effect.gen(function* () {
       return campaignEngine.delete(id);
     },
     rename: campaignEngine.rename,
+    setScenario: campaignEngine.setScenario,
     setGenerationPreferences: campaignEngine.setGenerationPreferences,
   };
 

@@ -8,6 +8,7 @@ structure CampaignGenerationPreferences {
 structure Campaign {
   id: string
   title: CampaignTitle
+  scenario: CampaignScenario
   threadId: string
   startedAt: UnixTimeMilliseconds
   lastActivityAt: UnixTimeMilliseconds
@@ -39,7 +40,19 @@ structure CampaignPromptSelectionInput {
 
 structure StartCampaignRequest {
   title: CampaignTitle
+  scenario?: CampaignScenario
   composition: CampaignPromptSelectionInput[]
+}
+
+zod_reference CampaignScenario {
+  import = "@jaquelene/domain"
+  type = "CampaignScenario"
+  schema = "campaignScenarioSchema"
+}
+
+structure SetCampaignScenarioRequest {
+  id: string
+  scenario: CampaignScenario
 }
 
 structure CampaignPageRequest {
@@ -96,6 +109,7 @@ interface Campaigns {
   get(id: string) -> Campaign?
   delete(id: string) -> CampaignDeletion?
   rename(request: RenameCampaignRequest) -> Campaign?
+  setScenario(request: SetCampaignScenarioRequest) -> Campaign?
   setGenerationPreferences(id: string, preferences: CampaignGenerationPreferences?) -> Campaign?
 }
 

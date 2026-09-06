@@ -7,19 +7,25 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import { CAMPAIGN_TITLE_MAX_LENGTH, type CampaignTitle } from "@jaquelene/domain";
+import {
+  CAMPAIGN_SCENARIO_MAX_LENGTH,
+  CAMPAIGN_TITLE_MAX_LENGTH,
+  type CampaignTitle,
+} from "@jaquelene/domain";
 import type { CampaignId, ThreadId } from "#backend/id";
 import { reasoningPresets } from "#backend/model/reasoning";
 import { sqliteWhitespaceCharacters } from "#backend/database/sqlite-text";
 import { threadTable } from "#backend/thread/schema";
 
 const campaignTitleMaxLengthSql = sql.raw(String(CAMPAIGN_TITLE_MAX_LENGTH));
+const campaignScenarioMaxLengthSql = sql.raw(String(CAMPAIGN_SCENARIO_MAX_LENGTH));
 
 export const campaignTable = sqliteTable(
   "campaigns",
   {
     id: text().$type<CampaignId>().notNull(),
     title: text().$type<CampaignTitle>().notNull(),
+    scenario: text().notNull().default(""),
     threadId: text("thread_id")
       .$type<ThreadId>()
       .notNull()
@@ -34,6 +40,10 @@ export const campaignTable = sqliteTable(
       sql`${campaign.title} = trim(${campaign.title}, ${sqliteWhitespaceCharacters}) AND length(${campaign.title}) > 0 AND length(${campaign.title}) <= ${campaignTitleMaxLengthSql}`,
     ),
     check("campaigns_started_at_nonnegative", sql`${campaign.startedAt} >= 0`),
+    check(
+      "campaigns_scenario_valid",
+      sql`length(${campaign.scenario}) <= ${campaignScenarioMaxLengthSql} AND (${campaign.scenario} = '' OR length(trim(${campaign.scenario}, ${sqliteWhitespaceCharacters})) > 0)`,
+    ),
   ],
 );
 

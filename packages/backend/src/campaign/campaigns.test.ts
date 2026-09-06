@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { parsePromptKey } from "@jaquelene/domain";
+import { CAMPAIGN_SCENARIO_MAX_LENGTH, parsePromptKey } from "@jaquelene/domain";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
@@ -92,6 +92,53 @@ afterEach(() => {
 });
 
 describe("campaigns", () => {
+  it("persists campaign-owned scenarios and supports replacing and clearing them", () => {
+    const path = createDatabasePath();
+    const first = openCampaigns(path);
+    const scenario = "    A hidden city.\n\nMagic has a price.\n";
+    const campaign = first.campaigns.start({ title: "A city", scenario, composition: [] });
+    const independent = first.campaigns.start({ title: "Another city", scenario, composition: [] });
+    closeDatabase(first.database);
+    const second = openCampaigns(path);
+
+    expect(second.campaigns.get(campaign.id)?.scenario).toBe(scenario);
+    expect(second.campaigns.getContextForThread(campaign.threadId)).toEqual({
+      id: campaign.id,
+      scenario,
+    });
+    expect(second.campaigns.setScenario(campaign.id, "A floating city.")?.scenario).toBe(
+      "A floating city.",
+    );
+    expect(second.campaigns.get(independent.id)?.scenario).toBe(scenario);
+    expect(second.campaigns.setScenario(campaign.id, " \n\t")?.scenario).toBe("");
+    expect(second.campaigns.get(campaign.id)?.scenario).toBe("");
+    expect(second.campaigns.setScenario(ids.campaign.create(), "Missing")).toBeNull();
+  });
+
+  it("rejects invalid scenarios without writing campaign or thread state", () => {
+    const { campaigns, database } = openCampaigns(createDatabasePath());
+    const tooLong = "x".repeat(CAMPAIGN_SCENARIO_MAX_LENGTH + 1);
+    expect(() => campaigns.start({ title: "Invalid", scenario: tooLong, composition: [] })).toThrow(
+      TypeError,
+    );
+    expect(database.select().from(campaignTable).all()).toEqual([]);
+    expect(database.select().from(threadTable).all()).toEqual([]);
+
+    const campaign = campaigns.start({ title: "Valid", scenario: "A desert", composition: [] });
+    expect(() => campaigns.setScenario(campaign.id, tooLong)).toThrow(TypeError);
+    expect(campaigns.get(campaign.id)?.scenario).toBe("A desert");
+    expect(() => database.update(campaignTable).set({ scenario: tooLong }).run()).toThrow();
+    expect(() => database.update(campaignTable).set({ scenario: " \n\t" }).run()).toThrow();
+  });
+
+  it("treats omitted and whitespace-only scenarios as absent", () => {
+    const { campaigns } = openCampaigns(createDatabasePath());
+    expect(start(campaigns, "No scenario").scenario).toBe("");
+    expect(campaigns.start({ title: "Blank", scenario: "\n \t", composition: [] }).scenario).toBe(
+      "",
+    );
+  });
+
   it("starts titled campaigns with threads and lists the newest first", () => {
     let startedAt = 100;
     const { campaigns, threads } = openCampaigns(createDatabasePath(), () => startedAt++);
@@ -101,6 +148,7 @@ describe("campaigns", () => {
     expect(first).toEqual({
       id: expect.stringMatching(/^campaign_/),
       title: "First campaign",
+      scenario: "",
       threadId: expect.stringMatching(/^thread_/),
       startedAt: 100,
       lastActivityAt: 100,
@@ -252,7 +300,10 @@ describe("campaigns", () => {
 
     const second = openCampaigns(path);
     expect(second.campaigns.get(campaign.id)).toEqual(renamed);
-    expect(second.campaigns.getContextForThread(campaign.threadId)).toEqual({ id: campaign.id });
+    expect(second.campaigns.getContextForThread(campaign.threadId)).toEqual({
+      id: campaign.id,
+      scenario: "",
+    });
   });
 
   it("enforces campaign identity and title constraints in SQLite", () => {
@@ -368,6 +419,7 @@ describe("campaigns", () => {
       {
         id: unrelated.id,
         title: unrelated.title,
+        scenario: unrelated.scenario,
         threadId: unrelated.threadId,
         startedAt: unrelated.startedAt,
       },

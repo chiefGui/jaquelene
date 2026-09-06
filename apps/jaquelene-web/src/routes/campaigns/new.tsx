@@ -1,17 +1,20 @@
 import {
   Form as AriakitForm,
+  FormControl,
   FormError,
   FormInput,
   FormLabel,
   useFormStore,
   useFormSubmit,
+  useFormValue,
 } from "@ariakit/react/form";
 import { useStoreState } from "@ariakit/react/store";
 import {
+  CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH,
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,
-  campaignTitleInputSchema,
+  campaignSetupInputSchema,
+  type CampaignSetupInput,
   narratorPromptKindKey,
-  type CampaignTitleInput,
 } from "@jaquelene/domain";
 import type { Campaign } from "@jaquelene/ipc/renderer";
 import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
@@ -19,7 +22,8 @@ import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
-import { useCampaignTitleFormValidation } from "@/feature/campaign/form";
+import { useStartCampaignFormValidation } from "@/feature/campaign/form";
+import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
 import { useStartCampaign } from "@/feature/campaign/query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { promptDefaultQuery, promptPagesQuery, promptQuery } from "@/feature/prompt/query";
@@ -56,7 +60,10 @@ function NewCampaignRoute() {
   const startCampaign = useStartCampaign();
   const navigate = useNavigate({ from: "/campaigns/new" });
   const active = useRef(true);
-  const form = useFormStore({ defaultValues: { title: "" } satisfies CampaignTitleInput });
+  const form = useFormStore({
+    defaultValues: { title: "", scenario: "" } satisfies CampaignSetupInput,
+  });
+  const scenario = useFormValue<string>(form, form.names.scenario);
   const submitting = useStoreState(form, "submitting");
   const hasSubmitted = useStoreState(
     form,
@@ -85,7 +92,7 @@ function NewCampaignRoute() {
       }) satisfies PromptSelectOption,
   );
 
-  useCampaignTitleFormValidation(form);
+  useStartCampaignFormValidation(form);
 
   useEffect(() => {
     active.current = true;
@@ -116,9 +123,10 @@ function NewCampaignRoute() {
 
     if (!campaign) {
       try {
-        const { title } = campaignTitleInputSchema.parse(state.values);
+        const { title, scenario } = campaignSetupInputSchema.parse(state.values);
         campaign = await startCampaign.mutateAsync({
           title,
+          scenario,
           composition: [
             {
               kind: narratorPromptKindKey,
@@ -213,6 +221,25 @@ function NewCampaignRoute() {
                 options={options}
                 onValueChange={setNarratorPromptKey}
               />
+            </Field.Root>
+
+            <Field.Root>
+              <FormLabel name={form.names.scenario} render={<Field.Label />}>
+                Scenario (optional)
+              </FormLabel>
+              <FormControl
+                name={form.names.scenario}
+                render={
+                  <MarkdownEditor
+                    value={scenario}
+                    onValueChange={(value) => form.setValue(form.names.scenario, value)}
+                    maxLength={CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH}
+                    readOnly={submitting || Boolean(createdCampaign)}
+                    placeholder="Describe the setting, universe, or starting situation."
+                  />
+                }
+              />
+              <FormError name={form.names.scenario} render={<Field.Error />} />
             </Field.Root>
 
             <FormLayout.Status

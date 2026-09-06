@@ -553,7 +553,7 @@ describe("backend", () => {
     }
   });
 
-  it("uses an edited narrator prompt on the next turn of an existing campaign", async () => {
+  it("uses edited narrator and scenario content on subsequent turns and allows clearing the scenario", async () => {
     const inputs: ModelInput[] = [];
     const provider = providerAdapter("provider-a", {
       generate: ({ input }) =>
@@ -570,6 +570,7 @@ describe("backend", () => {
     });
     const campaign = backend.campaigns.start({
       title: "Changing direction",
+      scenario: "A lost kingdom.",
       composition: [{ kind: narratorPromptKind.key, promptKey: prompt.key }],
     });
     const configuration = {
@@ -587,6 +588,7 @@ describe("backend", () => {
       title: "Still private",
       body: "Use an ominous tone.",
     });
+    backend.campaigns.setScenario(campaign.id, "A kingdom at war.");
     await (
       await backend.turns.submit({
         threadId: campaign.threadId,
@@ -596,8 +598,17 @@ describe("backend", () => {
     ).settlement;
 
     expect(inputs.map(({ instructions }) => instructions)).toEqual([
-      [{ sourceKey: prompt.key, content: "Use a hopeful tone." }],
-      [{ sourceKey: prompt.key, content: "Use an ominous tone." }],
+      [
+        { sourceKey: prompt.key, content: "Use a hopeful tone." },
+        { sourceKey: `campaign.${campaign.id}.scenario`, content: "## Scenario\nA lost kingdom." },
+      ],
+      [
+        { sourceKey: prompt.key, content: "Use an ominous tone." },
+        {
+          sourceKey: `campaign.${campaign.id}.scenario`,
+          content: "## Scenario\nA kingdom at war.",
+        },
+      ],
     ]);
     expect(
       backend.threads
@@ -605,12 +616,29 @@ describe("backend", () => {
         .entries.map(({ kind, content }) => ({ kind, content })),
     ).toEqual([
       { kind: "instruction", content: "Use an ominous tone." },
+      { kind: "instruction", content: "## Scenario\nA kingdom at war." },
       { kind: "message", content: "Begin" },
       { kind: "message", content: "Reply 1" },
       { kind: "message", content: "Continue" },
       { kind: "message", content: "Reply 2" },
     ]);
     expect(JSON.stringify(inputs)).not.toContain("Private");
+    backend.campaigns.setScenario(campaign.id, " \n\t");
+    await (
+      await backend.turns.submit({
+        threadId: campaign.threadId,
+        content: "Continue without a scenario",
+        configuration,
+      })
+    ).settlement;
+    expect(inputs[2]?.instructions).toEqual([
+      { sourceKey: prompt.key, content: "Use an ominous tone." },
+    ]);
+    expect(
+      backend.threads
+        .getTranscript(campaign.threadId)
+        .entries.filter(({ kind }) => kind === "instruction"),
+    ).toEqual([{ kind: "instruction", sourceKey: prompt.key, content: "Use an ominous tone." }]);
   });
 
   it("deletes settled campaign content without deleting its usage history", async () => {

@@ -1,4 +1,5 @@
 import {
+  parseCampaignScenario,
   parseCampaignTitleInput,
   parsePromptKey,
   promptKindKeySchema,
@@ -34,6 +35,7 @@ export type CampaignPromptSelectionInput = Readonly<{
 
 export type StartCampaignInput = Readonly<{
   title: string;
+  scenario?: string;
   composition: readonly CampaignPromptSelectionInput[];
 }>;
 
@@ -44,6 +46,7 @@ export type CampaignPageRequest = Readonly<{
 export type Campaign = Readonly<{
   id: CampaignId;
   title: CampaignTitle;
+  scenario: string;
   threadId: ThreadId;
   startedAt: number;
   lastActivityAt: number;
@@ -127,12 +130,16 @@ function parseStartCampaignInput(value: StartCampaignInput) {
 
   const keys = Object.keys(value);
 
-  if (!keys.every((key) => key === "title" || key === "composition")) {
+  if (!keys.every((key) => key === "title" || key === "composition" || key === "scenario")) {
     throw new TypeError("Campaign input is invalid.");
   }
 
   const { title } = parseCampaignTitleInput({ title: value.title });
-  return { title, composition: parseComposition(value.composition) };
+  let scenario = "";
+  if (value.scenario !== undefined) {
+    scenario = parseCampaignScenario(value.scenario);
+  }
+  return { title, scenario, composition: parseComposition(value.composition) };
 }
 
 type StoredCampaign = typeof campaignTable.$inferSelect & {
@@ -220,7 +227,7 @@ function getCampaign(database: Database, id: CampaignId) {
 export function createCampaigns(database: Database, now: () => number = Date.now) {
   return {
     start(input: StartCampaignInput) {
-      const { title, composition } = parseStartCampaignInput(input);
+      const { title, scenario, composition } = parseStartCampaignInput(input);
       const startedAt = now();
 
       return database.transaction((transaction) => {
@@ -252,6 +259,7 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         const campaign = {
           id: ids.campaign.create(),
           title,
+          scenario,
           threadId: thread.id,
           startedAt,
         };
@@ -372,10 +380,26 @@ export function createCampaigns(database: Database, now: () => number = Date.now
       return renamed ? getCampaign(database, id) : null;
     },
 
+    setScenario(id: CampaignId, scenarioInput: unknown) {
+      const scenario = parseCampaignScenario(scenarioInput);
+      const updated = database
+        .update(campaignTable)
+        .set({ scenario })
+        .where(eq(campaignTable.id, id))
+        .returning({ id: campaignTable.id })
+        .get();
+
+      if (!updated) {
+        return null;
+      }
+
+      return getCampaign(database, id);
+    },
+
     getContextForThread(threadId: ThreadId) {
       return (
         database
-          .select({ id: campaignTable.id })
+          .select({ id: campaignTable.id, scenario: campaignTable.scenario })
           .from(campaignTable)
           .where(eq(campaignTable.threadId, threadId))
           .get() ?? null

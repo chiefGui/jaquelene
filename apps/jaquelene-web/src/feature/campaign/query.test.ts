@@ -47,6 +47,7 @@ import {
   campaignUsageRecordQueryKey,
   threadQueryPrefix,
 } from "@/feature/cache-keys";
+import { readCampaignSetupDraft, writeCampaignSetupDraft } from "./setup-draft";
 
 function modelSelection(id: string): ModelSelection {
   return {
@@ -131,6 +132,42 @@ beforeEach(() => {
 });
 
 describe("campaign start mutation", () => {
+  it("clears the submitted draft on success even after leaving campaign setup", async () => {
+    const client = createQueryClient();
+    const started = campaign();
+    const pending = deferred<Campaign>();
+    campaignsIpc.start.mockReturnValue(pending.promise);
+    const draft = writeCampaignSetupDraft(client, {
+      values: { title: started.title, scenario: "" },
+      narratorPromptKey: "narrator-a",
+    });
+    const mutation = new MutationObserver(client, startCampaignMutationOptions(client));
+    const unsubscribe = mutation.subscribe(() => {});
+    const request = mutation.mutate({ title: started.title, composition: [] });
+    await vi.waitFor(() => expect(campaignsIpc.start).toHaveBeenCalled());
+    expect(readCampaignSetupDraft(client)).toBe(draft);
+    unsubscribe();
+    pending.resolve(started);
+    await request;
+    expect(readCampaignSetupDraft(client)).toEqual({ values: { title: "", scenario: "" } });
+    client.clear();
+  });
+
+  it("keeps the setup draft when campaign creation fails", async () => {
+    const client = createQueryClient();
+    const draft = writeCampaignSetupDraft(client, {
+      values: { title: "Try again", scenario: "Mars" },
+      narratorPromptKey: "narrator-a",
+    });
+    campaignsIpc.start.mockRejectedValue(new Error("Unavailable"));
+    const mutation = new MutationObserver(client, startCampaignMutationOptions(client));
+    await expect(mutation.mutate({ title: "Try again", composition: [] })).rejects.toThrow(
+      "Unavailable",
+    );
+    expect(readCampaignSetupDraft(client)).toBe(draft);
+    client.clear();
+  });
+
   it("publishes a started campaign immediately and schedules list reconciliation", async () => {
     const queryClient = createQueryClient();
     const existing = campaign();

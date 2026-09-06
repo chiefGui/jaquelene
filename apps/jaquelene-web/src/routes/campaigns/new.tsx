@@ -26,7 +26,10 @@ import { useEffect, useRef, useState } from "react";
 import { useStartCampaignFormValidation } from "@/feature/campaign/form";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
 import { ScenarioImportControl } from "@/feature/scenario/import-control";
-import { useStartCampaign } from "@/feature/campaign/query";
+import { useStartCampaign, useIsStartingCampaign } from "@/feature/campaign/query";
+import { readCampaignSetupDraft } from "@/feature/campaign/setup-draft";
+import { useCampaignSetupDraft } from "@/feature/campaign/use-setup-draft";
+import { limitCampaignTitleInput } from "@/feature/campaign/title-input";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { promptDefaultQuery, promptPagesQuery, promptQuery } from "@/feature/prompt/query";
 import type { PromptSelectOption } from "@/feature/prompt/select";
@@ -39,6 +42,7 @@ export const Route = createFileRoute("/campaigns/new")({
     const defaultSelection = await context.queryClient.query(
       promptDefaultQuery(narratorPromptKindKey),
     );
+    const savedNarratorKey = readCampaignSetupDraft(context.queryClient).narratorPromptKey;
     await Promise.all([
       context.queryClient.infiniteQuery({
         ...promptPagesQuery(narratorPromptKindKey),
@@ -47,6 +51,7 @@ export const Route = createFileRoute("/campaigns/new")({
       defaultSelection.promptKey
         ? context.queryClient.query(promptQuery(defaultSelection.promptKey))
         : undefined,
+      savedNarratorKey && context.queryClient.query(promptQuery(savedNarratorKey)),
     ]);
   },
   component: NewCampaignRoute,
@@ -59,32 +64,57 @@ function NewCampaignRoute() {
   const { data: defaultPrompt } = useSuspenseQuery(
     promptQuery(defaultPromptKey ?? "missing-narrator-prompt"),
   );
-  const [narratorPromptKey, setNarratorPromptKey] = useState(defaultPromptKey ?? "");
+  const { draft, updateDraft } = useCampaignSetupDraft();
+  const narratorPromptKey = draft.narratorPromptKey ?? defaultPromptKey ?? "";
+  const loadedPrompts = promptPages.data.pages.flatMap((page) => page.prompts);
+  let knownSelection = loadedPrompts.find(({ key }) => key === narratorPromptKey);
+  if (!knownSelection && defaultPrompt?.key === narratorPromptKey) {
+    knownSelection = defaultPrompt;
+  }
+  const { data: selectedPrompt } = useSuspenseQuery({
+    ...promptQuery(narratorPromptKey),
+    ...(knownSelection && { initialData: knownSelection }),
+  });
   const startCampaign = useStartCampaign();
+  const starting = useIsStartingCampaign();
   const navigate = useNavigate({ from: "/campaigns/new" });
   const active = useRef(true);
-  const form = useFormStore({
-    defaultValues: { title: "", scenario: "" } satisfies CampaignSetupInput,
+  const composingTitle = useRef(false);
+  const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
+  let formValues = draft.values;
+  if (createdCampaign) {
+    formValues = { title: createdCampaign.title, scenario: createdCampaign.scenario };
+  }
+  const form = useFormStore<CampaignSetupInput>({
+    values: formValues,
+    setValues: (values) => {
+      if (!createdCampaign) updateDraft({ values });
+    },
   });
   const scenario = useFormValue<string>(form, form.names.scenario);
-  const submitting = useStoreState(form, "submitting");
+  const formSubmitting = useStoreState(form, "submitting");
+  const submitting = formSubmitting || starting;
   const hasSubmitted = useStoreState(
     form,
     ["submitFailed", "submitSucceed"],
     (state) => state.submitFailed > 0 || state.submitSucceed > 0,
   );
-  const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
 
   if (!defaultPromptKey || !defaultPrompt) {
     throw new Error("The narrator prompt kind has no available default.");
   }
 
-  const loadedPrompts = promptPages.data.pages.flatMap((page) => page.prompts);
-  const prompts = loadedPrompts.some(({ key }) => key === defaultPrompt.key)
+  let prompts = loadedPrompts.some(({ key }) => key === defaultPrompt.key)
     ? loadedPrompts
     : [defaultPrompt, ...loadedPrompts];
-  const options = prompts.map(
+  if (selectedPrompt && !prompts.some(({ key }) => key === selectedPrompt.key)) {
+    prompts = [selectedPrompt, ...prompts];
+  }
+  if (!selectedPrompt) {
+    prompts = prompts.filter(({ key }) => key !== narratorPromptKey);
+  }
+  const options: PromptSelectOption[] = prompts.map(
     (prompt) =>
       ({
         description: prompt.body,
@@ -92,6 +122,28 @@ function NewCampaignRoute() {
         value: prompt.key,
       }) satisfies PromptSelectOption,
   );
+  if (!selectedPrompt) {
+    options.push({
+      value: narratorPromptKey,
+      title: "Unavailable narrator",
+      description: "This narrator is no longer available. Choose another narrator.",
+    });
+  }
+
+  function updateTitle(element: HTMLInputElement) {
+    if (!composingTitle.current) {
+      const limited = limitCampaignTitleInput(
+        element.value,
+        element.selectionStart ?? element.value.length,
+      );
+      if (limited.value !== element.value) {
+        element.value = limited.value;
+        element.setSelectionRange(limited.caret, limited.caret);
+      }
+    }
+    form.setValue(form.names.title, element.value);
+    form.setError(form.names.title, undefined);
+  }
 
   useStartCampaignFormValidation(form);
 
@@ -120,6 +172,7 @@ function NewCampaignRoute() {
   }
 
   useFormSubmit(form, async (state) => {
+    if (starting || composingTitle.current || (!createdCampaign && !selectedPrompt)) return;
     let campaign = createdCampaign;
 
     if (!campaign) {
@@ -203,6 +256,23 @@ function NewCampaignRoute() {
                   </Item.Content>
                   <FormInput
                     name={form.names.title}
+                    onChange={(event) => {
+                      event.preventDefault();
+                      updateTitle(event.currentTarget);
+                    }}
+                    onCompositionStart={() => {
+                      composingTitle.current = true;
+                    }}
+                    onCompositionEnd={(event) => {
+                      composingTitle.current = false;
+                      updateTitle(event.currentTarget);
+                    }}
+                    onBlur={(event) => {
+                      if (composingTitle.current) {
+                        composingTitle.current = false;
+                        updateTitle(event.currentTarget);
+                      }
+                    }}
                     render={
                       <Input
                         type="text"
@@ -262,7 +332,10 @@ function NewCampaignRoute() {
                   onLoadMore={() => void promptPages.fetchNextPage()}
                   value={narratorPromptKey}
                   options={options}
-                  onValueChange={setNarratorPromptKey}
+                  onValueChange={(key) => updateDraft({ narratorPromptKey: key })}
+                  {...(!selectedPrompt && {
+                    error: "The saved narrator is unavailable. Choose another narrator.",
+                  })}
                 />
               </Item.Root>
             </Item.Group>
@@ -274,7 +347,11 @@ function NewCampaignRoute() {
               {operationError}
             </FormLayout.Status>
 
-            <Button type="submit" disabled={submitting} style={styles.submitButton}>
+            <Button
+              type="submit"
+              disabled={submitting || (!createdCampaign && !selectedPrompt)}
+              style={styles.submitButton}
+            >
               {actionLabel}
             </Button>
           </AriakitForm>

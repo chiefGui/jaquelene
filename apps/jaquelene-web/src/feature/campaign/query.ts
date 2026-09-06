@@ -23,11 +23,17 @@ import {
   campaignListQueryKey,
   campaignPromptSelectionPrefix,
   campaignRecordQueryKey,
+  campaignQueryKey,
   campaignUsageRecordQueryKey,
   threadQueryPrefix,
 } from "@/feature/cache-keys";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 import { campaignMutationKey, campaignMutationScope } from "./mutation";
+import {
+  clearSubmittedCampaignSetupDraft,
+  readCampaignSetupDraft,
+  type CampaignSetupDraft,
+} from "./setup-draft";
 
 const startCampaign = requireIpcMethod(Campaigns?.start);
 const listCampaigns = requireIpcMethod(Campaigns?.list);
@@ -391,11 +397,18 @@ export function useDeleteCampaign(campaign: Pick<Campaign, "id" | "threadId">) {
   return useMutation(deleteCampaignMutationOptions(queryClient, campaign));
 }
 
+const startCampaignMutationKey = [...campaignQueryKey, "start"] as const;
+
 export function startCampaignMutationOptions(queryClient: QueryClient) {
-  return mutationOptions<Campaign, Error, StartCampaignRequest>({
+  return mutationOptions<Campaign, Error, StartCampaignRequest, CampaignSetupDraft>({
     ...ipcMutationOptions,
+    mutationKey: startCampaignMutationKey,
     mutationFn: startCampaign,
-    onSuccess(campaign) {
+    onMutate: () => readCampaignSetupDraft(queryClient),
+    onSuccess(campaign, _request, submittedDraft) {
+      if (submittedDraft) {
+        clearSubmittedCampaignSetupDraft(queryClient, submittedDraft);
+      }
       queryClient.setQueryData(campaignQuery(campaign.id).queryKey, campaign);
       const summary: CampaignSummary = {
         id: campaign.id,
@@ -417,6 +430,10 @@ export function startCampaignMutationOptions(queryClient: QueryClient) {
 export function useStartCampaign() {
   const queryClient = useQueryClient();
   return useMutation(startCampaignMutationOptions(queryClient));
+}
+
+export function useIsStartingCampaign() {
+  return useIsMutating({ mutationKey: startCampaignMutationKey }) > 0;
 }
 
 export function useRenameCampaign(id: string) {

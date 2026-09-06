@@ -1,12 +1,7 @@
 import { Cause, Effect, Exit, Fiber } from "effect";
-import {
-  FetchHttpClient,
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-  UrlParams,
-} from "effect/unstable/http";
+import { HttpClient, HttpClientRequest, HttpClientResponse, UrlParams } from "effect/unstable/http";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { httpClient } from "../http-test-helpers";
 import { createNanoGptModels } from "./models";
 
 function connection(apiKey = "nanogpt-model-key") {
@@ -138,12 +133,7 @@ describe("NanoGPT model provider", () => {
   it("preserves catalog transport failures", async () => {
     const failure = new TypeError("Catalog unavailable");
     const fetchRequest = vi.fn<typeof fetch>().mockRejectedValue(failure);
-    const client = await Effect.runPromise(
-      HttpClient.HttpClient.pipe(
-        Effect.provide(FetchHttpClient.layer),
-        Effect.provideService(FetchHttpClient.Fetch, fetchRequest),
-      ),
-    );
+    const client = httpClient(fetchRequest);
     const models = createNanoGptModels(connection(), client);
     await expect(Effect.runPromise(models.list)).rejects.toMatchObject({
       _tag: "HttpClientError",

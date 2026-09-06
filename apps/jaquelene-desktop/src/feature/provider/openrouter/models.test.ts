@@ -1,7 +1,7 @@
 import { Effect, Exit, Fiber } from "effect";
 import { TestClock } from "effect/testing";
-import { FetchHttpClient, HttpClient } from "effect/unstable/http";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { httpClient, stalledResponse } from "../http-test-helpers";
 import { createOpenRouterModels } from "./models";
 
 function model(overrides: Record<string, unknown> = {}) {
@@ -29,16 +29,6 @@ function model(overrides: Record<string, unknown> = {}) {
 
 function response(models: readonly ReturnType<typeof model>[]) {
   return Response.json({ data: models, links: { next: null }, total_count: models.length });
-}
-
-function httpClient(request: typeof fetch) {
-  return Effect.runSync(
-    HttpClient.HttpClient.pipe(
-      Effect.provide(FetchHttpClient.layer),
-      Effect.provideService(FetchHttpClient.Fetch, request),
-      Effect.provideService(HttpClient.TracerPropagationEnabled, false),
-    ),
-  );
 }
 
 function connection() {
@@ -264,12 +254,9 @@ describe("OpenRouter model provider", () => {
 
   it("times out a stalled page body and aborts its request", async () => {
     const reading = Promise.withResolvers<void>();
-    const body = new Response();
-    vi.spyOn(body, "arrayBuffer").mockImplementation(() => {
-      reading.resolve();
-      return new Promise<ArrayBuffer>(() => {});
-    });
-    const request = vi.fn<typeof fetch>(async () => body);
+    const request = vi.fn<typeof fetch>(async (_url, options) =>
+      stalledResponse(options!.signal!, reading.resolve),
+    );
     const provider = createOpenRouterModels(connection(), httpClient(request));
     await Effect.runPromise(
       Effect.gen(function* () {

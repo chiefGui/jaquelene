@@ -1,12 +1,8 @@
 import { Cause, Effect, Exit, Fiber } from "effect";
 import { TestClock } from "effect/testing";
-import {
-  FetchHttpClient,
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "effect/unstable/http";
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { httpClient, stalledResponse } from "../http-test-helpers";
 import { verifyNanoGptApiKey } from "./verification";
 
 function responseClient(response: Response) {
@@ -74,12 +70,7 @@ describe("NanoGPT API key verification", () => {
 
   it("reports network failures as unavailable", async () => {
     const request = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("fetch failed"));
-    const client = await Effect.runPromise(
-      HttpClient.HttpClient.pipe(
-        Effect.provide(FetchHttpClient.layer),
-        Effect.provideService(FetchHttpClient.Fetch, request),
-      ),
-    );
+    const client = httpClient(request);
     await expect(Effect.runPromise(verifyNanoGptApiKey("nanogpt-key", client))).resolves.toEqual({
       state: "unavailable",
     });
@@ -89,12 +80,7 @@ describe("NanoGPT API key verification", () => {
   it("preserves unexpected request failures", async () => {
     const failure = new Error("Unexpected failure");
     const request = vi.fn<typeof fetch>().mockRejectedValue(failure);
-    const client = await Effect.runPromise(
-      HttpClient.HttpClient.pipe(
-        Effect.provide(FetchHttpClient.layer),
-        Effect.provideService(FetchHttpClient.Fetch, request),
-      ),
-    );
+    const client = httpClient(request);
     await expect(Effect.runPromise(verifyNanoGptApiKey("nanogpt-key", client))).rejects.toBe(
       failure,
     );
@@ -137,13 +123,8 @@ describe("NanoGPT API key verification", () => {
   it("times out the complete balance body read as unavailable", async () => {
     const started = Promise.withResolvers<AbortSignal>();
     const client = HttpClient.make((request, _url, signal) => {
-      const body = new ReadableStream<Uint8Array>({
-        start(controller) {
-          signal.addEventListener("abort", () => controller.error(signal.reason), { once: true });
-        },
-      });
-      started.resolve(signal);
-      return Effect.succeed(HttpClientResponse.fromWeb(request, new Response(body)));
+      const response = stalledResponse(signal, () => started.resolve(signal));
+      return Effect.succeed(HttpClientResponse.fromWeb(request, response));
     });
     await Effect.runPromise(
       Effect.gen(function* () {

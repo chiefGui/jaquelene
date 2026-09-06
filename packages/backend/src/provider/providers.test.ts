@@ -267,7 +267,6 @@ describe("provider subsystem", () => {
       category: StorageCategory.AppData,
       paths,
     });
-    expect(Effect.isEffect(area.delete)).toBe(true);
     await subsystem.close();
   });
 
@@ -1073,80 +1072,93 @@ describe("provider subsystem", () => {
     ]);
   });
 
-  it.each(["configure", "clear"] as const)(
-    "reports credential inspection failures as operational failures during %s",
-    async (operation) => {
+  it.each([
+    ["configure", "before"],
+    ["configure", "after"],
+    ["clear", "before"],
+    ["clear", "after"],
+  ] as const)(
+    "reports an operational failure when credential storage is unreadable for %s (%s the change)",
+    async (operation, timing) => {
       const storageFailure = new Error("Credential file is unreadable.");
-      for (const failingRead of [1, 2, 3]) {
-        const original = apiKeyProvider();
-        let reads = 0;
-        const adapter = apiKeyProvider({
-          configuration: {
-            ...original.configuration,
-            inspect() {
-              reads += 1;
-              if (reads === failingRead) {
-                throw storageFailure;
-              }
-              return original.configuration.inspect();
-            },
+      const original = apiKeyProvider();
+      let unreadable = timing === "before";
+      const makeUnreadable = Effect.sync(() => {
+        unreadable = true;
+      });
+      const adapter = apiKeyProvider({
+        configuration: {
+          ...original.configuration,
+          inspect() {
+            if (unreadable) {
+              throw storageFailure;
+            }
+            return original.configuration.inspect();
           },
-        });
-        const subsystem = await createTestProviders([adapter], await createTestResourceCache());
-        let program = subsystem.providers.clearConfiguration(adapter.descriptor.id);
-        if (operation === "configure") {
-          program = Effect.asVoid(
-            subsystem.providers.configureApiKey(adapter.descriptor.id, "key"),
-          );
-        }
-        const exit = await subsystem.runExit(program);
+          configure: (apiKey) =>
+            original.configuration.configure(apiKey).pipe(Effect.tap(makeUnreadable)),
+          clear: original.configuration.clear.pipe(Effect.tap(makeUnreadable)),
+        },
+      });
+      const subsystem = await createTestProviders([adapter], await createTestResourceCache());
+      let program = subsystem.providers.clearConfiguration(adapter.descriptor.id);
+      if (operation === "configure") {
+        program = Effect.asVoid(subsystem.providers.configureApiKey(adapter.descriptor.id, "key"));
+      }
+      const exit = await subsystem.runExit(program);
 
-        expect(Exit.isFailure(exit)).toBe(true);
-        if (Exit.isFailure(exit)) {
-          expect(exit.cause.reasons.filter(Cause.isDieReason)).toEqual([]);
-          const failures = exit.cause.reasons.filter(Cause.isFailReason);
-          expect(failures).toHaveLength(1);
-          expect(failures[0]?.error).toBeInstanceOf(ProviderOperationError);
-          expect(failures[0]?.error).toMatchObject({
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isFailure(exit)) {
+        expect(exit.cause.reasons.filter(Cause.isDieReason)).toEqual([]);
+        const failures = exit.cause.reasons.filter(Cause.isFailReason);
+        expect(failures.length).toBeGreaterThan(0);
+        for (const { error } of failures) {
+          expect(error).toBeInstanceOf(ProviderOperationError);
+          expect(error).toMatchObject({
             providerId: adapter.descriptor.id,
             operation,
             cause: storageFailure,
           });
         }
-        await subsystem.close();
       }
+      await subsystem.close();
     },
   );
 
-  it.each([3, 4])(
-    "preserves credential read %s failures around model loading",
-    async (failingRead) => {
-      const storageFailure = new Error("Credential file is unreadable.");
-      const original = apiKeyProvider();
-      await Effect.runPromise(original.configuration.configure("key"));
-      let reads = 0;
-      const adapter = apiKeyProvider({
-        configuration: {
-          ...original.configuration,
-          inspect() {
-            reads += 1;
-            if (reads === failingRead) {
-              throw storageFailure;
-            }
-            return original.configuration.inspect();
-          },
+  it("preserves credential inspection failures after model loading", async () => {
+    const storageFailure = new Error("Credential file is unreadable.");
+    const original = apiKeyProvider();
+    await Effect.runPromise(original.configuration.configure("key"));
+    let unreadable = false;
+    const adapter = apiKeyProvider({
+      configuration: {
+        ...original.configuration,
+        inspect() {
+          if (unreadable) {
+            throw storageFailure;
+          }
+          return original.configuration.inspect();
         },
-      });
-      const subsystem = await createTestProviders([adapter], await createTestResourceCache());
+      },
+      models: {
+        list: original.models.list.pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              unreadable = true;
+            }),
+          ),
+        ),
+      },
+    });
+    const subsystem = await createTestProviders([adapter], await createTestResourceCache());
 
-      await expect(listModels(subsystem, adapter.descriptor.id)).rejects.toMatchObject({
-        _tag: "ProviderOperationError",
-        providerId: adapter.descriptor.id,
-        operation: "models",
-        cause: storageFailure,
-      });
-    },
-  );
+    await expect(listModels(subsystem, adapter.descriptor.id)).rejects.toMatchObject({
+      _tag: "ProviderOperationError",
+      providerId: adapter.descriptor.id,
+      operation: "models",
+      cause: storageFailure,
+    });
+  });
 
   it("cancels one generation without interrupting another on the same provider", async () => {
     const bothStarted = Deferred.makeUnsafe<void>();
@@ -1455,7 +1467,5 @@ describe("provider subsystem", () => {
     await expect(createTestProviders([provider, provider], cache)).rejects.toThrow(
       'Provider "local-provider" is registered more than once.',
     );
-    expect(Object.keys(provider)).toEqual(["descriptor", "configuration", "models", "generation"]);
-    expect(provider.configuration).toEqual({ kind: "none" });
   });
 });

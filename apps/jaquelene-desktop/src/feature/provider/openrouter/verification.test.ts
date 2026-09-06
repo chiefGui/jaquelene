@@ -1,18 +1,8 @@
 import { Cause, Effect, Exit, Fiber } from "effect";
 import { TestClock } from "effect/testing";
-import { FetchHttpClient, HttpClient } from "effect/unstable/http";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { httpClient, stalledResponse } from "../http-test-helpers";
 import { verifyOpenRouterApiKey } from "./verification";
-
-function httpClient(request: typeof fetch) {
-  return Effect.runSync(
-    HttpClient.HttpClient.pipe(
-      Effect.provide(FetchHttpClient.layer),
-      Effect.provideService(FetchHttpClient.Fetch, request),
-      Effect.provideService(HttpClient.TracerPropagationEnabled, false),
-    ),
-  );
-}
 
 describe("OpenRouter API key verification", () => {
   it("returns OpenRouter's redacted label for an accepted key", async () => {
@@ -103,12 +93,9 @@ describe("OpenRouter API key verification", () => {
 
   it("reports a body timeout as unavailable and releases the response", async () => {
     const reading = Promise.withResolvers<void>();
-    const response = new Response();
-    vi.spyOn(response, "arrayBuffer").mockImplementation(() => {
-      reading.resolve();
-      return new Promise<ArrayBuffer>(() => {});
-    });
-    const request = vi.fn<typeof fetch>(async () => response);
+    const request = vi.fn<typeof fetch>(async (_url, options) =>
+      stalledResponse(options!.signal!, reading.resolve),
+    );
     await Effect.runPromise(
       Effect.gen(function* () {
         const fiber = yield* Effect.forkChild(

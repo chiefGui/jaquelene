@@ -1,8 +1,8 @@
 import { Cause, Effect, Exit, Fiber } from "effect";
 import { TestClock } from "effect/testing";
-import { FetchHttpClient, HttpClient } from "effect/unstable/http";
 import { ids, type ProviderGenerationRequest } from "@jaquelene/backend";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { httpClient, stalledResponse } from "../http-test-helpers";
 import { createOpenRouterGeneration } from "./generation";
 
 function chatResult(overrides: Record<string, unknown> = {}) {
@@ -57,16 +57,6 @@ function connection(apiKey = "openrouter-key") {
   };
 }
 
-function httpClient(request: typeof fetch) {
-  return Effect.runSync(
-    HttpClient.HttpClient.pipe(
-      Effect.provide(FetchHttpClient.layer),
-      Effect.provideService(FetchHttpClient.Fetch, request),
-      Effect.provideService(HttpClient.TracerPropagationEnabled, false),
-    ),
-  );
-}
-
 function completion(body = chatResult()) {
   const request = vi.fn<typeof fetch>(async () => Response.json(body));
   return { request, provider: createOpenRouterGeneration(connection(), httpClient(request)) };
@@ -74,8 +64,7 @@ function completion(body = chatResult()) {
 
 function requestBody(request: ReturnType<typeof completion>["request"]) {
   const body = request.mock.calls[0]?.[1]?.body;
-  expect(body).toBeInstanceOf(Uint8Array);
-  return JSON.parse(new TextDecoder().decode(body as Uint8Array));
+  return new Response(body).json();
 }
 
 describe("OpenRouter generation provider", () => {
@@ -128,7 +117,7 @@ describe("OpenRouter generation provider", () => {
         signal: expect.any(AbortSignal),
       }),
     );
-    expect(requestBody(request)).toEqual({
+    expect(await requestBody(request)).toEqual({
       model: input.modelId,
       messages: [
         { role: "system", content: "Instruction" },
@@ -146,7 +135,7 @@ describe("OpenRouter generation provider", () => {
     const { groupId: _, ...input } = generationRequest();
     const { provider, request } = completion();
     await Effect.runPromise(provider.generate(input));
-    expect(requestBody(request)).not.toHaveProperty("session_id");
+    expect(await requestBody(request)).not.toHaveProperty("session_id");
   });
 
   it.each(["max", "xhigh", "high", "medium", "low", "minimal"] as const)(
@@ -156,7 +145,7 @@ describe("OpenRouter generation provider", () => {
       await Effect.runPromise(
         provider.generate({ ...generationRequest(), reasoning: { preset, source: "selection" } }),
       );
-      expect(requestBody(request).reasoning).toEqual({ effort: preset });
+      expect(await requestBody(request)).toHaveProperty("reasoning", { effort: preset });
     },
   );
 
@@ -168,7 +157,7 @@ describe("OpenRouter generation provider", () => {
     await Effect.runPromise(
       provider.generate({ ...generationRequest(), reasoning: { preset, source: "selection" } }),
     );
-    expect(requestBody(request).reasoning).toEqual(expected);
+    expect(await requestBody(request)).toHaveProperty("reasoning", expected);
   });
 
   it.each([
@@ -177,7 +166,7 @@ describe("OpenRouter generation provider", () => {
   ] as const)("omits provider-managed reasoning %j", async (reasoning) => {
     const { provider, request } = completion();
     await Effect.runPromise(provider.generate({ ...generationRequest(), reasoning }));
-    expect(requestBody(request)).not.toHaveProperty("reasoning");
+    expect(await requestBody(request)).not.toHaveProperty("reasoning");
   });
 
   it("prefers choice index zero and preserves text parts and missing usage", async () => {
@@ -299,12 +288,9 @@ describe("OpenRouter generation provider", () => {
 
   it("times out body consumption after headers have arrived", async () => {
     const reading = Promise.withResolvers<void>();
-    const response = new Response();
-    vi.spyOn(response, "arrayBuffer").mockImplementation(() => {
-      reading.resolve();
-      return new Promise<ArrayBuffer>(() => {});
-    });
-    const request = vi.fn<typeof fetch>(async () => response);
+    const request = vi.fn<typeof fetch>(async (_url, options) =>
+      stalledResponse(options!.signal!, reading.resolve),
+    );
     const provider = createOpenRouterGeneration(connection(), httpClient(request));
     await Effect.runPromise(
       Effect.gen(function* () {

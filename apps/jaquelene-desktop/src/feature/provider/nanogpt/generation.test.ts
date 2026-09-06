@@ -1,13 +1,9 @@
 import { Cause, Effect, Exit, Fiber } from "effect";
 import { TestClock } from "effect/testing";
-import {
-  FetchHttpClient,
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "effect/unstable/http";
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http";
 import { ids, type ProviderGenerationRequest } from "@jaquelene/backend";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { httpClient, stalledResponse } from "../http-test-helpers";
 import { createNanoGptGeneration } from "./generation";
 
 function chatResult(overrides: Record<string, unknown> = {}) {
@@ -271,12 +267,7 @@ describe("NanoGPT generation provider", () => {
   it("preserves transport error context without retry", async () => {
     const failure = new TypeError("Transport unavailable");
     const fetchRequest = vi.fn<typeof fetch>().mockRejectedValue(failure);
-    const client = await Effect.runPromise(
-      HttpClient.HttpClient.pipe(
-        Effect.provide(FetchHttpClient.layer),
-        Effect.provideService(FetchHttpClient.Fetch, fetchRequest),
-      ),
-    );
+    const client = httpClient(fetchRequest);
     const provider = createNanoGptGeneration(connection(), client);
     await expect(Effect.runPromise(provider.generate(generationRequest()))).rejects.toMatchObject({
       _tag: "HttpClientError",
@@ -303,13 +294,8 @@ describe("NanoGPT generation provider", () => {
   it("times out the complete response body read and aborts its request", async () => {
     const started = Promise.withResolvers<AbortSignal>();
     const client = HttpClient.make((request, _url, signal) => {
-      const body = new ReadableStream<Uint8Array>({
-        start(controller) {
-          signal.addEventListener("abort", () => controller.error(signal.reason), { once: true });
-        },
-      });
-      started.resolve(signal);
-      return Effect.succeed(HttpClientResponse.fromWeb(request, new Response(body)));
+      const response = stalledResponse(signal, () => started.resolve(signal));
+      return Effect.succeed(HttpClientResponse.fromWeb(request, response));
     });
     const provider = createNanoGptGeneration(connection(), client);
     await Effect.runPromise(

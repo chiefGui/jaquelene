@@ -1,7 +1,8 @@
-import type {
-  ModelConfigurationSelection,
-  RequestedModelConfiguration,
-  ThreadMessage,
+import {
+  GenerationIntent,
+  type ModelConfigurationSelection,
+  type RequestedModelConfiguration,
+  type ThreadMessage,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -330,23 +331,35 @@ function ThreadViewInstance({
       ? "failed"
       : null;
   const historical = !isLatestThreadHistory(messagesQuery.data);
+  let regenerationRequestMessageId: string | null = null;
+  if (regenerateReplyMutation.isPending) {
+    regenerationRequestMessageId = regenerateReplyMutation.variables.assistantMessageId;
+  }
   const threadView = useMemo(
     () =>
       deriveThreadViewState({
         pages: messagesQuery.data.pages,
         retryActivity:
           retryTurnId && retryStatus ? { turnId: retryTurnId, status: retryStatus } : null,
+        regenerationRequestMessageId,
         actionsAvailable: !historical,
         hasModel: configuration !== null,
       }),
-    [configuration, historical, messagesQuery.data.pages, retryStatus, retryTurnId],
+    [
+      configuration,
+      historical,
+      messagesQuery.data.pages,
+      retryStatus,
+      retryTurnId,
+      regenerationRequestMessageId,
+    ],
   );
-  const operationPending = threadOperationPending || (!historical && threadView.replyPending);
+  const operationPending =
+    threadOperationPending || (!historical && threadView.pendingGenerationIntent !== null);
   const generationPending =
     pendingSubmission !== null ||
     retryTurnMutation.isPending ||
-    regenerateReplyMutation.isPending ||
-    (!historical && threadView.replyPending);
+    (!historical && threadView.pendingGenerationIntent === GenerationIntent.Reply);
   const messageEditActive = editSession !== null;
   const historyRequestPending =
     messagesQuery.isFetchingNextPage ||

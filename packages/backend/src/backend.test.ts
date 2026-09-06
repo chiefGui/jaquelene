@@ -104,6 +104,7 @@ type TestStorage = Readonly<{
 type TestBackend = Omit<Backend, "storage"> &
   Readonly<{
     storage: TestStorage;
+    run: <A, E>(effect: Effect.Effect<A, E>) => Promise<A>;
     close: () => Promise<void>;
     [Symbol.asyncDispose]: () => Promise<void>;
   }>;
@@ -149,6 +150,7 @@ async function openBackend(options: BackendOptions, signal?: AbortSignal): Promi
 
   return {
     ...backend,
+    run: runtime.runPromise,
     storage: {
       measureUsage: () => runtime.runPromise(backend.storage.measureUsage()),
       deleteArea: (id) => runtime.runPromise(backend.storage.deleteArea(id)),
@@ -354,7 +356,7 @@ describe("backend", () => {
       ]),
     );
 
-    await expect(first.models.getModels("provider-a")).resolves.toMatchObject({
+    await expect(first.run(first.models.getModels("provider-a"))).resolves.toMatchObject({
       models: [
         {
           id: "maker/model",
@@ -367,10 +369,10 @@ describe("backend", () => {
       freshness: "fresh",
     });
     await expect(
-      first.models.getModel({ providerId: "provider-a", modelId: "maker/model" }),
+      first.run(first.models.getModel({ providerId: "provider-a", modelId: "maker/model" })),
     ).resolves.toMatchObject({ id: "maker/model", name: "Model" });
     await expect(
-      first.models.getModel({ providerId: "provider-a", modelId: "maker/missing" }),
+      first.run(first.models.getModel({ providerId: "provider-a", modelId: "maker/missing" })),
     ).rejects.toThrow('does not expose model "maker/missing"');
     expect(firstList).toHaveBeenCalledOnce();
     await first.close();
@@ -387,7 +389,7 @@ describe("backend", () => {
       ]),
     );
 
-    await expect(reopened.models.getModels("provider-a")).resolves.toMatchObject({
+    await expect(reopened.run(reopened.models.getModels("provider-a"))).resolves.toMatchObject({
       models: [
         {
           id: "maker/model",
@@ -419,12 +421,12 @@ describe("backend", () => {
       changes.push(revision);
     });
 
-    await backend.models.getModels("provider-a");
+    await backend.run(backend.models.getModels("provider-a"));
     expect(list).toHaveBeenCalledOnce();
     const changesBeforeClear = changes.length;
     await backend.storage.deleteCategory(StorageCategory.Cache);
     expect(changes).toHaveLength(changesBeforeClear + 1);
-    await backend.models.getModels("provider-a");
+    await backend.run(backend.models.getModels("provider-a"));
     expect(list).toHaveBeenCalledTimes(2);
     unsubscribe();
     await backend.close();

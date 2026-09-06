@@ -104,16 +104,18 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   const timelineSnapshot = useRef<ThreadTimelineSnapshot | null>(null);
   const itemOrigin = useRef<number | null>(null);
   const [scrollMargin, setScrollMargin] = useState<number | null>(null);
-  const optimisticSubmission = view.replyPending ? null : pendingSubmission;
+  const replyPending = view.pendingGenerationIntent !== null;
+  let optimisticSubmission = pendingSubmission;
+  if (replyPending) {
+    optimisticSubmission = null;
+  }
   const hasHistoryControls = hasOlderMessages || olderMessagesFailed;
   const paddingStart = hasHistoryControls ? 0 : timelinePadding;
   const items = useMemo<ThreadTimelineItem[]>(() => {
     const messages: ThreadTimelineItem[] = view.messages.map((value) => ({
       estimatedSize: estimateThreadTimelineItemSize(
         value.message.content,
-        value.replyFailure !== null ||
-          value.regeneration?.status === "pending" ||
-          value.regeneration?.status === "failed",
+        value.replyFailure !== null || value.regeneration?.status === "failed",
       ),
       key: `message:${value.message.id}`,
       type: "message",
@@ -269,8 +271,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
       oldestMessage.sequence > previous.newestSequence;
     const ownSubmissionAdded = clientId !== null && clientId !== previous?.submissionId;
     const timelineChanged =
-      view.latestMessageId !== previous?.latestMessageId ||
-      view.replyPending !== previous?.replyPending;
+      view.latestMessageId !== previous?.latestMessageId || replyPending !== previous?.replyPending;
     const shouldScrollToEnd =
       previous === null ||
       ownSubmissionAdded ||
@@ -292,7 +293,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
       messageIds,
       oldestSequence: oldestMessage?.sequence ?? null,
       newestSequence: newestMessage?.sequence ?? null,
-      replyPending: view.replyPending,
+      replyPending,
       submissionId: clientId ?? previous?.submissionId ?? null,
     };
   }, [
@@ -303,7 +304,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
     scrollMargin,
     view.latestMessageId,
     view.messages,
-    view.replyPending,
+    replyPending,
     virtualizer,
   ]);
 

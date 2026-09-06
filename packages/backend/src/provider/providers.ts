@@ -333,7 +333,7 @@ const createProviders = Effect.fnUntraced(function* (
     return configuration.revision;
   }
 
-  const modelCatalog = yield* createModelCatalog(resourceCache, {
+  const modelCatalog = createModelCatalog(resourceCache, {
     listProviders: () =>
       [...providersById.values()].flatMap<ModelProvider>((provider) => {
         if (inspectAdapterConfiguration(provider.adapter).state !== "configured") {
@@ -400,10 +400,7 @@ const createProviders = Effect.fnUntraced(function* (
               return;
             }
           }
-          yield* Effect.tryPromise({
-            try: () => modelCatalog.invalidateProvider(provider.adapter.descriptor.id),
-            catch: (cause) => cause,
-          });
+          yield* modelCatalog.invalidateProvider(provider.adapter.descriptor.id);
         }),
       ),
     );

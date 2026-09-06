@@ -12,24 +12,26 @@ import {
 
 function modelCatalog(reasoning?: ModelReasoningCapability) {
   return {
-    getModel: vi.fn(async (reference: { providerId: string; modelId: string }) => {
-      const model: {
-        id: string;
-        name: string;
-        brandId: string;
-        reasoning?: ModelReasoningCapability;
-      } = {
-        id: reference.modelId,
-        name: "Test model",
-        brandId: "test",
-      };
+    getModel: vi.fn((reference: { providerId: string; modelId: string }) =>
+      Effect.sync(() => {
+        const model: {
+          id: string;
+          name: string;
+          brandId: string;
+          reasoning?: ModelReasoningCapability;
+        } = {
+          id: reference.modelId,
+          name: "Test model",
+          brandId: "test",
+        };
 
-      if (reasoning !== undefined) {
-        model.reasoning = reasoning;
-      }
+        if (reasoning !== undefined) {
+          model.reasoning = reasoning;
+        }
 
-      return model;
-    }),
+        return model;
+      }),
+    ),
   };
 }
 
@@ -61,10 +63,10 @@ describe("model executor", () => {
       model: { providerId: "provider-a", modelId: "maker/model" },
       reasoning: { preset: "high", source: "selection" },
     });
-    expect(models.getModel).toHaveBeenCalledWith(
-      { providerId: "provider-a", modelId: "maker/model" },
-      expect.any(AbortSignal),
-    );
+    expect(models.getModel).toHaveBeenCalledWith({
+      providerId: "provider-a",
+      modelId: "maker/model",
+    });
   });
 
   it("executes independent model input and normalizes provider accounting", async () => {
@@ -174,9 +176,7 @@ describe("model executor", () => {
     const failure = new RangeError('Unknown provider "missing-provider".');
     const executor = createModelExecutor(
       {
-        getModel: async () => {
-          throw failure;
-        },
+        getModel: () => Effect.fail(failure),
       },
       { generate: () => Effect.succeed({ text: "Reply" }) },
     );

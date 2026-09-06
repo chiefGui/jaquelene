@@ -7,7 +7,7 @@ import { colors, radii, shadows, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import type { ComponentProps } from "react";
-import { ComposerBacklight } from "./composer-backlight";
+import { Backlight } from "@/primitive/backlight/backlight";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -26,7 +26,7 @@ function ComposerRoot({
       aria-busy={ariaBusy ?? (pending || undefined)}
       {...stylex.props(styles.root, style, stylex.defaultMarker())}
     >
-      <ComposerBacklight active={pending} />
+      <Backlight active={pending} />
       {children}
     </form>
   );

@@ -1,6 +1,7 @@
 import {
   Form as AriakitForm,
   FormControl,
+  FormDescription,
   FormError,
   FormInput,
   FormLabel,
@@ -17,18 +18,19 @@ import {
   narratorPromptKindKey,
 } from "@jaquelene/domain";
 import type { Campaign } from "@jaquelene/ipc/renderer";
-import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
+import { Button, Field, Form as FormLayout, Input, Item } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStartCampaignFormValidation } from "@/feature/campaign/form";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
 import { ScenarioImportControl } from "@/feature/scenario/import-control";
 import { useStartCampaign } from "@/feature/campaign/query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { promptDefaultQuery, promptPagesQuery, promptQuery } from "@/feature/prompt/query";
-import { PromptSelect, type PromptSelectOption } from "@/feature/prompt/select";
+import type { PromptSelectOption } from "@/feature/prompt/select";
+import { NarratorSelectControl } from "@/feature/narrator/select-control";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
@@ -73,8 +75,6 @@ function NewCampaignRoute() {
   );
   const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
-  const narratorLabelId = useId();
-  const narratorControlId = useId();
 
   if (!defaultPromptKey || !defaultPrompt) {
     throw new Error("The narrator prompt kind has no available default.");
@@ -188,61 +188,84 @@ function NewCampaignRoute() {
             validateOnBlur={hasSubmitted}
             validateOnChange={hasSubmitted}
           >
-            <Field.Root>
-              <FormLabel name={form.names.title} render={<Field.Label />}>
-                Title
-              </FormLabel>
-              <FormInput
-                name={form.names.title}
-                render={
-                  <Input
-                    type="text"
-                    autoFocus
-                    disabled={submitting || Boolean(createdCampaign)}
-                    maxLength={CAMPAIGN_TITLE_MAX_UTF16_LENGTH}
-                    placeholder="Campaign title"
+            <Item.Group>
+              <Item.Root style={styles.controlField}>
+                <Field.Root style={styles.titleRow}>
+                  <Item.Content>
+                    <FormLabel name={form.names.title} render={<Field.Label />}>
+                      Title
+                    </FormLabel>
+                    <FormDescription name={form.names.title} render={<Item.Description />}>
+                      Helps you find this campaign later.
+                      <br />
+                      It doesn't affect the story.
+                    </FormDescription>
+                  </Item.Content>
+                  <FormInput
+                    name={form.names.title}
+                    render={
+                      <Input
+                        type="text"
+                        autoFocus
+                        disabled={submitting || Boolean(createdCampaign)}
+                        maxLength={CAMPAIGN_TITLE_MAX_UTF16_LENGTH}
+                        placeholder="e.g. The Last Kingdom"
+                        style={styles.titleInput}
+                      />
+                    }
                   />
-                }
-              />
-              <FormError name={form.names.title} render={<Field.Error />} />
-            </Field.Root>
-
-            <Field.Root>
-              <Field.Label id={narratorLabelId} htmlFor={narratorControlId}>
-                Narrator
-              </Field.Label>
-              <PromptSelect
-                id={narratorControlId}
-                aria-labelledby={narratorLabelId}
-                disabled={submitting || Boolean(createdCampaign)}
-                hasMore={promptPages.hasNextPage}
-                loadingMore={promptPages.isFetchingNextPage}
-                onLoadMore={() => void promptPages.fetchNextPage()}
-                value={narratorPromptKey}
-                options={options}
-                onValueChange={setNarratorPromptKey}
-              />
-            </Field.Root>
-
-            <Field.Root>
-              <FormLabel name={form.names.scenario} render={<Field.Label />}>
-                Scenario (optional)
-              </FormLabel>
-              <FormControl
-                name={form.names.scenario}
-                render={
-                  <MarkdownEditor
-                    value={scenario}
-                    toolbarActions={<ScenarioImportControl />}
-                    onValueChange={(value) => form.setValue(form.names.scenario, value)}
-                    maxLength={CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH}
-                    readOnly={submitting || Boolean(createdCampaign)}
-                    placeholder="Describe the setting, universe, or starting situation."
+                  <FormError
+                    name={form.names.title}
+                    render={<Field.Error style={styles.titleError} />}
                   />
-                }
-              />
-              <FormError name={form.names.scenario} render={<Field.Error />} />
-            </Field.Root>
+                </Field.Root>
+              </Item.Root>
+
+              <Item.Root style={styles.writingField}>
+                <Field.Root>
+                  <FormLabel name={form.names.scenario} render={<Field.Label />}>
+                    Scenario
+                  </FormLabel>
+                  <FormDescription
+                    name={form.names.scenario}
+                    render={<Field.Description style={styles.scenarioDescription} />}
+                  >
+                    Define the setting, universe, flavor, and other permanent details of this
+                    campaign.
+                    <br />
+                    Think of aesthetics, important characters, public facts, and settings like New
+                    York in 1920.
+                  </FormDescription>
+                  <FormControl
+                    name={form.names.scenario}
+                    render={
+                      <MarkdownEditor
+                        value={scenario}
+                        toolbarActions={<ScenarioImportControl />}
+                        onValueChange={(value) => form.setValue(form.names.scenario, value)}
+                        maxLength={CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH}
+                        readOnly={submitting || Boolean(createdCampaign)}
+                        placeholder="New York, December 1, 2026. Cyberpunk."
+                      />
+                    }
+                  />
+                  <FormError name={form.names.scenario} render={<Field.Error />} />
+                </Field.Root>
+              </Item.Root>
+
+              <Item.Root style={styles.controlField}>
+                <NarratorSelectControl
+                  description="Set the rules for narration. Avoid worldbuilding and character details. Keep it concise."
+                  disabled={submitting || Boolean(createdCampaign)}
+                  hasMore={promptPages.hasNextPage}
+                  loadingMore={promptPages.isFetchingNextPage}
+                  onLoadMore={() => void promptPages.fetchNextPage()}
+                  value={narratorPromptKey}
+                  options={options}
+                  onValueChange={setNarratorPromptKey}
+                />
+              </Item.Root>
+            </Item.Group>
 
             <FormLayout.Status
               role={operationError ? "alert" : undefined}
@@ -262,6 +285,17 @@ function NewCampaignRoute() {
 }
 
 const styles = stylex.create({
-  form: { maxWidth: "34rem" },
-  submitButton: { justifySelf: "start", minWidth: "8rem" },
+  form: { gap: "1.5rem" },
+  writingField: { display: "block", paddingBlock: "1.5rem" },
+  controlField: { display: "block", paddingBlock: "1rem" },
+  titleRow: {
+    display: "grid",
+    alignItems: "start",
+    gridTemplateColumns: "minmax(4rem, 1fr) minmax(0, 20rem)",
+    columnGap: "1rem",
+  },
+  titleInput: { minWidth: 0, width: "100%" },
+  titleError: { gridColumn: "2" },
+  scenarioDescription: { margin: 0, marginBlockEnd: "0.25rem" },
+  submitButton: { alignSelf: "flex-end", width: "fit-content", minWidth: "8rem" },
 });

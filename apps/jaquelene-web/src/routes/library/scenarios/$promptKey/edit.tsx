@@ -6,7 +6,8 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { PromptDeleteAction } from "@/feature/prompt/delete-action";
 import { PromptEditor } from "@/feature/prompt/editor";
 import { PromptMetadata } from "@/feature/prompt/metadata";
-import { promptQuery } from "@/feature/prompt/query";
+import { PromptDefaultControl } from "@/feature/prompt/default-control";
+import { promptDefaultQuery, promptQuery } from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EmptyState } from "@/primitive/empty-state";
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/library/scenarios/$promptKey/edit")({
     if (prompt?.kind !== scenarioPromptKindKey || prompt.origin !== PromptOrigin.Custom) {
       return null;
     }
+    await context.queryClient.query(promptDefaultQuery(scenarioPromptKindKey));
     return String(prompt.key);
   },
   remountDeps: ({ params }) => params.promptKey,
@@ -44,7 +46,12 @@ function EditScenarioRoute() {
     content = (
       <div {...stylex.props(styles.editor)}>
         <PromptEditor aria-labelledby="edit-scenario-page" prompt={prompt} />
-        <Item.Group>
+        <Item.Group aria-label="Scenario management">
+          <PromptDefaultControl
+            prompt={prompt}
+            kindLabel="scenario"
+            description="The scenario copied into new campaigns. Turn off to start with an empty scenario."
+          />
           <Item.Root>
             <Item.Content>
               <Item.Label>Delete</Item.Label>

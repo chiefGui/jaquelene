@@ -1,6 +1,4 @@
-import { VisuallyHidden } from "@ariakit/react/visually-hidden";
 import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
-import Bookmark02Icon from "@hugeicons/core-free-icons/Bookmark02Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PromptOrigin, narratorPromptKindKey } from "@jaquelene/domain";
 import type { CustomPrompt, Prompt, PromptKind } from "@jaquelene/ipc/renderer";
@@ -10,7 +8,6 @@ import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { reportError } from "@/feature/diagnostics/diagnostics";
 import { NarratorPromptDeleteAction } from "@/feature/narrator/delete-action";
 import {
   promptDefaultQuery,
@@ -22,8 +19,10 @@ import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EditIcon } from "@/primitive/icons";
 import { PromptLibraryItem, promptLibraryItemStyles } from "@/feature/prompt/library-item";
-
-type SetPromptDefaultMutation = ReturnType<typeof useSetPromptDefault>;
+import {
+  PromptDefaultAction,
+  type SetPromptDefaultMutation,
+} from "@/feature/prompt/default-action";
 
 export const Route = createFileRoute("/library/narrator/")({
   loader: async ({ context }) => {
@@ -69,76 +68,6 @@ function NarratorPromptEditAction({ prompt }: { prompt: CustomPrompt }) {
   );
 }
 
-function NarratorPromptDefaultAction({
-  defaultPromptKey,
-  prompt,
-  setDefault,
-}: {
-  defaultPromptKey: string | undefined;
-  prompt: Prompt;
-  setDefault: SetPromptDefaultMutation;
-}) {
-  const displayedDefaultPromptKey = setDefault.isPending ? setDefault.variables : defaultPromptKey;
-  const isDefault = prompt.key === displayedDefaultPromptKey;
-  const defaultPending = setDefault.isPending && setDefault.variables === prompt.key;
-  const defaultFailed = setDefault.isError && setDefault.variables === prompt.key;
-  const defaultTooltip = defaultFailed
-    ? "Couldn't set default"
-    : isDefault
-      ? "Default"
-      : "Set as default";
-
-  function setAsDefault() {
-    setDefault.reset();
-    setDefault.mutate(prompt.key, {
-      onError(cause) {
-        reportError("prompt.default.update", cause);
-      },
-    });
-  }
-
-  return (
-    <>
-      <Tooltip.Root>
-        <Tooltip.Anchor
-          render={
-            <IconButton.Root
-              type="button"
-              aria-busy={defaultPending || undefined}
-              aria-label={
-                isDefault
-                  ? `${prompt.title} is the default narrator`
-                  : `Set ${prompt.title} as the default narrator`
-              }
-              aria-pressed={isDefault}
-              disabled={isDefault || defaultPending}
-              onClick={setAsDefault}
-              style={[
-                promptLibraryItemStyles.action,
-                isDefault && styles.defaultActionOn,
-                defaultFailed && styles.defaultActionError,
-              ]}
-            >
-              <IconButton.Icon
-                render={
-                  <HugeiconsIcon icon={Bookmark02Icon} fill={isDefault ? "currentColor" : "none"} />
-                }
-              />
-            </IconButton.Root>
-          }
-        />
-        <Tooltip>{defaultTooltip}</Tooltip>
-      </Tooltip.Root>
-
-      {defaultFailed ? (
-        <VisuallyHidden role="alert">
-          Couldn't set {prompt.title} as the default narrator
-        </VisuallyHidden>
-      ) : null}
-    </>
-  );
-}
-
 function NarratorPromptItem({
   defaultPromptKey,
   prompt,
@@ -154,7 +83,8 @@ function NarratorPromptItem({
     <PromptLibraryItem
       prompt={prompt}
       leadingAction={
-        <NarratorPromptDefaultAction
+        <PromptDefaultAction
+          kindLabel="narrator"
           defaultPromptKey={defaultPromptKey}
           prompt={prompt}
           setDefault={setDefault}
@@ -267,14 +197,6 @@ const styles = stylex.create({
     justifyContent: "space-between",
   },
   createAction: { alignSelf: "flex-start" },
-  defaultActionOn: {
-    color: colors.foregroundAccent,
-    opacity: { default: 1, ":disabled": 1 },
-  },
-  defaultActionError: {
-    color: colors.foregroundDanger,
-    opacity: 1,
-  },
   loadMore: { marginBlockStart: "0.75rem" },
   unavailable: {
     color: colors.foregroundSecondary,

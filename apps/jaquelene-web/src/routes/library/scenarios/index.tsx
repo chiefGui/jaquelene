@@ -5,10 +5,16 @@ import { Button, IconButton, Item } from "@jaquelene/ui";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { PromptDeleteAction } from "@/feature/prompt/delete-action";
-import { promptKindsQuery, promptPagesQuery } from "@/feature/prompt/query";
+import { PromptDefaultAction } from "@/feature/prompt/default-action";
+import {
+  promptDefaultQuery,
+  promptKindsQuery,
+  promptPagesQuery,
+  useSetPromptDefault,
+} from "@/feature/prompt/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 import { EditIcon } from "@/primitive/icons";
@@ -18,6 +24,7 @@ export const Route = createFileRoute("/library/scenarios/")({
   loader: async ({ context }) => {
     const [kinds] = await Promise.all([
       context.queryClient.query(promptKindsQuery),
+      context.queryClient.query(promptDefaultQuery(scenarioPromptKindKey)),
       context.queryClient.infiniteQuery(promptPagesQuery(scenarioPromptKindKey)),
     ]);
     const kind = kinds.find(({ key }) => key === scenarioPromptKindKey);
@@ -32,6 +39,8 @@ export const Route = createFileRoute("/library/scenarios/")({
 function ScenariosRoute() {
   const kind = Route.useLoaderData();
   const pages = useSuspenseInfiniteQuery(promptPagesQuery(scenarioPromptKindKey));
+  const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(scenarioPromptKindKey));
+  const setDefault = useSetPromptDefault(scenarioPromptKindKey);
   const scenarios = pages.data.pages.flatMap((page) => page.prompts);
   let loadMoreLabel = "Load more";
   if (pages.isFetchingNextPage) {
@@ -80,6 +89,15 @@ function ScenariosRoute() {
                 <PromptLibraryItem
                   key={scenario.key}
                   prompt={scenario}
+                  leadingAction={
+                    <PromptDefaultAction
+                      prompt={scenario}
+                      kindLabel="scenario"
+                      defaultPromptKey={defaultSelection.promptKey}
+                      setDefault={setDefault}
+                      allowClear
+                    />
+                  }
                   actions={
                     scenario.origin === PromptOrigin.Custom && (
                       <>

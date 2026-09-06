@@ -2,16 +2,35 @@ import type { CampaignSetupInput } from "@jaquelene/domain";
 import { skipToken, type QueryClient } from "@tanstack/react-query";
 import { campaignQueryKey } from "@/feature/cache-keys";
 
+type CampaignSetupScenario =
+  | Readonly<{ mode: "default" }>
+  | Readonly<{ mode: "custom"; text: string }>;
+
 export type CampaignSetupDraft = Readonly<{
-  values: CampaignSetupInput;
+  title: string;
+  scenario: CampaignSetupScenario;
   narratorPromptKey?: string;
 }>;
 
 const draftQueryKey = [...campaignQueryKey, "setup-draft"] as const;
-const emptyDraft: CampaignSetupDraft = { values: { title: "", scenario: "" } };
+const emptyDraft: CampaignSetupDraft = { title: "", scenario: { mode: "default" } };
+
+export function resolveCampaignSetupValues(
+  draft: CampaignSetupDraft,
+  defaultScenario: string,
+): CampaignSetupInput {
+  let scenario = defaultScenario;
+  if (draft.scenario.mode === "custom") scenario = draft.scenario.text;
+  return { title: draft.title, scenario };
+}
 
 export function readCampaignSetupDraft(queryClient: QueryClient): CampaignSetupDraft {
   return queryClient.getQueryData<CampaignSetupDraft>(draftQueryKey) ?? emptyDraft;
+}
+
+function sameScenario(left: CampaignSetupScenario, right: CampaignSetupScenario) {
+  if (left.mode === "custom" && right.mode === "custom") return left.text === right.text;
+  return left.mode === right.mode;
 }
 
 export function writeCampaignSetupDraft(
@@ -21,8 +40,8 @@ export function writeCampaignSetupDraft(
   const previous = readCampaignSetupDraft(queryClient);
   const next = { ...previous, ...patch };
   if (
-    previous.values.title === next.values.title &&
-    previous.values.scenario === next.values.scenario &&
+    previous.title === next.title &&
+    sameScenario(previous.scenario, next.scenario) &&
     previous.narratorPromptKey === next.narratorPromptKey
   ) {
     return previous;

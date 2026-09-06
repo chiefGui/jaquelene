@@ -138,7 +138,8 @@ describe("campaign start mutation", () => {
     const pending = deferred<Campaign>();
     campaignsIpc.start.mockReturnValue(pending.promise);
     const draft = writeCampaignSetupDraft(client, {
-      values: { title: started.title, scenario: "" },
+      title: started.title,
+      scenario: { mode: "custom", text: "" },
       narratorPromptKey: "narrator-a",
     });
     const mutation = new MutationObserver(client, startCampaignMutationOptions(client));
@@ -149,14 +150,15 @@ describe("campaign start mutation", () => {
     unsubscribe();
     pending.resolve(started);
     await request;
-    expect(readCampaignSetupDraft(client)).toEqual({ values: { title: "", scenario: "" } });
+    expect(readCampaignSetupDraft(client)).toEqual({ title: "", scenario: { mode: "default" } });
     client.clear();
   });
 
   it("keeps the setup draft when campaign creation fails", async () => {
     const client = createQueryClient();
     const draft = writeCampaignSetupDraft(client, {
-      values: { title: "Try again", scenario: "Mars" },
+      title: "Try again",
+      scenario: { mode: "custom", text: "Mars" },
       narratorPromptKey: "narrator-a",
     });
     campaignsIpc.start.mockRejectedValue(new Error("Unavailable"));

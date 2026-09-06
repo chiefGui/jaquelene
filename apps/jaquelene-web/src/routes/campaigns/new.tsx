@@ -16,18 +16,20 @@ import {
   campaignSetupInputSchema,
   type CampaignSetupInput,
   narratorPromptKindKey,
+  scenarioPromptKindKey,
 } from "@jaquelene/domain";
 import type { Campaign } from "@jaquelene/ipc/renderer";
 import { Button, Field, Form as FormLayout, Input, Item } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStartCampaignFormValidation } from "@/feature/campaign/form";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
 import { ScenarioImportControl } from "@/feature/scenario/import-control";
+import { useDefaultScenario } from "@/feature/scenario/use-default-scenario";
 import { useStartCampaign, useIsStartingCampaign } from "@/feature/campaign/query";
-import { readCampaignSetupDraft } from "@/feature/campaign/setup-draft";
+import { readCampaignSetupDraft, resolveCampaignSetupValues } from "@/feature/campaign/setup-draft";
 import { useCampaignSetupDraft } from "@/feature/campaign/use-setup-draft";
 import { limitCampaignTitleInput } from "@/feature/campaign/title-input";
 import { reportError } from "@/feature/diagnostics/diagnostics";
@@ -39,18 +41,20 @@ import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/campaigns/new")({
   loader: async ({ context }) => {
-    const defaultSelection = await context.queryClient.query(
-      promptDefaultQuery(narratorPromptKindKey),
-    );
+    const [defaultSelection, defaultScenario] = await Promise.all([
+      context.queryClient.query(promptDefaultQuery(narratorPromptKindKey)),
+      context.queryClient.query(promptDefaultQuery(scenarioPromptKindKey)),
+    ]);
     const savedNarratorKey = readCampaignSetupDraft(context.queryClient).narratorPromptKey;
     await Promise.all([
+      defaultScenario.promptKey &&
+        context.queryClient.query(promptQuery(defaultScenario.promptKey)),
       context.queryClient.infiniteQuery({
         ...promptPagesQuery(narratorPromptKindKey),
         staleTime: "static",
       }),
-      defaultSelection.promptKey
-        ? context.queryClient.query(promptQuery(defaultSelection.promptKey))
-        : undefined,
+      defaultSelection.promptKey &&
+        context.queryClient.query(promptQuery(defaultSelection.promptKey)),
       savedNarratorKey && context.queryClient.query(promptQuery(savedNarratorKey)),
     ]);
   },
@@ -58,6 +62,7 @@ export const Route = createFileRoute("/campaigns/new")({
 });
 
 function NewCampaignRoute() {
+  const defaultScenario = useDefaultScenario();
   const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const defaultPromptKey = defaultSelection.promptKey;
@@ -81,16 +86,13 @@ function NewCampaignRoute() {
   const active = useRef(true);
   const composingTitle = useRef(false);
   const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
-  let formValues = draft.values;
-  if (createdCampaign) {
-    formValues = { title: createdCampaign.title, scenario: createdCampaign.scenario };
-  }
-  const form = useFormStore<CampaignSetupInput>({
-    values: formValues,
-    setValues: (values) => {
-      if (!createdCampaign) updateDraft({ values });
-    },
-  });
+  const formValues = useMemo(() => {
+    if (createdCampaign) {
+      return { title: createdCampaign.title, scenario: createdCampaign.scenario };
+    }
+    return resolveCampaignSetupValues(draft, defaultScenario?.body ?? "");
+  }, [draft, defaultScenario?.body, createdCampaign]);
+  const form = useFormStore<CampaignSetupInput>({ values: formValues });
   const scenario = useFormValue<string>(form, form.names.scenario);
   const formSubmitting = useStoreState(form, "submitting");
   const submitting = formSubmitting || starting;
@@ -141,6 +143,7 @@ function NewCampaignRoute() {
         element.setSelectionRange(limited.caret, limited.caret);
       }
     }
+    updateDraft({ title: element.value });
     form.setValue(form.names.title, element.value);
     form.setError(form.names.title, undefined);
   }
@@ -312,7 +315,10 @@ function NewCampaignRoute() {
                       <MarkdownEditor
                         value={scenario}
                         toolbarActions={<ScenarioImportControl />}
-                        onValueChange={(value) => form.setValue(form.names.scenario, value)}
+                        onValueChange={(value) => {
+                          updateDraft({ scenario: { mode: "custom", text: value } });
+                          form.setValue(form.names.scenario, value);
+                        }}
                         maxLength={CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH}
                         readOnly={submitting || Boolean(createdCampaign)}
                         placeholder="New York, December 1, 2026. Cyberpunk."

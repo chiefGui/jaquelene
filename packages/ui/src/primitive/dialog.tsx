@@ -96,9 +96,9 @@ export const Dialog = {
 const styles = stylex.create({
   heading: {
     color: colors.foregroundPrimary,
-    fontSize: tokens.fontSizeBase,
+    fontSize: tokens.fontSizeSmall,
     fontWeight: 500,
-    lineHeight: tokens.lineHeightBase,
+    lineHeight: tokens.lineHeightSmall,
     margin: 0,
     textBox: "trim-both text",
   },

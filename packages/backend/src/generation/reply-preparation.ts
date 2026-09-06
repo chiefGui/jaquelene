@@ -16,6 +16,9 @@ export type ReplyPreparer = Readonly<{
 
 export function requireReplyInput(prepared: ModelInput, anchor: ReplyAnchor): ModelInput {
   const input = requireModelInput(prepared);
+  if (input.requestMessages !== undefined) {
+    throw new TypeError("Reply preparation must contain only conversation context.");
+  }
   const currentInput = input.dialogue.at(-1);
 
   if (currentInput?.role !== "user" || currentInput.messageId !== anchor.inputMessageId) {

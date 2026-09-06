@@ -1,5 +1,6 @@
 import { Cause, Deferred, Effect, Exit, Fiber, FiberSet, Schema } from "effect";
 import type { Database } from "#backend/database/database";
+import { parseRegenerationInstructions } from "@jaquelene/domain";
 import type { RequestedModelConfiguration } from "#backend/model/configuration";
 import type { ResolvedModelConfiguration } from "#backend/model/execution";
 import type {
@@ -67,6 +68,7 @@ export type RetryTurnRequest = {
 export type RegenerateReplyRequest = {
   assistantMessageId: MessageId;
   configuration: RequestedModelConfiguration;
+  instructions?: string;
 };
 
 export type TurnAcceptance = {
@@ -402,10 +404,12 @@ export const createTurns = Effect.fn("Turns.make")(function* (
     regenerate: Effect.fn("Turns.regenerate")(function* ({
       assistantMessageId,
       configuration: requestedConfiguration,
+      instructions: requestedInstructions,
     }: RegenerateReplyRequest) {
-      const { configuration, assistantMessage, input } = yield* Effect.try({
+      const { configuration, assistantMessage, input, instructions } = yield* Effect.try({
         try: () => {
           const configuration = copyRequestedModelConfiguration(requestedConfiguration);
+          const instructions = parseRegenerationInstructions(requestedInstructions);
           const assistantMessage = threads.getMessage(assistantMessageId);
 
           if (!assistantMessage) {
@@ -422,7 +426,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
             throw new Error(`Turn "${assistantMessage.turnId}" has no user input.`);
           }
 
-          return { configuration, assistantMessage, input };
+          return { configuration, assistantMessage, input, instructions };
         },
         catch: admissionError,
       });
@@ -437,6 +441,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
               transaction,
               assistantMessageId,
               resolvedConfiguration,
+              instructions,
             ),
           );
           const acceptance = {

@@ -58,6 +58,7 @@ export const colors = stylex.defineVars({
 
   // Semantic foregrounds
   foregroundDanger: "oklch(0.7 0.16 22)",
+  foregroundWarning: "oklch(0.76 0.1 82)",
   foregroundSuccess: "oklch(0.75 0.13 158)",
   foregroundReasoning: "oklch(0.75 0.1 305)",
 

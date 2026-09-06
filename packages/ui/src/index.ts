@@ -11,6 +11,7 @@ export {
   type IconButtonProps,
 } from "./primitive/icon-button";
 export { Input, type InputProps } from "./primitive/input";
+export { Textarea, type TextareaProps } from "./primitive/textarea";
 export { Item } from "./primitive/item";
 export { Ping, type PingProps } from "./primitive/ping";
 export { Skeleton, type SkeletonProps } from "./primitive/skeleton";

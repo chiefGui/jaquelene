@@ -33,6 +33,7 @@ import { exposeFavoriteModels } from "../feature/model/favorite-models-ipc";
 import { exposeProviders } from "../feature/provider/ipc";
 import { exposePrompts } from "../feature/prompt/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
+import { exposeRegenerationPreferences } from "../feature/thread/regeneration-preferences-ipc";
 import { exposeUsage } from "../feature/usage/ipc";
 import { LocalStateService, type LocalState } from "../local-state";
 import { PreferencesService, type Preferences } from "../preferences/preferences";
@@ -304,6 +305,7 @@ function createMainWindowManager({
       exposeCampaignUsage(browserWindow.webContents.mainFrame, campaignUsage);
       await addFinalizer(scope, threadMessaging.expose(browserWindow.webContents.mainFrame));
       exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);
+      exposeRegenerationPreferences(browserWindow.webContents.mainFrame, preferences.regeneration);
       await addFinalizer(
         scope,
         exposeModelCatalog(browserWindow.webContents, modelCatalog, runEffect),

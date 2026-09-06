@@ -18,12 +18,18 @@ import {
   type CampaignPreferenceValues,
   campaignPreferencesSchema,
 } from "@/feature/campaign/preferences";
+import {
+  createRegenerationPreferences,
+  regenerationPreferencesSchema,
+  type RegenerationPreferenceValues,
+} from "@/feature/thread/regeneration-preferences";
 
 type PreferencesData = {
   appearance?: {
     userInterface?: UserInterfacePreferenceValues;
   };
   campaign?: CampaignPreferenceValues;
+  regeneration?: RegenerationPreferenceValues;
   diagnostics?: DiagnosticsPreferenceValues;
 };
 
@@ -38,6 +44,7 @@ const schema = {
     },
   },
   campaign: campaignPreferencesSchema,
+  regeneration: regenerationPreferencesSchema,
   diagnostics: diagnosticsPreferencesSchema,
 } satisfies Schema<PreferencesData>;
 
@@ -86,12 +93,17 @@ export function createPreferences(userDataDirectory: string) {
     read: () => store.get("diagnostics"),
     write: (values) => store.set("diagnostics", values),
   });
+  const regeneration = createRegenerationPreferences({
+    read: () => store.get("regeneration"),
+    write: (values) => store.set("regeneration", values),
+  });
 
   return {
     appearance: {
       userInterface,
     },
     campaign,
+    regeneration,
     diagnostics,
     deleteAll: () => deleteStoreFile(store),
   };

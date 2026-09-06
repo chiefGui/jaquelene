@@ -49,6 +49,7 @@ const styles = stylex.create({
     lineHeight: tokens.lineHeightSmall,
   },
   description: {
+    maxWidth: tokens.descriptionMaxWidth,
     color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,

@@ -3,7 +3,7 @@
   "dialect": "sqlite",
   "id": "98f9776c-718e-4e27-8899-98304378228e",
   "prevIds": [
-    "99e162c1-05a1-4a5d-86e2-1c6892c55e6c"
+    "18093a4d-82fe-41cd-8f5c-7da2cdd7dec6"
   ],
   "ddl": [
     {
@@ -131,6 +131,16 @@
       "default": null,
       "generated": null,
       "name": "title",
+      "entityType": "columns",
+      "table": "campaigns"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "''",
+      "generated": null,
+      "name": "scenario",
       "entityType": "columns",
       "table": "campaigns"
     },
@@ -1674,7 +1684,13 @@
       "table": "campaigns"
     },
     {
-      "value": "(\"regeneration_source_message_id\" IS NULL AND \"regeneration_instructions\" IS NULL)\n        OR (\"intent\" = 'regeneration'\n          AND \"regeneration_source_message_id\" IS NOT NULL\n          AND \"regeneration_instructions\" IS NOT NULL\n          AND length(trim(\"regeneration_instructions\")) BETWEEN 1 AND 4000)",
+      "value": "length(\"scenario\") <= 20000 AND (\"scenario\" = '' OR length(trim(\"scenario\", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0)",
+      "name": "campaigns_scenario_valid",
+      "entityType": "checks",
+      "table": "campaigns"
+    },
+    {
+      "value": "(\"regeneration_source_message_id\" IS NULL AND \"regeneration_instructions\" IS NULL)\n        OR (\"intent\" = 'regeneration'\n          AND \"regeneration_source_message_id\" IS NOT NULL\n          AND \"regeneration_instructions\" IS NOT NULL\n          AND length(trim(\"regeneration_instructions\")) BETWEEN 1 AND 2000)",
       "name": "generations_regeneration_valid",
       "entityType": "checks",
       "table": "generations"

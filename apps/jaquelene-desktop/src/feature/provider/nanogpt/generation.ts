@@ -3,21 +3,15 @@ import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import {
   createGenerationUsage,
   createProviderGenerationResult,
-  type DialogueMessage,
-  type ModelInput,
   type ProviderGenerationAdapter,
 } from "@jaquelene/backend";
 import type { ApiKeyConfiguration } from "../api-key-configuration";
+import { toChatMessages, type ChatMessage } from "../chat-messages";
 import { encodeNanoGptReasoning, type NanoGptReasoningEffort } from "./reasoning";
-
-type NanoGptChatMessage = Readonly<{
-  role: "system" | "user" | "assistant";
-  content: string;
-}>;
 
 type NanoGptChatRequest = Readonly<{
   model: string;
-  messages: readonly NanoGptChatMessage[];
+  messages: readonly ChatMessage[];
   include_usage: true;
   reasoning_effort?: NanoGptReasoningEffort;
   stream: false;
@@ -67,30 +61,6 @@ function optionalCount(candidate: unknown, description: string) {
   }
 
   return requireCount(candidate, description);
-}
-
-function toNanoGptDialogue({
-  role,
-  content,
-}: Pick<DialogueMessage, "role" | "content">): NanoGptChatMessage {
-  switch (role) {
-    case "user":
-      return { role, content };
-    case "assistant":
-      return { role, content };
-  }
-}
-
-function toNanoGptMessages({
-  instructions,
-  dialogue,
-  requestMessages = [],
-}: ModelInput): NanoGptChatMessage[] {
-  return [
-    ...instructions.map(({ content }) => ({ role: "system" as const, content })),
-    ...dialogue.map(toNanoGptDialogue),
-    ...requestMessages.map(toNanoGptDialogue),
-  ];
 }
 
 function getResponseChoice(result: JsonObject) {
@@ -257,7 +227,7 @@ export function createNanoGptGeneration(
             const reasoningEffort = encodeNanoGptReasoning(request.reasoning);
             const chatRequest: MutableNanoGptChatRequest = {
               model: request.modelId,
-              messages: toNanoGptMessages(request.input),
+              messages: toChatMessages(request.input),
               include_usage: true,
               stream: false,
             };

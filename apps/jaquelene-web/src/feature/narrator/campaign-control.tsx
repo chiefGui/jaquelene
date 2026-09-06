@@ -1,17 +1,13 @@
 import { narratorPromptKindKey } from "@jaquelene/domain";
-import { Item } from "@jaquelene/ui";
-import { colors } from "@jaquelene/ui/tokens.stylex";
-import * as stylex from "@stylexjs/stylex";
 import {
   usePrefetchInfiniteQuery,
   usePrefetchQuery,
   useSuspenseInfiniteQuery,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { useId } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { PromptSelect, type PromptSelectOption } from "@/feature/prompt/select";
+import type { PromptSelectOption } from "@/feature/prompt/select";
+import { NarratorSelectControl } from "./select-control";
 import {
   campaignPromptSelectionQuery,
   promptDefaultQuery,
@@ -57,9 +53,6 @@ function NarratorSelectionControl({
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const setSelection = useSetCampaignPromptSelection(campaignId, narratorPromptKindKey);
   const defaultPending = useIsPromptDefaultPending(narratorPromptKindKey);
-  const controlId = useId();
-  const labelId = useId();
-  const errorId = useId();
 
   if (!effectivePrompt) {
     throw new Error(`Campaign "${campaignId}" has no available narrator prompt.`);
@@ -80,52 +73,24 @@ function NarratorSelectionControl({
   );
 
   return (
-    <Item.Root inset="none" style={styles.root}>
-      <Item.Content>
-        <Item.Label id={labelId} render={<label htmlFor={controlId} />}>
-          Narrator
-        </Item.Label>
-        {setSelection.isError && (
-          <Item.Description id={errorId} role="alert" style={styles.error}>
-            Couldn't save the narrator.
-          </Item.Description>
-        )}
-      </Item.Content>
-
-      <PromptSelect
-        id={controlId}
-        aria-labelledby={labelId}
-        {...(setSelection.isError && { "aria-describedby": errorId })}
-        busy={setSelection.isPending || defaultPending}
-        footerAction={{
-          label: "Manage narrator",
-          render: <Link to="/library/narrator" preload="render" />,
-        }}
-        hasMore={promptPages.hasNextPage}
-        loadingMore={promptPages.isFetchingNextPage}
-        onLoadMore={() => void promptPages.fetchNextPage()}
-        value={effectivePromptKey}
-        options={options}
-        onValueChange={(promptKey) => {
-          setSelection.reset();
-          let selectedPromptKey: string | undefined = promptKey;
-          if (promptKey === defaultSelection.promptKey) selectedPromptKey = undefined;
-          setSelection.mutate(selectedPromptKey, {
-            onError(cause) {
-              reportError("campaign.narrator.update", cause);
-            },
-          });
-        }}
-      />
-    </Item.Root>
+    <NarratorSelectControl
+      {...(setSelection.isError && { error: "Couldn't save the narrator." })}
+      busy={setSelection.isPending || defaultPending}
+      hasMore={promptPages.hasNextPage}
+      loadingMore={promptPages.isFetchingNextPage}
+      onLoadMore={() => void promptPages.fetchNextPage()}
+      value={effectivePromptKey}
+      options={options}
+      onValueChange={(promptKey) => {
+        setSelection.reset();
+        let selectedPromptKey: string | undefined = promptKey;
+        if (promptKey === defaultSelection.promptKey) selectedPromptKey = undefined;
+        setSelection.mutate(selectedPromptKey, {
+          onError(cause) {
+            reportError("campaign.narrator.update", cause);
+          },
+        });
+      }}
+    />
   );
 }
-
-const styles = stylex.create({
-  root: {
-    flexWrap: "wrap",
-    gap: "0.75rem 1rem",
-    minHeight: 0,
-  },
-  error: { color: colors.foregroundDanger },
-});

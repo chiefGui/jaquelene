@@ -1,4 +1,5 @@
 import { ids, type Campaigns } from "@jaquelene/backend";
+import { parseCampaignTitle } from "@jaquelene/domain";
 import type { ICampaignsImpl } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -40,6 +41,7 @@ function campaignsStub(overrides: Partial<Campaigns> = {}): Campaigns {
     get: vi.fn<Campaigns["get"]>(() => null),
     delete: vi.fn<Campaigns["delete"]>(() => null),
     rename: vi.fn<Campaigns["rename"]>(() => null),
+    setScenario: vi.fn<Campaigns["setScenario"]>(() => null),
     setGenerationPreferences: vi.fn<Campaigns["setGenerationPreferences"]>(() => null),
     ...overrides,
   };
@@ -58,6 +60,38 @@ beforeEach(() => {
 });
 
 describe("campaign IPC", () => {
+  it("passes scenario content through campaign creation and updates", () => {
+    const campaign = {
+      id: ids.campaign.create(),
+      title: parseCampaignTitle("A city"),
+      scenario: "A city beneath the sea.",
+      threadId: ids.thread.create(),
+      startedAt: 1,
+      lastActivityAt: 1,
+      turnCount: 0,
+    };
+    const start = vi.fn<Campaigns["start"]>(() => campaign);
+    const setScenario = vi.fn<Campaigns["setScenario"]>(() => ({ ...campaign, scenario: "" }));
+    exposeCampaigns({} as WebFrameMain, campaignsStub({ start, setScenario }));
+    const implementation = requireCampaignsImplementation();
+    const input = { title: "A city", scenario: campaign.scenario, composition: [] };
+    expect(implementation.start(input)).toEqual(campaign);
+    expect(start).toHaveBeenCalledWith(input);
+    expect(implementation.setScenario({ id: campaign.id, scenario: "" })).toEqual({
+      ...campaign,
+      scenario: "",
+    });
+    expect(setScenario).toHaveBeenCalledWith(campaign.id, "");
+    expect(() => implementation.setScenario({ id: "invalid", scenario: "" })).toThrow(TypeError);
+  });
+
+  it("returns missing campaigns when updating a scenario", () => {
+    exposeCampaigns({} as WebFrameMain, campaignsStub());
+    expect(
+      requireCampaignsImplementation().setScenario({ id: ids.campaign.create(), scenario: "" }),
+    ).toBeNull();
+  });
+
   it("deletes campaigns through typed identities", () => {
     const deletion = { id: ids.campaign.create(), threadId: ids.thread.create() };
     const deleteCampaign = vi.fn<Campaigns["delete"]>(() => deletion);

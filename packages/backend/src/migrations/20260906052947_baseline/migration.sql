@@ -28,11 +28,13 @@ CREATE TABLE `campaign_generation_preferences` (
 CREATE TABLE `campaigns` (
 	`id` text PRIMARY KEY NOT NULL,
 	`title` text NOT NULL,
+	`scenario` text DEFAULT '' NOT NULL,
 	`thread_id` text NOT NULL,
 	`started_at` integer NOT NULL,
 	CONSTRAINT `fk_campaigns_thread_id_threads_id_fk` FOREIGN KEY (`thread_id`) REFERENCES `threads`(`id`),
 	CONSTRAINT "campaigns_title_valid" CHECK("title" = trim("title", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279)) AND length("title") > 0 AND length("title") <= 120),
-	CONSTRAINT "campaigns_started_at_nonnegative" CHECK("started_at" >= 0)
+	CONSTRAINT "campaigns_started_at_nonnegative" CHECK("started_at" >= 0),
+	CONSTRAINT "campaigns_scenario_valid" CHECK(length("scenario") <= 20000 AND ("scenario" = '' OR length(trim("scenario", char(9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279))) > 0))
 );
 --> statement-breakpoint
 CREATE TABLE `generations` (

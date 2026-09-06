@@ -42,6 +42,11 @@ describe("database migrations", () => {
       expect(tables).not.toContain("scenarios");
       expect(tables).not.toContain("roleplay_instructions");
 
+      const campaignColumns = client.prepare("PRAGMA table_info(campaigns)").all();
+      expect(campaignColumns).toContainEqual(
+        expect.objectContaining({ name: "scenario", type: "TEXT", notnull: 1, dflt_value: "''" }),
+      );
+
       const attemptColumns = client
         .prepare("PRAGMA table_info(provider_attempts)")
         .all()
@@ -107,6 +112,11 @@ describe("database migrations", () => {
       expect(() =>
         client.exec("UPDATE generations SET regeneration_instructions = NULL WHERE id = 'guided'"),
       ).toThrow();
+      const updateInstructions = client.prepare(
+        "UPDATE generations SET regeneration_instructions = ? WHERE id = 'guided'",
+      );
+      expect(() => updateInstructions.run("a".repeat(2_000))).not.toThrow();
+      expect(() => updateInstructions.run("a".repeat(2_001))).toThrow();
     } finally {
       client.close();
     }

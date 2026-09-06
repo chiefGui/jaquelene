@@ -1,82 +1,122 @@
 import {
   Form as AriakitForm,
+  FormControl,
+  FormDescription,
   FormError,
   FormInput,
   FormLabel,
   useFormStore,
   useFormSubmit,
+  useFormValue,
 } from "@ariakit/react/form";
 import { useStoreState } from "@ariakit/react/store";
 import {
+  CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH,
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,
-  campaignTitleInputSchema,
+  campaignSetupInputSchema,
+  type CampaignSetupInput,
   narratorPromptKindKey,
-  type CampaignTitleInput,
+  scenarioPromptKindKey,
 } from "@jaquelene/domain";
 import type { Campaign } from "@jaquelene/ipc/renderer";
-import { Button, Field, Form as FormLayout, Input } from "@jaquelene/ui";
+import { Button, Field, Form as FormLayout, Input, Item } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useId, useRef, useState } from "react";
-import { useCampaignTitleFormValidation } from "@/feature/campaign/form";
-import { useStartCampaign } from "@/feature/campaign/query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useStartCampaignFormValidation } from "@/feature/campaign/form";
+import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
+import { ScenarioImportControl } from "@/feature/scenario/import-control";
+import { useDefaultScenario } from "@/feature/scenario/use-default-scenario";
+import { useStartCampaign, useIsStartingCampaign } from "@/feature/campaign/query";
+import { readCampaignSetupDraft, resolveCampaignSetupValues } from "@/feature/campaign/setup-draft";
+import { useCampaignSetupDraft } from "@/feature/campaign/use-setup-draft";
+import { limitCampaignTitleInput } from "@/feature/campaign/title-input";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { promptDefaultQuery, promptPagesQuery, promptQuery } from "@/feature/prompt/query";
-import { PromptSelect, type PromptSelectOption } from "@/feature/prompt/select";
+import type { PromptSelectOption } from "@/feature/prompt/select";
+import { NarratorSelectControl } from "@/feature/narrator/select-control";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/campaigns/new")({
   loader: async ({ context }) => {
-    const defaultSelection = await context.queryClient.query(
-      promptDefaultQuery(narratorPromptKindKey),
-    );
+    const [defaultSelection, defaultScenario] = await Promise.all([
+      context.queryClient.query(promptDefaultQuery(narratorPromptKindKey)),
+      context.queryClient.query(promptDefaultQuery(scenarioPromptKindKey)),
+    ]);
+    const savedNarratorKey = readCampaignSetupDraft(context.queryClient).narratorPromptKey;
     await Promise.all([
+      defaultScenario.promptKey &&
+        context.queryClient.query(promptQuery(defaultScenario.promptKey)),
       context.queryClient.infiniteQuery({
         ...promptPagesQuery(narratorPromptKindKey),
         staleTime: "static",
       }),
-      defaultSelection.promptKey
-        ? context.queryClient.query(promptQuery(defaultSelection.promptKey))
-        : undefined,
+      defaultSelection.promptKey &&
+        context.queryClient.query(promptQuery(defaultSelection.promptKey)),
+      savedNarratorKey && context.queryClient.query(promptQuery(savedNarratorKey)),
     ]);
   },
   component: NewCampaignRoute,
 });
 
 function NewCampaignRoute() {
+  const defaultScenario = useDefaultScenario();
   const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const defaultPromptKey = defaultSelection.promptKey;
   const { data: defaultPrompt } = useSuspenseQuery(
     promptQuery(defaultPromptKey ?? "missing-narrator-prompt"),
   );
-  const [narratorPromptKey, setNarratorPromptKey] = useState(defaultPromptKey ?? "");
+  const { draft, updateDraft } = useCampaignSetupDraft();
+  const narratorPromptKey = draft.narratorPromptKey ?? defaultPromptKey ?? "";
+  const loadedPrompts = promptPages.data.pages.flatMap((page) => page.prompts);
+  let knownSelection = loadedPrompts.find(({ key }) => key === narratorPromptKey);
+  if (!knownSelection && defaultPrompt?.key === narratorPromptKey) {
+    knownSelection = defaultPrompt;
+  }
+  const { data: selectedPrompt } = useSuspenseQuery({
+    ...promptQuery(narratorPromptKey),
+    ...(knownSelection && { initialData: knownSelection }),
+  });
   const startCampaign = useStartCampaign();
+  const starting = useIsStartingCampaign();
   const navigate = useNavigate({ from: "/campaigns/new" });
   const active = useRef(true);
-  const form = useFormStore({ defaultValues: { title: "" } satisfies CampaignTitleInput });
-  const submitting = useStoreState(form, "submitting");
+  const composingTitle = useRef(false);
+  const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
+  const formValues = useMemo(() => {
+    if (createdCampaign) {
+      return { title: createdCampaign.title, scenario: createdCampaign.scenario };
+    }
+    return resolveCampaignSetupValues(draft, defaultScenario?.body ?? "");
+  }, [draft, defaultScenario?.body, createdCampaign]);
+  const form = useFormStore<CampaignSetupInput>({ values: formValues });
+  const scenario = useFormValue<string>(form, form.names.scenario);
+  const formSubmitting = useStoreState(form, "submitting");
+  const submitting = formSubmitting || starting;
   const hasSubmitted = useStoreState(
     form,
     ["submitFailed", "submitSucceed"],
     (state) => state.submitFailed > 0 || state.submitSucceed > 0,
   );
-  const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
-  const narratorLabelId = useId();
-  const narratorControlId = useId();
 
   if (!defaultPromptKey || !defaultPrompt) {
     throw new Error("The narrator prompt kind has no available default.");
   }
 
-  const loadedPrompts = promptPages.data.pages.flatMap((page) => page.prompts);
-  const prompts = loadedPrompts.some(({ key }) => key === defaultPrompt.key)
+  let prompts = loadedPrompts.some(({ key }) => key === defaultPrompt.key)
     ? loadedPrompts
     : [defaultPrompt, ...loadedPrompts];
-  const options = prompts.map(
+  if (selectedPrompt && !prompts.some(({ key }) => key === selectedPrompt.key)) {
+    prompts = [selectedPrompt, ...prompts];
+  }
+  if (!selectedPrompt) {
+    prompts = prompts.filter(({ key }) => key !== narratorPromptKey);
+  }
+  const options: PromptSelectOption[] = prompts.map(
     (prompt) =>
       ({
         description: prompt.body,
@@ -84,8 +124,31 @@ function NewCampaignRoute() {
         value: prompt.key,
       }) satisfies PromptSelectOption,
   );
+  if (!selectedPrompt) {
+    options.push({
+      value: narratorPromptKey,
+      title: "Unavailable narrator",
+      description: "This narrator is no longer available. Choose another narrator.",
+    });
+  }
 
-  useCampaignTitleFormValidation(form);
+  function updateTitle(element: HTMLInputElement) {
+    if (!composingTitle.current) {
+      const limited = limitCampaignTitleInput(
+        element.value,
+        element.selectionStart ?? element.value.length,
+      );
+      if (limited.value !== element.value) {
+        element.value = limited.value;
+        element.setSelectionRange(limited.caret, limited.caret);
+      }
+    }
+    updateDraft({ title: element.value });
+    form.setValue(form.names.title, element.value);
+    form.setError(form.names.title, undefined);
+  }
+
+  useStartCampaignFormValidation(form);
 
   useEffect(() => {
     active.current = true;
@@ -112,13 +175,15 @@ function NewCampaignRoute() {
   }
 
   useFormSubmit(form, async (state) => {
+    if (starting || composingTitle.current || (!createdCampaign && !selectedPrompt)) return;
     let campaign = createdCampaign;
 
     if (!campaign) {
       try {
-        const { title } = campaignTitleInputSchema.parse(state.values);
+        const { title, scenario } = campaignSetupInputSchema.parse(state.values);
         campaign = await startCampaign.mutateAsync({
           title,
+          scenario,
           composition: [
             {
               kind: narratorPromptKindKey,
@@ -179,41 +244,104 @@ function NewCampaignRoute() {
             validateOnBlur={hasSubmitted}
             validateOnChange={hasSubmitted}
           >
-            <Field.Root>
-              <FormLabel name={form.names.title} render={<Field.Label />}>
-                Title
-              </FormLabel>
-              <FormInput
-                name={form.names.title}
-                render={
-                  <Input
-                    type="text"
-                    autoFocus
-                    disabled={submitting || Boolean(createdCampaign)}
-                    maxLength={CAMPAIGN_TITLE_MAX_UTF16_LENGTH}
-                    placeholder="Campaign title"
+            <Item.Group>
+              <Item.Root style={styles.controlField}>
+                <Field.Root style={styles.titleRow}>
+                  <Item.Content>
+                    <FormLabel name={form.names.title} render={<Field.Label />}>
+                      Title
+                    </FormLabel>
+                    <FormDescription name={form.names.title} render={<Item.Description />}>
+                      Helps you find this campaign later.
+                      <br />
+                      It doesn't affect the story.
+                    </FormDescription>
+                  </Item.Content>
+                  <FormInput
+                    name={form.names.title}
+                    onChange={(event) => {
+                      event.preventDefault();
+                      updateTitle(event.currentTarget);
+                    }}
+                    onCompositionStart={() => {
+                      composingTitle.current = true;
+                    }}
+                    onCompositionEnd={(event) => {
+                      composingTitle.current = false;
+                      updateTitle(event.currentTarget);
+                    }}
+                    onBlur={(event) => {
+                      if (composingTitle.current) {
+                        composingTitle.current = false;
+                        updateTitle(event.currentTarget);
+                      }
+                    }}
+                    render={
+                      <Input
+                        type="text"
+                        autoFocus
+                        disabled={submitting || Boolean(createdCampaign)}
+                        maxLength={CAMPAIGN_TITLE_MAX_UTF16_LENGTH}
+                        placeholder="e.g. The Last Kingdom"
+                        style={styles.titleInput}
+                      />
+                    }
                   />
-                }
-              />
-              <FormError name={form.names.title} render={<Field.Error />} />
-            </Field.Root>
+                  <FormError
+                    name={form.names.title}
+                    render={<Field.Error style={styles.titleError} />}
+                  />
+                </Field.Root>
+              </Item.Root>
 
-            <Field.Root>
-              <Field.Label id={narratorLabelId} htmlFor={narratorControlId}>
-                Narrator
-              </Field.Label>
-              <PromptSelect
-                id={narratorControlId}
-                aria-labelledby={narratorLabelId}
-                disabled={submitting || Boolean(createdCampaign)}
-                hasMore={promptPages.hasNextPage}
-                loadingMore={promptPages.isFetchingNextPage}
-                onLoadMore={() => void promptPages.fetchNextPage()}
-                value={narratorPromptKey}
-                options={options}
-                onValueChange={setNarratorPromptKey}
-              />
-            </Field.Root>
+              <Item.Root style={styles.writingField}>
+                <Field.Root>
+                  <FormLabel name={form.names.scenario} render={<Field.Label />}>
+                    Scenario
+                  </FormLabel>
+                  <FormDescription
+                    name={form.names.scenario}
+                    render={<Field.Description style={styles.scenarioDescription} />}
+                  >
+                    Define the setting, universe, flavor, and other permanent details of this
+                    campaign.
+                  </FormDescription>
+                  <FormControl
+                    name={form.names.scenario}
+                    render={
+                      <MarkdownEditor
+                        value={scenario}
+                        toolbarActions={<ScenarioImportControl />}
+                        onValueChange={(value) => {
+                          updateDraft({ scenario: { mode: "custom", text: value } });
+                          form.setValue(form.names.scenario, value);
+                        }}
+                        maxLength={CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH}
+                        readOnly={submitting || Boolean(createdCampaign)}
+                        placeholder="New York, December 1, 2026. Cyberpunk."
+                      />
+                    }
+                  />
+                  <FormError name={form.names.scenario} render={<Field.Error />} />
+                </Field.Root>
+              </Item.Root>
+
+              <Item.Root style={styles.controlField}>
+                <NarratorSelectControl
+                  description="Set the rules for narration. Avoid worldbuilding and character details. Keep it concise."
+                  disabled={submitting || Boolean(createdCampaign)}
+                  hasMore={promptPages.hasNextPage}
+                  loadingMore={promptPages.isFetchingNextPage}
+                  onLoadMore={() => void promptPages.fetchNextPage()}
+                  value={narratorPromptKey}
+                  options={options}
+                  onValueChange={(key) => updateDraft({ narratorPromptKey: key })}
+                  {...(!selectedPrompt && {
+                    error: "The saved narrator is unavailable. Choose another narrator.",
+                  })}
+                />
+              </Item.Root>
+            </Item.Group>
 
             <FormLayout.Status
               role={operationError ? "alert" : undefined}
@@ -222,7 +350,11 @@ function NewCampaignRoute() {
               {operationError}
             </FormLayout.Status>
 
-            <Button type="submit" disabled={submitting} style={styles.submitButton}>
+            <Button
+              type="submit"
+              disabled={submitting || (!createdCampaign && !selectedPrompt)}
+              style={styles.submitButton}
+            >
               {actionLabel}
             </Button>
           </AriakitForm>
@@ -233,6 +365,17 @@ function NewCampaignRoute() {
 }
 
 const styles = stylex.create({
-  form: { maxWidth: "34rem" },
-  submitButton: { justifySelf: "start", minWidth: "8rem" },
+  form: { gap: "1.5rem" },
+  writingField: { display: "block", paddingBlock: "1.5rem" },
+  controlField: { display: "block", paddingBlock: "1rem" },
+  titleRow: {
+    display: "grid",
+    alignItems: "start",
+    gridTemplateColumns: "minmax(4rem, 1fr) minmax(0, 20rem)",
+    columnGap: "1rem",
+  },
+  titleInput: { minWidth: 0, width: "100%" },
+  titleError: { gridColumn: "2" },
+  scenarioDescription: { margin: 0, marginBlockEnd: "0.25rem" },
+  submitButton: { alignSelf: "flex-end", width: "fit-content", minWidth: "8rem" },
 });

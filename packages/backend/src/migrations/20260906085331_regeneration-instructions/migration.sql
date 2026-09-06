@@ -23,7 +23,7 @@ CREATE TABLE `__new_generations` (
         OR ("intent" = 'regeneration'
           AND "regeneration_source_message_id" IS NOT NULL
           AND "regeneration_instructions" IS NOT NULL
-          AND length(trim("regeneration_instructions")) BETWEEN 1 AND 4000)),
+          AND length(trim("regeneration_instructions")) BETWEEN 1 AND 2000)),
 	CONSTRAINT "generations_model_reference_valid" CHECK(length(trim("provider_id")) > 0 AND length(trim("model_id")) > 0),
 	CONSTRAINT "generations_reasoning_valid" CHECK(("reasoning_preset" IS NULL AND "reasoning_preset_source" IS NULL)
         OR ("reasoning_preset" IS NOT NULL

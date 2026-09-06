@@ -68,7 +68,7 @@ function requestBody(request: ReturnType<typeof completion>["request"]) {
 }
 
 describe("OpenRouter generation provider", () => {
-  it("appends execution-only context at its original priority", async () => {
+  it("appends regeneration guidance after scenario instructions and dialogue", async () => {
     const input = generationRequest();
     const { provider, request } = completion();
     await Effect.runPromise(
@@ -76,6 +76,10 @@ describe("OpenRouter generation provider", () => {
         ...input,
         input: {
           ...input.input,
+          instructions: [
+            { sourceKey: "narrator", content: "Narrate clearly." },
+            { sourceKey: "scenario", content: "## Scenario\nA lost kingdom." },
+          ],
           requestMessages: [
             { role: "assistant", content: "Original reply" },
             { role: "user", content: "Replace it with a shorter response." },
@@ -86,7 +90,7 @@ describe("OpenRouter generation provider", () => {
     expect(await requestBody(request)).toEqual(
       expect.objectContaining({
         messages: [
-          { role: "system", content: "Instruction" },
+          { role: "system", content: "Narrate clearly.\n\n## Scenario\nA lost kingdom." },
           { role: "user", content: "Earlier message" },
           { role: "assistant", content: "Earlier reply" },
           { role: "user", content: "Hello" },
@@ -96,6 +100,40 @@ describe("OpenRouter generation provider", () => {
       }),
     );
     expect(request).toHaveBeenCalledOnce();
+  });
+
+  it("sends narrator and scenario as one system message before dialogue", async () => {
+    const { provider, request } = completion();
+    const input = generationRequest();
+    await Effect.runPromise(
+      provider.generate({
+        ...input,
+        input: {
+          ...input.input,
+          instructions: [
+            { sourceKey: "narrator", content: "Narrate clearly." },
+            { sourceKey: "scenario", content: "## Scenario\nA lost kingdom." },
+          ],
+        },
+      }),
+    );
+    expect(await requestBody(request)).toMatchObject({
+      messages: [
+        { role: "system", content: "Narrate clearly.\n\n## Scenario\nA lost kingdom." },
+        ...input.input.dialogue.map(({ role, content }) => ({ role, content })),
+      ],
+    });
+  });
+
+  it("omits the system message when no instructions are present", async () => {
+    const { provider, request } = completion();
+    const input = generationRequest();
+    await Effect.runPromise(
+      provider.generate({ ...input, input: { ...input.input, instructions: [] } }),
+    );
+    expect(await requestBody(request)).toMatchObject({
+      messages: input.input.dialogue.map(({ role, content }) => ({ role, content })),
+    });
   });
 
   it("sends the exact dialogue, credential, and attribution fields and normalizes accounting", async () => {

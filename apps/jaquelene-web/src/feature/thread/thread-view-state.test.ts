@@ -69,6 +69,7 @@ describe("thread view state", () => {
   it("tracks pending replies without adding inline message state", () => {
     const state = deriveThreadViewState({
       pages: [page(GenerationStatus.Pending)],
+      regenerationRequestMessageId: null,
       retryActivity: null,
       actionsAvailable: true,
       hasModel: true,
@@ -80,12 +81,13 @@ describe("thread view state", () => {
       }),
     ]);
     expect(state.latestMessageId).toBe("message-user");
-    expect(state.replyPending).toBe(true);
+    expect(state.pendingGenerationIntent).toBe(GenerationIntent.Reply);
   });
 
   it("renders completed assistant output without a separate activity item", () => {
     const state = deriveThreadViewState({
       pages: [page(GenerationStatus.Completed)],
+      regenerationRequestMessageId: null,
       retryActivity: null,
       actionsAvailable: true,
       hasModel: true,
@@ -97,12 +99,13 @@ describe("thread view state", () => {
       status: "available",
       canRegenerate: true,
     });
-    expect(state.replyPending).toBe(false);
+    expect(state.pendingGenerationIntent).toBeNull();
   });
 
   it("keeps failed reply recovery adjacent to its user turn", () => {
     const state = deriveThreadViewState({
       pages: [page(GenerationStatus.Failed)],
+      regenerationRequestMessageId: null,
       retryActivity: { turnId: "turn", status: "failed" },
       actionsAvailable: true,
       hasModel: true,
@@ -135,6 +138,7 @@ describe("thread view state", () => {
     };
     const state = deriveThreadViewState({
       pages: [pendingPage],
+      regenerationRequestMessageId: null,
       retryActivity: null,
       actionsAvailable: true,
       hasModel: true,
@@ -146,7 +150,7 @@ describe("thread view state", () => {
       status: "pending",
       canRegenerate: false,
     });
-    expect(state.replyPending).toBe(true);
+    expect(state.pendingGenerationIntent).toBe(GenerationIntent.Regeneration);
   });
 
   it("attaches failed regeneration to the retained assistant response", () => {
@@ -170,6 +174,7 @@ describe("thread view state", () => {
     };
     const state = deriveThreadViewState({
       pages: [failedPage],
+      regenerationRequestMessageId: null,
       retryActivity: null,
       actionsAvailable: true,
       hasModel: true,
@@ -180,17 +185,89 @@ describe("thread view state", () => {
       status: "failed",
       canRegenerate: true,
     });
-    expect(state.replyPending).toBe(false);
+    expect(state.pendingGenerationIntent).toBeNull();
   });
 
   it("does not expose regeneration while viewing historical pages", () => {
     const state = deriveThreadViewState({
       pages: [page(GenerationStatus.Completed)],
+      regenerationRequestMessageId: null,
       retryActivity: null,
       actionsAvailable: false,
       hasModel: true,
     });
 
     expect(state.messages[1]?.regeneration).toBeNull();
+  });
+
+  it("targets the retained response while the regeneration request is being accepted", () => {
+    const state = deriveThreadViewState({
+      pages: [page(GenerationStatus.Completed)],
+      regenerationRequestMessageId: "message-assistant",
+      retryActivity: null,
+      actionsAvailable: true,
+      hasModel: true,
+    });
+
+    expect(state.messages[0]?.regeneration).toBeNull();
+    expect(state.messages[1]?.regeneration).toEqual({ status: "pending", canRegenerate: false });
+    expect(state.pendingGenerationIntent).toBeNull();
+  });
+
+  it("restores regeneration availability when its request fails before acceptance", () => {
+    const input = {
+      pages: [page(GenerationStatus.Completed)],
+      retryActivity: null,
+      actionsAvailable: true,
+      hasModel: true,
+    };
+
+    const pending = deriveThreadViewState({
+      ...input,
+      regenerationRequestMessageId: "message-assistant",
+    });
+    const failed = deriveThreadViewState({ ...input, regenerationRequestMessageId: null });
+
+    expect(pending.messages[1]?.regeneration?.status).toBe("pending");
+    expect(failed.messages[1]?.regeneration).toEqual({ status: "available", canRegenerate: true });
+    expect(failed.messages[1]?.message).toEqual(pending.messages[1]?.message);
+  });
+
+  it("does not apply a settling request to a replacement response", () => {
+    const current = page(GenerationStatus.Completed);
+    const messages = current.messages.map((message) => {
+      if (message.id === "message-assistant") {
+        return { ...message, id: "replacement" };
+      }
+      return message;
+    });
+    const generations = current.generations.map((generation) => ({
+      ...generation,
+      intent: GenerationIntent.Regeneration,
+      outputMessageId: "replacement",
+    }));
+    const state = deriveThreadViewState({
+      pages: [{ ...current, messages, generations }],
+      regenerationRequestMessageId: "message-assistant",
+      retryActivity: null,
+      actionsAvailable: true,
+      hasModel: true,
+    });
+
+    expect(state.messages[1]?.regeneration).toEqual({ status: "available", canRegenerate: true });
+    expect(state.pendingGenerationIntent).toBeNull();
+  });
+
+  it("keeps an accepted initial-reply retry assigned to the composer", () => {
+    const state = deriveThreadViewState({
+      pages: [page(GenerationStatus.Pending)],
+      regenerationRequestMessageId: null,
+      retryActivity: { turnId: "turn", status: "pending" },
+      actionsAvailable: true,
+      hasModel: true,
+    });
+
+    expect(state.pendingGenerationIntent).toBe(GenerationIntent.Reply);
+    expect(state.messages.every(({ regeneration }) => regeneration === null)).toBe(true);
   });
 });

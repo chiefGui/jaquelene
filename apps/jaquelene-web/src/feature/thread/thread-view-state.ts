@@ -38,13 +38,14 @@ type ThreadReplyRegenerationView = Readonly<{
 export type ThreadViewState = Readonly<{
   messages: ThreadMessageView[];
   latestMessageId: string | null;
-  replyPending: boolean;
+  pendingGenerationIntent: GenerationIntent | null;
   messageMaxCodeUnits: number;
 }>;
 
 type ThreadViewStateInput = Readonly<{
   pages: readonly ThreadMessagePage[];
   retryActivity: RetryActivity;
+  regenerationRequestMessageId: string | null;
   actionsAvailable: boolean;
   hasModel: boolean;
 }>;
@@ -58,6 +59,7 @@ function isFailedGeneration(
 export function deriveThreadViewState({
   pages,
   retryActivity,
+  regenerationRequestMessageId,
   actionsAvailable,
   hasModel,
 }: ThreadViewStateInput): ThreadViewState {
@@ -88,8 +90,9 @@ export function deriveThreadViewState({
 
     if (!fromUser && latest && actionsAvailable) {
       if (
-        generation?.intent === GenerationIntent.Regeneration &&
-        generation.status === GenerationStatus.Pending
+        message.id === regenerationRequestMessageId ||
+        (generation?.intent === GenerationIntent.Regeneration &&
+          generation.status === GenerationStatus.Pending)
       ) {
         regeneration = { status: "pending", canRegenerate: false };
       } else if (
@@ -130,12 +133,18 @@ export function deriveThreadViewState({
     });
   }
 
+  let pendingGenerationIntent: GenerationIntent | null = null;
+  if (latestMessage) {
+    const generation = generationByTurn.get(latestMessage.turnId);
+    if (generation?.status === GenerationStatus.Pending) {
+      pendingGenerationIntent = generation.intent;
+    }
+  }
+
   return {
     messages,
     latestMessageId: latestMessage?.id ?? null,
-    replyPending:
-      latestMessage !== undefined &&
-      generationByTurn.get(latestMessage.turnId)?.status === GenerationStatus.Pending,
+    pendingGenerationIntent,
     messageMaxCodeUnits: newestPage.messageMaxCodeUnits,
   };
 }

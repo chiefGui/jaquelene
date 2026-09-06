@@ -1,16 +1,15 @@
-struct ComposerBacklightParams {
+struct BacklightParams {
   resolution: vec2f,
   time: f32,
   border_radius: f32,
   outset: f32,
-  pixel_scale: f32,
   palette_start: vec4f,
   palette_first_blend: vec4f,
   palette_second_blend: vec4f,
   palette_end: vec4f,
 }
 
-@group(0) @binding(0) var<uniform> params: ComposerBacklightParams;
+@group(0) @binding(0) var<uniform> params: BacklightParams;
 
 const TAU: f32 = 6.28318530718;
 const PI: f32 = 3.14159265359;
@@ -95,16 +94,14 @@ fn fragment(@location(0) uv: vec2f) -> @location(0) vec4f {
   let point = (uv - vec2f(0.5)) * params.resolution;
   let half_extent = max(
     params.resolution * 0.5 - vec2f(params.outset),
-    vec2f(params.border_radius + params.pixel_scale),
+    vec2f(params.border_radius + 1.0),
   );
   let radius = clamp(
     params.border_radius,
-    params.pixel_scale,
+    1.0,
     min(half_extent.x, half_extent.y),
   );
-  let distance = rounded_box_distance(point, half_extent, radius);
-  let scale = max(params.pixel_scale, 1.0);
-  let signed_edge_distance = distance / scale;
+  let signed_edge_distance = rounded_box_distance(point, half_extent, radius);
   let exterior_distance = max(signed_edge_distance, 0.0);
   let path = rounded_box_path(point, half_extent, radius);
   let orbit = params.time / 3.6;

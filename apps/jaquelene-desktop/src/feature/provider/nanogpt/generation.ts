@@ -1,24 +1,17 @@
 import { Effect } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import {
-  composeSystemPrompt,
   createGenerationUsage,
   createProviderGenerationResult,
-  type DialogueMessage,
-  type ModelInput,
   type ProviderGenerationAdapter,
 } from "@jaquelene/backend";
 import type { ApiKeyConfiguration } from "../api-key-configuration";
+import { toChatMessages, type ChatMessage } from "../chat-messages";
 import { encodeNanoGptReasoning, type NanoGptReasoningEffort } from "./reasoning";
-
-type NanoGptChatMessage = Readonly<{
-  role: "system" | "user" | "assistant";
-  content: string;
-}>;
 
 type NanoGptChatRequest = Readonly<{
   model: string;
-  messages: readonly NanoGptChatMessage[];
+  messages: readonly ChatMessage[];
   include_usage: true;
   reasoning_effort?: NanoGptReasoningEffort;
   stream: false;
@@ -68,24 +61,6 @@ function optionalCount(candidate: unknown, description: string) {
   }
 
   return requireCount(candidate, description);
-}
-
-function toNanoGptDialogue({ role, content }: DialogueMessage): NanoGptChatMessage {
-  switch (role) {
-    case "user":
-      return { role, content };
-    case "assistant":
-      return { role, content };
-  }
-}
-
-function toNanoGptMessages({ instructions, dialogue }: ModelInput): NanoGptChatMessage[] {
-  const messages: NanoGptChatMessage[] = [];
-  const systemPrompt = composeSystemPrompt(instructions);
-  if (systemPrompt) {
-    messages.push({ role: "system", content: systemPrompt });
-  }
-  return [...messages, ...dialogue.map(toNanoGptDialogue)];
 }
 
 function getResponseChoice(result: JsonObject) {
@@ -252,7 +227,7 @@ export function createNanoGptGeneration(
             const reasoningEffort = encodeNanoGptReasoning(request.reasoning);
             const chatRequest: MutableNanoGptChatRequest = {
               model: request.modelId,
-              messages: toNanoGptMessages(request.input),
+              messages: toChatMessages(request.input),
               include_usage: true,
               stream: false,
             };

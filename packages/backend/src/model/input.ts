@@ -16,10 +16,6 @@ export type ModelInput = Readonly<{
   dialogue: readonly DialogueMessage[];
 }>;
 
-export function composeSystemPrompt(instructions: readonly ResolvedInstruction[]): string {
-  return instructions.map(({ content }) => content).join("\n\n");
-}
-
 function requireText(value: string, field: string) {
   if (!value.trim()) {
     throw new TypeError(`A model input requires ${field}.`);

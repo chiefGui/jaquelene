@@ -104,7 +104,9 @@ describe("campaigns", () => {
     expect(second.campaigns.get(campaign.id)?.scenario).toBe(scenario);
     expect(second.campaigns.getContextForThread(campaign.threadId)).toEqual({
       id: campaign.id,
-      scenario,
+      instructions: [
+        { sourceKey: `campaign.${campaign.id}.scenario`, content: `## Scenario\n${scenario}` },
+      ],
     });
     expect(second.campaigns.setScenario(campaign.id, "A floating city.")?.scenario).toBe(
       "A floating city.",
@@ -302,7 +304,7 @@ describe("campaigns", () => {
     expect(second.campaigns.get(campaign.id)).toEqual(renamed);
     expect(second.campaigns.getContextForThread(campaign.threadId)).toEqual({
       id: campaign.id,
-      scenario: "",
+      instructions: [],
     });
   });
 

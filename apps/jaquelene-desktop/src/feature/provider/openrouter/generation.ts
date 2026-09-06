@@ -2,16 +2,14 @@ import { Effect } from "effect";
 import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import { chatResultFromJSON, type ChatMessages, type ChatResult } from "@openrouter/sdk/models";
 import {
-  composeSystemPrompt,
   createGenerationUsage,
   createProviderGenerationResult,
-  type DialogueMessage,
   type GenerationCost,
   type GenerationUsage,
-  type ModelInput,
   type ProviderGenerationAdapter,
 } from "@jaquelene/backend";
 import type { ApiKeyConfiguration } from "../api-key-configuration";
+import { toChatMessages } from "../chat-messages";
 import { encodeOpenRouterReasoning, type OpenRouterReasoningRequest } from "./reasoning";
 
 type OpenRouterChatRequest = {
@@ -22,24 +20,6 @@ type OpenRouterChatRequest = {
   session_id?: string;
   stream: false;
 };
-
-function toOpenRouterDialogue({ role, content }: DialogueMessage): ChatMessages {
-  switch (role) {
-    case "user":
-      return { role, content };
-    case "assistant":
-      return { role, content };
-  }
-}
-
-function toOpenRouterMessages({ instructions, dialogue }: ModelInput): ChatMessages[] {
-  const messages: ChatMessages[] = [];
-  const systemPrompt = composeSystemPrompt(instructions);
-  if (systemPrompt) {
-    messages.push({ role: "system", content: systemPrompt });
-  }
-  return [...messages, ...dialogue.map(toOpenRouterDialogue)];
-}
 
 const sendOpenRouterChat = Effect.fn("OpenRouter.sendChat")(
   function* (apiKey: string, request: OpenRouterChatRequest, client: HttpClient.HttpClient) {
@@ -205,7 +185,7 @@ export function createOpenRouterGeneration(
           const reasoning = encodeOpenRouterReasoning(request.reasoning);
           const chatRequest: OpenRouterChatRequest = {
             model: request.modelId,
-            messages: toOpenRouterMessages(request.input),
+            messages: toChatMessages(request.input),
             metadata: { jaquelene_execution_id: request.executionId },
             stream: false,
           };

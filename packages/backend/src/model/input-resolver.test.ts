@@ -3,9 +3,12 @@ import { ids } from "#backend/id";
 import { createModelInputResolver } from "./input-resolver";
 
 describe("model input resolver", () => {
-  it("appends the campaign scenario after reusable instructions without changing dialogue", () => {
+  it("appends campaign instructions after reusable instructions without changing dialogue", () => {
     const threadId = ids.thread.create();
-    const campaign = { id: ids.campaign.create(), scenario: "A city beneath the sea." };
+    const campaign = {
+      id: ids.campaign.create(),
+      instructions: [{ sourceKey: "campaign.setting", content: "A city beneath the sea." }],
+    };
     const resolver = createModelInputResolver(
       { getContextForThread: () => campaign },
       { resolve: () => [{ sourceKey: "narrator", content: "Narrate clearly." }] },
@@ -14,8 +17,8 @@ describe("model input resolver", () => {
       instructions: [
         { sourceKey: "narrator", content: "Narrate clearly." },
         {
-          sourceKey: `campaign.${campaign.id}.scenario`,
-          content: "## Scenario\nA city beneath the sea.",
+          sourceKey: "campaign.setting",
+          content: "A city beneath the sea.",
         },
       ],
       dialogue: [],
@@ -34,7 +37,7 @@ describe("model input resolver", () => {
 
   it("combines resolved thread instructions with dialogue in order", () => {
     const threadId = ids.thread.create();
-    const campaign = { id: ids.campaign.create(), scenario: "" };
+    const campaign = { id: ids.campaign.create(), instructions: [] };
     const messages = [
       { id: ids.message.create(), author: "user" as const, content: "Hello" },
       { id: ids.message.create(), author: "assistant" as const, content: "Hi" },

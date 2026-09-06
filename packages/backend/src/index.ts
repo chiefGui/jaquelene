@@ -33,7 +33,6 @@ export {
   type RequestedModelConfiguration,
 } from "#backend/model/configuration";
 export type { DialogueMessage, ModelInput, ResolvedInstruction } from "#backend/model/input";
-export { composeSystemPrompt } from "#backend/model/input";
 export {
   reasoningEfforts,
   reasoningPresets,

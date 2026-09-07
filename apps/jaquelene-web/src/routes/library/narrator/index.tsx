@@ -1,8 +1,12 @@
-import { PromptLibraryCreateItem, promptLibraryStyles } from "@/feature/prompt/library-layout";
+import {
+  PromptLibraryCreateItem,
+  PromptLibraryPagination,
+  promptLibraryStyles,
+} from "@/feature/prompt/library-layout";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PromptOrigin, narratorPromptKindKey } from "@jaquelene/domain";
 import type { CustomPrompt, Prompt, PromptKind } from "@jaquelene/ipc/renderer";
-import { Badge, Button, IconButton, Item } from "@jaquelene/ui";
+import { Badge, IconButton, Item } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
@@ -148,17 +152,7 @@ function NarratorSection({ kind }: { kind: PromptKind }) {
         {prompts.filter((prompt) => prompt.origin === PromptOrigin.Custom).map(renderPrompt)}
       </Item.Group>
 
-      {pages.hasNextPage ? (
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={pages.isFetchingNextPage}
-          onClick={() => void pages.fetchNextPage()}
-          style={styles.loadMore}
-        >
-          {pages.isFetchingNextPage ? "Loading…" : "Load more"}
-        </Button>
-      ) : null}
+      <PromptLibraryPagination query={pages} label="narrators" />
     </Item.Section>
   );
 }
@@ -197,7 +191,6 @@ function NarratorRoute() {
 }
 
 const styles = stylex.create({
-  loadMore: { marginBlockStart: "0.75rem" },
   unavailable: {
     color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,

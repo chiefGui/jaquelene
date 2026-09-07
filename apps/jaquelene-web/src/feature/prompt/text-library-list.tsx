@@ -1,11 +1,13 @@
-import { PromptLibraryCreateItem, promptLibraryStyles } from "./library-layout";
+import {
+  PromptLibraryCreateItem,
+  PromptLibraryPagination,
+  promptLibraryStyles,
+} from "./library-layout";
 import type { TextLibrary } from "./text-libraries";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PromptOrigin } from "@jaquelene/domain";
-import { Button, IconButton, Item } from "@jaquelene/ui";
+import { IconButton, Item } from "@jaquelene/ui";
 import { Tooltip } from "@jaquelene/ui/tooltip";
-import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
-import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { PromptDeleteAction } from "@/feature/prompt/delete-action";
@@ -29,10 +31,6 @@ export function TextLibraryList({ library }: { library: TextLibrary }) {
   const setDefault = useSetPromptDefault(library.kind);
   if (!kind) throw new Error("The library is unavailable.");
   const entries = pages.data.pages.flatMap((page) => page.prompts);
-  let loadMoreLabel = "Load more";
-  if (pages.isFetchingNextPage) {
-    loadMoreLabel = "Loading…";
-  }
 
   return (
     <>
@@ -109,30 +107,10 @@ export function TextLibraryList({ library }: { library: TextLibrary }) {
                 />
               ))}
             </Item.Group>
-            {pages.hasNextPage && (
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={pages.isFetchingNextPage}
-                onClick={() => void pages.fetchNextPage()}
-                style={styles.loadMore}
-              >
-                {loadMoreLabel}
-              </Button>
-            )}
-            {pages.isFetchNextPageError && (
-              <p role="alert" {...stylex.props(styles.error)}>
-                Couldn't load more {library.pluralNoun}. Try again.
-              </p>
-            )}
+            <PromptLibraryPagination query={pages} label={library.pluralNoun} />
           </Item.Section>
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>
   );
 }
-
-const styles = stylex.create({
-  loadMore: { marginBlockStart: "0.75rem" },
-  error: { color: colors.foregroundDanger, fontSize: tokens.fontSizeSmall },
-});

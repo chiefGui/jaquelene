@@ -31,7 +31,7 @@ const styles = stylex.create({
     backgroundColor: "transparent",
     borderColor: colors.borderDefault,
     borderStyle: "dashed",
-    borderWidth: 2,
+    borderWidth: 1,
     minHeight: 0,
   },
   create: {

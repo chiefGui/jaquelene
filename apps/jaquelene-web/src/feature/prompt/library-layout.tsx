@@ -31,10 +31,14 @@ const styles = stylex.create({
     backgroundColor: "transparent",
     borderColor: colors.borderDefault,
     borderStyle: "dashed",
+    borderWidth: 2,
     minHeight: 0,
   },
   create: {
-    backgroundColor: "transparent",
+    backgroundColor: {
+      default: "transparent",
+      ":not(:disabled):hover": colors.backgroundNeutralSubtlest,
+    },
     gap: "0.5rem",
     height: "3rem",
     justifyContent: "flex-start",

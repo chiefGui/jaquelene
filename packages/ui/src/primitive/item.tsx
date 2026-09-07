@@ -2,7 +2,7 @@ import { Role, type RoleProps } from "@ariakit/react/role";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { createContext, useContext } from "react";
-import { colors, radii, tokens } from "../tokens.stylex";
+import { colors, radii, tokens, textLayout } from "../tokens.stylex";
 import { labelStyles } from "./label.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
@@ -125,7 +125,7 @@ const styles = stylex.create({
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,
     margin: 0,
-    maxWidth: tokens.descriptionMaxWidth,
+    maxWidth: textLayout.descriptionMaxWidth,
     textBox: "trim-both text",
   },
   groupSurface: {
@@ -167,7 +167,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   description: {
-    maxWidth: tokens.descriptionMaxWidth,
+    maxWidth: textLayout.descriptionMaxWidth,
     color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,

@@ -1,7 +1,7 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { colors, tokens } from "../tokens.stylex";
+import { colors, tokens, textLayout } from "../tokens.stylex";
 import { labelStyles } from "./label.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
@@ -59,7 +59,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   description: {
-    maxWidth: tokens.descriptionMaxWidth,
+    maxWidth: textLayout.descriptionMaxWidth,
     color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,

@@ -20,6 +20,7 @@ import {
   scenarioPromptKindKey,
 } from "@jaquelene/domain";
 import type { Campaign } from "@jaquelene/ipc/renderer";
+import { textLayout } from "@jaquelene/ui/tokens.stylex";
 import { Button, Field, Form as FormLayout, Input, Item } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
@@ -302,6 +303,22 @@ function NewCampaignRoute() {
                 </Field.Root>
               </Item.Root>
 
+              <Item.Root style={styles.controlField}>
+                <NarratorSelectControl
+                  description="Set the rules for narration. Avoid worldbuilding and character details. Keep it concise."
+                  disabled={submitting || Boolean(createdCampaign)}
+                  hasMore={promptPages.hasNextPage}
+                  loadingMore={promptPages.isFetchingNextPage}
+                  onLoadMore={() => void promptPages.fetchNextPage()}
+                  value={narratorPromptKey}
+                  options={options}
+                  onValueChange={(key) => updateDraft({ narratorPromptKey: key })}
+                  {...(!selectedPrompt && {
+                    error: "The saved narrator is unavailable. Choose another narrator.",
+                  })}
+                />
+              </Item.Root>
+
               <Item.Root style={styles.writingField}>
                 <Field.Root>
                   <FormLabel name={form.names.scenario} render={<Field.Label optional />}>
@@ -364,22 +381,6 @@ function NewCampaignRoute() {
                   <FormError name={form.names.openingScene} render={<Field.Error />} />
                 </Field.Root>
               </Item.Root>
-
-              <Item.Root style={styles.controlField}>
-                <NarratorSelectControl
-                  description="Set the rules for narration. Avoid worldbuilding and character details. Keep it concise."
-                  disabled={submitting || Boolean(createdCampaign)}
-                  hasMore={promptPages.hasNextPage}
-                  loadingMore={promptPages.isFetchingNextPage}
-                  onLoadMore={() => void promptPages.fetchNextPage()}
-                  value={narratorPromptKey}
-                  options={options}
-                  onValueChange={(key) => updateDraft({ narratorPromptKey: key })}
-                  {...(!selectedPrompt && {
-                    error: "The saved narrator is unavailable. Choose another narrator.",
-                  })}
-                />
-              </Item.Root>
             </Item.Group>
 
             <FormLayout.Status
@@ -404,7 +405,7 @@ function NewCampaignRoute() {
 }
 
 const styles = stylex.create({
-  form: { gap: "1.5rem" },
+  form: { gap: "1.5rem", [textLayout.descriptionMaxWidth]: "none" },
   writingField: { display: "block", paddingBlock: "1.5rem" },
   controlField: { display: "block", paddingBlock: "1rem" },
   titleRow: {

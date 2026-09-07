@@ -54,9 +54,12 @@ describe("theme color policy", () => {
         continue;
       }
 
-      const colorSource = path.endsWith("/packages/ui/src/tokens.stylex.ts")
-        ? source.slice(source.indexOf("export const colors"), source.indexOf("export const tokens"))
-        : source;
+      let colorSource = source;
+      if (path.endsWith("/packages/ui/src/tokens.stylex.ts")) {
+        colorSource =
+          source.match(/^export const colors = stylex\.defineVars\(\{([\s\S]*?)^\}\);/mu)?.[1] ??
+          "";
+      }
       const assignments = [...colorSource.matchAll(/^\s+([a-z]\w+):\s+(.+),$/gmu)];
 
       if (assignments.length === 0) {

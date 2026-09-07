@@ -304,7 +304,7 @@ function NewCampaignRoute() {
 
               <Item.Root style={styles.writingField}>
                 <Field.Root>
-                  <FormLabel name={form.names.scenario} render={<Field.Label />}>
+                  <FormLabel name={form.names.scenario} render={<Field.Label optional />}>
                     Scenario
                   </FormLabel>
                   <FormDescription
@@ -336,14 +336,15 @@ function NewCampaignRoute() {
 
               <Item.Root style={styles.writingField}>
                 <Field.Root>
-                  <FormLabel name={form.names.openingScene} render={<Field.Label />}>
-                    Opening scene (optional)
+                  <FormLabel name={form.names.openingScene} render={<Field.Label optional />}>
+                    Opening scene
                   </FormLabel>
                   <FormDescription
                     name={form.names.openingScene}
                     render={<Field.Description style={styles.scenarioDescription} />}
                   >
-                    This text will appear as the first narrator message.
+                    The way the campaign starts. Helps the AI understand the language and
+                    environment, and becomes the first message you'll respond to.
                   </FormDescription>
                   <FormControl
                     name={form.names.openingScene}

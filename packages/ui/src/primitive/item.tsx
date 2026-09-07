@@ -3,6 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { createContext, useContext } from "react";
 import { colors, radii, tokens } from "../tokens.stylex";
+import { labelStyles } from "./label.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -34,7 +35,7 @@ function ItemSectionContent({ style, ...props }: StyleableProps<RoleProps<"div">
 }
 
 function ItemHeading({ style, ...props }: StyleableProps<RoleProps<"h2">>) {
-  return <Role.h2 {...props} {...stylex.props(styles.heading, style)} />;
+  return <Role.h2 {...props} {...stylex.props(labelStyles.label, style)} />;
 }
 
 function ItemSectionDescription({ style, ...props }: StyleableProps<RoleProps<"p">>) {
@@ -71,7 +72,7 @@ function ItemContent({ style, ...props }: StyleableProps<RoleProps<"div">>) {
 }
 
 function ItemLabel({ style, ...props }: StyleableProps<RoleProps<"div">>) {
-  return <Role.div {...props} {...stylex.props(styles.label, style)} />;
+  return <Role.div {...props} {...stylex.props(labelStyles.label, style)} />;
 }
 
 function ItemDescription({ style, ...props }: StyleableProps<RoleProps<"div">>) {
@@ -119,13 +120,6 @@ const styles = stylex.create({
     gap: "0.25rem",
     minWidth: 0,
   },
-  heading: {
-    color: colors.foregroundSecondary,
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 400,
-    lineHeight: tokens.lineHeightSmall,
-    textBox: "trim-both text",
-  },
   sectionDescription: {
     color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
@@ -171,12 +165,6 @@ const styles = stylex.create({
   },
   content: {
     minWidth: 0,
-  },
-  label: {
-    color: colors.foregroundPrimary,
-    fontSize: tokens.fontSizeSmall,
-    lineHeight: tokens.lineHeightSmall,
-    textBox: "trim-both text",
   },
   description: {
     maxWidth: tokens.descriptionMaxWidth,

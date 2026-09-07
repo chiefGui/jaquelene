@@ -117,7 +117,7 @@ export function RegenerateResponseDialog({
           </div>
 
           <Field.Root style={[styles.field, styles.modelField]}>
-            <FormLabel name="configuration" render={<Field.Label style={styles.label} />}>
+            <FormLabel name="configuration" render={<Field.Label />}>
               Model
             </FormLabel>
             <ModelPicker.Root
@@ -153,8 +153,8 @@ export function RegenerateResponseDialog({
           </Field.Root>
 
           <Field.Root style={styles.field}>
-            <FormLabel name={form.names.instructions} render={<Field.Label style={styles.label} />}>
-              Instructions (optional)
+            <FormLabel name={form.names.instructions} render={<Field.Label optional />}>
+              Instructions
             </FormLabel>
             <FormInput
               name={form.names.instructions}
@@ -196,11 +196,6 @@ const styles = stylex.create({
     gap: "1rem",
   },
   field: { marginTop: "1.25rem" },
-  label: {
-    color: colors.foregroundSecondary,
-    fontWeight: 400,
-    textBox: "trim-both text",
-  },
   modelField: {
     display: "grid",
     gridTemplateColumns: "auto minmax(0, 1fr)",

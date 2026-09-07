@@ -1,5 +1,6 @@
 import {
   parseCampaignScenario,
+  parseCampaignOpeningScene,
   parseCampaignTitleInput,
   parsePromptKey,
   promptKindKeySchema,
@@ -17,8 +18,8 @@ import { requireReasoningPreset, type ReasoningPreset } from "#backend/model/rea
 import { decodeCursor, encodeCursor } from "#backend/pagination/cursor";
 import { campaignPromptSelectionTable, promptKindTable, promptTable } from "#backend/prompt/schema";
 import { requireModelSelection, type ModelSelection } from "#backend/provider/provider";
-import { threadTable, turnTable } from "#backend/thread/schema";
-import { insertThread } from "#backend/thread/threads";
+import { threadTable } from "#backend/thread/schema";
+import { appendOpeningMessageInTransaction, insertThread } from "#backend/thread/threads";
 import { campaignGenerationPreferencesTable, campaignTable } from "./schema";
 
 export const campaignPageSize = 50;
@@ -37,6 +38,7 @@ export type CampaignPromptSelectionInput = Readonly<{
 export type StartCampaignInput = Readonly<{
   title: string;
   scenario?: string;
+  openingScene?: string;
   composition: readonly CampaignPromptSelectionInput[];
 }>;
 
@@ -131,7 +133,12 @@ function parseStartCampaignInput(value: StartCampaignInput) {
 
   const keys = Object.keys(value);
 
-  if (!keys.every((key) => key === "title" || key === "composition" || key === "scenario")) {
+  if (
+    !keys.every(
+      (key) =>
+        key === "title" || key === "composition" || key === "scenario" || key === "openingScene",
+    )
+  ) {
     throw new TypeError("Campaign input is invalid.");
   }
 
@@ -140,7 +147,11 @@ function parseStartCampaignInput(value: StartCampaignInput) {
   if (value.scenario !== undefined) {
     scenario = parseCampaignScenario(value.scenario);
   }
-  return { title, scenario, composition: parseComposition(value.composition) };
+  let openingScene = "";
+  if (value.openingScene !== undefined) {
+    openingScene = parseCampaignOpeningScene(value.openingScene);
+  }
+  return { title, scenario, openingScene, composition: parseComposition(value.composition) };
 }
 
 type StoredCampaign = typeof campaignTable.$inferSelect & {
@@ -228,7 +239,7 @@ function getCampaign(database: Database, id: CampaignId) {
 export function createCampaigns(database: Database, now: () => number = Date.now) {
   return {
     start(input: StartCampaignInput) {
-      const { title, scenario, composition } = parseStartCampaignInput(input);
+      const { title, scenario, openingScene, composition } = parseStartCampaignInput(input);
       const startedAt = now();
 
       return database.transaction((transaction) => {
@@ -257,6 +268,14 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         }
 
         const thread = insertThread(transaction, startedAt);
+        if (openingScene) {
+          appendOpeningMessageInTransaction(transaction, {
+            threadId: thread.id,
+            content: openingScene,
+            createdAt: startedAt,
+            replaceMessageId: null,
+          });
+        }
         const campaign = {
           id: ids.campaign.create(),
           title,
@@ -337,9 +356,11 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         const pendingGeneration = transaction
           .select({ id: generationTable.id })
           .from(generationTable)
-          .innerJoin(turnTable, eq(turnTable.id, generationTable.turnId))
           .where(
-            and(eq(turnTable.threadId, campaign.threadId), eq(generationTable.status, "pending")),
+            and(
+              eq(generationTable.threadId, campaign.threadId),
+              eq(generationTable.status, "pending"),
+            ),
           )
           .get();
 

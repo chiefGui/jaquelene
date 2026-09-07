@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { ids } from "#backend/id";
+import { openingScenePromptModule } from "#backend/opening-scene/module";
 import { scenarioPromptModule } from "#backend/scenario/module";
 import type { PromptKindModule } from "./module";
 import { promptPageSize } from "./prompts";
@@ -91,33 +92,39 @@ afterEach(() => {
 });
 
 describe("prompts", () => {
-  it("persists an optional scenario default without applying it to campaigns", () => {
-    const path = createDatabasePath();
-    const database = openDatabase(path);
-    databases.push(database);
-    const kind = scenarioPromptModule.definition.key;
-    const none = { kind, promptKey: null, source: "none" };
-    const { prompts } = createPromptSubsystem(database, [scenarioPromptModule]);
-    expect(prompts.getDefault(kind)).toEqual(none);
-    const scenario = prompts.create({ kind, title: "New York", body: "New York, 1920." });
-    expect(prompts.setDefault(kind, scenario.key)).toEqual({
-      kind,
-      promptKey: scenario.key,
-      source: "override",
-    });
-    closeDatabase(database);
+  it.each([scenarioPromptModule, openingScenePromptModule])(
+    "persists the $definition.key library default without applying it as model instructions",
+    (module) => {
+      const path = createDatabasePath();
+      const database = openDatabase(path);
+      databases.push(database);
+      const kind = module.definition.key;
+      const none = { kind, promptKey: null, source: "none" };
+      const { prompts } = createPromptSubsystem(database, [module]);
+      expect(prompts.getDefault(kind)).toEqual(none);
+      const entry = prompts.create({ kind, title: "New York", body: "New York, 1920." });
+      expect(prompts.setDefault(kind, entry.key)).toEqual({
+        kind,
+        promptKey: entry.key,
+        source: "override",
+      });
+      closeDatabase(database);
 
-    const reopened = openDatabase(path);
-    databases.push(reopened);
-    const persisted = createPromptSubsystem(reopened, [scenarioPromptModule]);
-    expect(persisted.prompts.getDefault(kind).promptKey).toBe(scenario.key);
-    const campaign = createCampaigns(reopened).start({ title: "Empty scenario", composition: [] });
-    expect(persisted.applications.resolve({ threadId: campaign.threadId, campaign })).toEqual([]);
-    expect(persisted.prompts.setDefault(kind)).toEqual(none);
-    persisted.prompts.setDefault(kind, scenario.key);
-    persisted.prompts.delete(scenario.key);
-    expect(persisted.prompts.getDefault(kind)).toEqual(none);
-  });
+      const reopened = openDatabase(path);
+      databases.push(reopened);
+      const persisted = createPromptSubsystem(reopened, [module]);
+      expect(persisted.prompts.getDefault(kind).promptKey).toBe(entry.key);
+      const campaign = createCampaigns(reopened).start({
+        title: "New campaign",
+        composition: [],
+      });
+      expect(persisted.applications.resolve({ threadId: campaign.threadId, campaign })).toEqual([]);
+      expect(persisted.prompts.setDefault(kind)).toEqual(none);
+      persisted.prompts.setDefault(kind, entry.key);
+      persisted.prompts.delete(entry.key);
+      expect(persisted.prompts.getDefault(kind)).toEqual(none);
+    },
+  );
 
   it("keeps registered prompt kinds authoritative and ordered", () => {
     const database = openDatabase(createDatabasePath());

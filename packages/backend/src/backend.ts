@@ -7,6 +7,7 @@ import { GenerationService } from "#backend/generation/subsystem";
 import { ModelExecutionService } from "#backend/model/execution";
 import { ModelInputService } from "#backend/model/input-resolver";
 import { narratorPromptModule } from "#backend/narrator/module";
+import { openingScenePromptModule } from "#backend/opening-scene/module";
 import { scenarioPromptModule } from "#backend/scenario/module";
 import { PromptService } from "#backend/prompt/subsystem";
 import type { Prompts } from "#backend/prompt/types";
@@ -106,9 +107,11 @@ function createConfiguredBackendLayer<StorageRequirements>(
   const databaseLayer = DatabaseService.layer(databasePath);
   const resourceCacheLayer = ResourceCacheService.layer(cacheOptions);
   const campaignsLayer = CampaignService.layer().pipe(Layer.provide(databaseLayer));
-  const promptsLayer = PromptService.layer([narratorPromptModule, scenarioPromptModule]).pipe(
-    Layer.provide(databaseLayer),
-  );
+  const promptsLayer = PromptService.layer([
+    narratorPromptModule,
+    scenarioPromptModule,
+    openingScenePromptModule,
+  ]).pipe(Layer.provide(databaseLayer));
   const usageLayer = UsageService.layer.pipe(Layer.provide(databaseLayer));
   const providersLayer = ProvidersService.layer(providers).pipe(Layer.provide(resourceCacheLayer));
   const modelInputsLayer = ModelInputService.layer.pipe(

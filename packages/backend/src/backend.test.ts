@@ -25,6 +25,7 @@ import {
 } from "#backend/storage/area";
 import type { StorageDeletion, StorageUsage } from "#backend/storage/storage";
 import { jaqueleneNarratorPromptDefinition, narratorPromptKind } from "#backend/narrator/module";
+import { openingScenePromptModule } from "#backend/opening-scene/module";
 import { scenarioPromptModule } from "#backend/scenario/module";
 import {
   createThreads,
@@ -441,6 +442,7 @@ describe("backend", () => {
     expect(first.prompts.listKinds()).toEqual([
       narratorPromptKind,
       scenarioPromptModule.definition,
+      openingScenePromptModule.definition,
     ]);
     expect(first.prompts.list({ kind: narratorPromptKind.key }).prompts).toEqual([
       {
@@ -497,9 +499,9 @@ describe("backend", () => {
     expect(
       reopened.turns.listForThread({ threadId: campaign.threadId, direction: "older" }),
     ).toEqual({
-      messages: [submitted.userMessage, submitted.assistantMessage],
+      messages: [submitted.sourceMessage, submitted.assistantMessage],
       generations: [submitted.generation],
-      ...threadPageMetadata([submitted.userMessage, submitted.assistantMessage]),
+      ...threadPageMetadata([submitted.sourceMessage, submitted.assistantMessage]),
     });
     await reopened.close();
   });
@@ -937,7 +939,7 @@ describe("backend", () => {
     try {
       expect(database.select().from(generationTable).get()).toEqual(
         expect.objectContaining({
-          turnId: interrupted.userMessage.turnId,
+          turnId: interrupted.sourceMessage.turnId,
           status: "failed",
           failureKind: "interrupted",
         }),
@@ -974,9 +976,9 @@ describe("backend", () => {
     const reopened = await openBackend(backendOptions(databasePath));
 
     expect(reopened.turns.listForThread({ threadId: thread.id, direction: "older" })).toEqual({
-      messages: [interrupted.userMessage],
+      messages: [interrupted.sourceMessage],
       generations: [interrupted.generation],
-      ...threadPageMetadata([interrupted.userMessage]),
+      ...threadPageMetadata([interrupted.sourceMessage]),
     });
     await reopened.close();
   });
@@ -1039,6 +1041,7 @@ describe("backend", () => {
     const pending = {
       id: ids.generation.create(),
       turnId: started.turn.id,
+      threadId: started.turn.threadId,
       intent: "reply" as const,
       providerId: "provider-a",
       modelId: "maker/model",

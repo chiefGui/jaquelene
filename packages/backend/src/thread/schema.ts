@@ -67,7 +67,7 @@ export const threadMessageTable = sqliteTable(
       .$type<ThreadId>()
       .notNull()
       .references(() => threadTable.id, { onDelete: "cascade" }),
-    turnId: text("turn_id").$type<TurnId>().notNull(),
+    turnId: text("turn_id").$type<TurnId>(),
     parentMessageId: text("parent_message_id").$type<MessageId>(),
     activeChildMessageId: text("active_child_message_id").$type<MessageId>(),
     sequence: integer().notNull(),
@@ -107,7 +107,8 @@ export const threadMessageTable = sqliteTable(
     check("thread_messages_author_valid", sql`${message.author} IN ('user', 'assistant')`),
     check(
       "thread_messages_parent_valid",
-      sql`${message.author} = 'user' OR ${message.parentMessageId} IS NOT NULL`,
+      sql`(${message.turnId} IS NULL AND ${message.author} = 'assistant' AND ${message.parentMessageId} IS NULL)
+        OR (${message.turnId} IS NOT NULL AND (${message.author} = 'user' OR ${message.parentMessageId} IS NOT NULL))`,
     ),
     check(
       "thread_messages_content_valid",

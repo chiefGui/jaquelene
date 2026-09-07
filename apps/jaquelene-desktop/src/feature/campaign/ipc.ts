@@ -79,11 +79,12 @@ function fromIpcPreferences(preferences: IpcCampaignGenerationPreferences) {
 
 export function exposeCampaigns(target: WebFrameMain, campaigns: Campaigns) {
   CampaignsIpc.for(target).setImplementation({
-    start({ title, scenario, composition }) {
+    start({ title, scenario, openingScene, composition }) {
       return toIpcCampaign(
         campaigns.start({
           title,
           ...(scenario !== undefined && { scenario }),
+          ...(openingScene !== undefined && { openingScene }),
           composition: composition.map(({ kind, promptKey }) => ({
             kind: promptKindKeySchema.parse(kind),
             ...(promptKey ? { promptKey: promptKeySchema.parse(promptKey) } : {}),

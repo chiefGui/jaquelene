@@ -10,14 +10,14 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { GenerationId, MessageId, TurnId } from "#backend/id";
+import type { GenerationId, MessageId, ThreadId, TurnId } from "#backend/id";
 import {
   reasoningPresets,
   reasoningPresetSources,
   requireResolvedReasoning,
   type ResolvedReasoning,
 } from "#backend/model/reasoning";
-import { threadMessageTable, turnTable } from "#backend/thread/schema";
+import { threadMessageTable, threadTable, turnTable } from "#backend/thread/schema";
 
 export const generationStatuses = ["pending", "completed", "failed"] as const;
 export const generationIntents = ["reply", "retry", "regeneration"] as const;
@@ -32,9 +32,12 @@ export const generationTable = sqliteTable(
   "generations",
   {
     id: text().$type<GenerationId>().notNull(),
+    threadId: text("thread_id")
+      .$type<ThreadId>()
+      .notNull()
+      .references(() => threadTable.id, { onDelete: "cascade" }),
     turnId: text("turn_id")
       .$type<TurnId>()
-      .notNull()
       .references(() => turnTable.id, { onDelete: "cascade" }),
     providerId: text("provider_id").notNull(),
     modelId: text("model_id").notNull(),
@@ -52,6 +55,34 @@ export const generationTable = sqliteTable(
   (generation) => [
     primaryKey({ columns: [generation.id] }),
     foreignKey({
+      columns: [generation.threadId, generation.turnId],
+      foreignColumns: [turnTable.threadId, turnTable.id],
+      name: "generations_thread_turn_fk",
+    }),
+    foreignKey({
+      columns: [generation.threadId, generation.outputMessageId],
+      foreignColumns: [threadMessageTable.threadId, threadMessageTable.id],
+      name: "generations_thread_output_fk",
+    }),
+    foreignKey({
+      columns: [generation.threadId, generation.regenerationSourceMessageId],
+      foreignColumns: [threadMessageTable.threadId, threadMessageTable.id],
+      name: "generations_thread_source_fk",
+    }),
+    check(
+      "generations_opening_valid",
+      sql`${generation.turnId} IS NOT NULL OR (${generation.intent} = 'regeneration' AND ${generation.regenerationSourceMessageId} IS NOT NULL)`,
+    ),
+    index("generations_thread_turn_started_at_idx").on(
+      generation.threadId,
+      generation.turnId,
+      generation.startedAt,
+      generation.id,
+    ),
+    uniqueIndex("generations_pending_opening_unique")
+      .on(generation.threadId)
+      .where(sql`${generation.turnId} IS NULL AND ${generation.status} = 'pending'`),
+    foreignKey({
       columns: [generation.turnId, generation.outputMessageId],
       foreignColumns: [threadMessageTable.turnId, threadMessageTable.id],
       name: "generations_output_message_fk",
@@ -63,11 +94,10 @@ export const generationTable = sqliteTable(
     }),
     check(
       "generations_regeneration_valid",
-      sql`(${generation.regenerationSourceMessageId} IS NULL AND ${generation.regenerationInstructions} IS NULL)
+      sql`(${generation.intent} != 'regeneration' AND ${generation.regenerationSourceMessageId} IS NULL AND ${generation.regenerationInstructions} IS NULL)
         OR (${generation.intent} = 'regeneration'
           AND ${generation.regenerationSourceMessageId} IS NOT NULL
-          AND ${generation.regenerationInstructions} IS NOT NULL
-          AND length(trim(${generation.regenerationInstructions})) BETWEEN 1 AND ${sql.raw(String(REGENERATION_INSTRUCTIONS_MAX_LENGTH))})`,
+          AND (${generation.regenerationInstructions} IS NULL OR length(trim(${generation.regenerationInstructions})) BETWEEN 1 AND ${sql.raw(String(REGENERATION_INSTRUCTIONS_MAX_LENGTH))}))`,
     ),
     index("generations_turn_started_at_idx").on(
       generation.turnId,
@@ -135,7 +165,7 @@ export type Generation = Omit<
   | "regenerationInstructions"
 > & {
   reasoning?: ResolvedReasoning;
-  regeneration?: Readonly<{ sourceMessageId: MessageId; instructions: string }>;
+  regeneration?: Readonly<{ sourceMessageId: MessageId; instructions?: string }>;
 };
 export type GenerationIntent = (typeof generationIntents)[number];
 export type GenerationFailureKind = (typeof generationFailureKinds)[number];
@@ -148,13 +178,13 @@ export function toGeneration({
   ...generation
 }: StoredGeneration): Generation {
   const result: Generation = { ...generation };
-  if ((regenerationSourceMessageId === null) !== (regenerationInstructions === null)) {
+  if (regenerationSourceMessageId === null && regenerationInstructions !== null) {
     throw new TypeError(`Generation "${generation.id}" has incomplete regeneration metadata.`);
   }
-  if (regenerationSourceMessageId !== null && regenerationInstructions !== null) {
+  if (regenerationSourceMessageId !== null) {
     result.regeneration = {
       sourceMessageId: regenerationSourceMessageId,
-      instructions: regenerationInstructions,
+      ...(regenerationInstructions !== null && { instructions: regenerationInstructions }),
     };
   }
 

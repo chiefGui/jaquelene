@@ -4,7 +4,7 @@ import {
   ThreadMessageAuthor,
   type ThreadMessage,
   type ThreadMessagePage,
-  type TurnGeneration,
+  type ThreadGeneration,
 } from "@jaquelene/ipc/renderer";
 import type { InfiniteData } from "@tanstack/react-query";
 
@@ -14,24 +14,29 @@ export type ThreadHistoryPageParam =
 export type ThreadQueryData = InfiniteData<ThreadMessagePage, ThreadHistoryPageParam>;
 export type ThreadTurnUpdate =
   | Readonly<{
-      type: "submission-accepted" | "reply-failed";
+      type: "submission-accepted";
       userMessage: ThreadMessage;
-      generation: TurnGeneration;
+      generation: ThreadGeneration;
+    }>
+  | Readonly<{
+      type: "reply-failed";
+      sourceMessage: ThreadMessage;
+      generation: ThreadGeneration;
     }>
   | Readonly<{
       type: "retry-accepted";
-      generation: TurnGeneration;
+      generation: ThreadGeneration;
     }>
   | Readonly<{
       type: "regeneration-accepted";
       assistantMessageId: string;
-      generation: TurnGeneration;
+      generation: ThreadGeneration;
     }>
   | Readonly<{
       type: "reply-completed";
-      userMessage: ThreadMessage;
+      sourceMessage: ThreadMessage;
       assistantMessage: ThreadMessage;
-      generation: TurnGeneration;
+      generation: ThreadGeneration;
     }>;
 
 type ThreadCacheReconciliation =
@@ -84,13 +89,13 @@ function hasSamePageContract(page: ThreadMessagePage, contract: ThreadPageContra
   );
 }
 
-function isValidPage(page: ThreadMessagePage, contract: ThreadPageContract) {
+function isValidPage(page: ThreadMessagePage, threadId: string, contract: ThreadPageContract) {
   if (!hasSamePageContract(page, contract) || page.messages.length > contract.messageCountLimit) {
     return false;
   }
 
   let actualContentBytes = 0;
-  const messageTurnIds = new Set<string>();
+  const messageTurnIds = new Set<string | null>();
 
   for (const message of page.messages) {
     if (message.content.length > contract.messageMaxCodeUnits) {
@@ -101,10 +106,14 @@ function isValidPage(page: ThreadMessagePage, contract: ThreadPageContract) {
     messageTurnIds.add(message.turnId);
   }
 
-  const generationTurnIds = new Set<string>();
+  const generationTurnIds = new Set<string | null>();
 
   for (const generation of page.generations) {
-    if (!messageTurnIds.has(generation.turnId) || generationTurnIds.has(generation.turnId)) {
+    if (
+      generation.threadId !== threadId ||
+      !messageTurnIds.has(generation.turnId) ||
+      generationTurnIds.has(generation.turnId)
+    ) {
       return false;
     }
 
@@ -142,7 +151,7 @@ function loadedMessages(data: ThreadQueryData, threadId: string, contract: Threa
   for (let index = 0; index < data.pages.length; index += 1) {
     const page = data.pages[index];
 
-    if (!page || !isValidPage(page, contract)) {
+    if (!page || !isValidPage(page, threadId, contract)) {
       return null;
     }
 
@@ -241,7 +250,7 @@ function partitionMessages(
 
 function rebuildPages(
   messages: readonly ThreadMessage[],
-  generations: readonly TurnGeneration[],
+  generations: readonly ThreadGeneration[],
   contract: ThreadPageContract,
   window: ThreadPageWindow,
 ): ThreadQueryData {
@@ -510,7 +519,7 @@ export function reconcileThreadMessageEdit(
 
 function selectGenerations(
   messages: readonly ThreadMessage[],
-  generations: readonly TurnGeneration[],
+  generations: readonly ThreadGeneration[],
 ) {
   const generationByTurn = new Map(
     generations.map((generation) => [generation.turnId, generation]),
@@ -522,7 +531,7 @@ function selectGenerations(
   });
 }
 
-function compareGenerationOrder(left: TurnGeneration, right: TurnGeneration) {
+function compareGenerationOrder(left: ThreadGeneration, right: ThreadGeneration) {
   return left.startedAt - right.startedAt || left.id.localeCompare(right.id);
 }
 
@@ -533,6 +542,10 @@ function isReplyCompletion(
 }
 
 function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
+  if (update.generation.threadId !== threadId) {
+    return false;
+  }
+
   if (update.type === "retry-accepted") {
     return (
       update.generation.intent === GenerationIntent.Retry &&
@@ -547,12 +560,22 @@ function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
     );
   }
 
-  const { userMessage, generation } = update;
+  const { generation } = update;
+  let sourceMessage: ThreadMessage;
+  if (update.type === "submission-accepted") {
+    sourceMessage = update.userMessage;
+  } else {
+    sourceMessage = update.sourceMessage;
+  }
+  let expectedAuthor = ThreadMessageAuthor.User;
+  if (generation.intent === GenerationIntent.Regeneration) {
+    expectedAuthor = ThreadMessageAuthor.Assistant;
+  }
 
   if (
-    userMessage.threadId !== threadId ||
-    userMessage.author !== ThreadMessageAuthor.User ||
-    generation.turnId !== userMessage.turnId
+    sourceMessage.threadId !== threadId ||
+    sourceMessage.author !== expectedAuthor ||
+    generation.turnId !== sourceMessage.turnId
   ) {
     return false;
   }
@@ -569,10 +592,10 @@ function isConsistentTurnUpdate(threadId: string, update: ThreadTurnUpdate) {
       return (
         generation.status === GenerationStatus.Completed &&
         update.assistantMessage.threadId === threadId &&
-        update.assistantMessage.turnId === userMessage.turnId &&
+        update.assistantMessage.turnId === sourceMessage.turnId &&
         update.assistantMessage.author === ThreadMessageAuthor.Assistant &&
         update.assistantMessage.id === generation.outputMessageId &&
-        update.assistantMessage.sequence > userMessage.sequence
+        update.assistantMessage.sequence > sourceMessage.sequence
       );
   }
 }
@@ -610,7 +633,7 @@ export function reconcileThreadTurn(
   const messages = [...loaded.messages];
   const messageIndexById = loaded.messageIndexById;
 
-  const generationByTurn = new Map<string, TurnGeneration>();
+  const generationByTurn = new Map<string | null, ThreadGeneration>();
 
   for (const page of data.pages) {
     for (const generation of page.generations) {
@@ -630,91 +653,77 @@ export function reconcileThreadTurn(
     return CURRENT;
   }
 
+  const latestMessage = messages.at(-1);
   if (update.type === "regeneration-accepted") {
-    const assistantIndex = messageIndexById.get(update.assistantMessageId);
-    const assistantMessage = assistantIndex === undefined ? undefined : messages[assistantIndex];
+    if (
+      latestMessage?.id !== update.assistantMessageId ||
+      latestMessage.author !== ThreadMessageAuthor.Assistant ||
+      latestMessage.turnId !== update.generation.turnId
+    ) {
+      return RELOAD;
+    }
+  } else {
+    let sourceMessage: ThreadMessage | undefined;
+    if (update.type === "retry-accepted") {
+      sourceMessage = messages.find(
+        ({ author, turnId }) =>
+          author === ThreadMessageAuthor.User && turnId === update.generation.turnId,
+      );
+    } else if (update.type === "submission-accepted") {
+      sourceMessage = update.userMessage;
+    } else {
+      sourceMessage = update.sourceMessage;
+    }
+
+    if (!sourceMessage) {
+      return RELOAD;
+    }
+
+    const sourceIndex = messageIndexById.get(sourceMessage.id) ?? -1;
 
     if (
-      assistantIndex !== messages.length - 1 ||
-      assistantMessage?.author !== ThreadMessageAuthor.Assistant ||
-      assistantMessage.turnId !== update.generation.turnId
+      isReplyCompletion(update) &&
+      currentGeneration?.id === update.generation.id &&
+      currentGeneration.status === GenerationStatus.Completed &&
+      latestMessage?.id === update.assistantMessage.id
+    ) {
+      return CURRENT;
+    }
+
+    if (
+      sourceIndex === -1 &&
+      latestMessage !== undefined &&
+      sourceMessage.sequence <= latestMessage.sequence
     ) {
       return RELOAD;
     }
 
-    generationByTurn.set(update.generation.turnId, update.generation);
-
-    return {
-      outcome: "updated",
-      data: retainThreadHistory(
-        rebuildPages(messages, [...generationByTurn.values()], contract, {
-          latest: true,
-          newestCursor: undefined,
-          oldestCursor: data.pages.at(-1)?.olderCursor,
-        }),
-        "newest",
-      ),
-    };
-  }
-
-  const userMessage =
-    update.type === "retry-accepted"
-      ? messages.find(
-          ({ author, turnId }) =>
-            author === ThreadMessageAuthor.User && turnId === update.generation.turnId,
-        )
-      : update.userMessage;
-
-  if (!userMessage) {
-    return RELOAD;
-  }
-
-  const userIndex = messageIndexById.get(userMessage.id) ?? -1;
-  const latestMessage = messages.at(-1);
-
-  if (
-    userIndex === -1 &&
-    latestMessage !== undefined &&
-    userMessage.sequence <= latestMessage.sequence
-  ) {
-    return RELOAD;
-  }
-
-  if (update.type === "retry-accepted" && userIndex !== messages.length - 1) {
-    return RELOAD;
-  }
-
-  if (isReplyCompletion(update) && userIndex !== -1 && userIndex !== messages.length - 1) {
-    const currentAssistant = messages[userIndex + 1];
-    const replacesActiveReply =
-      update.generation.intent === GenerationIntent.Regeneration &&
-      userIndex === messages.length - 2 &&
-      currentAssistant?.author === ThreadMessageAuthor.Assistant &&
-      currentAssistant.turnId === userMessage.turnId;
-
-    if (!replacesActiveReply) {
+    if (update.type === "retry-accepted" && sourceIndex !== messages.length - 1) {
       return RELOAD;
     }
 
-    messages.pop();
-    messageIndexById.delete(currentAssistant.id);
-  }
-
-  function upsertMessage(message: ThreadMessage) {
-    const index = messageIndexById.get(message.id);
-
-    if (index === undefined) {
-      messageIndexById.set(message.id, messages.length);
-      messages.push(message);
+    if (sourceMessage.author === ThreadMessageAuthor.Assistant) {
+      // A replacement can settle with only its source response loaded; its player
+      // message may live outside this bounded history window.
+      if (sourceIndex !== messages.length - 1 || sourceIndex === -1) {
+        return RELOAD;
+      }
+      if (isReplyCompletion(update)) {
+        messages[sourceIndex] = update.assistantMessage;
+      }
     } else {
-      messages[index] = message;
+      if (isReplyCompletion(update) && sourceIndex !== -1 && sourceIndex !== messages.length - 1) {
+        return RELOAD;
+      }
+      if (sourceIndex === -1) {
+        messages.push(sourceMessage);
+      } else {
+        messages[sourceIndex] = sourceMessage;
+      }
+      if (isReplyCompletion(update)) {
+        messages.push(update.assistantMessage);
+      }
     }
-  }
-
-  upsertMessage(userMessage);
-
-  if (isReplyCompletion(update)) {
-    upsertMessage(update.assistantMessage);
   }
 
   generationByTurn.set(update.generation.turnId, update.generation);

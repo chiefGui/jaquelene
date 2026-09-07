@@ -89,10 +89,16 @@ zod_reference ThreadTranscript {
   schema = "threadTranscriptSchema"
 }
 
+zod_reference ThreadTurnId {
+  import = "@jaquelene/domain"
+  type = "ThreadTurnId"
+  schema = "threadTurnIdSchema"
+}
+
 structure ThreadMessage {
   id: string
   threadId: string
-  turnId: string
+  turnId: ThreadTurnId
   sequence: ThreadMessageSequence
   author: ThreadMessageAuthor
   content: ThreadMessageContent
@@ -105,9 +111,10 @@ structure ThreadActivity {
   turnCount: ThreadTurnCount
 }
 
-structure TurnGeneration {
+structure ThreadGeneration {
   id: string
-  turnId: string
+  threadId: string
+  turnId: ThreadTurnId
   providerId: string
   modelId: string
   reasoning?: ResolvedReasoning
@@ -128,7 +135,7 @@ zod_reference RegenerationInstructions {
 
 structure ReplyRegeneration {
   sourceMessageId: string
-  instructions: RegenerationInstructions
+  instructions?: RegenerationInstructions
 }
 
 structure ThreadMessagePageRequest {
@@ -139,7 +146,7 @@ structure ThreadMessagePageRequest {
 
 structure ThreadMessagePage {
   messages: ThreadMessage[]
-  generations: TurnGeneration[]
+  generations: ThreadGeneration[]
   messageCountLimit: ThreadMessageCountLimit
   messageMaxCodeUnits: ThreadMessageMaxCodeUnits
   contentByteBudget: ThreadMessageContentByteBudget
@@ -185,20 +192,20 @@ structure ThreadHistoryDeletion {
 
 structure TurnSubmission {
   userMessage: ThreadMessage
-  generation: TurnGeneration
+  generation: ThreadGeneration
   threadActivity: ThreadActivity
 }
 
 structure FailedReply {
-  userMessage: ThreadMessage
-  generation: TurnGeneration
+  sourceMessage: ThreadMessage
+  generation: ThreadGeneration
   threadActivity: ThreadActivity
 }
 
 structure CompletedReply {
-  userMessage: ThreadMessage
+  sourceMessage: ThreadMessage
   assistantMessage: ThreadMessage
-  generation: TurnGeneration
+  generation: ThreadGeneration
   threadActivity: ThreadActivity
 }
 
@@ -219,8 +226,8 @@ interface Threads {
 [ContextBridge]
 interface Turns {
   submit(request: SubmitTurnRequest) -> TurnSubmission
-  retry(request: RetryTurnRequest) -> TurnGeneration
-  regenerate(request: RegenerateReplyRequest) -> TurnGeneration
+  retry(request: RetryTurnRequest) -> ThreadGeneration
+  regenerate(request: RegenerateReplyRequest) -> ThreadGeneration
   editMessage(request: EditThreadMessageRequest) -> ThreadMessage
   deleteFrom(request: DeleteThreadHistoryRequest) -> ThreadHistoryDeletion
 

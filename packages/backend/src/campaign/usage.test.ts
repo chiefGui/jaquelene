@@ -50,6 +50,7 @@ describe("campaign usage", () => {
         {
           id: ids.generation.create(),
           turnId: preparingTurn.id,
+          threadId: preparingTurn.threadId,
           intent: "reply",
           providerId: "openrouter",
           modelId: "maker/model-c",
@@ -59,6 +60,7 @@ describe("campaign usage", () => {
         {
           id: ids.generation.create(),
           turnId: turn.id,
+          threadId: turn.threadId,
           intent: "reply",
           providerId: "openrouter",
           modelId: "maker/ignored-preparation",
@@ -189,6 +191,35 @@ describe("campaign usage", () => {
     expect(usage.get(ids.campaign.create())).toBeNull();
   });
 
+  it("attributes opening preparation to its own campaign before provider dispatch", () => {
+    const { database, campaigns, threads, usage } = openEnvironment();
+    const campaign = campaigns.start({
+      title: "Morning",
+      openingScene: "Someone knocks.",
+      composition: [],
+    });
+    const other = campaigns.start({ title: "Elsewhere", composition: [] });
+    const opening = threads.listMessages({ threadId: campaign.threadId, direction: "older" })
+      .messages[0]!;
+    database
+      .insert(generationTable)
+      .values({
+        id: ids.generation.create(),
+        threadId: campaign.threadId,
+        turnId: null,
+        intent: "regeneration",
+        regenerationSourceMessageId: opening.id,
+        providerId: "provider-a",
+        modelId: "maker/model",
+        status: "pending",
+        startedAt: 100,
+      })
+      .run();
+    expect(usage.get(campaign.id)?.attempts).toMatchObject({ provider: 0, preparing: 1 });
+    expect(usage.get(other.id)?.attempts).toMatchObject({ provider: 0, preparing: 0 });
+    expect(() => campaigns.delete(campaign.id)).toThrow();
+  });
+
   it("counts dispatched replies once and excludes unrelated attribution", () => {
     const { database, campaigns, threads, usage } = openEnvironment();
     const campaign = campaigns.start({ title: "Attributed usage", composition: [] });
@@ -199,6 +230,7 @@ describe("campaign usage", () => {
       .values({
         id: generationId,
         turnId: turn.id,
+        threadId: turn.threadId,
         intent: "reply",
         providerId: "provider-a",
         modelId: "maker/model",

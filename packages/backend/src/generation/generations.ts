@@ -1,14 +1,9 @@
 import { Cause, Effect, Exit } from "effect";
-import { and, eq, gt, inArray, notExists, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { parseRegenerationInstructions } from "@jaquelene/domain";
-import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "#backend/database/database";
 import type { RequestedModelConfiguration } from "#backend/model/configuration";
-import {
-  appendAssistantMessageInTransaction,
-  requireThreadMessageContent,
-  type ThreadActivity,
-} from "#backend/thread/threads";
+import { requireThreadMessageContent, type ThreadActivity } from "#backend/thread/threads";
 import {
   threadMessageTable,
   threadTable,
@@ -30,7 +25,11 @@ import {
 } from "#backend/usage/provider-attempts";
 import type { ProviderAttempt } from "#backend/usage/schema";
 import type { UsageAttribution } from "#backend/usage/types";
-import { requireReplyInput, type ReplyAnchor, type ReplyPreparer } from "./reply-preparation";
+import type { ModelInputResolver } from "#backend/model/input-resolver";
+import { createOpeningTarget } from "./opening-target";
+import type { ReplyAnchor, ReplyPreparer } from "./reply-preparation";
+import { createReplyTarget } from "./reply-target";
+import type { GenerationTarget } from "./target";
 import {
   generationTable,
   toGeneration,
@@ -42,11 +41,11 @@ import {
 
 export type GenerateReplyRequest = {
   turnId: TurnId;
-  intent: GenerationIntent;
+  intent: "reply" | "retry";
   configuration: RequestedModelConfiguration;
 };
 
-export type ReplyGenerationExecution =
+export type GenerationExecution =
   | {
       outcome: "completed";
       generation: Generation;
@@ -59,16 +58,16 @@ export type ReplyGenerationExecution =
       cause: unknown;
     };
 
-export type AcceptedReplyGeneration = Readonly<{
+export type AcceptedGeneration = Readonly<{
   generation: Generation;
-  anchor: ReplyAnchor;
-  activeMessageId: MessageId | null;
-  regenerationSourceContent?: string;
+  target: GenerationTarget;
+  threadActivity: ThreadActivity;
 }>;
 
 export type GenerationOptions = Readonly<{
   database: Database;
   replyPreparer: ReplyPreparer;
+  modelInputs: ModelInputResolver;
   modelExecutor: ModelExecutor;
   attempts: Pick<ProviderAttempts, "start" | "changed">;
   getUsageAttribution: (threadId: ThreadId) => UsageAttribution | undefined;
@@ -93,6 +92,7 @@ function modelConfigurationFromGeneration(
 export function createGenerations({
   database,
   replyPreparer,
+  modelInputs,
   modelExecutor,
   attempts,
   getUsageAttribution,
@@ -108,6 +108,8 @@ export function createGenerations({
         threadId: turnTable.threadId,
         inputMessageId: threadMessageTable.id,
         activeMessageId: threadTable.activeMessageId,
+        lastActivityAt: threadTable.lastActivityAt,
+        turnCount: threadTable.turnCount,
       })
       .from(turnTable)
       .innerJoin(threadTable, eq(threadTable.id, turnTable.threadId))
@@ -133,6 +135,11 @@ export function createGenerations({
         inputMessageId: input.inputMessageId,
       } satisfies ReplyAnchor,
       activeMessageId: input.activeMessageId,
+      activity: {
+        threadId: input.threadId,
+        lastActivityAt: input.lastActivityAt,
+        turnCount: input.turnCount,
+      },
     };
   }
 
@@ -142,7 +149,7 @@ export function createGenerations({
     cause: unknown,
     attempt?: ProviderAttempt,
     accounting?: ProviderAccounting,
-  ): ReplyGenerationExecution {
+  ): GenerationExecution {
     let failedGeneration: StoredGeneration;
 
     try {
@@ -206,67 +213,58 @@ export function createGenerations({
     return { outcome: "failed", generation: toGeneration(failedGeneration), cause };
   }
 
-  function listLatestForTurns(turnIds: readonly TurnId[]) {
-    const uniqueTurnIds = [...new Set(turnIds)];
-
-    if (uniqueTurnIds.length === 0) {
-      return [];
-    }
-
-    const newerGeneration = alias(generationTable, "newer_generation");
-    const storedGenerations = database
+  function prepareLatestGeneration(target: SQL) {
+    return database
       .select()
       .from(generationTable)
-      .where(
-        and(
-          inArray(generationTable.turnId, uniqueTurnIds),
-          notExists(
-            database
-              .select({ id: newerGeneration.id })
-              .from(newerGeneration)
-              .where(
-                and(
-                  eq(newerGeneration.turnId, generationTable.turnId),
-                  or(
-                    gt(newerGeneration.startedAt, generationTable.startedAt),
-                    and(
-                      eq(newerGeneration.startedAt, generationTable.startedAt),
-                      gt(newerGeneration.id, generationTable.id),
-                    ),
-                  ),
-                ),
-              ),
-          ),
-        ),
-      )
-      .all();
-    const generationByTurn = new Map(
-      storedGenerations.map((storedGeneration) => {
-        const generation = toGeneration(storedGeneration);
-        return [generation.turnId, generation];
-      }),
-    );
+      .where(target)
+      .orderBy(desc(generationTable.startedAt), desc(generationTable.id))
+      .limit(1)
+      .prepare();
+  }
 
-    return uniqueTurnIds.flatMap((turnId) => {
-      const generation = generationByTurn.get(turnId);
+  const latestTurnGeneration = prepareLatestGeneration(
+    eq(generationTable.turnId, sql.placeholder("turnId")),
+  );
+  const latestOpeningGeneration = prepareLatestGeneration(
+    and(eq(generationTable.threadId, sql.placeholder("threadId")), isNull(generationTable.turnId))!,
+  );
 
+  function listLatestForTargets(
+    turnIds: readonly TurnId[],
+    openingThreadIds: readonly ThreadId[] = [],
+  ) {
+    // Reuse prepared index lookups; page loading should not scan previous attempts.
+    const generations = [
+      ...[...new Set(turnIds)].map((turnId) => latestTurnGeneration.get({ turnId })),
+      ...[...new Set(openingThreadIds)].map((threadId) =>
+        latestOpeningGeneration.get({ threadId }),
+      ),
+    ];
+    return generations.flatMap((generation) => {
       if (!generation) {
         return [];
       }
-
-      return [generation];
+      return [toGeneration(generation)];
     });
   }
 
   function acceptReplyInTransaction(
     transaction: Pick<Database, "insert" | "select">,
     turnId: TurnId,
-    intent: GenerationIntent,
+    intent: "reply" | "retry",
     requestedConfiguration: ResolvedModelConfiguration,
-  ): AcceptedReplyGeneration {
+  ): AcceptedGeneration {
     const replyContext = requireReplyContext(transaction, turnId);
 
-    return acceptReplyForContext(transaction, turnId, intent, requestedConfiguration, replyContext);
+    return acceptForTarget(
+      transaction,
+      turnId,
+      intent,
+      requestedConfiguration,
+      createReplyTarget(replyPreparer, replyContext),
+      replyContext.activity,
+    );
   }
 
   function acceptRegenerationInTransaction(
@@ -274,91 +272,109 @@ export function createGenerations({
     assistantMessageId: MessageId,
     requestedConfiguration: ResolvedModelConfiguration,
     requestedInstructions?: string,
-  ): AcceptedReplyGeneration {
+  ): AcceptedGeneration {
     const instructions = parseRegenerationInstructions(requestedInstructions);
     const source = transaction
       .select({
+        threadId: threadMessageTable.threadId,
         author: threadMessageTable.author,
         content: threadMessageTable.content,
-        turnId: generationTable.turnId,
+        turnId: threadMessageTable.turnId,
       })
-      .from(generationTable)
-      .innerJoin(
-        threadMessageTable,
-        and(
-          eq(threadMessageTable.turnId, generationTable.turnId),
-          eq(threadMessageTable.id, generationTable.outputMessageId),
-        ),
-      )
-      .where(
-        and(
-          eq(generationTable.outputMessageId, assistantMessageId),
-          eq(generationTable.status, "completed"),
-        ),
-      )
+      .from(threadMessageTable)
+      .where(eq(threadMessageTable.id, assistantMessageId))
       .get();
 
     if (!source) {
-      throw new RangeError(
-        `Message "${assistantMessageId}" is not the output of a completed generation.`,
-      );
+      throw new RangeError(`Message "${assistantMessageId}" does not exist.`);
     }
 
     if (source.author !== "assistant") {
       throw new TypeError(`Message "${assistantMessageId}" is not an assistant message.`);
     }
 
-    const replyContext = requireReplyContext(transaction, source.turnId);
-
-    if (replyContext.activeMessageId !== assistantMessageId) {
-      throw new RangeError(`Message "${assistantMessageId}" is not the active thread reply.`);
+    let target: GenerationTarget;
+    let activity: ThreadActivity;
+    if (source.turnId === null) {
+      const thread = transaction
+        .select({
+          activeMessageId: threadTable.activeMessageId,
+          lastActivityAt: threadTable.lastActivityAt,
+          turnCount: threadTable.turnCount,
+        })
+        .from(threadTable)
+        .where(eq(threadTable.id, source.threadId))
+        .get();
+      if (!thread || thread.activeMessageId !== assistantMessageId) {
+        throw new RangeError(`Message "${assistantMessageId}" is not the active thread reply.`);
+      }
+      activity = {
+        threadId: source.threadId,
+        lastActivityAt: thread.lastActivityAt,
+        turnCount: thread.turnCount,
+      };
+      target = createOpeningTarget(modelInputs, {
+        threadId: source.threadId,
+        sourceMessageId: assistantMessageId,
+        content: source.content,
+        ...(instructions !== undefined && { instructions }),
+      });
+    } else {
+      const context = requireReplyContext(transaction, source.turnId);
+      if (context.activeMessageId !== assistantMessageId) {
+        throw new RangeError(`Message "${assistantMessageId}" is not the active thread reply.`);
+      }
+      activity = context.activity;
+      target = createReplyTarget(replyPreparer, {
+        ...context,
+        ...(instructions !== undefined && { rewrite: { content: source.content, instructions } }),
+      });
     }
-
-    let regeneration: Generation["regeneration"];
-    if (instructions !== undefined) {
-      regeneration = { sourceMessageId: assistantMessageId, instructions };
-    }
-
-    const accepted = acceptReplyForContext(
+    return acceptForTarget(
       transaction,
       source.turnId,
       "regeneration",
       requestedConfiguration,
-      replyContext,
-      regeneration,
+      target,
+      activity,
+      { sourceMessageId: assistantMessageId, ...(instructions !== undefined && { instructions }) },
     );
-
-    if (regeneration === undefined) {
-      return accepted;
-    }
-
-    return { ...accepted, regenerationSourceContent: source.content };
   }
 
-  function acceptReplyForContext(
+  function acceptForTarget(
     transaction: Pick<Database, "insert" | "select">,
-    turnId: TurnId,
+    turnId: TurnId | null,
     intent: GenerationIntent,
     requestedConfiguration: ResolvedModelConfiguration,
-    replyContext: ReturnType<typeof requireReplyContext>,
+    target: GenerationTarget,
+    threadActivity: ThreadActivity,
     regeneration?: Generation["regeneration"],
-  ): AcceptedReplyGeneration {
+  ): AcceptedGeneration {
     const configuration = requireResolvedModelConfiguration(requestedConfiguration);
 
     const pendingGeneration = transaction
       .select({ id: generationTable.id })
       .from(generationTable)
-      .where(and(eq(generationTable.turnId, turnId), eq(generationTable.status, "pending")))
+      .where(
+        and(
+          eq(generationTable.threadId, target.threadId),
+          sql`${generationTable.turnId} IS ${turnId}`,
+          eq(generationTable.status, "pending"),
+        ),
+      )
       .get();
 
     if (pendingGeneration) {
-      throw new RangeError(`Turn "${turnId}" already has a pending generation.`);
+      throw new RangeError(
+        `The generation target in thread "${target.threadId}" already has a pending generation.`,
+      );
     }
 
     const storedGeneration = transaction
       .insert(generationTable)
       .values({
         id: ids.generation.create(),
+        threadId: target.threadId,
         turnId,
         intent,
         providerId: configuration.model.providerId,
@@ -374,53 +390,29 @@ export function createGenerations({
       .get();
 
     if (!storedGeneration) {
-      throw new Error(`Could not create a generation for turn "${turnId}".`);
+      throw new Error(`Could not create a generation for thread "${target.threadId}".`);
     }
 
-    const generation = toGeneration(storedGeneration);
-    return { generation, ...replyContext };
+    return { generation: toGeneration(storedGeneration), target, threadActivity };
   }
 
-  const executeAcceptedReply = Effect.fn("Generations.executeAcceptedReply")(function ({
+  const executeAccepted = Effect.fn("Generations.executeAccepted")(function ({
     generation,
-    anchor,
-    activeMessageId,
-    regenerationSourceContent,
-  }: AcceptedReplyGeneration) {
+    target,
+  }: AcceptedGeneration) {
     return Effect.uninterruptible(
       Effect.gen(function* () {
         // Acceptance is observable before preparation starts; cancellation still settles the row.
         const prepared = yield* Effect.exit(
           Effect.interruptible(
             Effect.yieldNow.pipe(
-              Effect.andThen(() => replyPreparer.prepare({ ...anchor })),
-              Effect.flatMap((preparedInput) =>
+              Effect.andThen(() => target.prepare),
+              Effect.flatMap((input) =>
                 Effect.try({
                   try: () => {
-                    let input = requireReplyInput(preparedInput, anchor);
-                    if (generation.regeneration !== undefined) {
-                      if (regenerationSourceContent === undefined) {
-                        throw new Error(
-                          "Guided regeneration requires its accepted source response.",
-                        );
-                      }
-
-                      input = {
-                        ...input,
-                        requestMessages: [
-                          { role: "assistant", content: regenerationSourceContent },
-                          {
-                            role: "user",
-                            content:
-                              "Generate a replacement for the preceding assistant response to the original user request, applying the instructions below. Return the complete replacement response.\n\nInstructions:\n" +
-                              generation.regeneration.instructions,
-                          },
-                        ],
-                      };
-                    }
                     return requireModelExecutionRequest({
                       executionId: generation.id,
-                      groupId: anchor.threadId,
+                      groupId: target.threadId,
                       configuration: modelConfigurationFromGeneration(generation),
                       input,
                     });
@@ -443,7 +435,7 @@ export function createGenerations({
             requestedModelId: generation.modelId,
             startedAt: Math.max(generation.startedAt, now()),
           };
-          const attribution = getUsageAttribution(anchor.threadId);
+          const attribution = getUsageAttribution(target.threadId);
 
           if (attribution) {
             attemptInput = { ...attemptInput, attribution };
@@ -482,14 +474,7 @@ export function createGenerations({
         try {
           const result = database.transaction((transaction) => {
             const completionTime = finishedAt(generation, attempt);
-            const { message, threadActivity } = appendAssistantMessageInTransaction(transaction, {
-              threadId: anchor.threadId,
-              turnId: generation.turnId,
-              parentMessageId: anchor.inputMessageId,
-              activateIfMessageId: activeMessageId,
-              content: text,
-              createdAt: completionTime,
-            });
+            const { message, threadActivity } = target.append(transaction, text, completionTime);
             const storedCompletedGeneration = transaction
               .update(generationTable)
               .set({
@@ -517,7 +502,7 @@ export function createGenerations({
           });
 
           attempts.changed();
-          return { outcome: "completed", ...result } satisfies ReplyGenerationExecution;
+          return { outcome: "completed", ...result } satisfies GenerationExecution;
         } catch (cause) {
           return recordFailure(generation, "storage", cause, attempt, accounting);
         }
@@ -560,7 +545,7 @@ export function createGenerations({
             ),
           catch: (cause) => cause,
         });
-        return yield* executeAcceptedReply(accepted);
+        return yield* executeAccepted(accepted);
       }),
     );
   });
@@ -582,9 +567,21 @@ export function createGenerations({
 
     acceptRegenerationInTransaction,
     acceptReplyInTransaction,
-    executeAcceptedReply,
+    executeAccepted,
     executeReply,
-    listLatestForTurns,
+    listLatestForTurns: (turnIds: readonly TurnId[]) => listLatestForTargets(turnIds),
+    listLatestForMessages(messages: readonly Pick<ThreadMessage, "threadId" | "turnId">[]) {
+      const turns: TurnId[] = [];
+      const openings: ThreadId[] = [];
+      for (const message of messages) {
+        if (message.turnId === null) {
+          openings.push(message.threadId);
+        } else {
+          turns.push(message.turnId);
+        }
+      }
+      return listLatestForTargets(turns, openings);
+    },
     resolveConfiguration: modelExecutor.resolveConfiguration,
     generateReply: Effect.fn("Generations.generateReply")(function* (
       request: GenerateReplyRequest,

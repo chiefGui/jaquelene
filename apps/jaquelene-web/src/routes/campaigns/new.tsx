@@ -12,13 +12,16 @@ import {
 import { useStoreState } from "@ariakit/react/store";
 import {
   CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH,
+  CAMPAIGN_OPENING_SCENE_MAX_UTF16_LENGTH,
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,
   campaignSetupInputSchema,
   type CampaignSetupInput,
   narratorPromptKindKey,
   scenarioPromptKindKey,
+  openingScenePromptKindKey,
 } from "@jaquelene/domain";
 import type { Campaign } from "@jaquelene/ipc/renderer";
+import { textLayout } from "@jaquelene/ui/tokens.stylex";
 import { Button, Field, Form as FormLayout, Input, Item } from "@jaquelene/ui";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
@@ -26,8 +29,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStartCampaignFormValidation } from "@/feature/campaign/form";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
-import { ScenarioImportControl } from "@/feature/scenario/import-control";
-import { useDefaultScenario } from "@/feature/scenario/use-default-scenario";
+import { PromptImportControl } from "@/feature/prompt/import-control";
+import { scenarioLibrary, openingSceneLibrary } from "@/feature/prompt/text-libraries";
+import { useDefaultPrompt } from "@/feature/prompt/use-default-prompt";
 import { useStartCampaign, useIsStartingCampaign } from "@/feature/campaign/query";
 import { readCampaignSetupDraft, resolveCampaignSetupValues } from "@/feature/campaign/setup-draft";
 import { useCampaignSetupDraft } from "@/feature/campaign/use-setup-draft";
@@ -41,14 +45,16 @@ import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/campaigns/new")({
   loader: async ({ context }) => {
-    const [defaultSelection, defaultScenario] = await Promise.all([
+    const [defaultSelection, defaultScenario, defaultOpeningScene] = await Promise.all([
       context.queryClient.query(promptDefaultQuery(narratorPromptKindKey)),
       context.queryClient.query(promptDefaultQuery(scenarioPromptKindKey)),
+      context.queryClient.query(promptDefaultQuery(openingScenePromptKindKey)),
     ]);
     const savedNarratorKey = readCampaignSetupDraft(context.queryClient).narratorPromptKey;
     await Promise.all([
-      defaultScenario.promptKey &&
-        context.queryClient.query(promptQuery(defaultScenario.promptKey)),
+      ...[defaultScenario, defaultOpeningScene].map((selection) => {
+        if (selection.promptKey) return context.queryClient.query(promptQuery(selection.promptKey));
+      }),
       context.queryClient.infiniteQuery({
         ...promptPagesQuery(narratorPromptKindKey),
         staleTime: "static",
@@ -62,7 +68,8 @@ export const Route = createFileRoute("/campaigns/new")({
 });
 
 function NewCampaignRoute() {
-  const defaultScenario = useDefaultScenario();
+  const defaultScenario = useDefaultPrompt(scenarioPromptKindKey);
+  const defaultOpeningScene = useDefaultPrompt(openingScenePromptKindKey);
   const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const defaultPromptKey = defaultSelection.promptKey;
@@ -85,15 +92,22 @@ function NewCampaignRoute() {
   const navigate = useNavigate({ from: "/campaigns/new" });
   const active = useRef(true);
   const composingTitle = useRef(false);
-  const [createdCampaign, setCreatedCampaign] = useState<Campaign | null>(null);
+  const [createdCampaign, setCreatedCampaign] = useState<{
+    campaign: Campaign;
+    setup: CampaignSetupInput;
+  } | null>(null);
   const formValues = useMemo(() => {
     if (createdCampaign) {
-      return { title: createdCampaign.title, scenario: createdCampaign.scenario };
+      return createdCampaign.setup;
     }
-    return resolveCampaignSetupValues(draft, defaultScenario?.body ?? "");
-  }, [draft, defaultScenario?.body, createdCampaign]);
+    return resolveCampaignSetupValues(draft, {
+      scenario: defaultScenario?.body ?? "",
+      openingScene: defaultOpeningScene?.body ?? "",
+    });
+  }, [draft, defaultScenario?.body, defaultOpeningScene?.body, createdCampaign]);
   const form = useFormStore<CampaignSetupInput>({ values: formValues });
   const scenario = useFormValue<string>(form, form.names.scenario);
+  const openingScene = useFormValue<string>(form, form.names.openingScene);
   const formSubmitting = useStoreState(form, "submitting");
   const submitting = formSubmitting || starting;
   const hasSubmitted = useStoreState(
@@ -176,14 +190,16 @@ function NewCampaignRoute() {
 
   useFormSubmit(form, async (state) => {
     if (starting || composingTitle.current || (!createdCampaign && !selectedPrompt)) return;
-    let campaign = createdCampaign;
+    let campaign = createdCampaign?.campaign;
 
     if (!campaign) {
       try {
-        const { title, scenario } = campaignSetupInputSchema.parse(state.values);
+        const setup = campaignSetupInputSchema.parse(state.values);
+        const { title, scenario, openingScene } = setup;
         campaign = await startCampaign.mutateAsync({
           title,
           scenario,
+          openingScene,
           composition: [
             {
               kind: narratorPromptKindKey,
@@ -191,6 +207,9 @@ function NewCampaignRoute() {
             },
           ],
         });
+        if (active.current) {
+          setCreatedCampaign({ campaign, setup });
+        }
       } catch (cause) {
         reportError("campaign.start", cause);
 
@@ -203,8 +222,6 @@ function NewCampaignRoute() {
       if (!active.current) {
         return;
       }
-
-      setCreatedCampaign(campaign);
     }
 
     await openCampaign(campaign);
@@ -294,38 +311,6 @@ function NewCampaignRoute() {
                 </Field.Root>
               </Item.Root>
 
-              <Item.Root style={styles.writingField}>
-                <Field.Root>
-                  <FormLabel name={form.names.scenario} render={<Field.Label />}>
-                    Scenario
-                  </FormLabel>
-                  <FormDescription
-                    name={form.names.scenario}
-                    render={<Field.Description style={styles.scenarioDescription} />}
-                  >
-                    Define the setting, universe, flavor, and other permanent details of this
-                    campaign.
-                  </FormDescription>
-                  <FormControl
-                    name={form.names.scenario}
-                    render={
-                      <MarkdownEditor
-                        value={scenario}
-                        toolbarActions={<ScenarioImportControl />}
-                        onValueChange={(value) => {
-                          updateDraft({ scenario: { mode: "custom", text: value } });
-                          form.setValue(form.names.scenario, value);
-                        }}
-                        maxLength={CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH}
-                        readOnly={submitting || Boolean(createdCampaign)}
-                        placeholder="New York, December 1, 2026. Cyberpunk."
-                      />
-                    }
-                  />
-                  <FormError name={form.names.scenario} render={<Field.Error />} />
-                </Field.Root>
-              </Item.Root>
-
               <Item.Root style={styles.controlField}>
                 <NarratorSelectControl
                   description="Set the rules for narration. Avoid worldbuilding and character details. Keep it concise."
@@ -340,6 +325,70 @@ function NewCampaignRoute() {
                     error: "The saved narrator is unavailable. Choose another narrator.",
                   })}
                 />
+              </Item.Root>
+
+              <Item.Root style={styles.writingField}>
+                <Field.Root>
+                  <FormLabel name={form.names.scenario} render={<Field.Label optional />}>
+                    Scenario
+                  </FormLabel>
+                  <FormDescription
+                    name={form.names.scenario}
+                    render={<Field.Description style={styles.scenarioDescription} />}
+                  >
+                    Define the setting, universe, flavor, and other permanent details of this
+                    campaign.
+                  </FormDescription>
+                  <FormControl
+                    name={form.names.scenario}
+                    render={
+                      <MarkdownEditor
+                        value={scenario}
+                        toolbarActions={<PromptImportControl library={scenarioLibrary} />}
+                        onValueChange={(value) => {
+                          updateDraft({ scenario: { mode: "custom", text: value } });
+                          form.setValue(form.names.scenario, value);
+                        }}
+                        maxLength={CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH}
+                        readOnly={submitting || Boolean(createdCampaign)}
+                        placeholder="New York, December 1, 2026. Cyberpunk."
+                      />
+                    }
+                  />
+                  <FormError name={form.names.scenario} render={<Field.Error />} />
+                </Field.Root>
+              </Item.Root>
+
+              <Item.Root style={styles.writingField}>
+                <Field.Root>
+                  <FormLabel name={form.names.openingScene} render={<Field.Label optional />}>
+                    Opening scene
+                  </FormLabel>
+                  <FormDescription
+                    name={form.names.openingScene}
+                    render={<Field.Description style={styles.scenarioDescription} />}
+                  >
+                    The way the campaign starts. Helps the AI understand the language and
+                    environment, and becomes the first message you'll respond to.
+                  </FormDescription>
+                  <FormControl
+                    name={form.names.openingScene}
+                    render={
+                      <MarkdownEditor
+                        value={openingScene}
+                        toolbarActions={<PromptImportControl library={openingSceneLibrary} />}
+                        onValueChange={(value) => {
+                          updateDraft({ openingScene: { mode: "custom", text: value } });
+                          form.setValue(form.names.openingScene, value);
+                        }}
+                        maxLength={CAMPAIGN_OPENING_SCENE_MAX_UTF16_LENGTH}
+                        readOnly={submitting || Boolean(createdCampaign)}
+                        placeholder="John wakes up to a knock at the door."
+                      />
+                    }
+                  />
+                  <FormError name={form.names.openingScene} render={<Field.Error />} />
+                </Field.Root>
               </Item.Root>
             </Item.Group>
 
@@ -365,7 +414,7 @@ function NewCampaignRoute() {
 }
 
 const styles = stylex.create({
-  form: { gap: "1.5rem" },
+  form: { gap: "1.5rem", [textLayout.descriptionMaxWidth]: "none" },
   writingField: { display: "block", paddingBlock: "1.5rem" },
   controlField: { display: "block", paddingBlock: "1rem" },
   titleRow: {

@@ -1,10 +1,8 @@
-import { scenarioPromptKindKey } from "@jaquelene/domain";
 import type { Prompt } from "@jaquelene/ipc/renderer";
 import { IconButton } from "@jaquelene/ui";
 import { MenuItem } from "@ariakit/react/menu";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Tooltip } from "@jaquelene/ui/tooltip";
-import { ScenarioIcon } from "@/primitive/icons";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { Menu } from "@jaquelene/ui/menu";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
@@ -19,30 +17,31 @@ import {
 import { promptPagesQuery } from "@/feature/prompt/query";
 import { PromptChoiceText } from "@/feature/prompt/choice-text";
 import { PromptPickerFooter } from "@/feature/prompt/picker-footer";
+import type { TextLibrary } from "./text-libraries";
 
-export function ScenarioImportControl() {
-  const { disabled, readOnly } = useMarkdownEditorConfiguration("ScenarioImport");
-  const { value, setValue } = useMarkdownEditorDocument("ScenarioImport");
+export function PromptImportControl({ library }: { library: TextLibrary }) {
+  const { disabled, readOnly } = useMarkdownEditorConfiguration("PromptImport");
+  const { value, setValue } = useMarkdownEditorDocument("PromptImport");
   const [open, setOpen] = useState(false);
   const [replacement, setReplacement] = useState<Prompt | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const unavailable = disabled || readOnly;
-  const pages = useInfiniteQuery({ ...promptPagesQuery(scenarioPromptKindKey), enabled: open });
-  const scenarios = pages.data?.pages.flatMap((page) => page.prompts) ?? [];
+  const pages = useInfiniteQuery({ ...promptPagesQuery(library.kind), enabled: open });
+  const entries = pages.data?.pages.flatMap((page) => page.prompts) ?? [];
   let loadMoreLabel = "Load more";
   if (pages.isFetchingNextPage) {
     loadMoreLabel = "Loading…";
   }
 
-  function select(scenario: Prompt) {
+  function select(entry: Prompt) {
     if (unavailable) {
       return;
     }
     if (value.trim()) {
-      setReplacement(scenario);
+      setReplacement(entry);
       return;
     }
-    setValue(scenario.body);
+    setValue(entry.body);
   }
 
   return (
@@ -55,43 +54,39 @@ export function ScenarioImportControl() {
                 ref={trigger}
                 disabled={unavailable}
                 render={
-                  <IconButton.Root aria-label="Use scenario" size="small" shape="squircle">
-                    <IconButton.Icon render={<HugeiconsIcon icon={ScenarioIcon} />} />
+                  <IconButton.Root aria-label={`Use ${library.noun}`} size="small" shape="squircle">
+                    <IconButton.Icon render={<HugeiconsIcon icon={library.icon} />} />
                   </IconButton.Root>
                 }
               />
             }
           />
-          <Tooltip>Scenario</Tooltip>
+          <Tooltip>{library.plural}</Tooltip>
         </Tooltip.Root>
         <Menu.Content
-          aria-label="Scenarios"
+          aria-label={library.plural}
           autoFocusOnHide={replacement === null}
           style={styles.menu}
         >
           {pages.isPending && (
             <p role="status" {...stylex.props(styles.status)}>
-              Loading scenarios…
+              Loading {library.pluralNoun}…
             </p>
           )}
-          {scenarios.map((scenario) => (
-            <Menu.Item
-              key={scenario.key}
-              aria-label={scenario.title}
-              onClick={() => select(scenario)}
-            >
-              <PromptChoiceText title={scenario.title} description={scenario.body} />
+          {entries.map((entry) => (
+            <Menu.Item key={entry.key} aria-label={entry.title} onClick={() => select(entry)}>
+              <PromptChoiceText title={entry.title} description={entry.body} />
             </Menu.Item>
           ))}
-          {!pages.isPending && !pages.isError && scenarios.length === 0 && (
+          {!pages.isPending && !pages.isError && entries.length === 0 && (
             <p role="status" {...stylex.props(styles.status)}>
-              No scenarios yet.
+              No {library.pluralNoun} yet.
             </p>
           )}
           {pages.isError && (
             <>
               <p role="alert" {...stylex.props(styles.status)}>
-                Couldn't load scenarios.
+                Couldn't load {library.pluralNoun}.
               </p>
               <Menu.Item
                 hideOnClick={false}
@@ -120,9 +115,9 @@ export function ScenarioImportControl() {
           <PromptPickerFooter.Root>
             <PromptPickerFooter.Action
               navigation
-              render={<MenuItem render={<Link to="/library/scenarios" />} />}
+              render={<MenuItem render={<Link to={library.indexPath} />} />}
             >
-              Manage scenarios
+              Manage {library.pluralNoun}
             </PromptPickerFooter.Action>
           </PromptPickerFooter.Root>
         </Menu.Content>
@@ -134,8 +129,8 @@ export function ScenarioImportControl() {
           if (!nextOpen) setReplacement(null);
         }}
         finalFocus={trigger}
-        heading="Replace scenario?"
-        description="Your current text will be replaced with the selected scenario."
+        heading={`Replace ${library.noun}?`}
+        description={`Your current text will be replaced with the selected ${library.noun}.`}
         confirmLabel="Replace"
         pending={unavailable}
         onConfirm={() => {

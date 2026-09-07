@@ -135,22 +135,29 @@ describe("campaign start mutation", () => {
   it("clears the submitted draft on success even after leaving campaign setup", async () => {
     const client = createQueryClient();
     const started = campaign();
+    const openingScene = "  Someone knocks.\n";
     const pending = deferred<Campaign>();
     campaignsIpc.start.mockReturnValue(pending.promise);
     const draft = writeCampaignSetupDraft(client, {
       title: started.title,
+      openingScene: { mode: "custom", text: openingScene },
       scenario: { mode: "custom", text: "" },
       narratorPromptKey: "narrator-a",
     });
     const mutation = new MutationObserver(client, startCampaignMutationOptions(client));
     const unsubscribe = mutation.subscribe(() => {});
-    const request = mutation.mutate({ title: started.title, composition: [] });
-    await vi.waitFor(() => expect(campaignsIpc.start).toHaveBeenCalled());
+    const input = { title: started.title, openingScene, composition: [] };
+    const request = mutation.mutate(input);
+    await vi.waitFor(() => expect(campaignsIpc.start.mock.calls[0]?.[0]).toEqual(input));
     expect(readCampaignSetupDraft(client)).toBe(draft);
     unsubscribe();
     pending.resolve(started);
     await request;
-    expect(readCampaignSetupDraft(client)).toEqual({ title: "", scenario: { mode: "default" } });
+    expect(readCampaignSetupDraft(client)).toEqual({
+      title: "",
+      scenario: { mode: "default" },
+      openingScene: { mode: "default" },
+    });
     client.clear();
   });
 
@@ -158,6 +165,7 @@ describe("campaign start mutation", () => {
     const client = createQueryClient();
     const draft = writeCampaignSetupDraft(client, {
       title: "Try again",
+      openingScene: { mode: "custom", text: "  Someone knocks.\n" },
       scenario: { mode: "custom", text: "Mars" },
       narratorPromptKey: "narrator-a",
     });

@@ -21,6 +21,7 @@ export class GenerationService extends Context.Service<GenerationService, Genera
       const usage = yield* UsageService;
       const generations = createGenerations({
         database,
+        modelInputs,
         replyPreparer: createReplyPreparer(threads.engine, modelInputs),
         modelExecutor,
         attempts: usage.attempts,

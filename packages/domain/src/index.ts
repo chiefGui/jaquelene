@@ -1,3 +1,10 @@
+export {
+  CAMPAIGN_OPENING_SCENE_MAX_LENGTH,
+  CAMPAIGN_OPENING_SCENE_MAX_UTF16_LENGTH,
+  campaignOpeningSceneSchema,
+  parseCampaignOpeningScene,
+  type CampaignOpeningScene,
+} from "./campaign/opening-scene";
 export { campaignSetupInputSchema, type CampaignSetupInput } from "./campaign/setup";
 export {
   CAMPAIGN_SCENARIO_MAX_LENGTH,
@@ -28,6 +35,7 @@ export type {
   RequestedModelConfiguration,
 } from "./model/configuration";
 export { narratorPromptKindKey } from "./narrator/prompt-kind";
+export { openingScenePromptKindKey } from "./opening-scene/prompt-kind";
 export { scenarioPromptKindKey } from "./scenario/prompt-kind";
 export {
   PROMPT_BODY_MAX_LENGTH,
@@ -95,3 +103,6 @@ export {
   type ThreadTranscriptInstruction,
   type ThreadTranscriptMessage,
 } from "./thread/transcript";
+
+export { THREAD_MESSAGE_MAX_CODE_UNITS } from "./thread/content";
+export { threadTurnIdSchema, type ThreadTurnId } from "./thread/turn-id";

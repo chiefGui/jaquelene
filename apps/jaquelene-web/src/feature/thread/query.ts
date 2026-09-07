@@ -268,13 +268,13 @@ export function installThreadReconciliation(queryClient: QueryClient) {
     if (updateCampaignActivity(queryClient, failure.threadActivity)) {
       refreshCampaignPages(queryClient);
     }
-    applyEvent(failure.userMessage.threadId, { type: "reply-failed", ...failure });
+    applyEvent(failure.sourceMessage.threadId, { type: "reply-failed", ...failure });
   });
   const stopCompletionListener = onReplyCompleted((completion) => {
     if (updateCampaignActivity(queryClient, completion.threadActivity)) {
       refreshCampaignPages(queryClient);
     }
-    applyEvent(completion.userMessage.threadId, { type: "reply-completed", ...completion });
+    applyEvent(completion.sourceMessage.threadId, { type: "reply-completed", ...completion });
   });
   const stopSupersededListener = onReplySuperseded(({ threadId }) => {
     refreshCampaignUsage(queryClient);

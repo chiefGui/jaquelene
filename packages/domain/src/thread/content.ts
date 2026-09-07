@@ -1,0 +1,1 @@
+export const THREAD_MESSAGE_MAX_CODE_UNITS = 100_000;

@@ -39,7 +39,8 @@ CREATE TABLE `campaigns` (
 --> statement-breakpoint
 CREATE TABLE `generations` (
 	`id` text PRIMARY KEY NOT NULL,
-	`turn_id` text NOT NULL,
+	`thread_id` text NOT NULL,
+	`turn_id` text,
 	`provider_id` text NOT NULL,
 	`model_id` text NOT NULL,
 	`reasoning_preset` text,
@@ -48,10 +49,22 @@ CREATE TABLE `generations` (
 	`status` text NOT NULL,
 	`failure_kind` text,
 	`output_message_id` text,
+	`regeneration_source_message_id` text,
+	`regeneration_instructions` text,
 	`started_at` integer NOT NULL,
 	`finished_at` integer,
+	CONSTRAINT `fk_generations_thread_id_threads_id_fk` FOREIGN KEY (`thread_id`) REFERENCES `threads`(`id`) ON DELETE CASCADE,
 	CONSTRAINT `fk_generations_turn_id_turns_id_fk` FOREIGN KEY (`turn_id`) REFERENCES `turns`(`id`) ON DELETE CASCADE,
+	CONSTRAINT `generations_thread_turn_fk` FOREIGN KEY (`thread_id`,`turn_id`) REFERENCES `turns`(`thread_id`,`id`),
+	CONSTRAINT `generations_thread_output_fk` FOREIGN KEY (`thread_id`,`output_message_id`) REFERENCES `thread_messages`(`thread_id`,`id`),
+	CONSTRAINT `generations_thread_source_fk` FOREIGN KEY (`thread_id`,`regeneration_source_message_id`) REFERENCES `thread_messages`(`thread_id`,`id`),
 	CONSTRAINT `generations_output_message_fk` FOREIGN KEY (`turn_id`,`output_message_id`) REFERENCES `thread_messages`(`turn_id`,`id`),
+	CONSTRAINT `generations_regeneration_source_fk` FOREIGN KEY (`turn_id`,`regeneration_source_message_id`) REFERENCES `thread_messages`(`turn_id`,`id`),
+	CONSTRAINT "generations_opening_valid" CHECK("turn_id" IS NOT NULL OR ("intent" = 'regeneration' AND "regeneration_source_message_id" IS NOT NULL)),
+	CONSTRAINT "generations_regeneration_valid" CHECK(("intent" != 'regeneration' AND "regeneration_source_message_id" IS NULL AND "regeneration_instructions" IS NULL)
+        OR ("intent" = 'regeneration'
+          AND "regeneration_source_message_id" IS NOT NULL
+          AND ("regeneration_instructions" IS NULL OR length(trim("regeneration_instructions")) BETWEEN 1 AND 2000))),
 	CONSTRAINT "generations_model_reference_valid" CHECK(length(trim("provider_id")) > 0 AND length(trim("model_id")) > 0),
 	CONSTRAINT "generations_reasoning_valid" CHECK(("reasoning_preset" IS NULL AND "reasoning_preset_source" IS NULL)
         OR ("reasoning_preset" IS NOT NULL
@@ -130,7 +143,7 @@ CREATE TABLE `prompts` (
 CREATE TABLE `thread_messages` (
 	`id` text PRIMARY KEY NOT NULL,
 	`thread_id` text NOT NULL,
-	`turn_id` text NOT NULL,
+	`turn_id` text,
 	`parent_message_id` text,
 	`active_child_message_id` text,
 	`sequence` integer NOT NULL,
@@ -143,7 +156,8 @@ CREATE TABLE `thread_messages` (
 	CONSTRAINT `thread_messages_active_child_fk` FOREIGN KEY (`thread_id`,`id`,`active_child_message_id`) REFERENCES `thread_messages`(`thread_id`,`parent_message_id`,`id`),
 	CONSTRAINT "thread_messages_sequence_positive" CHECK("sequence" > 0),
 	CONSTRAINT "thread_messages_author_valid" CHECK("author" IN ('user', 'assistant')),
-	CONSTRAINT "thread_messages_parent_valid" CHECK("author" = 'user' OR "parent_message_id" IS NOT NULL),
+	CONSTRAINT "thread_messages_parent_valid" CHECK(("turn_id" IS NULL AND "author" = 'assistant' AND "parent_message_id" IS NULL)
+        OR ("turn_id" IS NOT NULL AND ("author" = 'user' OR "parent_message_id" IS NOT NULL))),
 	CONSTRAINT "thread_messages_content_valid" CHECK(length(trim("content")) > 0 AND length("content") <= 100000),
 	CONSTRAINT "thread_messages_created_at_nonnegative" CHECK("created_at" >= 0)
 );
@@ -253,6 +267,8 @@ CREATE TABLE `provider_attempts` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `campaigns_thread_unique` ON `campaigns` (`thread_id`);--> statement-breakpoint
+CREATE INDEX `generations_thread_turn_started_at_idx` ON `generations` (`thread_id`,`turn_id`,`started_at`,`id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `generations_pending_opening_unique` ON `generations` (`thread_id`) WHERE "generations"."turn_id" IS NULL AND "generations"."status" = 'pending';--> statement-breakpoint
 CREATE INDEX `generations_turn_started_at_idx` ON `generations` (`turn_id`,`started_at`,`id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `generations_pending_turn_unique` ON `generations` (`turn_id`) WHERE "generations"."status" = 'pending';--> statement-breakpoint
 CREATE UNIQUE INDEX `generations_output_message_unique` ON `generations` (`output_message_id`);--> statement-breakpoint

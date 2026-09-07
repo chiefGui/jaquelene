@@ -4,9 +4,9 @@ import { parseRegenerationInstructions } from "@jaquelene/domain";
 import type { RequestedModelConfiguration } from "#backend/model/configuration";
 import type { ResolvedModelConfiguration } from "#backend/model/execution";
 import type {
-  AcceptedReplyGeneration,
+  AcceptedGeneration,
   GenerationEngine,
-  ReplyGenerationExecution,
+  GenerationExecution,
 } from "#backend/generation/generations";
 import type { Generation } from "#backend/generation/schema";
 import type { MessageId, ThreadId, TurnId } from "#backend/id";
@@ -30,13 +30,14 @@ export type {
   ThreadHistoryDeletion,
 } from "#backend/thread/threads";
 
-type TurnGenerationEngine = Pick<
+type ThreadGenerationEngine = Pick<
   GenerationEngine,
   | "acceptRegenerationInTransaction"
   | "acceptReplyInTransaction"
+  | "listLatestForMessages"
   | "listLatestForTurns"
   | "resolveConfiguration"
-  | "executeAcceptedReply"
+  | "executeAccepted"
 >;
 type TurnThreads = Pick<
   ThreadEngine,
@@ -71,27 +72,35 @@ export type RegenerateReplyRequest = {
   instructions?: string;
 };
 
-export type TurnAcceptance = {
-  userMessage: ThreadMessage;
+export type GenerationAcceptance = {
+  sourceMessage: ThreadMessage;
   generation: Generation;
   threadActivity: ThreadActivity;
 };
 
-export type TurnSettlement =
-  | (TurnAcceptance & {
+export type GenerationSettlement =
+  | (GenerationAcceptance & {
       outcome: "failed";
       failure: Readonly<{ cause: unknown }>;
     })
-  | (TurnAcceptance & {
+  | (GenerationAcceptance & {
       outcome: "completed";
       assistantMessage: ThreadMessage;
       assistantActivated: boolean;
     });
 
-export type TurnOperation = {
-  acceptance: TurnAcceptance;
-  settlement: Effect.Effect<TurnSettlement, unknown>;
+export type GenerationOperation = {
+  acceptance: GenerationAcceptance;
+  settlement: Effect.Effect<GenerationSettlement, unknown>;
   cancel: Effect.Effect<void>;
+};
+
+export type TurnAcceptance = Omit<GenerationAcceptance, "sourceMessage"> & {
+  userMessage: ThreadMessage;
+};
+
+export type TurnOperation = Omit<GenerationOperation, "acceptance"> & {
+  acceptance: TurnAcceptance;
 };
 
 export class TurnAdmissionError extends Schema.TaggedError<TurnAdmissionError>()(
@@ -130,10 +139,10 @@ function copyRequestedModelConfiguration(
   return copy;
 }
 
-function settleTurn(
-  acceptance: TurnAcceptance,
-  execution: ReplyGenerationExecution,
-): TurnSettlement {
+function settleGeneration(
+  acceptance: GenerationAcceptance,
+  execution: GenerationExecution,
+): GenerationSettlement {
   if (execution.outcome === "failed") {
     return {
       ...acceptance,
@@ -156,7 +165,7 @@ function settleTurn(
 export const createTurns = Effect.fn("Turns.make")(function* (
   database: Database,
   threads: TurnThreads,
-  generations: TurnGenerationEngine,
+  generations: ThreadGenerationEngine,
 ) {
   const context = yield* Effect.context<never>();
   const operations = yield* FiberSet.make<void, unknown>();
@@ -193,17 +202,17 @@ export const createTurns = Effect.fn("Turns.make")(function* (
     }),
   );
 
-  type AcceptedTurn = {
-    acceptance: TurnAcceptance;
-    acceptedGeneration: AcceptedReplyGeneration;
+  type AcceptedOperation = {
+    sourceMessage: ThreadMessage;
+    acceptedGeneration: AcceptedGeneration;
   };
 
   const startExclusive = Effect.fnUntraced(function* (
     threadId: ThreadId,
     starting: StartingTurnOperation,
     configuration: RequestedModelConfiguration,
-    accept: (configuration: ResolvedModelConfiguration) => AcceptedTurn,
-  ): Effect.fn.Return<TurnOperation, TurnAdmissionError> {
+    accept: (configuration: ResolvedModelConfiguration) => AcceptedOperation,
+  ): Effect.fn.Return<GenerationOperation, TurnAdmissionError> {
     return yield* Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
         const lease = yield* Effect.try({
@@ -213,8 +222,8 @@ export const createTurns = Effect.fn("Turns.make")(function* (
           },
           catch: admissionError,
         });
-        const accepted = yield* Deferred.make<TurnAcceptance, TurnAdmissionError>();
-        const settled = yield* Deferred.make<TurnSettlement, unknown>();
+        const accepted = yield* Deferred.make<GenerationAcceptance, TurnAdmissionError>();
+        const settled = yield* Deferred.make<GenerationSettlement, unknown>();
         const work = Effect.gen(function* () {
           const admission = yield* Effect.exit(
             Effect.gen(function* () {
@@ -233,15 +242,16 @@ export const createTurns = Effect.fn("Turns.make")(function* (
             yield* Deferred.failCause(accepted, admission.cause);
             return yield* Effect.failCause(admission.cause);
           }
-          const { acceptance, acceptedGeneration } = admission.value;
-          lease.generating(
-            acceptance.userMessage.turnId,
-            acceptance.generation.id,
-            acceptance.generation.intent,
-          );
+          const { sourceMessage, acceptedGeneration } = admission.value;
+          const acceptance: GenerationAcceptance = {
+            sourceMessage,
+            generation: acceptedGeneration.generation,
+            threadActivity: acceptedGeneration.threadActivity,
+          };
+          lease.generating(acceptance.generation.id, acceptance.generation.intent);
           yield* Deferred.succeed(accepted, acceptance);
-          const execution = yield* generations.executeAcceptedReply(acceptedGeneration);
-          return settleTurn(acceptance, execution);
+          const execution = yield* generations.executeAccepted(acceptedGeneration);
+          return settleGeneration(acceptance, execution);
         }).pipe(
           Effect.ensuring(Effect.sync(() => lease.release())),
           Effect.exit,
@@ -271,9 +281,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
 
     listForThread(request: ListThreadRequest): ThreadActivityPage {
       const page = threads.listMessages(request);
-      const generationsForPage = generations.listLatestForTurns(
-        page.messages.map(({ turnId }) => turnId),
-      );
+      const generationsForPage = generations.listLatestForMessages(page.messages);
 
       return { ...page, generations: generationsForPage };
     },
@@ -326,13 +334,13 @@ export const createTurns = Effect.fn("Turns.make")(function* (
         catch: admissionError,
       });
 
-      return yield* startExclusive(
+      const operation = yield* startExclusive(
         threadId,
         { state: "submitting" },
         configuration,
         (resolvedConfiguration) => {
           return database.transaction((transaction) => {
-            const { turn, message, activity } = threads.startTurnInTransaction(
+            const { turn, message } = threads.startTurnInTransaction(
               transaction,
               threadId,
               content,
@@ -343,16 +351,15 @@ export const createTurns = Effect.fn("Turns.make")(function* (
               "reply",
               resolvedConfiguration,
             );
-            const acceptance = {
-              userMessage: message,
-              generation: acceptedGeneration.generation,
-              threadActivity: activity,
-            } satisfies TurnAcceptance;
-
-            return { acceptance, acceptedGeneration };
+            return { sourceMessage: message, acceptedGeneration };
           });
         },
       );
+      const { sourceMessage, ...acceptance } = operation.acceptance;
+      return {
+        ...operation,
+        acceptance: { ...acceptance, userMessage: sourceMessage },
+      } satisfies TurnOperation;
     }),
 
     retry: Effect.fn("Turns.retry")(function* ({
@@ -390,13 +397,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
               resolvedConfiguration,
             ),
           );
-          const acceptance = {
-            userMessage: input.message,
-            generation: acceptedGeneration.generation,
-            threadActivity: input.activity,
-          } satisfies TurnAcceptance;
-
-          return { acceptance, acceptedGeneration };
+          return { sourceMessage: input.message, acceptedGeneration };
         },
       );
     }),
@@ -406,7 +407,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
       configuration: requestedConfiguration,
       instructions: requestedInstructions,
     }: RegenerateReplyRequest) {
-      const { configuration, assistantMessage, input, instructions } = yield* Effect.try({
+      const { configuration, assistantMessage, instructions } = yield* Effect.try({
         try: () => {
           const configuration = copyRequestedModelConfiguration(requestedConfiguration);
           const instructions = parseRegenerationInstructions(requestedInstructions);
@@ -420,13 +421,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
             throw new TypeError(`Message "${assistantMessageId}" is not an assistant message.`);
           }
 
-          const input = threads.getTurnInput(assistantMessage.turnId);
-
-          if (!input) {
-            throw new Error(`Turn "${assistantMessage.turnId}" has no user input.`);
-          }
-
-          return { configuration, assistantMessage, input, instructions };
+          return { configuration, assistantMessage, instructions };
         },
         catch: admissionError,
       });
@@ -444,13 +439,7 @@ export const createTurns = Effect.fn("Turns.make")(function* (
               instructions,
             ),
           );
-          const acceptance = {
-            userMessage: input.message,
-            generation: acceptedGeneration.generation,
-            threadActivity: input.activity,
-          } satisfies TurnAcceptance;
-
-          return { acceptance, acceptedGeneration };
+          return { sourceMessage: assistantMessage, acceptedGeneration };
         },
       );
     }),

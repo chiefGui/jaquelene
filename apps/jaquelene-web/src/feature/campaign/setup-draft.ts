@@ -2,33 +2,43 @@ import type { CampaignSetupInput } from "@jaquelene/domain";
 import { skipToken, type QueryClient } from "@tanstack/react-query";
 import { campaignQueryKey } from "@/feature/cache-keys";
 
-type CampaignSetupScenario =
-  | Readonly<{ mode: "default" }>
-  | Readonly<{ mode: "custom"; text: string }>;
+type CampaignSetupText = Readonly<{ mode: "default" }> | Readonly<{ mode: "custom"; text: string }>;
 
 export type CampaignSetupDraft = Readonly<{
   title: string;
-  scenario: CampaignSetupScenario;
+  openingScene: CampaignSetupText;
+  scenario: CampaignSetupText;
   narratorPromptKey?: string;
 }>;
 
 const draftQueryKey = [...campaignQueryKey, "setup-draft"] as const;
-const emptyDraft: CampaignSetupDraft = { title: "", scenario: { mode: "default" } };
+const emptyDraft: CampaignSetupDraft = {
+  title: "",
+  openingScene: { mode: "default" },
+  scenario: { mode: "default" },
+};
 
 export function resolveCampaignSetupValues(
   draft: CampaignSetupDraft,
-  defaultScenario: string,
+  defaults: Pick<CampaignSetupInput, "scenario" | "openingScene">,
 ): CampaignSetupInput {
-  let scenario = defaultScenario;
-  if (draft.scenario.mode === "custom") scenario = draft.scenario.text;
-  return { title: draft.title, scenario };
+  return {
+    title: draft.title,
+    scenario: resolveText(draft.scenario, defaults.scenario),
+    openingScene: resolveText(draft.openingScene, defaults.openingScene),
+  };
+}
+
+function resolveText(draft: CampaignSetupText, defaultText: string) {
+  if (draft.mode === "custom") return draft.text;
+  return defaultText;
 }
 
 export function readCampaignSetupDraft(queryClient: QueryClient): CampaignSetupDraft {
   return queryClient.getQueryData<CampaignSetupDraft>(draftQueryKey) ?? emptyDraft;
 }
 
-function sameScenario(left: CampaignSetupScenario, right: CampaignSetupScenario) {
+function sameText(left: CampaignSetupText, right: CampaignSetupText) {
   if (left.mode === "custom" && right.mode === "custom") return left.text === right.text;
   return left.mode === right.mode;
 }
@@ -41,7 +51,8 @@ export function writeCampaignSetupDraft(
   const next = { ...previous, ...patch };
   if (
     previous.title === next.title &&
-    sameScenario(previous.scenario, next.scenario) &&
+    sameText(previous.openingScene, next.openingScene) &&
+    sameText(previous.scenario, next.scenario) &&
     previous.narratorPromptKey === next.narratorPromptKey
   ) {
     return previous;

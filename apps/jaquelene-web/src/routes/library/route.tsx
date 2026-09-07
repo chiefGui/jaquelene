@@ -1,5 +1,5 @@
 import AiConcertIcon from "@hugeicons/core-free-icons/AiConcertIcon";
-import { ScenarioIcon } from "@/primitive/icons";
+import { textLibraries } from "@/feature/prompt/text-libraries";
 import type { NavigationDestination } from "@/application/navigation";
 import { Outlet, createFileRoute, useMatchRoute } from "@tanstack/react-router";
 import { PrimarySidebar } from "@/layout/primary-sidebar";
@@ -12,15 +12,14 @@ function LibrarySidebar() {
     matchRoute({ to: "/library/narrator/new" }) ||
     matchRoute({ to: "/library/narrator/$promptKey/edit" }),
   );
-  const scenarioEditorActive = Boolean(
-    matchRoute({ to: "/library/scenarios/new" }) ||
-    matchRoute({ to: "/library/scenarios/$promptKey/edit" }),
-  );
   let backDestination: NavigationDestination | undefined;
   if (narratorEditorActive) {
     backDestination = narratorParentDestination;
-  } else if (scenarioEditorActive) {
-    backDestination = { to: "/library/scenarios" };
+  } else {
+    const library = textLibraries.find(
+      (library) => matchRoute({ to: library.newPath }) || matchRoute({ to: library.editPath }),
+    );
+    if (library) backDestination = { to: library.indexPath };
   }
 
   return (
@@ -37,14 +36,14 @@ function LibrarySidebar() {
             replace: true,
             to: "/library/narrator",
           },
-          {
+          ...textLibraries.map((library) => ({
             activeOptions: { exact: false },
-            id: "scenarios",
-            icon: ScenarioIcon,
-            label: "Scenarios",
+            id: library.kind,
+            icon: library.icon,
+            label: library.plural,
             replace: true,
-            to: "/library/scenarios",
-          },
+            to: library.indexPath,
+          })),
         ],
       }}
     />

@@ -98,6 +98,10 @@ export const colors = stylex.defineVars({
   effectBacklightGlowEnd: "oklch(0.8366 0.1376 213.4)",
 });
 
+export const textLayout = stylex.defineVars({
+  descriptionMaxWidth: "48ch",
+});
+
 export const tokens = stylex.defineConsts({
   // Shared control appearance
   controlPlaceholderColor: `color-mix(in oklch, ${colors.foregroundSecondary} 65%, transparent)`,
@@ -108,7 +112,6 @@ export const tokens = stylex.defineConsts({
   controlIconSizeSmall: "0.75rem",
 
   // Typography
-  descriptionMaxWidth: "48ch",
   fontGeist: '"Geist Variable", ui-sans-serif, system-ui, sans-serif',
   fontInter: '"Inter Variable", ui-sans-serif, system-ui, sans-serif',
   fontMono:

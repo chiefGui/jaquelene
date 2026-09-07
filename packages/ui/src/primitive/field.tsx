@@ -1,7 +1,8 @@
 import { Role, type RoleProps } from "@ariakit/react/role";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import { colors, tokens } from "../tokens.stylex";
+import { colors, tokens, textLayout } from "../tokens.stylex";
+import { labelStyles } from "./label.stylex";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
@@ -11,8 +12,23 @@ function FieldRoot({ style, ...props }: StyleableProps<RoleProps<"div">>) {
   return <Role.div {...props} {...stylex.props(styles.root, style)} />;
 }
 
-function FieldLabel({ style, ...props }: StyleableProps<RoleProps<"label">>) {
-  return <Role.label {...props} {...stylex.props(styles.label, style)} />;
+function FieldLabel({
+  children,
+  optional = false,
+  style,
+  ...props
+}: StyleableProps<RoleProps<"label">> & { optional?: boolean }) {
+  return (
+    <Role.label {...props} {...stylex.props(labelStyles.label, style)}>
+      {children}
+      {optional && (
+        <>
+          {" "}
+          <span {...stylex.props(labelStyles.optional)}>Optional</span>
+        </>
+      )}
+    </Role.label>
+  );
 }
 
 function FieldDescription({ style, ...props }: StyleableProps<RoleProps<"p">>) {
@@ -42,14 +58,8 @@ const styles = stylex.create({
     gap: "0.5rem",
     minWidth: 0,
   },
-  label: {
-    color: colors.foregroundPrimary,
-    fontSize: tokens.fontSizeSmall,
-    fontWeight: 500,
-    lineHeight: tokens.lineHeightSmall,
-  },
   description: {
-    maxWidth: tokens.descriptionMaxWidth,
+    maxWidth: textLayout.descriptionMaxWidth,
     color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeXSmall,
     lineHeight: tokens.lineHeightXSmall,

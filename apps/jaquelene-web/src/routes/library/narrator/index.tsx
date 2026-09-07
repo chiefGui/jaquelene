@@ -1,8 +1,12 @@
-import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
+import {
+  PromptLibraryCreateItem,
+  PromptLibraryPagination,
+  promptLibraryStyles,
+} from "@/feature/prompt/library-layout";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PromptOrigin, narratorPromptKindKey } from "@jaquelene/domain";
 import type { CustomPrompt, Prompt, PromptKind } from "@jaquelene/ipc/renderer";
-import { Badge, Button, IconButton, Item } from "@jaquelene/ui";
+import { Badge, IconButton, Item } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
@@ -115,45 +119,40 @@ function NarratorSection({ kind }: { kind: PromptKind }) {
   const headingId = `prompt-kind-${kind.key}`;
   const descriptionId = `prompt-kind-description-${kind.key}`;
 
+  function renderPrompt(prompt: Prompt) {
+    return (
+      <NarratorPromptItem
+        key={prompt.key}
+        defaultPromptKey={defaultSelection.promptKey}
+        prompt={prompt}
+        setDefault={setDefault}
+      />
+    );
+  }
+
   return (
     <Item.Section aria-labelledby={headingId} aria-describedby={descriptionId}>
-      <Item.SectionHeader style={styles.sectionHeader}>
+      <Item.SectionHeader>
         <Item.SectionContent>
           <Item.Heading id={headingId}>{kind.name}</Item.Heading>
-          <Item.SectionDescription id={descriptionId}>{kind.description}</Item.SectionDescription>
+          <Item.SectionDescription
+            id={descriptionId}
+            style={promptLibraryStyles.sectionDescription}
+          >
+            {kind.description}
+          </Item.SectionDescription>
         </Item.SectionContent>
-        <Button
-          variant="ghost"
-          render={<Link to="/library/narrator/new" replace />}
-          style={styles.createAction}
-        >
-          <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} aria-hidden="true" />
-          <Button.Label>Create</Button.Label>
-        </Button>
       </Item.SectionHeader>
 
       <Item.Group render={<ul />} variant="separated">
-        {prompts.map((prompt) => (
-          <NarratorPromptItem
-            key={prompt.key}
-            defaultPromptKey={defaultSelection.promptKey}
-            prompt={prompt}
-            setDefault={setDefault}
-          />
-        ))}
+        {prompts.filter((prompt) => prompt.origin === PromptOrigin.BuiltIn).map(renderPrompt)}
+        <PromptLibraryCreateItem render={<Link to="/library/narrator/new" replace />}>
+          Create narrator
+        </PromptLibraryCreateItem>
+        {prompts.filter((prompt) => prompt.origin === PromptOrigin.Custom).map(renderPrompt)}
       </Item.Group>
 
-      {pages.hasNextPage ? (
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={pages.isFetchingNextPage}
-          onClick={() => void pages.fetchNextPage()}
-          style={styles.loadMore}
-        >
-          {pages.isFetchingNextPage ? "Loading…" : "Load more"}
-        </Button>
-      ) : null}
+      <PromptLibraryPagination query={pages} label="narrators" />
     </Item.Section>
   );
 }
@@ -192,12 +191,6 @@ function NarratorRoute() {
 }
 
 const styles = stylex.create({
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  createAction: { alignSelf: "flex-start" },
-  loadMore: { marginBlockStart: "0.75rem" },
   unavailable: {
     color: colors.foregroundSecondary,
     fontSize: tokens.fontSizeSmall,

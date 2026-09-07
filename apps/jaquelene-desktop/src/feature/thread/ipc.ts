@@ -9,7 +9,7 @@ import type {
   Threads,
   Turns,
   TurnAcceptance,
-  TurnSettlement,
+  GenerationSettlement,
 } from "@jaquelene/backend";
 import { ids } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
@@ -36,12 +36,12 @@ type ThreadMessagingTurns = Pick<
   "deleteFrom" | "editMessage" | "listForThread" | "regenerate" | "retry" | "submit"
 >;
 type ThreadMessagingThreads = Pick<Threads, "getTranscript">;
-type TurnGenerationOperation =
+type ThreadGenerationOperation =
   | "thread.reply.regenerate"
   | "thread.turn.retry"
   | "thread.turn.submit";
 type ThreadChangeOperation =
-  | TurnGenerationOperation
+  | ThreadGenerationOperation
   | "thread.history.delete"
   | "thread.message.edit";
 
@@ -125,6 +125,7 @@ function toIpcMessage(message: ThreadMessage) {
 function toIpcGeneration(generation: Generation) {
   return {
     id: generation.id,
+    threadId: generation.threadId,
     turnId: generation.turnId,
     providerId: generation.providerId,
     modelId: generation.modelId,
@@ -194,8 +195,8 @@ function unexpectedFailureStage(failureKind: Generation["failureKind"]) {
 
 function reportUnexpectedFailure(
   diagnostics: ErrorReporter,
-  operation: TurnGenerationOperation,
-  settlement: TurnSettlement,
+  operation: ThreadGenerationOperation,
+  settlement: GenerationSettlement,
 ) {
   if (settlement.outcome !== "failed") {
     return;
@@ -254,12 +255,15 @@ export function createThreadMessaging(
     }
   }
 
-  function publishSettlement(operation: TurnGenerationOperation, settlement: TurnSettlement) {
+  function publishSettlement(
+    operation: ThreadGenerationOperation,
+    settlement: GenerationSettlement,
+  ) {
     reportUnexpectedFailure(diagnostics, operation, settlement);
 
     if (settlement.outcome === "failed") {
       const failure = {
-        userMessage: toIpcMessage(settlement.userMessage),
+        sourceMessage: toIpcMessage(settlement.sourceMessage),
         generation: toIpcGeneration(settlement.generation),
         threadActivity: toIpcThreadActivity(settlement.threadActivity),
       };
@@ -268,7 +272,7 @@ export function createThreadMessaging(
     }
 
     if (!settlement.assistantActivated) {
-      const superseded = { threadId: settlement.userMessage.threadId };
+      const superseded = { threadId: settlement.sourceMessage.threadId };
       publishThreadChange(operation, (dispatcher) =>
         dispatcher.dispatchReplySuperseded(superseded),
       );
@@ -276,7 +280,7 @@ export function createThreadMessaging(
     }
 
     const completion = {
-      userMessage: toIpcMessage(settlement.userMessage),
+      sourceMessage: toIpcMessage(settlement.sourceMessage),
       assistantMessage: toIpcMessage(settlement.assistantMessage),
       generation: toIpcGeneration(settlement.generation),
       threadActivity: toIpcThreadActivity(settlement.threadActivity),
@@ -285,8 +289,8 @@ export function createThreadMessaging(
   }
 
   function observeSettlement(
-    operation: TurnGenerationOperation,
-    settlement: Effect.Effect<TurnSettlement, unknown>,
+    operation: ThreadGenerationOperation,
+    settlement: Effect.Effect<GenerationSettlement, unknown>,
   ) {
     runtime.runFork(settlement).addObserver((exit) => {
       if (Exit.isSuccess(exit)) {

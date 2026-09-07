@@ -11,7 +11,6 @@ export type ThreadOperationInspection =
   | Readonly<{
       state: "generating";
       intent: GenerationIntent;
-      turnId: TurnId;
       generationId: GenerationId;
     }>;
 
@@ -29,7 +28,7 @@ type ActiveThreadOperation = Exclude<ThreadOperationInspection, { state: "idle" 
 type ThreadOperationLease = Readonly<{ release: () => void }>;
 type GeneratingThreadOperationLease = ThreadOperationLease &
   Readonly<{
-    generating: (turnId: TurnId, generationId: GenerationId, intent: GenerationIntent) => void;
+    generating: (generationId: GenerationId, intent: GenerationIntent) => void;
   }>;
 
 type OperationEntry = Readonly<{
@@ -67,7 +66,7 @@ export function createThreadOperationCoordinator() {
     }
 
     return {
-      generating(turnId: TurnId, generationId: GenerationId, intent: GenerationIntent) {
+      generating(generationId: GenerationId, intent: GenerationIntent) {
         const current = operations.get(threadId);
 
         if (current?.owner !== owner) {
@@ -83,7 +82,6 @@ export function createThreadOperationCoordinator() {
           operation: {
             state: "generating",
             intent,
-            turnId,
             generationId,
           },
         });

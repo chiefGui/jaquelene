@@ -1,8 +1,14 @@
+import { openingScenePromptModule } from "#backend/opening-scene/module";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { CAMPAIGN_SCENARIO_MAX_LENGTH, parsePromptKey } from "@jaquelene/domain";
+import {
+  CAMPAIGN_SCENARIO_MAX_LENGTH,
+  CAMPAIGN_OPENING_SCENE_MAX_LENGTH,
+  openingScenePromptKindKey,
+  parsePromptKey,
+} from "@jaquelene/domain";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
@@ -92,6 +98,116 @@ afterEach(() => {
 });
 
 describe("campaigns", () => {
+  it("atomically starts with exact opening narration and persists it without a generation or player turn", () => {
+    const path = createDatabasePath();
+    const first = openCampaigns(path);
+    const openingScene = "    John wakes up.\n\nSomeone knocks. ??\n";
+    const campaign = first.campaigns.start({ title: "Morning", openingScene, composition: [] });
+    const messages = first.threads.listMessages({
+      threadId: campaign.threadId,
+      direction: "older",
+    }).messages;
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      content: openingScene,
+      author: "assistant",
+      turnId: null,
+      parentMessageId: null,
+      sequence: 1,
+    });
+    expect(campaign.turnCount).toBe(0);
+    expect(first.database.select().from(turnTable).all()).toEqual([]);
+    expect(first.database.select().from(generationTable).all()).toEqual([]);
+    const second = openCampaigns(path);
+    expect(
+      second.threads.listMessages({ threadId: campaign.threadId, direction: "older" }).messages,
+    ).toEqual(messages);
+    expect(second.campaigns.get(campaign.id)).toEqual(campaign);
+    expect(first.campaigns.delete(campaign.id)).toEqual({
+      id: campaign.id,
+      threadId: campaign.threadId,
+    });
+    expect(first.database.select().from(threadMessageTable).all()).toEqual([]);
+  });
+
+  it.each([undefined, "", " \t\n\u2003"])(
+    "leaves the conversation empty for blank opening %j",
+    (openingScene) => {
+      const { campaigns, threads } = openCampaigns(createDatabasePath());
+      const campaign = campaigns.start({
+        title: "Morning",
+        ...(openingScene !== undefined && { openingScene }),
+        composition: [],
+      });
+      expect(
+        threads.listMessages({ threadId: campaign.threadId, direction: "older" }).messages,
+      ).toEqual([]);
+    },
+  );
+
+  it("copies saved openings independently of later library edits, deletion, and reopening", () => {
+    const path = createDatabasePath();
+    const first = openCampaigns(path);
+    const prompts = createPrompts(first.database, [narratorPromptModule, openingScenePromptModule]);
+    const opening = prompts.create({
+      kind: openingScenePromptKindKey,
+      title: "Morning",
+      body: "  Someone knocks.\n",
+    });
+    const campaign = first.campaigns.start({
+      title: "Morning",
+      openingScene: opening.body,
+      composition: [],
+    });
+    prompts.update(opening.key, { title: "Night", body: "A phone rings." });
+    prompts.setDefault(openingScenePromptKindKey, opening.key);
+    prompts.delete(opening.key);
+    expect(prompts.getDefault(openingScenePromptKindKey).promptKey).toBeNull();
+    closeDatabase(first.database);
+    const second = openCampaigns(path);
+    const messages = second.threads.listMessages({
+      threadId: campaign.threadId,
+      direction: "older",
+    }).messages;
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ author: "assistant", turnId: null, content: opening.body });
+    expect(second.database.select().from(generationTable).all()).toEqual([]);
+  });
+
+  it.each(["a", "\u{1f319}"])(
+    "enforces the 20,000-character opening limit for %s before creating campaign state",
+    (character) => {
+      const { campaigns, database, threads } = openCampaigns(createDatabasePath());
+      expect(() =>
+        campaigns.start({
+          title: "Too long",
+          openingScene: character.repeat(CAMPAIGN_OPENING_SCENE_MAX_LENGTH + 1),
+          composition: [],
+        }),
+      ).toThrow(TypeError);
+      expect(database.select().from(campaignTable).all()).toEqual([]);
+      expect(database.select().from(threadTable).all()).toEqual([]);
+      const openingScene = character.repeat(CAMPAIGN_OPENING_SCENE_MAX_LENGTH);
+      const campaign = campaigns.start({ title: "At limit", openingScene, composition: [] });
+      expect(
+        threads.listMessages({ threadId: campaign.threadId, direction: "older" }).messages[0]
+          ?.content,
+      ).toBe(openingScene);
+    },
+  );
+
+  it("rolls back campaign creation if storing its opening fails", () => {
+    const { database, campaigns } = openCampaigns(createDatabasePath());
+    database.$client.exec(
+      "CREATE TRIGGER reject_opening BEFORE INSERT ON thread_messages BEGIN SELECT RAISE(ABORT, 'No space'); END;",
+    );
+    expect(() =>
+      campaigns.start({ title: "Morning", openingScene: "John wakes up.", composition: [] }),
+    ).toThrow();
+    expect(database.select().from(campaignTable).all()).toEqual([]);
+    expect(database.select().from(threadTable).all()).toEqual([]);
+  });
+
   it("persists campaign-owned scenarios and supports replacing and clearing them", () => {
     const path = createDatabasePath();
     const first = openCampaigns(path);
@@ -387,6 +503,7 @@ describe("campaigns", () => {
       .values({
         id: generationId,
         turnId: turn.id,
+        threadId: turn.threadId,
         intent: "reply",
         providerId: "provider-a",
         modelId: "model-a",
@@ -456,6 +573,7 @@ describe("campaigns", () => {
       .values({
         id: ids.generation.create(),
         turnId: turn.id,
+        threadId: turn.threadId,
         intent: "reply",
         providerId: "provider-a",
         modelId: "model-a",

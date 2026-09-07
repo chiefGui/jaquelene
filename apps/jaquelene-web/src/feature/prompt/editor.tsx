@@ -28,6 +28,7 @@ import { useCreatePrompt, useUpdatePrompt } from "./query";
 
 type PromptEditorProps = {
   "aria-labelledby": string;
+  content?: { label: string; noun: string; description: string };
   onCancel?: () => void | Promise<void>;
 } & (
   | {
@@ -52,6 +53,11 @@ function promptValuesEqual(left: UpdatePromptInput, right: UpdatePromptInput) {
 
 export function PromptEditor(props: PromptEditorProps) {
   const { "aria-labelledby": ariaLabelledBy, onCancel, onSaved, prompt } = props;
+  const content = props.content ?? {
+    label: "Prompt",
+    noun: "prompt",
+    description: "AI models receive this text. Keep it concise.",
+  };
   const createPrompt = useCreatePrompt();
   const updatePrompt = useUpdatePrompt();
   const form = useFormStore({ defaultValues: getEditorValues(prompt) });
@@ -70,7 +76,9 @@ export function PromptEditor(props: PromptEditorProps) {
   const editing = Boolean(prompt);
   const awaitingCreatedPrompt = !editing && Boolean(savedPrompt);
   const editorReadOnly = !editing && (saving || awaitingCreatedPrompt);
-  const submitLabel = awaitingCreatedPrompt ? "Open prompt" : editing ? "Save" : "Create";
+  let submitLabel = "Create";
+  if (editing) submitLabel = "Save";
+  if (awaitingCreatedPrompt) submitLabel = `Open ${content.noun}`;
   const setBody = useCallback(
     (value: string) => {
       clearStatus();
@@ -86,7 +94,7 @@ export function PromptEditor(props: PromptEditorProps) {
     };
   }, []);
 
-  usePromptFormValidation(form);
+  usePromptFormValidation(form, content.noun);
   useFormSubmit(form, async (state) => {
     if (savingRef.current) {
       return;
@@ -104,9 +112,11 @@ export function PromptEditor(props: PromptEditorProps) {
         try {
           const input = updatePromptInputSchema.parse(state.values);
           submittedValues = input;
-          result = props.prompt
-            ? await updatePrompt.mutateAsync({ key: props.prompt.key, input })
-            : await createPrompt.mutateAsync({ kind: props.kind, ...input });
+          if (props.prompt) {
+            result = await updatePrompt.mutateAsync({ key: props.prompt.key, input });
+          } else {
+            result = await createPrompt.mutateAsync({ kind: props.kind, ...input });
+          }
 
           if (!active.current) {
             return;
@@ -116,10 +126,14 @@ export function PromptEditor(props: PromptEditorProps) {
             setSavedPrompt(result);
           }
         } catch (cause) {
-          reportError(editing ? "prompt.update" : "prompt.create", cause);
-          if (active.current) {
-            showError(editing ? "Couldn't save this prompt." : "Couldn't create this prompt.");
+          let operation = "prompt.create";
+          let message = `Couldn't create this ${content.noun}.`;
+          if (editing) {
+            operation = "prompt.update";
+            message = `Couldn't save this ${content.noun}.`;
           }
+          reportError(operation, cause);
+          if (active.current) showError(message);
           return;
         }
       }
@@ -139,7 +153,7 @@ export function PromptEditor(props: PromptEditorProps) {
       } catch (cause) {
         reportError("prompt.after-save", cause);
         if (active.current) {
-          showError("The prompt was saved, but its page couldn't be updated.");
+          showError(`The ${content.noun} was saved, but its page couldn't be updated.`);
         }
       }
     } finally {
@@ -150,11 +164,17 @@ export function PromptEditor(props: PromptEditorProps) {
     }
   });
 
+  let statusRole: "alert" | "status" | undefined;
+  if (status) {
+    statusRole = "status";
+    if (status.tone === "danger") statusRole = "alert";
+  }
+
   return (
     <AriakitForm
       store={form}
       aria-busy={saving || undefined}
-      aria-describedby={status ? operationStatusId : undefined}
+      aria-describedby={(status && operationStatusId) || undefined}
       aria-labelledby={ariaLabelledBy}
       onSubmit={clearStatus}
       render={<FormLayout.Root />}
@@ -183,13 +203,13 @@ export function PromptEditor(props: PromptEditorProps) {
 
       <Field.Root style={styles.promptField}>
         <FormLabel name={form.names.body} render={<Field.Label />}>
-          Prompt
+          {content.label}
         </FormLabel>
         <FormDescription
           name={form.names.body}
           render={<Field.Description style={styles.promptDescription} />}
         >
-          AI models receive this text. Keep it concise.
+          {content.description}
         </FormDescription>
         <FormControl
           name={form.names.body}
@@ -208,17 +228,17 @@ export function PromptEditor(props: PromptEditorProps) {
       <div {...stylex.props(styles.actions)}>
         <FormLayout.Status
           id={operationStatusId}
-          role={status?.tone === "danger" ? "alert" : status ? "status" : undefined}
+          role={statusRole}
           tone={status?.tone ?? "neutral"}
         >
           {status?.message}
         </FormLayout.Status>
 
-        {onCancel ? (
+        {onCancel && (
           <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>
             Cancel
           </Button>
-        ) : null}
+        )}
 
         <Button type="submit" aria-busy={saving || undefined}>
           {submitLabel}

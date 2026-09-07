@@ -28,8 +28,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStartCampaignFormValidation } from "@/feature/campaign/form";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
-import { ScenarioImportControl } from "@/feature/scenario/import-control";
-import { useDefaultScenario } from "@/feature/scenario/use-default-scenario";
+import { PromptImportControl } from "@/feature/prompt/import-control";
+import { scenarioLibrary } from "@/feature/prompt/text-libraries";
+import { useDefaultPrompt } from "@/feature/prompt/use-default-prompt";
 import { useStartCampaign, useIsStartingCampaign } from "@/feature/campaign/query";
 import { readCampaignSetupDraft, resolveCampaignSetupValues } from "@/feature/campaign/setup-draft";
 import { useCampaignSetupDraft } from "@/feature/campaign/use-setup-draft";
@@ -64,7 +65,7 @@ export const Route = createFileRoute("/campaigns/new")({
 });
 
 function NewCampaignRoute() {
-  const defaultScenario = useDefaultScenario();
+  const defaultScenario = useDefaultPrompt(scenarioPromptKindKey);
   const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const defaultPromptKey = defaultSelection.promptKey;
@@ -336,7 +337,7 @@ function NewCampaignRoute() {
                     render={
                       <MarkdownEditor
                         value={scenario}
-                        toolbarActions={<ScenarioImportControl />}
+                        toolbarActions={<PromptImportControl library={scenarioLibrary} />}
                         onValueChange={(value) => {
                           updateDraft({ scenario: { mode: "custom", text: value } });
                           form.setValue(form.names.scenario, value);

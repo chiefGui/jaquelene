@@ -34,15 +34,7 @@ export function EditTextLibraryPrompt({
   if (prompt?.kind === library.kind && prompt.origin === PromptOrigin.Custom) {
     content = (
       <div {...stylex.props(styles.editor)}>
-        <PromptEditor
-          aria-labelledby="edit-library-entry-page"
-          prompt={prompt}
-          content={{
-            label: library.label,
-            noun: library.noun,
-            description: library.contentDescription,
-          }}
-        />
+        <PromptEditor aria-labelledby="edit-library-entry-page" prompt={prompt} content={library} />
         <Item.Group aria-label={`${library.label} management`}>
           <PromptDefaultControl
             prompt={prompt}

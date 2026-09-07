@@ -110,8 +110,8 @@ export function PromptEditor(props: PromptEditorProps) {
 
       if (!result) {
         try {
-          const input = updatePromptInputSchema.parse(state.values);
-          submittedValues = input;
+          submittedValues = { ...state.values };
+          const input = updatePromptInputSchema.parse(submittedValues);
           if (props.prompt) {
             result = await updatePrompt.mutateAsync({ key: props.prompt.key, input });
           } else {

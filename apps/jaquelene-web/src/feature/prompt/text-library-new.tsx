@@ -30,11 +30,7 @@ export function NewTextLibraryPrompt({ library }: { library: TextLibrary }) {
           <PromptEditor
             aria-labelledby="new-library-entry-page"
             kind={library.kind}
-            content={{
-              label: library.label,
-              noun: library.noun,
-              description: library.contentDescription,
-            }}
+            content={library}
             onCancel={() => navigate({ to: library.indexPath, replace: true })}
             onSaved={(prompt) =>
               navigate({

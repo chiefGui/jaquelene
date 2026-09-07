@@ -39,7 +39,7 @@ export function EditTextLibraryPrompt({
           <PromptDefaultControl
             prompt={prompt}
             kindLabel={library.noun}
-            description={`The ${library.noun} copied into new campaigns. Turn off to start with an empty ${library.noun}.`}
+            description={`The ${library.noun} used in new campaigns. Turn off to start with an empty ${library.noun}.`}
           />
           <Item.Root>
             <Item.Content>

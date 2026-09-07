@@ -11,7 +11,7 @@ export const scenarioLibrary = {
   indexPath: "/library/scenarios",
   newPath: "/library/scenarios/new",
   editPath: "/library/scenarios/$promptKey/edit",
-  description: "The setting, universe, and permanent details to copy into a campaign.",
+  description: "The setting, universe, flavor, and permanent details of a campaign.",
 } as const;
 
 export const openingSceneLibrary = {

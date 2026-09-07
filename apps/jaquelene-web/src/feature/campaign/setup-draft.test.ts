@@ -13,11 +13,17 @@ describe("campaign setup drafts", () => {
   it("follows edits, replacement, and removal of the default without storing its text", () => {
     const client = new QueryClient();
     const draft = readCampaignSetupDraft(client);
-    expect(resolveCampaignSetupValues(draft, "").scenario).toBe("");
-    expect(resolveCampaignSetupValues(draft, "New York, 1920.").scenario).toBe("New York, 1920.");
-    expect(resolveCampaignSetupValues(draft, "New York, 1930.").scenario).toBe("New York, 1930.");
-    expect(resolveCampaignSetupValues(draft, "Mars, 2200.").scenario).toBe("Mars, 2200.");
-    expect(resolveCampaignSetupValues(draft, "").scenario).toBe("");
+    expect(resolveCampaignSetupValues(draft, { scenario: "", openingScene: "" }).scenario).toBe("");
+    expect(
+      resolveCampaignSetupValues(draft, { scenario: "New York, 1920.", openingScene: "" }).scenario,
+    ).toBe("New York, 1920.");
+    expect(
+      resolveCampaignSetupValues(draft, { scenario: "New York, 1930.", openingScene: "" }).scenario,
+    ).toBe("New York, 1930.");
+    expect(
+      resolveCampaignSetupValues(draft, { scenario: "Mars, 2200.", openingScene: "" }).scenario,
+    ).toBe("Mars, 2200.");
+    expect(resolveCampaignSetupValues(draft, { scenario: "", openingScene: "" }).scenario).toBe("");
     expect(readCampaignSetupDraft(client)).toBe(draft);
     client.clear();
   });
@@ -28,7 +34,9 @@ describe("campaign setup drafts", () => {
     writeCampaignSetupDraft(client, { narratorPromptKey: "narrator-a" });
     const draft = readCampaignSetupDraft(client);
     expect(draft.narratorPromptKey).toBe("narrator-a");
-    expect(resolveCampaignSetupValues(draft, "Updated default")).toEqual({
+    expect(
+      resolveCampaignSetupValues(draft, { scenario: "Updated default", openingScene: "" }),
+    ).toEqual({
       title: "My campaign",
       scenario: "Updated default",
       openingScene: "",
@@ -41,11 +49,21 @@ describe("campaign setup drafts", () => {
     (text) => {
       const client = new QueryClient();
       const draft = writeCampaignSetupDraft(client, { scenario: { mode: "custom", text } });
-      expect(resolveCampaignSetupValues(draft, "Same text as the default").scenario).toBe(text);
       expect(
-        resolveCampaignSetupValues(readCampaignSetupDraft(client), "New default").scenario,
+        resolveCampaignSetupValues(draft, {
+          scenario: "Same text as the default",
+          openingScene: "",
+        }).scenario,
       ).toBe(text);
-      expect(resolveCampaignSetupValues(draft, "").scenario).toBe(text);
+      expect(
+        resolveCampaignSetupValues(readCampaignSetupDraft(client), {
+          scenario: "New default",
+          openingScene: "",
+        }).scenario,
+      ).toBe(text);
+      expect(resolveCampaignSetupValues(draft, { scenario: "", openingScene: "" }).scenario).toBe(
+        text,
+      );
       client.clear();
     },
   );
@@ -53,15 +71,74 @@ describe("campaign setup drafts", () => {
   it("resolves submission text as a snapshot and starts following again after success", () => {
     const client = new QueryClient();
     const draft = writeCampaignSetupDraft(client, { title: "New campaign" });
-    const submitted = resolveCampaignSetupValues(draft, "Original default");
-    expect(resolveCampaignSetupValues(draft, "Edited default").scenario).toBe("Edited default");
+    const submitted = resolveCampaignSetupValues(draft, {
+      scenario: "Original default",
+      openingScene: "",
+    });
+    expect(
+      resolveCampaignSetupValues(draft, { scenario: "Edited default", openingScene: "" }).scenario,
+    ).toBe("Edited default");
     expect(submitted.scenario).toBe("Original default");
     clearSubmittedCampaignSetupDraft(client, draft);
-    expect(resolveCampaignSetupValues(readCampaignSetupDraft(client), "Latest default")).toEqual({
+    expect(
+      resolveCampaignSetupValues(readCampaignSetupDraft(client), {
+        scenario: "Latest default",
+        openingScene: "",
+      }),
+    ).toEqual({
       title: "",
       scenario: "Latest default",
       openingScene: "",
     });
+    client.clear();
+  });
+
+  it("follows opening defaults independently until the player edits or clears them", () => {
+    const client = new QueryClient();
+    const draft = writeCampaignSetupDraft(client, {
+      title: "Morning",
+      narratorPromptKey: "narrator-a",
+    });
+    const defaults = { scenario: "New York", openingScene: "Someone knocks." };
+    expect(resolveCampaignSetupValues(draft, defaults)).toEqual({ title: "Morning", ...defaults });
+    expect(
+      resolveCampaignSetupValues(draft, { ...defaults, openingScene: "A phone rings." })
+        .openingScene,
+    ).toBe("A phone rings.");
+    expect(resolveCampaignSetupValues(draft, { ...defaults, openingScene: "" }).openingScene).toBe(
+      "",
+    );
+    const cleared = writeCampaignSetupDraft(client, { openingScene: { mode: "custom", text: "" } });
+    expect(resolveCampaignSetupValues(cleared, defaults)).toEqual({
+      title: "Morning",
+      scenario: "New York",
+      openingScene: "",
+    });
+    const imported = writeCampaignSetupDraft(client, {
+      openingScene: { mode: "custom", text: "  A bell rings.\n" },
+    });
+    expect(resolveCampaignSetupValues(imported, defaults).openingScene).toBe("  A bell rings.\n");
+    expect(
+      resolveCampaignSetupValues(imported, { scenario: "Mars", openingScene: "" }).openingScene,
+    ).toBe("  A bell rings.\n");
+    client.clear();
+  });
+
+  it("snapshots the opening on submission and follows its default again after success", () => {
+    const client = new QueryClient();
+    const draft = readCampaignSetupDraft(client);
+    const submitted = resolveCampaignSetupValues(draft, { scenario: "", openingScene: "Original" });
+    expect(
+      resolveCampaignSetupValues(draft, { scenario: "", openingScene: "Edited" }).openingScene,
+    ).toBe("Edited");
+    expect(submitted.openingScene).toBe("Original");
+    clearSubmittedCampaignSetupDraft(client, draft);
+    expect(
+      resolveCampaignSetupValues(readCampaignSetupDraft(client), {
+        scenario: "",
+        openingScene: "Latest",
+      }).openingScene,
+    ).toBe("Latest");
     client.clear();
   });
 
@@ -79,29 +156,36 @@ describe("campaign setup drafts", () => {
       title: values.title,
       scenario: { mode: "custom", text: values.scenario },
       narratorPromptKey: "narrator-a",
-      openingScene: "",
+      openingScene: { mode: "default" },
     });
     expect(readCampaignSetupDraft(client)).toBe(draft);
     client.clear();
     expect(readCampaignSetupDraft(client)).toEqual({
       title: "",
       scenario: { mode: "default" },
-      openingScene: "",
+      openingScene: { mode: "default" },
     });
   });
 
   it("retains the exact opening independently of scenario defaults and newer draft edits", () => {
     const client = new QueryClient();
     const openingScene = "  John wakes up.\n\nSomeone knocks.\n";
-    const submitted = writeCampaignSetupDraft(client, { openingScene });
+    const submitted = writeCampaignSetupDraft(client, {
+      openingScene: { mode: "custom", text: openingScene },
+    });
     expect(
-      resolveCampaignSetupValues(readCampaignSetupDraft(client), "A new default").openingScene,
+      resolveCampaignSetupValues(readCampaignSetupDraft(client), {
+        scenario: "A new default",
+        openingScene: "",
+      }).openingScene,
     ).toBe(openingScene);
-    const next = writeCampaignSetupDraft(client, { openingScene: "A different opening." });
+    const next = writeCampaignSetupDraft(client, {
+      openingScene: { mode: "custom", text: "A different opening." },
+    });
     clearSubmittedCampaignSetupDraft(client, submitted);
     expect(readCampaignSetupDraft(client)).toBe(next);
     clearSubmittedCampaignSetupDraft(client, next);
-    expect(readCampaignSetupDraft(client).openingScene).toBe("");
+    expect(readCampaignSetupDraft(client).openingScene).toEqual({ mode: "default" });
     client.clear();
   });
 

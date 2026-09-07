@@ -1,4 +1,6 @@
 export {
+  CAMPAIGN_OPENING_SCENE_MAX_LENGTH,
+  CAMPAIGN_OPENING_SCENE_MAX_UTF16_LENGTH,
   campaignOpeningSceneSchema,
   parseCampaignOpeningScene,
   type CampaignOpeningScene,
@@ -33,6 +35,7 @@ export type {
   RequestedModelConfiguration,
 } from "./model/configuration";
 export { narratorPromptKindKey } from "./narrator/prompt-kind";
+export { openingScenePromptKindKey } from "./opening-scene/prompt-kind";
 export { scenarioPromptKindKey } from "./scenario/prompt-kind";
 export {
   PROMPT_BODY_MAX_LENGTH,

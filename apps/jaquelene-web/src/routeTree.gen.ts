@@ -18,6 +18,7 @@ import { Route as CampaignsCampaignIdRouteImport } from "./routes/campaigns/$cam
 import { Route as CampaignsNewRouteImport } from "./routes/campaigns/new";
 import { Route as LibraryIndexRouteImport } from "./routes/library/index";
 import { Route as LibraryNarratorRouteRouteImport } from "./routes/library/narrator/route";
+import { Route as LibraryOpeningScenesRouteRouteImport } from "./routes/library/opening-scenes/route";
 import { Route as LibraryScenariosRouteRouteImport } from "./routes/library/scenarios/route";
 import { Route as SettingsAdvancedRouteImport } from "./routes/settings/advanced";
 import { Route as SettingsAppearanceRouteImport } from "./routes/settings/appearance";
@@ -29,9 +30,12 @@ import { Route as SettingsUsageRouteImport } from "./routes/settings/usage";
 import { Route as CampaignsCampaignIdTranscriptRouteImport } from "./routes/campaigns/$campaignId_.transcript";
 import { Route as LibraryNarratorIndexRouteImport } from "./routes/library/narrator/index";
 import { Route as LibraryNarratorNewRouteImport } from "./routes/library/narrator/new";
+import { Route as LibraryOpeningScenesIndexRouteImport } from "./routes/library/opening-scenes/index";
+import { Route as LibraryOpeningScenesNewRouteImport } from "./routes/library/opening-scenes/new";
 import { Route as LibraryScenariosIndexRouteImport } from "./routes/library/scenarios/index";
 import { Route as LibraryScenariosNewRouteImport } from "./routes/library/scenarios/new";
 import { Route as LibraryNarratorPromptKeyEditRouteImport } from "./routes/library/narrator/$promptKey/edit";
+import { Route as LibraryOpeningScenesPromptKeyEditRouteImport } from "./routes/library/opening-scenes/$promptKey/edit";
 import { Route as LibraryScenariosPromptKeyEditRouteImport } from "./routes/library/scenarios/$promptKey/edit";
 
 const IndexRoute = IndexRouteImport.update({
@@ -79,6 +83,12 @@ const LibraryNarratorRouteRoute = LibraryNarratorRouteRouteImport.update({
   path: "/narrator",
   getParentRoute: () => LibraryRouteRoute,
 } as any);
+const LibraryOpeningScenesRouteRoute =
+  LibraryOpeningScenesRouteRouteImport.update({
+    id: "/opening-scenes",
+    path: "/opening-scenes",
+    getParentRoute: () => LibraryRouteRoute,
+  } as any);
 const LibraryScenariosRouteRoute = LibraryScenariosRouteRouteImport.update({
   id: "/scenarios",
   path: "/scenarios",
@@ -135,6 +145,17 @@ const LibraryNarratorNewRoute = LibraryNarratorNewRouteImport.update({
   path: "/new",
   getParentRoute: () => LibraryNarratorRouteRoute,
 } as any);
+const LibraryOpeningScenesIndexRoute =
+  LibraryOpeningScenesIndexRouteImport.update({
+    id: "/",
+    path: "/",
+    getParentRoute: () => LibraryOpeningScenesRouteRoute,
+  } as any);
+const LibraryOpeningScenesNewRoute = LibraryOpeningScenesNewRouteImport.update({
+  id: "/new",
+  path: "/new",
+  getParentRoute: () => LibraryOpeningScenesRouteRoute,
+} as any);
 const LibraryScenariosIndexRoute = LibraryScenariosIndexRouteImport.update({
   id: "/",
   path: "/",
@@ -151,6 +172,12 @@ const LibraryNarratorPromptKeyEditRoute =
     path: "/$promptKey/edit",
     getParentRoute: () => LibraryNarratorRouteRoute,
   } as any);
+const LibraryOpeningScenesPromptKeyEditRoute =
+  LibraryOpeningScenesPromptKeyEditRouteImport.update({
+    id: "/$promptKey/edit",
+    path: "/$promptKey/edit",
+    getParentRoute: () => LibraryOpeningScenesRouteRoute,
+  } as any);
 const LibraryScenariosPromptKeyEditRoute =
   LibraryScenariosPromptKeyEditRouteImport.update({
     id: "/$promptKey/edit",
@@ -164,6 +191,7 @@ export interface FileRoutesByFullPath {
   "/library": typeof LibraryRouteRouteWithChildren;
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/library/narrator": typeof LibraryNarratorRouteRouteWithChildren;
+  "/library/opening-scenes": typeof LibraryOpeningScenesRouteRouteWithChildren;
   "/library/scenarios": typeof LibraryScenariosRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/campaigns/new": typeof CampaignsNewRoute;
@@ -178,10 +206,13 @@ export interface FileRoutesByFullPath {
   "/library/": typeof LibraryIndexRoute;
   "/campaigns/$campaignId/transcript": typeof CampaignsCampaignIdTranscriptRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
+  "/library/opening-scenes/new": typeof LibraryOpeningScenesNewRoute;
   "/library/scenarios/new": typeof LibraryScenariosNewRoute;
   "/library/narrator/": typeof LibraryNarratorIndexRoute;
+  "/library/opening-scenes/": typeof LibraryOpeningScenesIndexRoute;
   "/library/scenarios/": typeof LibraryScenariosIndexRoute;
   "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
+  "/library/opening-scenes/$promptKey/edit": typeof LibraryOpeningScenesPromptKeyEditRoute;
   "/library/scenarios/$promptKey/edit": typeof LibraryScenariosPromptKeyEditRoute;
 }
 export interface FileRoutesByTo {
@@ -200,10 +231,13 @@ export interface FileRoutesByTo {
   "/library": typeof LibraryIndexRoute;
   "/campaigns/$campaignId/transcript": typeof CampaignsCampaignIdTranscriptRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
+  "/library/opening-scenes/new": typeof LibraryOpeningScenesNewRoute;
   "/library/scenarios/new": typeof LibraryScenariosNewRoute;
   "/library/narrator": typeof LibraryNarratorIndexRoute;
+  "/library/opening-scenes": typeof LibraryOpeningScenesIndexRoute;
   "/library/scenarios": typeof LibraryScenariosIndexRoute;
   "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
+  "/library/opening-scenes/$promptKey/edit": typeof LibraryOpeningScenesPromptKeyEditRoute;
   "/library/scenarios/$promptKey/edit": typeof LibraryScenariosPromptKeyEditRoute;
 }
 export interface FileRoutesById {
@@ -213,6 +247,7 @@ export interface FileRoutesById {
   "/library": typeof LibraryRouteRouteWithChildren;
   "/settings": typeof SettingsRouteRouteWithChildren;
   "/library/narrator": typeof LibraryNarratorRouteRouteWithChildren;
+  "/library/opening-scenes": typeof LibraryOpeningScenesRouteRouteWithChildren;
   "/library/scenarios": typeof LibraryScenariosRouteRouteWithChildren;
   "/campaigns/$campaignId": typeof CampaignsCampaignIdRoute;
   "/campaigns/new": typeof CampaignsNewRoute;
@@ -227,10 +262,13 @@ export interface FileRoutesById {
   "/library/": typeof LibraryIndexRoute;
   "/campaigns/$campaignId_/transcript": typeof CampaignsCampaignIdTranscriptRoute;
   "/library/narrator/new": typeof LibraryNarratorNewRoute;
+  "/library/opening-scenes/new": typeof LibraryOpeningScenesNewRoute;
   "/library/scenarios/new": typeof LibraryScenariosNewRoute;
   "/library/narrator/": typeof LibraryNarratorIndexRoute;
+  "/library/opening-scenes/": typeof LibraryOpeningScenesIndexRoute;
   "/library/scenarios/": typeof LibraryScenariosIndexRoute;
   "/library/narrator/$promptKey/edit": typeof LibraryNarratorPromptKeyEditRoute;
+  "/library/opening-scenes/$promptKey/edit": typeof LibraryOpeningScenesPromptKeyEditRoute;
   "/library/scenarios/$promptKey/edit": typeof LibraryScenariosPromptKeyEditRoute;
 }
 export interface FileRouteTypes {
@@ -241,6 +279,7 @@ export interface FileRouteTypes {
     | "/library"
     | "/settings"
     | "/library/narrator"
+    | "/library/opening-scenes"
     | "/library/scenarios"
     | "/campaigns/$campaignId"
     | "/campaigns/new"
@@ -255,10 +294,13 @@ export interface FileRouteTypes {
     | "/library/"
     | "/campaigns/$campaignId/transcript"
     | "/library/narrator/new"
+    | "/library/opening-scenes/new"
     | "/library/scenarios/new"
     | "/library/narrator/"
+    | "/library/opening-scenes/"
     | "/library/scenarios/"
     | "/library/narrator/$promptKey/edit"
+    | "/library/opening-scenes/$promptKey/edit"
     | "/library/scenarios/$promptKey/edit";
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -277,10 +319,13 @@ export interface FileRouteTypes {
     | "/library"
     | "/campaigns/$campaignId/transcript"
     | "/library/narrator/new"
+    | "/library/opening-scenes/new"
     | "/library/scenarios/new"
     | "/library/narrator"
+    | "/library/opening-scenes"
     | "/library/scenarios"
     | "/library/narrator/$promptKey/edit"
+    | "/library/opening-scenes/$promptKey/edit"
     | "/library/scenarios/$promptKey/edit";
   id:
     | "__root__"
@@ -289,6 +334,7 @@ export interface FileRouteTypes {
     | "/library"
     | "/settings"
     | "/library/narrator"
+    | "/library/opening-scenes"
     | "/library/scenarios"
     | "/campaigns/$campaignId"
     | "/campaigns/new"
@@ -303,10 +349,13 @@ export interface FileRouteTypes {
     | "/library/"
     | "/campaigns/$campaignId_/transcript"
     | "/library/narrator/new"
+    | "/library/opening-scenes/new"
     | "/library/scenarios/new"
     | "/library/narrator/"
+    | "/library/opening-scenes/"
     | "/library/scenarios/"
     | "/library/narrator/$promptKey/edit"
+    | "/library/opening-scenes/$promptKey/edit"
     | "/library/scenarios/$promptKey/edit";
   fileRoutesById: FileRoutesById;
 }
@@ -380,6 +429,13 @@ declare module "@tanstack/react-router" {
       path: "/narrator";
       fullPath: "/library/narrator";
       preLoaderRoute: typeof LibraryNarratorRouteRouteImport;
+      parentRoute: typeof LibraryRouteRoute;
+    };
+    "/library/opening-scenes": {
+      id: "/library/opening-scenes";
+      path: "/opening-scenes";
+      fullPath: "/library/opening-scenes";
+      preLoaderRoute: typeof LibraryOpeningScenesRouteRouteImport;
       parentRoute: typeof LibraryRouteRoute;
     };
     "/library/scenarios": {
@@ -459,6 +515,20 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof LibraryNarratorNewRouteImport;
       parentRoute: typeof LibraryNarratorRouteRoute;
     };
+    "/library/opening-scenes/": {
+      id: "/library/opening-scenes/";
+      path: "/";
+      fullPath: "/library/opening-scenes/";
+      preLoaderRoute: typeof LibraryOpeningScenesIndexRouteImport;
+      parentRoute: typeof LibraryOpeningScenesRouteRoute;
+    };
+    "/library/opening-scenes/new": {
+      id: "/library/opening-scenes/new";
+      path: "/new";
+      fullPath: "/library/opening-scenes/new";
+      preLoaderRoute: typeof LibraryOpeningScenesNewRouteImport;
+      parentRoute: typeof LibraryOpeningScenesRouteRoute;
+    };
     "/library/scenarios/": {
       id: "/library/scenarios/";
       path: "/";
@@ -479,6 +549,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/library/narrator/$promptKey/edit";
       preLoaderRoute: typeof LibraryNarratorPromptKeyEditRouteImport;
       parentRoute: typeof LibraryNarratorRouteRoute;
+    };
+    "/library/opening-scenes/$promptKey/edit": {
+      id: "/library/opening-scenes/$promptKey/edit";
+      path: "/$promptKey/edit";
+      fullPath: "/library/opening-scenes/$promptKey/edit";
+      preLoaderRoute: typeof LibraryOpeningScenesPromptKeyEditRouteImport;
+      parentRoute: typeof LibraryOpeningScenesRouteRoute;
     };
     "/library/scenarios/$promptKey/edit": {
       id: "/library/scenarios/$promptKey/edit";
@@ -523,6 +600,25 @@ const LibraryNarratorRouteRouteChildren: LibraryNarratorRouteRouteChildren = {
 const LibraryNarratorRouteRouteWithChildren =
   LibraryNarratorRouteRoute._addFileChildren(LibraryNarratorRouteRouteChildren);
 
+interface LibraryOpeningScenesRouteRouteChildren {
+  LibraryOpeningScenesNewRoute: typeof LibraryOpeningScenesNewRoute;
+  LibraryOpeningScenesIndexRoute: typeof LibraryOpeningScenesIndexRoute;
+  LibraryOpeningScenesPromptKeyEditRoute: typeof LibraryOpeningScenesPromptKeyEditRoute;
+}
+
+const LibraryOpeningScenesRouteRouteChildren: LibraryOpeningScenesRouteRouteChildren =
+  {
+    LibraryOpeningScenesNewRoute: LibraryOpeningScenesNewRoute,
+    LibraryOpeningScenesIndexRoute: LibraryOpeningScenesIndexRoute,
+    LibraryOpeningScenesPromptKeyEditRoute:
+      LibraryOpeningScenesPromptKeyEditRoute,
+  };
+
+const LibraryOpeningScenesRouteRouteWithChildren =
+  LibraryOpeningScenesRouteRoute._addFileChildren(
+    LibraryOpeningScenesRouteRouteChildren,
+  );
+
 interface LibraryScenariosRouteRouteChildren {
   LibraryScenariosNewRoute: typeof LibraryScenariosNewRoute;
   LibraryScenariosIndexRoute: typeof LibraryScenariosIndexRoute;
@@ -542,12 +638,14 @@ const LibraryScenariosRouteRouteWithChildren =
 
 interface LibraryRouteRouteChildren {
   LibraryNarratorRouteRoute: typeof LibraryNarratorRouteRouteWithChildren;
+  LibraryOpeningScenesRouteRoute: typeof LibraryOpeningScenesRouteRouteWithChildren;
   LibraryScenariosRouteRoute: typeof LibraryScenariosRouteRouteWithChildren;
   LibraryIndexRoute: typeof LibraryIndexRoute;
 }
 
 const LibraryRouteRouteChildren: LibraryRouteRouteChildren = {
   LibraryNarratorRouteRoute: LibraryNarratorRouteRouteWithChildren,
+  LibraryOpeningScenesRouteRoute: LibraryOpeningScenesRouteRouteWithChildren,
   LibraryScenariosRouteRoute: LibraryScenariosRouteRouteWithChildren,
   LibraryIndexRoute: LibraryIndexRoute,
 };

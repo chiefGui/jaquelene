@@ -1,5 +1,5 @@
-import { scenarioPromptKindKey } from "@jaquelene/domain";
-import { ScenarioIcon } from "@/primitive/icons";
+import { scenarioPromptKindKey, openingScenePromptKindKey } from "@jaquelene/domain";
+import { ScenarioIcon, OpeningSceneIcon } from "@/primitive/icons";
 
 export const scenarioLibrary = {
   kind: scenarioPromptKindKey,
@@ -14,5 +14,18 @@ export const scenarioLibrary = {
   contentDescription: "The setting, universe, and permanent details to copy into a campaign.",
 } as const;
 
-export const textLibraries = [scenarioLibrary] as const;
+export const openingSceneLibrary = {
+  kind: openingScenePromptKindKey,
+  label: "Opening scene",
+  noun: "opening scene",
+  plural: "Opening scenes",
+  pluralNoun: "opening scenes",
+  icon: OpeningSceneIcon,
+  indexPath: "/library/opening-scenes",
+  newPath: "/library/opening-scenes/new",
+  editPath: "/library/opening-scenes/$promptKey/edit",
+  contentDescription: "The first message you will respond to when the campaign starts.",
+} as const;
+
+export const textLibraries = [scenarioLibrary, openingSceneLibrary] as const;
 export type TextLibrary = (typeof textLibraries)[number];

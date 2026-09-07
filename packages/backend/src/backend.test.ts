@@ -25,6 +25,7 @@ import {
 } from "#backend/storage/area";
 import type { StorageDeletion, StorageUsage } from "#backend/storage/storage";
 import { jaqueleneNarratorPromptDefinition, narratorPromptKind } from "#backend/narrator/module";
+import { openingScenePromptModule } from "#backend/opening-scene/module";
 import { scenarioPromptModule } from "#backend/scenario/module";
 import {
   createThreads,
@@ -441,6 +442,7 @@ describe("backend", () => {
     expect(first.prompts.listKinds()).toEqual([
       narratorPromptKind,
       scenarioPromptModule.definition,
+      openingScenePromptModule.definition,
     ]);
     expect(first.prompts.list({ kind: narratorPromptKind.key }).prompts).toEqual([
       {

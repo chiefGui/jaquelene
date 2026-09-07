@@ -12,12 +12,13 @@ import {
 import { useStoreState } from "@ariakit/react/store";
 import {
   CAMPAIGN_SCENARIO_MAX_UTF16_LENGTH,
-  THREAD_MESSAGE_MAX_CODE_UNITS,
+  CAMPAIGN_OPENING_SCENE_MAX_UTF16_LENGTH,
   CAMPAIGN_TITLE_MAX_UTF16_LENGTH,
   campaignSetupInputSchema,
   type CampaignSetupInput,
   narratorPromptKindKey,
   scenarioPromptKindKey,
+  openingScenePromptKindKey,
 } from "@jaquelene/domain";
 import type { Campaign } from "@jaquelene/ipc/renderer";
 import { textLayout } from "@jaquelene/ui/tokens.stylex";
@@ -29,7 +30,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStartCampaignFormValidation } from "@/feature/campaign/form";
 import { MarkdownEditor } from "@/feature/markdown/editor/markdown-editor";
 import { PromptImportControl } from "@/feature/prompt/import-control";
-import { scenarioLibrary } from "@/feature/prompt/text-libraries";
+import { scenarioLibrary, openingSceneLibrary } from "@/feature/prompt/text-libraries";
 import { useDefaultPrompt } from "@/feature/prompt/use-default-prompt";
 import { useStartCampaign, useIsStartingCampaign } from "@/feature/campaign/query";
 import { readCampaignSetupDraft, resolveCampaignSetupValues } from "@/feature/campaign/setup-draft";
@@ -44,14 +45,16 @@ import { Breadcrumb } from "@/primitive/breadcrumb";
 
 export const Route = createFileRoute("/campaigns/new")({
   loader: async ({ context }) => {
-    const [defaultSelection, defaultScenario] = await Promise.all([
+    const [defaultSelection, defaultScenario, defaultOpeningScene] = await Promise.all([
       context.queryClient.query(promptDefaultQuery(narratorPromptKindKey)),
       context.queryClient.query(promptDefaultQuery(scenarioPromptKindKey)),
+      context.queryClient.query(promptDefaultQuery(openingScenePromptKindKey)),
     ]);
     const savedNarratorKey = readCampaignSetupDraft(context.queryClient).narratorPromptKey;
     await Promise.all([
-      defaultScenario.promptKey &&
-        context.queryClient.query(promptQuery(defaultScenario.promptKey)),
+      ...[defaultScenario, defaultOpeningScene].map((selection) => {
+        if (selection.promptKey) return context.queryClient.query(promptQuery(selection.promptKey));
+      }),
       context.queryClient.infiniteQuery({
         ...promptPagesQuery(narratorPromptKindKey),
         staleTime: "static",
@@ -66,6 +69,7 @@ export const Route = createFileRoute("/campaigns/new")({
 
 function NewCampaignRoute() {
   const defaultScenario = useDefaultPrompt(scenarioPromptKindKey);
+  const defaultOpeningScene = useDefaultPrompt(openingScenePromptKindKey);
   const promptPages = useSuspenseInfiniteQuery(promptPagesQuery(narratorPromptKindKey));
   const { data: defaultSelection } = useSuspenseQuery(promptDefaultQuery(narratorPromptKindKey));
   const defaultPromptKey = defaultSelection.promptKey;
@@ -96,8 +100,11 @@ function NewCampaignRoute() {
     if (createdCampaign) {
       return createdCampaign.setup;
     }
-    return resolveCampaignSetupValues(draft, defaultScenario?.body ?? "");
-  }, [draft, defaultScenario?.body, createdCampaign]);
+    return resolveCampaignSetupValues(draft, {
+      scenario: defaultScenario?.body ?? "",
+      openingScene: defaultOpeningScene?.body ?? "",
+    });
+  }, [draft, defaultScenario?.body, defaultOpeningScene?.body, createdCampaign]);
   const form = useFormStore<CampaignSetupInput>({ values: formValues });
   const scenario = useFormValue<string>(form, form.names.scenario);
   const openingScene = useFormValue<string>(form, form.names.openingScene);
@@ -369,11 +376,12 @@ function NewCampaignRoute() {
                     render={
                       <MarkdownEditor
                         value={openingScene}
+                        toolbarActions={<PromptImportControl library={openingSceneLibrary} />}
                         onValueChange={(value) => {
-                          updateDraft({ openingScene: value });
+                          updateDraft({ openingScene: { mode: "custom", text: value } });
                           form.setValue(form.names.openingScene, value);
                         }}
-                        maxLength={THREAD_MESSAGE_MAX_CODE_UNITS}
+                        maxLength={CAMPAIGN_OPENING_SCENE_MAX_UTF16_LENGTH}
                         readOnly={submitting || Boolean(createdCampaign)}
                         placeholder="John wakes up to a knock at the door."
                       />

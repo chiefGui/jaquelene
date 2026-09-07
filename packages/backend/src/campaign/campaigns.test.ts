@@ -1,8 +1,14 @@
+import { openingScenePromptModule } from "#backend/opening-scene/module";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { CAMPAIGN_SCENARIO_MAX_LENGTH, parsePromptKey } from "@jaquelene/domain";
+import {
+  CAMPAIGN_SCENARIO_MAX_LENGTH,
+  CAMPAIGN_OPENING_SCENE_MAX_LENGTH,
+  openingScenePromptKindKey,
+  parsePromptKey,
+} from "@jaquelene/domain";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
@@ -136,6 +142,57 @@ describe("campaigns", () => {
       expect(
         threads.listMessages({ threadId: campaign.threadId, direction: "older" }).messages,
       ).toEqual([]);
+    },
+  );
+
+  it("copies saved openings independently of later library edits, deletion, and reopening", () => {
+    const path = createDatabasePath();
+    const first = openCampaigns(path);
+    const prompts = createPrompts(first.database, [narratorPromptModule, openingScenePromptModule]);
+    const opening = prompts.create({
+      kind: openingScenePromptKindKey,
+      title: "Morning",
+      body: "  Someone knocks.\n",
+    });
+    const campaign = first.campaigns.start({
+      title: "Morning",
+      openingScene: opening.body,
+      composition: [],
+    });
+    prompts.update(opening.key, { title: "Night", body: "A phone rings." });
+    prompts.setDefault(openingScenePromptKindKey, opening.key);
+    prompts.delete(opening.key);
+    expect(prompts.getDefault(openingScenePromptKindKey).promptKey).toBeNull();
+    closeDatabase(first.database);
+    const second = openCampaigns(path);
+    const messages = second.threads.listMessages({
+      threadId: campaign.threadId,
+      direction: "older",
+    }).messages;
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ author: "assistant", turnId: null, content: opening.body });
+    expect(second.database.select().from(generationTable).all()).toEqual([]);
+  });
+
+  it.each(["a", "\u{1f319}"])(
+    "enforces the 20,000-character opening limit for %s before creating campaign state",
+    (character) => {
+      const { campaigns, database, threads } = openCampaigns(createDatabasePath());
+      expect(() =>
+        campaigns.start({
+          title: "Too long",
+          openingScene: character.repeat(CAMPAIGN_OPENING_SCENE_MAX_LENGTH + 1),
+          composition: [],
+        }),
+      ).toThrow(TypeError);
+      expect(database.select().from(campaignTable).all()).toEqual([]);
+      expect(database.select().from(threadTable).all()).toEqual([]);
+      const openingScene = character.repeat(CAMPAIGN_OPENING_SCENE_MAX_LENGTH);
+      const campaign = campaigns.start({ title: "At limit", openingScene, composition: [] });
+      expect(
+        threads.listMessages({ threadId: campaign.threadId, direction: "older" }).messages[0]
+          ?.content,
+      ).toBe(openingScene);
     },
   );
 

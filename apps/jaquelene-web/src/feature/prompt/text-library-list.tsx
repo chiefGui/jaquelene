@@ -1,5 +1,5 @@
+import { PromptLibraryCreateItem, promptLibraryStyles } from "./library-layout";
 import type { TextLibrary } from "./text-libraries";
-import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PromptOrigin } from "@jaquelene/domain";
 import { Button, IconButton, Item } from "@jaquelene/ui";
@@ -50,28 +50,18 @@ export function TextLibraryList({ library }: { library: TextLibrary }) {
       <ContentPane.Viewport>
         <ContentPane.Body>
           <Item.Section aria-labelledby={`${library.kind}-heading`}>
-            <Item.SectionHeader style={styles.header}>
+            <Item.SectionHeader>
               <Item.SectionContent>
                 <Item.Heading id={`${library.kind}-heading`}>{kind.name}</Item.Heading>
-                <Item.SectionDescription>{kind.description}</Item.SectionDescription>
+                <Item.SectionDescription style={promptLibraryStyles.sectionDescription}>
+                  {kind.description}
+                </Item.SectionDescription>
               </Item.SectionContent>
-              <Button variant="ghost" render={<Link to={library.newPath} replace />}>
-                <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.5} aria-hidden="true" />
-                <Button.Label>Create</Button.Label>
-              </Button>
             </Item.SectionHeader>
             <Item.Group render={<ul />} variant="separated">
-              {entries.length === 0 && (
-                <Item.Root render={<li />} inset="none">
-                  <Button
-                    variant="ghost"
-                    style={styles.createFirst}
-                    render={<Link to={library.newPath} replace />}
-                  >
-                    Create your first {library.noun}
-                  </Button>
-                </Item.Root>
-              )}
+              <PromptLibraryCreateItem render={<Link to={library.newPath} replace />}>
+                Create {library.noun}
+              </PromptLibraryCreateItem>
               {entries.map((prompt) => (
                 <PromptLibraryItem
                   key={prompt.key}
@@ -143,8 +133,6 @@ export function TextLibraryList({ library }: { library: TextLibrary }) {
 }
 
 const styles = stylex.create({
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  createFirst: { minHeight: "5rem", outlineOffset: -3, width: "100%" },
   loadMore: { marginBlockStart: "0.75rem" },
   error: { color: colors.foregroundDanger, fontSize: tokens.fontSizeSmall },
 });

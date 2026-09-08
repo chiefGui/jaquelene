@@ -182,8 +182,30 @@ function applyThreadMessageEdit(queryClient: QueryClient, message: ThreadMessage
         "thread.message.edit.reconcile",
         new Error(`Could not apply edited message "${message.id}" to its thread.`),
       );
-      return queryClient.resetQueries({ queryKey: query.queryKey, exact: true });
+      return refreshLatestThreadHistory(queryClient, message.threadId);
   }
+}
+
+async function refreshLatestThreadHistory(queryClient: QueryClient, threadId: string) {
+  const queryKey = threadMessagesQuery(threadId).queryKey;
+  const query = queryClient.getQueryCache().find<ThreadQueryData>({
+    queryKey,
+    exact: true,
+  });
+
+  if (!query) {
+    return;
+  }
+
+  await queryClient.cancelQueries({ queryKey, exact: true });
+
+  return query.fetch(undefined, {
+    cancelRefetch: true,
+    initialPromise: listThreadMessages({
+      threadId,
+      direction: ThreadMessagePageDirection.Older,
+    }).then((page) => createLatestThreadHistory(page, threadId)),
+  });
 }
 
 function refreshCampaignUsage(queryClient: QueryClient) {
@@ -212,18 +234,11 @@ export function retainLoadedThreadMessages(
 
 export function useReturnToLatestThreadMessages(threadId: string) {
   const queryClient = useQueryClient();
-  const queryKey = threadMessagesQuery(threadId).queryKey;
 
   return useMutation({
     ...ipcMutationOptions,
     mutationKey: [...threadQueryKey, threadId, "return-to-latest"],
-    mutationFn: () => listThreadMessages({ threadId, direction: ThreadMessagePageDirection.Older }),
-    onSuccess(page) {
-      queryClient.setQueryData<ThreadQueryData>(
-        queryKey,
-        createLatestThreadHistory(page, threadId),
-      );
-    },
+    mutationFn: () => refreshLatestThreadHistory(queryClient, threadId),
   });
 }
 
@@ -284,8 +299,9 @@ export function installThreadReconciliation(queryClient: QueryClient) {
     if (updateCampaignActivity(queryClient, threadActivity, { allowRewind: true })) {
       refreshCampaignPages(queryClient);
     }
+
     runReconciliation("thread.history.delete.reconcile", () =>
-      queryClient.resetQueries({ queryKey: threadMessagesQuery(threadId).queryKey, exact: true }),
+      refreshLatestThreadHistory(queryClient, threadId),
     );
   });
   const stopMessageEditedListener = onMessageEdited((message) => {

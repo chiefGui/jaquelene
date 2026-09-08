@@ -191,19 +191,23 @@ const styles = stylex.create({
   },
   role: {
     color: colors.foregroundSecondary,
+    cursor: "text",
     fontSize: tokens.fontSizeXXSmall,
     fontWeight: 600,
     letterSpacing: "0.06em",
     lineHeight: tokens.lineHeightXXSmall,
     textTransform: "uppercase",
+    userSelect: "text",
   },
   content: {
+    cursor: "text",
     fontFamily: tokens.fontMono,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightBase,
     margin: 0,
     minWidth: 0,
     overflowWrap: "anywhere",
+    userSelect: "text",
     whiteSpace: "pre-wrap",
   },
 });

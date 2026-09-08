@@ -3,11 +3,8 @@ import { ClipboardWriteError, createClipboard } from "./clipboard";
 
 describe("clipboard writing", () => {
   it("starts immediately, preserves whitespace, and completes only after the platform write", async () => {
-    let complete!: () => void;
-    const platformWrite = new Promise<void>((resolve) => {
-      complete = resolve;
-    });
-    const writeText = vi.fn(() => platformWrite);
+    const platformWrite = Promise.withResolvers<void>();
+    const writeText = vi.fn(() => platformWrite.promise);
     const clipboard = createClipboard(() => ({ writeText }));
     const text = "  First line\n\tSecond line\n";
     let finished = false;
@@ -18,7 +15,7 @@ describe("clipboard writing", () => {
     expect(writeText).toHaveBeenCalledWith(text);
     await Promise.resolve();
     expect(finished).toBe(false);
-    complete();
+    platformWrite.resolve();
     await writing;
     expect(finished).toBe(true);
   });

@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { clipboard } from "@/clipboard/clipboard";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 
-type CopyButtonProps = Omit<ButtonProps, "children" | "onClick" | "aria-label"> & {
+type CopyButtonProps = Omit<ButtonProps, "children" | "onClick"> & {
   text: string;
   onCopied?: () => void;
 };
@@ -17,7 +17,7 @@ export function CopyButton(props: CopyButtonProps) {
 }
 
 function CopyTextButton({ text, onCopied, disabled, style, ...props }: CopyButtonProps) {
-  const { mutate, status, reset } = useMutation({
+  const { mutate, status, error, reset } = useMutation({
     mutationFn: () => clipboard.writeText(text),
     networkMode: "always",
     retry: false,
@@ -43,7 +43,7 @@ function CopyTextButton({ text, onCopied, disabled, style, ...props }: CopyButto
   }
   if (status === "error") {
     label = "Retry copy";
-    announcement = "Couldn't copy to clipboard. Try again.";
+    announcement = error.message;
   }
 
   return (
@@ -56,7 +56,6 @@ function CopyTextButton({ text, onCopied, disabled, style, ...props }: CopyButto
         disabled={disabled || status === "pending"}
         accessibleWhenDisabled
         aria-busy={status === "pending"}
-        aria-label={label}
         onClick={() => mutate()}
         style={[styles.button, style]}
       >

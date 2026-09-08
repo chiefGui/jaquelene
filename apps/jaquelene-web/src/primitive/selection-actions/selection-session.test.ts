@@ -16,9 +16,9 @@ describe("selection action sessions", () => {
   it("opens for keyboard selection and closes when selection is cleared", () => {
     const session = createSelectionSession();
     const selected = selection();
-    session.update(selected);
+    session.finish(selected);
     expect(session.getSnapshot()?.selection).toBe(selected);
-    session.update(null);
+    session.finish(null);
     expect(session.getSnapshot()).toBeNull();
   });
 
@@ -26,8 +26,8 @@ describe("selection action sessions", () => {
     const session = createSelectionSession();
     const initial = selection();
     const final = selection({ text: "A longer selection" });
+    session.finish(initial);
     session.begin();
-    session.update(initial);
     expect(session.getSnapshot()).toBeNull();
     session.finish(final);
     expect(session.getSnapshot()?.selection).toBe(final);
@@ -36,18 +36,18 @@ describe("selection action sessions", () => {
   it("keeps Escape and completed actions dismissed until the selection changes", () => {
     const session = createSelectionSession();
     const selected = selection();
-    session.update(selected);
+    session.finish(selected);
     session.dismiss();
-    session.update({ ...selected });
+    session.finish({ ...selected });
     expect(session.getSnapshot()).toBeNull();
-    session.update({ ...selected, focusOffset: 14, text: "Selected text!" });
+    session.finish({ ...selected, focusOffset: 14, text: "Selected text!" });
     expect(session.getSnapshot()?.selection.text).toBe("Selected text!");
   });
 
   it("reopens the same text after a new selection gesture with a fresh action state", () => {
     const session = createSelectionSession();
     const selected = selection();
-    session.update(selected);
+    session.finish(selected);
     const originalId = session.getSnapshot()?.id;
     session.dismiss();
     session.begin();
@@ -59,9 +59,9 @@ describe("selection action sessions", () => {
   it("distinguishes identical text selected at different positions", () => {
     const session = createSelectionSession();
     const selected = selection();
-    session.update(selected);
+    session.finish(selected);
     session.dismiss();
-    session.update({ ...selected, anchorOffset: 20, focusOffset: 33 });
+    session.finish({ ...selected, anchorOffset: 20, focusOffset: 33 });
     expect(session.getSnapshot()).not.toBeNull();
   });
 
@@ -70,9 +70,9 @@ describe("selection action sessions", () => {
     const listener = vi.fn();
     const unsubscribe = session.subscribe(listener);
     const selected = selection();
-    session.update(selected);
+    session.finish(selected);
     const original = session.getSnapshot();
-    session.update({ ...selected });
+    session.finish({ ...selected });
     expect(session.getSnapshot()).toBe(original);
     expect(listener).toHaveBeenCalledOnce();
     unsubscribe();

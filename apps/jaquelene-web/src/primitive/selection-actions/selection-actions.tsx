@@ -58,48 +58,36 @@ export function SelectionActions({ children, label, actions }: SelectionActionsP
     const doc = scope.ownerDocument;
     const win = doc.defaultView;
     if (!win) return;
-    const clips = clippingAncestors(scope);
-    clipsRef.current = clips;
+    clipsRef.current = clippingAncestors(scope);
+    const events = new AbortController();
+    const options = { signal: events.signal };
     let frame = 0;
     let pointerSelecting = false;
 
-    function insidePopup(target: EventTarget | null) {
-      return target instanceof win!.Node && !!popupRef.current?.contains(target);
-    }
+    const insidePopup = (target: EventTarget | null) =>
+      target instanceof win.Node && !!popupRef.current?.contains(target);
 
-    function read() {
+    const read = () => {
       frame = 0;
       if (!doc.hasFocus() || pointerSelecting || insidePopup(doc.activeElement)) return;
-      const next = readSelection(scope!);
-      if (next) {
-        if (!visibleSelectionAnchor(next, scope!, clips)) {
-          session.update(next);
-          session.dismiss();
-          return;
-        }
-      }
-      session.finish(next);
+      session.finish(readSelection(scope));
       popover.render();
-    }
+    };
 
-    function scheduleRead() {
-      win!.cancelAnimationFrame(frame);
-      frame = win!.requestAnimationFrame(read);
-    }
+    const scheduleRead = () => {
+      win.cancelAnimationFrame(frame);
+      frame = win.requestAnimationFrame(read);
+    };
 
-    function onPointerDown(event: PointerEvent) {
+    const onPointerDown = (event: PointerEvent) => {
       if (insidePopup(event.target)) return;
-      if (
-        event.button === 0 &&
-        event.target instanceof win!.Node &&
-        scope!.contains(event.target)
-      ) {
+      if (event.button === 0 && event.target instanceof win.Node && scope.contains(event.target)) {
         pointerSelecting = true;
         session.begin();
       } else {
         session.dismiss();
       }
-    }
+    };
 
     function onPointerUp() {
       if (!pointerSelecting) return;
@@ -113,7 +101,7 @@ export function SelectionActions({ children, label, actions }: SelectionActionsP
         ?.focus();
     }
 
-    function onKeyDown(event: KeyboardEvent) {
+    const onKeyDown = (event: KeyboardEvent) => {
       if (insidePopup(event.target)) return;
       if (
         event.target === scope &&
@@ -122,35 +110,30 @@ export function SelectionActions({ children, label, actions }: SelectionActionsP
         event.key.toLowerCase() === "a"
       ) {
         event.preventDefault();
-        doc.getSelection()?.selectAllChildren(scope!);
+        doc.getSelection()?.selectAllChildren(scope);
         return;
       }
       if (event.key === "F10" && event.altKey && session.getSnapshot()) {
         event.preventDefault();
         focusActions();
       }
-    }
+    };
 
-    function onBlur() {
-      win!.cancelAnimationFrame(frame);
+    const onBlur = () => {
+      win.cancelAnimationFrame(frame);
       pointerSelecting = false;
       session.finish(null);
-    }
+    };
 
-    doc.addEventListener("selectionchange", scheduleRead);
-    doc.addEventListener("pointerdown", onPointerDown);
-    doc.addEventListener("pointerup", onPointerUp);
-    doc.addEventListener("pointercancel", onBlur);
-    doc.addEventListener("keydown", onKeyDown);
-    win.addEventListener("blur", onBlur);
+    doc.addEventListener("selectionchange", scheduleRead, options);
+    doc.addEventListener("pointerdown", onPointerDown, options);
+    doc.addEventListener("pointerup", onPointerUp, options);
+    doc.addEventListener("pointercancel", onBlur, options);
+    doc.addEventListener("keydown", onKeyDown, options);
+    win.addEventListener("blur", onBlur, options);
     return () => {
+      events.abort();
       win.cancelAnimationFrame(frame);
-      doc.removeEventListener("selectionchange", scheduleRead);
-      doc.removeEventListener("pointerdown", onPointerDown);
-      doc.removeEventListener("pointerup", onPointerUp);
-      doc.removeEventListener("pointercancel", onBlur);
-      doc.removeEventListener("keydown", onKeyDown);
-      win.removeEventListener("blur", onBlur);
     };
   }, [popover, session]);
 

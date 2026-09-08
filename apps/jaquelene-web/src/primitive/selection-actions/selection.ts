@@ -55,7 +55,6 @@ export function selectionAnchor(selection: SelectedText): DOMRect | null {
   if (!selection.range.commonAncestorContainer.isConnected) return null;
   const caret = selection.focusRange.getBoundingClientRect();
   if (caret.height > 0) return caret;
-  // Element-boundary selections (including Select All) may have no caret box.
   const lines = selection.range.getClientRects();
   if (selection.backward) return lines[0] ?? null;
   return lines[lines.length - 1] ?? null;

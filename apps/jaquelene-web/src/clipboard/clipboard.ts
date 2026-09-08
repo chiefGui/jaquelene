@@ -17,7 +17,6 @@ export function createClipboard(getWriter: () => ClipboardWriter | undefined): C
         if (!writer) {
           throw new Error("Clipboard writing is unavailable.");
         }
-        // Start the write in the user action, before yielding user activation.
         await writer.writeText(text);
       } catch (cause) {
         throw new ClipboardWriteError(cause);

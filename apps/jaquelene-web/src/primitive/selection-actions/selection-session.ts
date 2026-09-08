@@ -20,29 +20,20 @@ function sameSelection(left: TextSelection | null, right: TextSelection | null) 
 
 export function createSelectionSession<Selection extends TextSelection>() {
   let current: Selection | null = null;
-  let dismissed: Selection | null = null;
-  let selecting = false;
+  let dismissed = false;
   let revision = 0;
   let snapshot: Readonly<{ id: number; selection: Selection }> | null = null;
   const listeners = new Set<() => void>();
 
-  function publish() {
-    if (selecting || !current || sameSelection(current, dismissed)) {
+  function publish(selection: Selection | null) {
+    if (!selection) {
       if (!snapshot) return;
       snapshot = null;
     } else {
-      if (snapshot?.selection === current) return;
-      snapshot = { id: ++revision, selection: current };
+      if (snapshot?.selection === selection) return;
+      snapshot = { id: ++revision, selection };
     }
     for (const listener of listeners) listener();
-  }
-
-  function update(next: Selection | null) {
-    if (!sameSelection(current, next)) {
-      current = next;
-      dismissed = null;
-    }
-    publish();
   }
 
   return {
@@ -53,19 +44,20 @@ export function createSelectionSession<Selection extends TextSelection>() {
         listeners.delete(listener);
       };
     },
-    update,
     begin() {
-      selecting = true;
-      dismissed = null;
-      publish();
+      dismissed = false;
+      publish(null);
     },
     finish(next: Selection | null) {
-      selecting = false;
-      update(next);
+      if (!sameSelection(current, next)) {
+        current = next;
+        dismissed = false;
+      }
+      if (!dismissed) publish(current);
     },
     dismiss() {
-      dismissed = current;
-      publish();
+      dismissed = true;
+      publish(null);
     },
   };
 }

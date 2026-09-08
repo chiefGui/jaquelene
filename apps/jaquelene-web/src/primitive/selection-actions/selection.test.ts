@@ -28,7 +28,7 @@ function selectionSource() {
       createRange: () => ({ setStart() {}, collapse() {} }),
     },
   };
-  return { scope: scope as unknown as HTMLElement, selection, anchor, focus, range };
+  return { scope: scope as unknown as HTMLElement, selection, anchor, focus };
 }
 
 describe("reading a scoped text selection", () => {
@@ -37,17 +37,14 @@ describe("reading a scoped text selection", () => {
     expect(readSelection(scope)?.text).toBe("  one\n\ttwo  ");
   });
 
-  it("rejects a selection extending outside the region", () => {
-    const { scope, selection } = selectionSource();
-    selection.focusNode = {};
-    expect(readSelection(scope)).toBeNull();
-  });
-
-  it("rejects a selection starting outside the region", () => {
-    const { scope, selection } = selectionSource();
-    selection.anchorNode = {};
-    expect(readSelection(scope)).toBeNull();
-  });
+  it.each(["anchorNode", "focusNode"] as const)(
+    "rejects a selection with %s outside the region",
+    (endpoint) => {
+      const { scope, selection } = selectionSource();
+      selection[endpoint] = {};
+      expect(readSelection(scope)).toBeNull();
+    },
+  );
 
   it("leaves editable selections to their own controls", () => {
     const { scope, anchor } = selectionSource();

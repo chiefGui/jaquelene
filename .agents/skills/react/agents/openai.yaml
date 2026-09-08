@@ -1,0 +1,6 @@
+﻿interface:
+  display_name: "React"
+  short_description: "React architecture & best practices"
+
+policy:
+  allow_implicit_invocation: false

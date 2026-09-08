@@ -1,0 +1,6 @@
+﻿interface:
+  display_name: "Folder Structure"
+  short_description: "Folder structure & best practices"
+
+policy:
+  allow_implicit_invocation: false

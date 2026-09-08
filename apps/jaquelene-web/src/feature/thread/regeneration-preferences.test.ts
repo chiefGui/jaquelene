@@ -8,6 +8,11 @@ import {
   defaultRegenerationModelQuery,
   setDefaultRegenerationModelMutationOptions,
 } from "./regeneration-preferences";
+import {
+  readSessionRegenerationModel,
+  rememberRegenerationModel,
+  resolveRegenerationModel,
+} from "./regeneration-model";
 
 const previousModel: ModelSelection = {
   providerId: "provider-a",
@@ -65,6 +70,56 @@ describe("default regeneration model mutation", () => {
       );
       await expect(mutation.mutate(nextModel)).rejects.toBe(error);
       expect(client.getQueryData(defaultRegenerationModelQuery.queryKey)).toEqual(previous);
+      client.clear();
+    },
+  );
+
+  it.each(["success", "failure"])(
+    "keeps inline choices independent of a default save ending in %s",
+    async (outcome) => {
+      const client = new QueryClient();
+      const save = Promise.withResolvers<ModelSelection>();
+      preferences.setDefaultModel.mockReturnValue(save.promise);
+      client.setQueryData(defaultRegenerationModelQuery.queryKey, null);
+      const chooseModel = () =>
+        resolveRegenerationModel(
+          readSessionRegenerationModel(client),
+          client.getQueryData<ModelSelection | null>(defaultRegenerationModelQuery.queryKey) ??
+            null,
+          client.isMutating() > 0,
+          (model) => rememberRegenerationModel(client, model),
+        );
+      chooseModel().select(previousModel);
+      expect(client.getQueryData(defaultRegenerationModelQuery.queryKey)).toBeNull();
+      expect(preferences.setDefaultModel).not.toHaveBeenCalled();
+
+      const mutation = new MutationObserver(
+        client,
+        setDefaultRegenerationModelMutationOptions(client),
+      );
+      const pending = mutation.mutate(nextModel);
+      await vi.waitFor(() =>
+        expect(client.getQueryData(defaultRegenerationModelQuery.queryKey)).toEqual(nextModel),
+      );
+      const duringSave = chooseModel();
+      expect(duringSave.configuration).toEqual({ model: previousModel });
+      expect(duringSave.pending).toBe(false);
+      const newerChoice = { ...previousModel, modelId: "model-c", name: "Model C" };
+      duringSave.select(newerChoice);
+
+      if (outcome === "success") {
+        save.resolve(nextModel);
+        await expect(pending).resolves.toEqual(nextModel);
+        expect(client.getQueryData(defaultRegenerationModelQuery.queryKey)).toEqual(nextModel);
+      } else {
+        const error = new Error("Could not save.");
+        save.reject(error);
+        await expect(pending).rejects.toBe(error);
+        expect(client.getQueryData(defaultRegenerationModelQuery.queryKey)).toBeNull();
+      }
+
+      expect(chooseModel().configuration).toEqual({ model: newerChoice });
+      expect(preferences.setDefaultModel).toHaveBeenCalledExactlyOnceWith(nextModel);
       client.clear();
     },
   );

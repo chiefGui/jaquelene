@@ -13,6 +13,7 @@ import {
   type RefObject,
 } from "react";
 import type { SubmitTurnVariables } from "./query";
+import type { RegenerationModelChoice } from "./regeneration-model";
 import { threadLayout } from "./thread-layout.stylex";
 import { PendingThreadMessageRow, ThreadMessageRow } from "./thread-message";
 import type { ThreadMessageEditSession, ThreadMessageEditorProps } from "./thread-message-editor";
@@ -67,7 +68,7 @@ type ThreadTimelineProps = Readonly<{
     configuration: ModelConfigurationSelection,
     instructions?: string,
   ) => Promise<boolean>;
-  regenerationConfiguration: ModelConfigurationSelection | null;
+  regenerationModel: RegenerationModelChoice;
   retryReply: (turnId: string) => Promise<void>;
 }>;
 
@@ -96,7 +97,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   deleteFromUserMessage,
   loadOlder,
   regenerateResponse,
-  regenerationConfiguration,
+  regenerationModel,
   retryReply,
 }: ThreadTimelineProps) {
   const historyControls = useRef<HTMLDivElement>(null);
@@ -408,7 +409,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
                   regenerationRequestPending={regenerationRequestPending}
                   responseActionsDisabled={responseActionsDisabled}
                   regenerateResponse={regenerateResponse}
-                  regenerationConfiguration={regenerationConfiguration}
+                  regenerationModel={regenerationModel}
                   retryPending={retryPending}
                   retryReply={retryReply}
                   editor={editor}

@@ -8,6 +8,7 @@
     "./confirm-dialog": "./src/primitive/confirm-dialog.tsx",
     "./control.stylex": "./src/primitive/control.stylex.ts",
     "./dialog": "./src/primitive/dialog.tsx",
+    "./edge-fade.stylex": "./src/primitive/edge-fade.stylex.ts",
     "./menu": "./src/primitive/menu.tsx",
     "./motion": "./src/primitive/motion.tsx",
     "./popover": "./src/primitive/popover.tsx",

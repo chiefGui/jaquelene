@@ -2,6 +2,7 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
 import { colors, radii, tokens } from "@jaquelene/ui/tokens.stylex";
 import { tags } from "@lezer/highlight";
+import { edgeFadeMasks } from "@jaquelene/ui/edge-fade.stylex";
 import { markdownEditorSizing } from "./markdown-editor-sizing.stylex";
 
 const editorTheme = EditorView.theme(
@@ -14,12 +15,15 @@ const editorTheme = EditorView.theme(
       outline: "none",
     },
     ".cm-scroller": {
+      "--edge-fade-size": markdownEditorSizing.padding,
       fontFamily: "inherit",
       fontSize: tokens.fontSizeSmall,
       lineHeight: tokens.lineHeightSmall,
       maxHeight: markdownEditorSizing.maxHeight,
       overflow: "auto",
       scrollbarGutter: "stable",
+      maskImage: edgeFadeMasks.both,
+      maskComposite: "intersect",
     },
     ".cm-content": {
       caretColor: colors.foregroundAccent,

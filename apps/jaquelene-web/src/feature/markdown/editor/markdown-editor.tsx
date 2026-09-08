@@ -5,6 +5,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { formatPluralizedCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import { control } from "@jaquelene/ui/control.stylex";
+import { edgeFade } from "@jaquelene/ui/edge-fade.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -305,7 +306,7 @@ function MarkdownEditorPreview({
       {...props}
       role="region"
       aria-label={ariaLabel ?? "Markdown preview"}
-      {...stylex.props(styles.preview, style, stylex.defaultMarker())}
+      {...stylex.props(styles.preview, edgeFade.both, style, stylex.defaultMarker())}
     >
       <Suspense fallback={fallback}>
         <MarkdownPreview content={deferredValue} />
@@ -422,9 +423,6 @@ const styles = stylex.create({
   },
   toolbar: {
     alignItems: "center",
-    borderBottomColor: colors.borderDefault,
-    borderBottomStyle: "solid",
-    borderBottomWidth: 1,
     display: "flex",
     flexShrink: 0,
     gap: "0.125rem",
@@ -434,6 +432,7 @@ const styles = stylex.create({
     marginLeft: "auto",
   },
   preview: {
+    "--edge-fade-size": markdownEditorSizing.padding,
     boxSizing: "border-box",
     flexGrow: 1,
     fontSize: tokens.fontSizeSmall,
@@ -446,9 +445,6 @@ const styles = stylex.create({
   },
   status: {
     alignItems: "center",
-    borderTopColor: colors.borderDefault,
-    borderTopStyle: "solid",
-    borderTopWidth: 1,
     color: colors.foregroundSecondary,
     display: "flex",
     flexShrink: 0,

@@ -22,6 +22,7 @@ import {
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { Composer } from "@/feature/composer/composer";
+import { ComposerSkills } from "@/feature/composer/composer-skills";
 import { scrollFade } from "@/primitive/scroll-fade.stylex";
 import { useScrollFade } from "@/hook/use-scroll-fade";
 import {
@@ -240,41 +241,44 @@ const ThreadComposer = memo(function ThreadComposer({
     }
   }
 
+  let errorDescriptionId: string | undefined;
+  if (sendError) {
+    errorDescriptionId = sendErrorId;
+  }
+
   return (
     <Composer pending={generationPending} onSubmit={sendMessage}>
-      <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
-      <Composer.Input
-        id={composerInputId}
-        value={draft.content}
-        maxLength={messageMaxCodeUnits}
-        aria-describedby={sendError ? sendErrorId : undefined}
-        readOnly={interactionDisabled}
-        onChange={(event) => {
-          setDraft(event.currentTarget.value);
-          setSendError(null);
-        }}
-        onKeyDown={handleComposerKeyDown}
-      />
-      <Composer.Footer>
-        <Composer.Controls>
-          {composerControls}
-          {sendError ? (
-            <Composer.Status id={sendErrorId} role="alert" tone="danger">
-              {sendError}
-            </Composer.Status>
-          ) : null}
-        </Composer.Controls>
-        <Composer.Submit
-          pending={generationPending}
-          disabled={
-            operationPending ||
-            configurationPending ||
-            interactionDisabled ||
-            !configuration ||
-            !draft.content.trim()
-          }
+      <Composer.Toolbar>
+        <ComposerSkills disabled={operationPending || interactionDisabled} />
+      </Composer.Toolbar>
+      <Composer.Surface>
+        <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
+        <Composer.Input
+          id={composerInputId}
+          value={draft.content}
+          maxLength={messageMaxCodeUnits}
+          aria-describedby={errorDescriptionId}
+          readOnly={interactionDisabled}
+          onChange={(event) => {
+            setDraft(event.currentTarget.value);
+            setSendError(null);
+          }}
+          onKeyDown={handleComposerKeyDown}
         />
-      </Composer.Footer>
+        <Composer.Footer>
+          <Composer.Controls>
+            {composerControls}
+            {sendError && (
+              <Composer.Status id={sendErrorId} role="alert" tone="danger">
+                {sendError}
+              </Composer.Status>
+            )}
+          </Composer.Controls>
+          <Composer.Submit
+            disabled={submissionBlocked || !configuration || !draft.content.trim()}
+          />
+        </Composer.Footer>
+      </Composer.Surface>
     </Composer>
   );
 });

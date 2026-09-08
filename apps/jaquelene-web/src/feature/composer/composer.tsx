@@ -1,17 +1,44 @@
 import ArrowUp02Icon from "@hugeicons/core-free-icons/ArrowUp02Icon";
 import Loading02Icon from "@hugeicons/core-free-icons/Loading02Icon";
+import { useTooltipStore } from "@ariakit/react/tooltip";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button, type ButtonProps } from "@jaquelene/ui";
 import { useReducedMotion } from "@jaquelene/ui/motion";
+import { Toolbar, type ToolbarProps } from "@jaquelene/ui/toolbar";
+import { Tooltip } from "@jaquelene/ui/tooltip";
 import { colors, radii, shadows, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import type { ComponentProps } from "react";
+import {
+  createContext,
+  useContext,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type ComponentProps,
+  type RefObject,
+} from "react";
 import { Backlight } from "@/primitive/backlight/backlight";
 
 type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
   style?: StyleXStyles;
 };
+
+type ComposerContextValue = Readonly<{
+  pending: boolean;
+  input: RefObject<HTMLTextAreaElement | null>;
+}>;
+
+const ComposerContext = createContext<ComposerContextValue | null>(null);
+
+export function useComposer() {
+  const composer = useContext(ComposerContext);
+  if (!composer) {
+    throw new Error("Composer components must be used inside Composer.");
+  }
+  return composer;
+}
 
 function ComposerRoot({
   "aria-busy": ariaBusy,
@@ -20,15 +47,112 @@ function ComposerRoot({
   style,
   ...props
 }: StyleableProps<ComponentProps<"form">> & { pending?: boolean }) {
+  const input = useRef<HTMLTextAreaElement>(null);
+  const context = useMemo(() => ({ pending, input }), [pending]);
+
   return (
-    <form
-      {...props}
-      aria-busy={ariaBusy ?? (pending || undefined)}
-      {...stylex.props(styles.root, style, stylex.defaultMarker())}
-    >
+    <ComposerContext.Provider value={context}>
+      <form
+        {...props}
+        aria-busy={ariaBusy ?? (pending || undefined)}
+        {...stylex.props(styles.root, style, stylex.defaultMarker())}
+      >
+        {children}
+      </form>
+    </ComposerContext.Provider>
+  );
+}
+
+function ComposerSurface({ children, style, ...props }: StyleableProps<ComponentProps<"div">>) {
+  const { pending } = useComposer();
+  return (
+    <div {...props} {...stylex.props(styles.chrome, styles.surface, style, stylex.defaultMarker())}>
       <Backlight active={pending} />
       {children}
-    </form>
+    </div>
+  );
+}
+
+function ComposerToolbar({
+  "aria-label": ariaLabel = "Composer actions",
+  ref,
+  style,
+  ...props
+}: Omit<ToolbarProps, "orientation">) {
+  const { pending, input } = useComposer();
+  const toolbar = useRef<HTMLDivElement>(null);
+  const reducedMotion = useReducedMotion();
+  useImperativeHandle(ref, () => toolbar.current!, []);
+
+  useLayoutEffect(() => {
+    const element = toolbar.current;
+    if (!element) return;
+    if (pending && element.contains(element.ownerDocument.activeElement)) {
+      input.current?.focus({ preventScroll: true });
+    }
+    element.inert = pending;
+  }, [input, pending]);
+
+  return (
+    <Toolbar.Root
+      {...props}
+      ref={toolbar}
+      aria-label={ariaLabel}
+      aria-hidden={pending || undefined}
+      orientation="horizontal"
+      style={[
+        styles.chrome,
+        styles.toolbar,
+        pending && styles.toolbarHidden,
+        reducedMotion && styles.toolbarReducedMotion,
+        style,
+      ]}
+    />
+  );
+}
+
+type ComposerToolbarActionProps = Omit<
+  ComponentProps<typeof Toolbar.Item>,
+  "aria-label" | "children" | "className" | "render" | "style" | "type"
+> & {
+  label: string;
+  render: NonNullable<ComponentProps<typeof Toolbar.Item>["render"]>;
+  tooltipDisabled?: boolean;
+};
+
+function ComposerToolbarAction({
+  label,
+  render,
+  tooltipDisabled = false,
+  ...props
+}: ComposerToolbarActionProps) {
+  const { pending } = useComposer();
+  const tooltip = useTooltipStore();
+  const tooltipUnavailable = pending || props.disabled || tooltipDisabled;
+
+  useLayoutEffect(() => {
+    if (tooltipUnavailable) tooltip.hide();
+  }, [tooltip, tooltipUnavailable]);
+
+  return (
+    <Tooltip.Root store={tooltip}>
+      <Tooltip.Anchor
+        showOnHover={!tooltipUnavailable}
+        onFocusVisible={(event) => {
+          if (tooltipUnavailable) event.preventDefault();
+        }}
+        render={
+          <Toolbar.Item
+            {...props}
+            type="button"
+            aria-label={label}
+            accessibleWhenDisabled
+            render={render}
+          />
+        }
+      />
+      <Tooltip>{label}</Tooltip>
+    </Tooltip.Root>
   );
 }
 
@@ -39,13 +163,18 @@ function ComposerLabel({ style, ...props }: StyleableProps<ComponentProps<"label
 function ComposerInput({
   enterKeyHint = "send",
   placeholder = "Write a message…",
+  ref,
   rows = 2,
   style,
   ...props
 }: StyleableProps<ComponentProps<"textarea">>) {
+  const { input } = useComposer();
+  useImperativeHandle(ref, () => input.current!, [input]);
+
   return (
     <textarea
       {...props}
+      ref={input}
       enterKeyHint={enterKeyHint}
       placeholder={placeholder}
       rows={rows}
@@ -83,23 +212,29 @@ function ComposerStatus({
 function ComposerSubmit({
   "aria-label": ariaLabel,
   disabled,
-  pending = false,
   style,
   ...props
-}: Omit<ButtonProps, "children" | "type"> & { pending?: boolean }) {
+}: Omit<ButtonProps, "children" | "type">) {
+  const { pending } = useComposer();
   const reducedMotion = useReducedMotion();
+  let label = "Send message";
+  let icon = ArrowUp02Icon;
+  if (pending) {
+    label = "Generating reply";
+    icon = Loading02Icon;
+  }
 
   return (
     <Button
       {...props}
       type="submit"
       aria-busy={pending || undefined}
-      aria-label={ariaLabel ?? (pending ? "Generating reply" : "Send message")}
+      aria-label={ariaLabel ?? label}
       disabled={pending || disabled === true}
       style={[styles.submit, style]}
     >
       <HugeiconsIcon
-        icon={pending ? Loading02Icon : ArrowUp02Icon}
+        icon={icon}
         size={17}
         strokeWidth={1.8}
         aria-hidden="true"
@@ -110,6 +245,9 @@ function ComposerSubmit({
 }
 
 export const Composer = Object.assign(ComposerRoot, {
+  Surface: ComposerSurface,
+  Toolbar: ComposerToolbar,
+  ToolbarAction: ComposerToolbarAction,
   Label: ComposerLabel,
   Input: ComposerInput,
   Footer: ComposerFooter,
@@ -126,20 +264,59 @@ const spin = stylex.keyframes({
 
 const styles = stylex.create({
   root: {
+    display: "flex",
+    flexDirection: "column",
+    isolation: "isolate",
+    position: "relative",
+  },
+  toolbar: {
+    backdropFilter: "blur(0.75rem)",
+    backgroundColor: `oklch(from ${colors.backgroundSurfaceRaised} calc(l * 0.98) c h / 0.97)`,
+    backgroundImage:
+      "linear-gradient(to top, rgb(0 0 0 / 20%), rgb(0 0 0 / 6%) 0.2rem, transparent 0.5rem)",
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 0,
+    marginInline: "0.75rem",
+    minHeight: tokens.controlHeight,
+    opacity: 1,
+    paddingBlock: "0.375rem",
+    paddingInline: "0.5rem",
+    position: "relative",
+    transform: "translateY(0)",
+    transitionDuration: "0.12s",
+    transitionProperty: "opacity, transform",
+    transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+    zIndex: 0,
+  },
+  toolbarHidden: {
+    opacity: 0,
+    pointerEvents: "none",
+    transform: "translateY(0.5rem)",
+  },
+  toolbarReducedMotion: {
+    transform: "none",
+    transitionDuration: "0s",
+  },
+  chrome: {
     backgroundColor: colors.backgroundSurfaceRaised,
-    borderColor: {
-      default: colors.borderDefault,
-      ":focus-within": colors.borderFocus,
-    },
+    borderColor: colors.borderDefault,
     borderRadius: radii.control,
     borderStyle: "solid",
     borderWidth: 1,
     boxShadow: shadows.control,
+  },
+  surface: {
+    borderColor: {
+      default: colors.borderDefault,
+      ":focus-within": colors.borderFocus,
+    },
     display: "flex",
     flexDirection: "column",
     isolation: "isolate",
     padding: "0.375rem",
     position: "relative",
+    zIndex: 1,
   },
   label: {
     clip: "rect(0 0 0 0)",

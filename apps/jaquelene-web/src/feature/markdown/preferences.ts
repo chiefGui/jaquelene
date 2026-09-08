@@ -37,25 +37,20 @@ export const markdownEditorPreferencesQuery = queryOptions({
   queryFn: getPreferences,
 });
 
-function requirePreferences(queryClient: QueryClient) {
-  const values = queryClient.getQueryData(markdownEditorPreferencesQuery.queryKey);
-  if (!values) {
-    throw new Error("Markdown editor preferences are unavailable.");
-  }
-  return values;
-}
-
 function updateField<Key extends keyof Values>(
   queryClient: QueryClient,
   key: Key,
   value: Values[Key],
 ) {
-  queryClient.setQueryData(markdownEditorPreferencesQuery.queryKey, (previous) => {
-    if (!previous) {
-      throw new Error("Markdown editor preferences are unavailable.");
-    }
-    return { ...previous, [key]: value };
+  const previous = queryClient.getQueryData(markdownEditorPreferencesQuery.queryKey);
+  if (!previous) {
+    throw new Error("Markdown editor preferences are unavailable.");
+  }
+  queryClient.setQueryData(markdownEditorPreferencesQuery.queryKey, {
+    ...previous,
+    [key]: value,
   });
+  return previous[key];
 }
 
 export function markdownEditorPreferenceMutationOptions<Key extends keyof Values>(
@@ -73,8 +68,7 @@ export function markdownEditorPreferenceMutationOptions<Key extends keyof Values
         queryKey: markdownEditorPreferencesQuery.queryKey,
         exact: true,
       });
-      const previous = requirePreferences(queryClient)[key];
-      updateField(queryClient, key, value);
+      const previous = updateField(queryClient, key, value);
       return { previous };
     },
     onSuccess(value) {

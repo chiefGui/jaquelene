@@ -53,17 +53,19 @@ describe("storage lifecycle", () => {
       const queryClient = client();
       const save = deferred();
       const reconcile = deferred();
+      const onSettled = vi.fn(() => reconcile.promise);
       const write = new MutationObserver(queryClient, {
         meta: appDataStorageMeta,
         mutationFn: () => save.promise,
-        onSettled: () => reconcile.promise,
+        onSettled,
       });
       const result = write.mutate().catch(() => undefined);
       const drained = vi.fn();
       const drain = waitForStorageWrites(queryClient, StorageCategory.AppData).then(drained);
       if (outcome === "success") save.resolve();
       else save.reject(new Error("Could not save"));
-      await vi.waitFor(() => expect(write.getCurrentResult().isPending).toBe(true));
+      await vi.waitFor(() => expect(onSettled).toHaveBeenCalledOnce());
+      expect(write.getCurrentResult().isPending).toBe(true);
       expect(drained).not.toHaveBeenCalled();
       reconcile.resolve();
       await Promise.all([result, drain]);
@@ -89,10 +91,11 @@ describe("storage lifecycle", () => {
     const queryClient = client();
     const deletion = deferred();
     const refresh = deferred();
+    const onSettled = vi.fn(() => refresh.promise);
     const reset = new MutationObserver(queryClient, {
       mutationKey: deleteStorageCategoryMutationKey,
       mutationFn: (_category: StorageCategory) => deletion.promise,
-      onSettled: () => refresh.promise,
+      onSettled,
     });
     const result = reset.mutate(StorageCategory.AppData);
     const dispatch = vi.fn();
@@ -104,6 +107,7 @@ describe("storage lifecycle", () => {
     ).toBe(true);
     await waitForStorageWrites(queryClient, StorageCategory.AppData);
     deletion.resolve();
+    await vi.waitFor(() => expect(onSettled).toHaveBeenCalledOnce());
     expect(dispatchStorageWrite(queryClient, StorageCategory.AppData, ["write"], dispatch)).toBe(
       false,
     );

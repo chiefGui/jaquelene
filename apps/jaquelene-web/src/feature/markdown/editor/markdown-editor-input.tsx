@@ -38,18 +38,18 @@ export type MarkdownEditorAccessibleNameProps = Pick<
 >;
 
 export type MarkdownEditorInputProps = MarkdownEditorAccessibleNameProps & {
-  "aria-describedby"?: string;
+  "aria-describedby"?: string | undefined;
   "aria-invalid"?: AriaAttributes["aria-invalid"];
   autoFocus?: boolean;
   disabled?: boolean;
   hidden?: boolean;
-  id?: string;
+  id?: string | undefined;
   initialSelection?: MarkdownEditorInitialSelection;
-  maxLength?: number;
+  maxLength?: number | undefined;
   maxRows: number;
-  onBlur?: FocusEventHandler<HTMLDivElement>;
+  onBlur?: FocusEventHandler<HTMLDivElement> | undefined;
   onChange: (value: string) => void;
-  onFocus?: FocusEventHandler<HTMLDivElement>;
+  onFocus?: FocusEventHandler<HTMLDivElement> | undefined;
   placeholder?: string;
   readOnly?: boolean;
   style?: StyleXStyles;
@@ -89,7 +89,7 @@ function contentAttributes(options: DynamicOptions) {
     autocorrect: "off",
     role: "textbox",
     spellcheck: "false",
-    tabindex: options.disabled ? "-1" : "0",
+    tabindex: "0",
   };
 
   if (options.ariaDescribedBy) {
@@ -110,6 +110,7 @@ function contentAttributes(options: DynamicOptions) {
 
   if (options.disabled) {
     attributes["aria-disabled"] = "true";
+    attributes.tabindex = "-1";
   }
 
   if (options.id) {
@@ -137,7 +138,6 @@ function allowsDocumentChange(
   nextLength: number,
   maxLength: number | undefined,
 ) {
-  // An oversized external value must remain editable toward validity.
   return maxLength === undefined || nextLength <= maxLength || nextLength < startLength;
 }
 

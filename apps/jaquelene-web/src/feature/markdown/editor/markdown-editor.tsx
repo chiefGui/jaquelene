@@ -82,9 +82,6 @@ function getAccessibleNameProps(
     return { "aria-labelledby": configuration.ariaLabelledBy };
   }
 
-  // Form libraries may add the label relationship after their field items
-  // register. The editor accepts that transient state and applies the name as
-  // soon as the composed control receives it.
   return {};
 }
 
@@ -252,24 +249,20 @@ const MarkdownEditorInputPart = forwardRef<HTMLElement, MarkdownEditorInputPartP
         ref={setInputRef}
         maxRows={configuration.settings.maxRows}
         {...accessibleName}
-        {...(configuration.ariaDescribedBy === undefined
-          ? {}
-          : { "aria-describedby": configuration.ariaDescribedBy })}
-        {...(configuration.ariaInvalid === undefined
-          ? {}
-          : { "aria-invalid": configuration.ariaInvalid })}
+        aria-describedby={configuration.ariaDescribedBy}
+        aria-invalid={configuration.ariaInvalid}
         autoFocus={configuration.autoFocus && !hidden}
         disabled={configuration.disabled}
         hidden={hidden}
-        {...(configuration.id === undefined ? {} : { id: configuration.id })}
+        id={configuration.id}
         initialSelection={configuration.initialSelection}
-        {...(configuration.maxLength === undefined ? {} : { maxLength: configuration.maxLength })}
-        {...(configuration.onBlur === undefined ? {} : { onBlur: configuration.onBlur })}
+        maxLength={configuration.maxLength}
+        onBlur={configuration.onBlur}
         onChange={document.setValue}
-        {...(configuration.onFocus === undefined ? {} : { onFocus: configuration.onFocus })}
+        onFocus={configuration.onFocus}
         placeholder={configuration.placeholder}
         readOnly={configuration.readOnly}
-        {...(style === undefined ? {} : { style })}
+        style={style}
         value={document.value}
       />
     );
@@ -328,7 +321,7 @@ function MarkdownEditorContent() {
   return (
     <>
       <MarkdownEditorInputPart hidden={mode === "preview"} />
-      {mode === "preview" ? <MarkdownEditorPreview /> : null}
+      {mode === "preview" && <MarkdownEditorPreview />}
     </>
   );
 }

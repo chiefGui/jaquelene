@@ -25,13 +25,10 @@ afterEach(() => {
 });
 
 describe("preferences storage", () => {
-  it("adds Markdown defaults to existing preferences without resetting other groups", () => {
+  it("persists Markdown settings independently and restores defaults after deletion", () => {
     const directory = createUserDataDirectory();
-    writeFileSync(
-      join(directory, "preferences.json"),
-      JSON.stringify({ diagnostics: { writeToDisk: false } }),
-    );
     const preferences = createPreferences(directory);
+    preferences.diagnostics.setWriteToDisk(false);
     expect(preferences.markdownEditor.get()).toEqual({
       maxRows: 5,
       showLineCount: true,

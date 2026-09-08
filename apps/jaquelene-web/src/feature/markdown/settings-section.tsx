@@ -26,12 +26,13 @@ For a moment, everything feels *still*.
 Your story is just beginning.`;
 
 function EditorSettingsPreview() {
-  const labelId = useId();
-
   return (
-    <Item.Root style={styles.preview}>
-      <Item.Label id={labelId}>Preview</Item.Label>
-      <MarkdownEditor.Root aria-labelledby={labelId} defaultValue={previewMarkdown} readOnly>
+    <Item.Root>
+      <MarkdownEditor.Root
+        aria-label="Markdown editor preview"
+        defaultValue={previewMarkdown}
+        readOnly
+      >
         <MarkdownEditor.Frame>
           <MarkdownEditor.Toolbar>
             <MarkdownEditor.FormattingActions />
@@ -130,5 +131,4 @@ export function MarkdownEditorSettingsSection() {
 const styles = stylex.create({
   error: { color: colors.foregroundDanger },
   rowSelect: { minWidth: "4rem" },
-  preview: { alignItems: "stretch", flexDirection: "column", gap: "0.5rem" },
 });

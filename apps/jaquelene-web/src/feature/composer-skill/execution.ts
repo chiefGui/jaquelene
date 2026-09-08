@@ -60,8 +60,8 @@ export function createComposerSkillExecution(
           threadId,
           configuration,
         });
-        if (execution.cancelled) return { status: "cancelled" };
         if (result.status !== "completed") return result;
+        if (execution.cancelled) return { status: "cancelled" };
         if (!replaceThreadDraft(queryClient, threadId, draft, result.text))
           return { status: "draft-changed" };
         return result;

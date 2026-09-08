@@ -100,4 +100,16 @@ describe("composer skill delivery", () => {
     expect((await env.execution.execute(skillId, configuration)).status).toBe("completed");
     env.client.clear();
   });
+
+  it("preserves a failure reported while cancelling without changing the draft", async () => {
+    const env = environment();
+    writeThreadDraft(env.client, "thread", "Existing draft");
+    const running = env.execution.execute(skillId, configuration);
+    await env.execution.cancel();
+    const failure = { status: "failed", message: "Usage could not be settled." } as const;
+    env.response.resolve(failure);
+    expect(await running).toEqual(failure);
+    expect(readThreadDraft(env.client, "thread").content).toBe("Existing draft");
+    env.client.clear();
+  });
 });

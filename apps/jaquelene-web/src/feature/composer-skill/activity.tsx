@@ -50,7 +50,6 @@ export function ComposerSkillActivity({ execution }: { execution: ComposerSkillE
     const cancelling = cancellation.isPending || cancellation.isSuccess;
     let progress = generation.variables.skill.pendingLabel;
     let statusRole: "status" | "alert" = "status";
-    if (cancelling) progress = "Cancelling…";
     if (cancellation.isError) {
       progress = "Could not cancel. Try again.";
       statusRole = "alert";
@@ -65,7 +64,7 @@ export function ComposerSkillActivity({ execution }: { execution: ComposerSkillE
     );
     actions = (
       <ActivityAction
-        label="Cancel generation"
+        label="Cancel"
         icon={Cancel01Icon}
         disabled={cancelling}
         onClick={() => {

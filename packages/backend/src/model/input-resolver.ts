@@ -1,16 +1,15 @@
 import { Context, Effect, Layer } from "effect";
 import type { CampaignEngine } from "#backend/campaign/campaigns";
 import { CampaignService } from "#backend/campaign/subsystem";
-import type { MessageId, ThreadId } from "#backend/id";
+import type { ThreadId } from "#backend/id";
 import type { PromptApplicationRegistry } from "#backend/prompt/application-registry";
 import { PromptService } from "#backend/prompt/subsystem";
-import { requireModelInput, type DialogueMessage, type ModelInput } from "#backend/model/input";
-
-export type ModelInputSourceMessage = Readonly<{
-  id: MessageId;
-  author: DialogueMessage["role"];
-  content: string;
-}>;
+import {
+  requireModelInput,
+  toModelDialogue,
+  type ModelInputSourceMessage,
+  type ModelInput,
+} from "#backend/model/input";
 
 export type ResolveModelInputRequest = Readonly<{
   threadId: ThreadId;
@@ -28,16 +27,16 @@ export function createModelInputResolver(
   return {
     resolve({ threadId, messages }) {
       const campaign = campaigns.getContextForThread(threadId);
+      const instructions = [...promptApplications.resolve({ threadId, campaign })];
+      if (campaign?.scenario) {
+        instructions.push({
+          sourceKey: `campaign.${campaign.id}.scenario`,
+          content: `## Scenario\n${campaign.scenario}`,
+        });
+      }
       return requireModelInput({
-        instructions: [
-          ...promptApplications.resolve({ threadId, campaign }),
-          ...(campaign?.instructions ?? []),
-        ],
-        dialogue: messages.map(({ id: messageId, author: role, content }) => ({
-          messageId,
-          role,
-          content,
-        })),
+        instructions,
+        dialogue: toModelDialogue(messages),
       });
     },
   };

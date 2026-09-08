@@ -14,9 +14,20 @@ export type DialogueMessage = Readonly<{
 export type ModelInput = Readonly<{
   instructions: readonly ResolvedInstruction[];
   dialogue: readonly DialogueMessage[];
-  // Execution-only context is never part of the persisted conversation.
   requestMessages?: readonly Pick<DialogueMessage, "role" | "content">[];
 }>;
+
+export type ModelInputSourceMessage = Readonly<{
+  id: MessageId;
+  author: DialogueMessage["role"];
+  content: string;
+}>;
+
+export function toModelDialogue(
+  messages: readonly ModelInputSourceMessage[],
+): readonly DialogueMessage[] {
+  return messages.map(({ id: messageId, author: role, content }) => ({ messageId, role, content }));
+}
 
 function requireText(value: string, field: string) {
   if (!value.trim()) {

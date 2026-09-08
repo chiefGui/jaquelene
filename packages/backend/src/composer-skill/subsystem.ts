@@ -22,7 +22,7 @@ export class ComposerSkillsService extends Context.Service<ComposerSkillsService
           createFriendlyResponse(createAccountedModelExecution(modelExecutor, usage.attempts)),
         ],
         campaigns: campaigns.campaigns,
-        threads: threads.engine,
+        history: threads.threads.history,
         modelExecutor,
       });
     }),

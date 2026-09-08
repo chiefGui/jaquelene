@@ -2,6 +2,7 @@ import { THREAD_MESSAGE_MAX_CODE_UNITS } from "@jaquelene/domain";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { ids, type MessageId, type ThreadId, type TurnId } from "#backend/id";
+import { listMessagePath, readActiveMessageHead, toThreadMessage } from "./message-path";
 import {
   threadMessageTable,
   threadTable,
@@ -54,17 +55,7 @@ type AppendAssistantMessageRequest = {
   createdAt: number;
 };
 
-type MessagePathRow = ThreadMessageRecord & {
-  cumulativeContentBytes: number;
-  depth: number;
-};
-
 type ActivePathMessage = Readonly<{ id: MessageId }>;
-
-type ListMessagePathOptions = Readonly<{
-  maximumCount?: number;
-  contentByteBudget?: number;
-}>;
 
 const threadSelection = {
   id: threadTable.id,
@@ -120,122 +111,6 @@ function threadNotFound(id: ThreadId) {
 
 function turnNotFound(id: TurnId) {
   return new RangeError(`Turn "${id}" does not exist.`);
-}
-
-function listMessagePath(
-  database: Pick<Database, "all">,
-  threadId: ThreadId,
-  anchorMessageId: MessageId,
-  direction: "older" | "newer",
-  { maximumCount, contentByteBudget }: ListMessagePathOptions = {},
-) {
-  const countLimit = maximumCount === undefined ? sql`1` : sql`path.depth < ${maximumCount - 1}`;
-  const anchorContentBytes =
-    contentByteBudget === undefined ? sql`0` : sql`octet_length(anchor.content)`;
-  const cumulativeContentBytes =
-    contentByteBudget === undefined
-      ? sql`0`
-      : sql`path.cumulative_content_bytes + octet_length(next.content)`;
-  const byteLimit =
-    contentByteBudget === undefined
-      ? sql`1`
-      : sql`
-          ${cumulativeContentBytes} <= ${contentByteBudget}
-        `;
-  const pathJoin =
-    direction === "older"
-      ? sql`next.id = path.parent_message_id AND next.thread_id = path.thread_id`
-      : sql`next.id = path.active_child_message_id AND next.thread_id = path.thread_id`;
-  const anchorIsValid =
-    direction === "older"
-      ? sql`1`
-      : sql`EXISTS (
-          SELECT 1
-          FROM thread_messages AS parent
-          WHERE parent.thread_id = anchor.thread_id
-            AND parent.id = anchor.parent_message_id
-            AND parent.active_child_message_id = anchor.id
-        )`;
-
-  const rows = database.all<MessagePathRow>(sql`
-    WITH RECURSIVE message_path (
-      id,
-      thread_id,
-      turn_id,
-      parent_message_id,
-      active_child_message_id,
-      sequence,
-      author,
-      content,
-      created_at,
-      cumulative_content_bytes,
-      depth
-    ) AS (
-      SELECT
-        anchor.id,
-        anchor.thread_id,
-        anchor.turn_id,
-        anchor.parent_message_id,
-        anchor.active_child_message_id,
-        anchor.sequence,
-        anchor.author,
-        anchor.content,
-        anchor.created_at,
-        ${anchorContentBytes},
-        0
-      FROM thread_messages AS anchor
-      WHERE anchor.id = ${anchorMessageId}
-        AND anchor.thread_id = ${threadId}
-        AND ${anchorIsValid}
-
-      UNION ALL
-
-      SELECT
-        next.id,
-        next.thread_id,
-        next.turn_id,
-        next.parent_message_id,
-        next.active_child_message_id,
-        next.sequence,
-        next.author,
-        next.content,
-        next.created_at,
-        ${cumulativeContentBytes},
-        path.depth + 1
-      FROM thread_messages AS next
-      INNER JOIN message_path AS path
-        ON ${pathJoin}
-      WHERE ${countLimit} AND ${byteLimit}
-    )
-    SELECT
-      id,
-      thread_id AS "threadId",
-      turn_id AS "turnId",
-      parent_message_id AS "parentMessageId",
-      active_child_message_id AS "activeChildMessageId",
-      sequence,
-      author,
-      content,
-      created_at AS "createdAt",
-      cumulative_content_bytes AS "cumulativeContentBytes",
-      depth
-    FROM message_path
-    ORDER BY depth ASC
-  `);
-
-  return {
-    records: rows.map(
-      ({ cumulativeContentBytes: _contentBytes, depth: _depth, ...record }) => record,
-    ),
-    contentBytes: rows.at(-1)?.cumulativeContentBytes ?? 0,
-  };
-}
-
-function toThreadMessage({
-  activeChildMessageId: _activeChildMessageId,
-  ...message
-}: ThreadMessageRecord) {
-  return message;
 }
 
 function allocateMessageSequence(database: Pick<Database, "update">, threadId: ThreadId) {
@@ -755,23 +630,11 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       return { turnId: context.turnId, threadId: context.threadId, inputMessageId, messages };
     },
 
-    getActiveMessagePath(threadId: ThreadId, options: ListMessagePathOptions = {}) {
-      const thread = database
-        .select({ activeMessageId: threadTable.activeMessageId })
-        .from(threadTable)
-        .where(eq(threadTable.id, threadId))
-        .get();
-
-      if (!thread) {
-        throw threadNotFound(threadId);
-      }
-
-      if (!thread.activeMessageId) {
-        return [];
-      }
-
-      const activeMessageId = thread.activeMessageId;
-      const messages = listMessagePath(database, threadId, activeMessageId, "older", options)
+    getActiveMessagePath(threadId: ThreadId) {
+      const head = readActiveMessageHead(database, threadId);
+      if (!head) return [];
+      const activeMessageId = head.id;
+      const messages = listMessagePath(database, threadId, activeMessageId, "older")
         .records.reverse()
         .map(toThreadMessage);
 
@@ -817,6 +680,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
 
       const page = listMessagePath(database, threadId, anchorMessageId, direction, {
         maximumCount: THREAD_MESSAGE_PAGE_MAX_COUNT,
+        allowOversizedAnchor: true,
         contentByteBudget: THREAD_MESSAGE_PAGE_CONTENT_BYTE_BUDGET,
       });
 

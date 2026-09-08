@@ -134,6 +134,13 @@ export type {
 export type { ThreadMessage, Turn } from "#backend/thread/schema";
 export { TurnAdmissionError } from "#backend/turn/turns";
 export type { Threads } from "#backend/thread/subsystem";
+export type {
+  ThreadHistoryReader,
+  RecentHistoryOptions,
+  RecentHistory,
+  HistorySelection,
+  HistoryBoundary,
+} from "#backend/thread/history";
 export type { ThreadActivity } from "#backend/thread/threads";
 export type {
   DeleteThreadHistoryRequest,

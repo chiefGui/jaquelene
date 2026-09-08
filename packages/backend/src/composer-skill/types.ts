@@ -1,13 +1,16 @@
 import type { Skill } from "#backend/skill/skill";
-import type { ModelInput } from "#backend/model/input";
 import type { ResolvedModelConfiguration } from "#backend/model/execution";
 import type { UsageAttribution } from "#backend/usage/types";
+import type { RecentHistory, RecentHistoryOptions } from "#backend/thread/history";
 
 export type ComposerSkillInput = Readonly<{
   executionId: string;
   configuration: ResolvedModelConfiguration;
-  context: Pick<ModelInput, "dialogue" | "requestMessages">;
+  context: Readonly<{ history: RecentHistory; scenario: string }>;
   attribution: UsageAttribution;
 }>;
 
-export type ComposerSkill = Skill<ComposerSkillInput, string>;
+export type ComposerSkill = Skill<ComposerSkillInput, string> &
+  Readonly<{
+    history: RecentHistoryOptions;
+  }>;

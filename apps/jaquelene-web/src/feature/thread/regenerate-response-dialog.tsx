@@ -23,6 +23,7 @@ import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useRef, type ReactElement } from "react";
 import { ModelPicker } from "@/feature/model/picker";
+import type { RegenerationModelChoice } from "./regeneration-model";
 
 export function RegenerateResponseDialog({
   open,
@@ -31,7 +32,7 @@ export function RegenerateResponseDialog({
   pending,
   disabled,
   requestFailed,
-  initialConfiguration,
+  modelChoice,
   onRegenerate,
 }: Readonly<{
   open: boolean;
@@ -40,15 +41,16 @@ export function RegenerateResponseDialog({
   pending: boolean;
   disabled: boolean;
   requestFailed: boolean;
-  initialConfiguration: ModelConfigurationSelection | null;
+  modelChoice: RegenerationModelChoice;
   onRegenerate: (
     configuration: ModelConfigurationSelection,
     instructions?: string,
   ) => Promise<void>;
 }>) {
   const form = useFormStore({
-    defaultValues: { configuration: initialConfiguration, instructions: "" },
+    defaultValues: { configuration: modelChoice.configuration, instructions: "" },
   });
+  const selectModelForRequest = useRef(modelChoice.select);
   const configuration = useFormValue<ModelConfigurationSelection | null>(form, "configuration");
   const submitting = useStoreState(form, "submitting");
   const hasSubmitted = useStoreState(
@@ -81,8 +83,9 @@ export function RegenerateResponseDialog({
     }
 
     if (nextOpen) {
+      selectModelForRequest.current = modelChoice.select;
       form.reset();
-      form.setValues({ configuration: initialConfiguration, instructions: "" });
+      form.setValues({ configuration: modelChoice.configuration, instructions: "" });
     }
 
     setOpen(nextOpen);
@@ -126,15 +129,7 @@ export function RegenerateResponseDialog({
                 if (disabled || busy) {
                   return;
                 }
-                if (
-                  configuration?.model.providerId === model.providerId &&
-                  configuration.model.modelId === model.modelId
-                ) {
-                  return;
-                }
-                // Reasoning settings belong to the selected model. A different
-                // model starts with its defaults for this request.
-                form.setValue("configuration", { model });
+                form.setValue("configuration", selectModelForRequest.current(model));
               }}
             >
               <FormControl

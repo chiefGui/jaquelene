@@ -1,5 +1,4 @@
 import { composeCampaignGenerationConfiguration } from "@jaquelene/domain";
-import type { ModelConfigurationSelection } from "@jaquelene/ipc/renderer";
 import { tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -15,10 +14,8 @@ import { CampaignTitleControl } from "@/feature/campaign/title-control";
 import { modelProvidersQuery } from "@/feature/model/catalog-query";
 import { threadMessagesQuery } from "@/feature/thread/query";
 import { ThreadView } from "@/feature/thread/thread-view";
-import {
-  defaultRegenerationModelQuery,
-  useIsDefaultRegenerationModelPending,
-} from "@/feature/thread/regeneration-preferences";
+import { defaultRegenerationModelQuery } from "@/feature/thread/regeneration-preferences";
+import { useRegenerationModel } from "@/feature/thread/use-regeneration-model";
 import { ContentPane } from "@/layout/content-pane";
 
 export const Route = createFileRoute("/campaigns/$campaignId")({
@@ -48,8 +45,7 @@ function CampaignRoute() {
   const { data: campaign } = useSuspenseQuery(campaignQuery(campaignId));
   const { data: defaultModel } = useSuspenseQuery(defaultCampaignModelQuery);
   const defaultModelPending = useIsDefaultCampaignModelPending();
-  const { data: defaultRegenerationModel } = useSuspenseQuery(defaultRegenerationModelQuery);
-  const defaultRegenerationModelPending = useIsDefaultRegenerationModelPending();
+  const regenerationModel = useRegenerationModel();
   const generationPreferencesPending = useIsCampaignGenerationPreferencesPending(campaignId);
   const effectiveConfiguration = composeCampaignGenerationConfiguration(
     defaultModel,
@@ -58,10 +54,6 @@ function CampaignRoute() {
   const effectiveConfigurationPending =
     generationPreferencesPending ||
     (campaign?.generationPreferences?.model === undefined && defaultModelPending);
-  let regenerationConfiguration: ModelConfigurationSelection | null = null;
-  if (defaultRegenerationModel !== null) {
-    regenerationConfiguration = { model: defaultRegenerationModel };
-  }
 
   if (!campaign) {
     return (
@@ -97,8 +89,7 @@ function CampaignRoute() {
           threadId={campaign.threadId}
           configuration={effectiveConfiguration}
           configurationPending={effectiveConfigurationPending}
-          regenerationConfiguration={regenerationConfiguration}
-          regenerationConfigurationPending={defaultRegenerationModelPending}
+          regenerationModel={regenerationModel}
           composerControls={
             <CampaignGenerationControls
               campaignId={campaign.id}

@@ -17,6 +17,7 @@ import { Backlight } from "@/primitive/backlight/backlight";
 import { Markdown } from "../markdown/markdown";
 import type { SubmitTurnVariables } from "./query";
 import { RegenerateResponseDialog } from "./regenerate-response-dialog";
+import type { RegenerationModelChoice } from "./regeneration-model";
 import { ThreadMessageDeleteConfirmation } from "./thread-message-delete-confirmation";
 import type { ThreadMessageEditorProps } from "./thread-message-editor";
 import type { ThreadViewState } from "./thread-view-state";
@@ -192,7 +193,7 @@ function AssistantMessageToolbar({
   regeneration,
   requestPending,
   regenerateResponse,
-  regenerationConfiguration,
+  regenerationModel,
 }: Readonly<{
   actionsDisabled: boolean;
   createdAt: number;
@@ -206,7 +207,7 @@ function AssistantMessageToolbar({
     configuration: ModelConfigurationSelection,
     instructions?: string,
   ) => Promise<boolean>;
-  regenerationConfiguration: ModelConfigurationSelection | null;
+  regenerationModel: RegenerationModelChoice;
 }>) {
   const [open, setOpen] = useState(false);
   const [requestFailed, setRequestFailed] = useState(false);
@@ -269,7 +270,7 @@ function AssistantMessageToolbar({
           pending={requestPending}
           disabled={disabled}
           requestFailed={requestFailed}
-          initialConfiguration={regenerationConfiguration}
+          modelChoice={regenerationModel}
           onRegenerate={regenerate}
         />
 
@@ -409,7 +410,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
   regenerationRequestPending,
   responseActionsDisabled,
   regenerateResponse,
-  regenerationConfiguration,
+  regenerationModel,
   retryPending,
   retryReply,
   editor,
@@ -430,7 +431,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
     configuration: ModelConfigurationSelection,
     instructions?: string,
   ) => Promise<boolean>;
-  regenerationConfiguration: ModelConfigurationSelection | null;
+  regenerationModel: RegenerationModelChoice;
   retryPending: boolean;
   retryReply: (turnId: string) => Promise<void>;
   editor: ThreadMessageEditorProps | null;
@@ -465,7 +466,7 @@ export const ThreadMessageRow = memo(function ThreadMessageRow({
           regeneration={regeneration}
           requestPending={regenerationRequestPending}
           regenerateResponse={regenerateResponse}
-          regenerationConfiguration={regenerationConfiguration}
+          regenerationModel={regenerationModel}
         />
       );
     }

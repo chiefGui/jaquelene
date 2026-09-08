@@ -44,6 +44,7 @@ import type { ThreadMessageEditSession } from "./thread-message-editor";
 import { deriveThreadViewState } from "./thread-view-state";
 import { settleThreadDraft } from "./draft";
 import { useThreadDraft } from "./use-thread-draft";
+import type { RegenerationModelChoice } from "./regeneration-model";
 
 type RetryStatus = "pending" | "failed" | null;
 
@@ -282,8 +283,7 @@ type ThreadViewProps = Readonly<{
   threadId: string;
   configuration: ModelConfigurationSelection | null;
   configurationPending: boolean;
-  regenerationConfiguration: ModelConfigurationSelection | null;
-  regenerationConfigurationPending: boolean;
+  regenerationModel: RegenerationModelChoice;
   composerControls: ReactNode;
 }>;
 
@@ -295,12 +295,12 @@ function ThreadViewInstance({
   threadId,
   configuration,
   configurationPending,
-  regenerationConfiguration,
-  regenerationConfigurationPending,
+  regenerationModel,
   composerControls,
 }: ThreadViewProps) {
   const queryClient = useQueryClient();
   const messagesQuery = useSuspenseInfiniteQuery(threadMessagesQuery(threadId));
+  const regenerationConfigurationPending = regenerationModel.pending;
   const returnToLatestMutation = useReturnToLatestThreadMessages(threadId);
   const returnToLatestMessages = returnToLatestMutation.mutateAsync;
   const retryTurnMutation = useRetryTurn(threadId);
@@ -628,7 +628,7 @@ function ThreadViewInstance({
           deleteFromUserMessage={deleteFromUserMessage}
           loadOlder={loadOlder}
           regenerateResponse={regenerateResponse}
-          regenerationConfiguration={regenerationConfiguration}
+          regenerationModel={regenerationModel}
           retryReply={retryReply}
         />
         <ThreadControlsLayer onHeightChange={setTimelineBottomInset}>

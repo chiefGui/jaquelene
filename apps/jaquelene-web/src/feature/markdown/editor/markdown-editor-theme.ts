@@ -19,6 +19,7 @@ const editorTheme = EditorView.theme(
       lineHeight: tokens.lineHeightSmall,
       maxHeight: markdownEditorSizing.maxHeight,
       overflow: "auto",
+      scrollbarGutter: "stable",
     },
     ".cm-content": {
       caretColor: colors.foregroundAccent,

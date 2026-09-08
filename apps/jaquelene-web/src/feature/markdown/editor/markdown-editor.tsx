@@ -301,6 +301,7 @@ function MarkdownEditorPreview({
 
   return (
     <div
+      tabIndex={0}
       {...props}
       role="region"
       aria-label={ariaLabel ?? "Markdown preview"}
@@ -441,6 +442,7 @@ const styles = stylex.create({
     minHeight: markdownEditorSizing.minHeight,
     overflow: "auto",
     padding: markdownEditorSizing.padding,
+    scrollbarGutter: "stable",
   },
   status: {
     alignItems: "center",

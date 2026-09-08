@@ -1,3 +1,4 @@
+import { appDataStorageMeta } from "@/feature/storage/lifecycle";
 import { CampaignPreferences, type ModelSelection } from "@jaquelene/ipc/renderer";
 import {
   mutationOptions,
@@ -23,6 +24,7 @@ type SetDefaultCampaignModelContext = {
 
 export const defaultCampaignModelQuery = queryOptions({
   ...ipcQueryOptions,
+  meta: appDataStorageMeta,
   queryKey: ["preferences", "campaign", "default-model"],
   queryFn: getDefaultCampaignModel,
 });

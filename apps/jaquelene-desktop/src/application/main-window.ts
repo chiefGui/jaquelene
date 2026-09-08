@@ -34,6 +34,7 @@ import { exposeProviders } from "../feature/provider/ipc";
 import { exposePrompts } from "../feature/prompt/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
 import { exposeRegenerationPreferences } from "../feature/thread/regeneration-preferences-ipc";
+import { exposeMarkdownEditorPreferences } from "../feature/markdown/ipc";
 import { exposeUsage } from "../feature/usage/ipc";
 import { LocalStateService, type LocalState } from "../local-state";
 import { PreferencesService, type Preferences } from "../preferences/preferences";
@@ -306,6 +307,10 @@ function createMainWindowManager({
       await addFinalizer(scope, threadMessaging.expose(browserWindow.webContents.mainFrame));
       exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);
       exposeRegenerationPreferences(browserWindow.webContents.mainFrame, preferences.regeneration);
+      exposeMarkdownEditorPreferences(
+        browserWindow.webContents.mainFrame,
+        preferences.markdownEditor,
+      );
       await addFinalizer(
         scope,
         exposeModelCatalog(browserWindow.webContents, modelCatalog, runEffect),

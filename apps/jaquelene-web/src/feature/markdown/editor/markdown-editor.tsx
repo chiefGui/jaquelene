@@ -2,9 +2,10 @@ import CodeIcon from "@hugeicons/core-free-icons/CodeIcon";
 import EyeIcon from "@hugeicons/core-free-icons/EyeIcon";
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { formatPluralizedCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
+import { IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import { control } from "@jaquelene/ui/control.stylex";
+import { edgeFade } from "@jaquelene/ui/edge-fade.stylex";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -15,7 +16,6 @@ import {
   Suspense,
   useCallback,
   useDeferredValue,
-  useMemo,
   type ComponentProps,
   type ReactNode,
   type Ref,
@@ -34,7 +34,8 @@ import {
   type MarkdownEditorConfiguration,
   type MarkdownEditorRootProps,
 } from "./markdown-editor-root";
-import { countMarkdownDocument } from "./markdown-editor-statistics";
+import { MarkdownEditorStatisticsFooter } from "./markdown-editor-statistics-footer";
+import { markdownEditorSizing, markdownEditorRowSizing } from "./markdown-editor-sizing.stylex";
 
 export {
   MarkdownEditorInput,
@@ -81,9 +82,6 @@ function getAccessibleNameProps(
     return { "aria-labelledby": configuration.ariaLabelledBy };
   }
 
-  // Form libraries may add the label relationship after their field items
-  // register. The editor accepts that transient state and applies the name as
-  // soon as the composed control receives it.
   return {};
 }
 
@@ -249,25 +247,22 @@ const MarkdownEditorInputPart = forwardRef<HTMLElement, MarkdownEditorInputPartP
     return (
       <MarkdownEditorInput
         ref={setInputRef}
+        maxRows={configuration.settings.maxRows}
         {...accessibleName}
-        {...(configuration.ariaDescribedBy === undefined
-          ? {}
-          : { "aria-describedby": configuration.ariaDescribedBy })}
-        {...(configuration.ariaInvalid === undefined
-          ? {}
-          : { "aria-invalid": configuration.ariaInvalid })}
+        aria-describedby={configuration.ariaDescribedBy}
+        aria-invalid={configuration.ariaInvalid}
         autoFocus={configuration.autoFocus && !hidden}
         disabled={configuration.disabled}
         hidden={hidden}
-        {...(configuration.id === undefined ? {} : { id: configuration.id })}
+        id={configuration.id}
         initialSelection={configuration.initialSelection}
-        {...(configuration.maxLength === undefined ? {} : { maxLength: configuration.maxLength })}
-        {...(configuration.onBlur === undefined ? {} : { onBlur: configuration.onBlur })}
+        maxLength={configuration.maxLength}
+        onBlur={configuration.onBlur}
         onChange={document.setValue}
-        {...(configuration.onFocus === undefined ? {} : { onFocus: configuration.onFocus })}
+        onFocus={configuration.onFocus}
         placeholder={configuration.placeholder}
         readOnly={configuration.readOnly}
-        {...(style === undefined ? {} : { style })}
+        style={style}
         value={document.value}
       />
     );
@@ -295,15 +290,23 @@ function MarkdownEditorPreview({
   style,
   ...props
 }: MarkdownEditorPreviewProps) {
+  const { settings } = useMarkdownEditorConfiguration("Preview");
   const { value } = useMarkdownEditorDocument("Preview");
   const deferredValue = useDeferredValue(value);
 
   return (
     <div
+      tabIndex={0}
       {...props}
       role="region"
       aria-label={ariaLabel ?? "Markdown preview"}
-      {...stylex.props(styles.preview, style, stylex.defaultMarker())}
+      {...stylex.props(
+        styles.preview,
+        markdownEditorRowSizing.rows(settings.maxRows),
+        edgeFade.both,
+        style,
+        stylex.defaultMarker(),
+      )}
     >
       <Suspense fallback={fallback}>
         <MarkdownPreview content={deferredValue} />
@@ -318,41 +321,8 @@ function MarkdownEditorContent() {
   return (
     <>
       <MarkdownEditorInputPart hidden={mode === "preview"} />
-      {mode === "preview" ? <MarkdownEditorPreview /> : null}
+      {mode === "preview" && <MarkdownEditorPreview />}
     </>
-  );
-}
-
-function MarkdownEditorStatus({ "aria-label": ariaLabel, style, ...props }: StyleableDivProps) {
-  return (
-    <div
-      {...props}
-      role="group"
-      aria-label={ariaLabel ?? "Document statistics"}
-      {...stylex.props(styles.status, style, stylex.defaultMarker())}
-    />
-  );
-}
-
-type MarkdownEditorStatisticsProps = Omit<ComponentProps<"span">, "className" | "style"> & {
-  style?: StyleXStyles;
-};
-
-function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsProps) {
-  const { value } = useMarkdownEditorDocument("Statistics");
-  const deferredValue = useDeferredValue(value);
-  const statistics = useMemo(() => countMarkdownDocument(deferredValue), [deferredValue]);
-
-  return (
-    <span {...props} {...stylex.props(styles.statistics, style, stylex.defaultMarker())}>
-      <span>{formatPluralizedCount(statistics.lines, "line", "lines")}</span>
-      <span aria-hidden="true">·</span>
-      <span>{formatPluralizedCount(statistics.words, "word", "words")}</span>
-      <span aria-hidden="true">·</span>
-      <span>{formatPluralizedCount(statistics.characters, "character", "characters")}</span>
-      <span aria-hidden="true">·</span>
-      <span>≈ {formatPluralizedCount(statistics.estimatedTokens, "token", "tokens")}</span>
-    </span>
   );
 }
 
@@ -371,9 +341,7 @@ const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent(
         <MarkdownEditorPreviewToggle style={styles.previewTogglePlacement} />
       </MarkdownEditorToolbar>
       <MarkdownEditorContent />
-      <MarkdownEditorStatus>
-        <MarkdownEditorStatistics />
-      </MarkdownEditorStatus>
+      <MarkdownEditorStatisticsFooter />
     </MarkdownEditorFrame>
   );
 });
@@ -399,8 +367,7 @@ export const MarkdownEditor = Object.assign(MarkdownEditorDefault, {
   Content: MarkdownEditorContent,
   Input: MarkdownEditorInputPart,
   Preview: MarkdownEditorPreview,
-  Status: MarkdownEditorStatus,
-  Statistics: MarkdownEditorStatistics,
+  StatisticsFooter: MarkdownEditorStatisticsFooter,
 });
 
 const styles = stylex.create({
@@ -420,9 +387,6 @@ const styles = stylex.create({
   },
   toolbar: {
     alignItems: "center",
-    borderBottomColor: colors.borderDefault,
-    borderBottomStyle: "solid",
-    borderBottomWidth: 1,
     display: "flex",
     flexShrink: 0,
     gap: "0.125rem",
@@ -432,36 +396,17 @@ const styles = stylex.create({
     marginLeft: "auto",
   },
   preview: {
+    "--edge-fade-size": markdownEditorSizing.paddingBlock,
+    boxSizing: "border-box",
     flexGrow: 1,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
-    maxHeight: "24rem",
-    minHeight: "8rem",
+    maxHeight: markdownEditorSizing.maxHeight,
+    minHeight: markdownEditorSizing.minHeight,
     overflow: "auto",
-    padding: "1rem",
-  },
-  status: {
-    alignItems: "center",
-    borderTopColor: colors.borderDefault,
-    borderTopStyle: "solid",
-    borderTopWidth: 1,
-    color: colors.foregroundSecondary,
-    display: "flex",
-    flexShrink: 0,
-    fontSize: tokens.fontSizeXSmall,
-    justifyContent: "flex-end",
-    lineHeight: tokens.lineHeightXSmall,
-    minHeight: "2rem",
-    paddingBlock: "0.5rem",
-    paddingInline: "0.75rem",
-  },
-  statistics: {
-    alignItems: "center",
-    color: colors.foregroundDisabled,
-    display: "inline-flex",
-    fontSize: tokens.fontSizeXXSmall,
-    gap: "0.375rem",
-    lineHeight: tokens.lineHeightXXSmall,
+    paddingBlock: markdownEditorSizing.paddingBlock,
+    paddingInline: markdownEditorSizing.paddingInline,
+    scrollbarGutter: "stable",
   },
   previewSkeleton: {
     display: "flex",

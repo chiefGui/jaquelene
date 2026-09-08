@@ -87,21 +87,24 @@ describe("Markdown editor commands", () => {
     expect(result.selection.to).toBe(26);
   });
 
-  it("does not edit read-only state", () => {
-    const state = EditorState.create({
-      doc: "Unchanged",
-      extensions: EditorState.readOnly.of(true),
-    });
-    let dispatched = false;
+  it.each(Object.entries(markdownEditorCommands))(
+    "%s does not edit read-only state",
+    (_name, command) => {
+      const state = EditorState.create({
+        doc: "Unchanged",
+        extensions: EditorState.readOnly.of(true),
+      });
+      let dispatched = false;
 
-    expect(
-      markdownEditorCommands.strong({
-        state,
-        dispatch: () => {
-          dispatched = true;
-        },
-      }),
-    ).toBe(false);
-    expect(dispatched).toBe(false);
-  });
+      expect(
+        command({
+          state,
+          dispatch: () => {
+            dispatched = true;
+          },
+        }),
+      ).toBe(false);
+      expect(dispatched).toBe(false);
+    },
+  );
 });

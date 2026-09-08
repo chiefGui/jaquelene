@@ -1,3 +1,4 @@
+import { appDataStorageMeta } from "@/feature/storage/lifecycle";
 import {
   UserInterfacePreferences,
   type UserInterfacePreferenceValues,
@@ -13,6 +14,7 @@ const setMotion = requireIpcMethod(UserInterfacePreferences?.setMotion);
 
 export const userInterfacePreferencesQuery = queryOptions({
   ...ipcQueryOptions,
+  meta: appDataStorageMeta,
   queryKey: ["preferences", "appearance", "user-interface"],
   queryFn: getPreferences,
 });

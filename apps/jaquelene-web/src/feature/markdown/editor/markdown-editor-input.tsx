@@ -27,6 +27,7 @@ import {
 } from "./markdown-editor-command";
 import { markdownEditorLanguage } from "./markdown-editor-language";
 import { markdownEditorTheme } from "./markdown-editor-theme";
+import { markdownEditorRowSizing } from "./markdown-editor-sizing.stylex";
 
 export type MarkdownEditorCommand = EditorCommand;
 export type MarkdownEditorInitialSelection = "start" | "end";
@@ -37,17 +38,18 @@ export type MarkdownEditorAccessibleNameProps = Pick<
 >;
 
 export type MarkdownEditorInputProps = MarkdownEditorAccessibleNameProps & {
-  "aria-describedby"?: string;
+  "aria-describedby"?: string | undefined;
   "aria-invalid"?: AriaAttributes["aria-invalid"];
   autoFocus?: boolean;
   disabled?: boolean;
   hidden?: boolean;
-  id?: string;
+  id?: string | undefined;
   initialSelection?: MarkdownEditorInitialSelection;
-  maxLength?: number;
-  onBlur?: FocusEventHandler<HTMLDivElement>;
+  maxLength?: number | undefined;
+  maxRows: number;
+  onBlur?: FocusEventHandler<HTMLDivElement> | undefined;
   onChange: (value: string) => void;
-  onFocus?: FocusEventHandler<HTMLDivElement>;
+  onFocus?: FocusEventHandler<HTMLDivElement> | undefined;
   placeholder?: string;
   readOnly?: boolean;
   style?: StyleXStyles;
@@ -72,8 +74,6 @@ type DynamicOptions = Readonly<{
 }>;
 
 const externalValue = Annotation.define<boolean>();
-// Keep public refs DOM-native for form libraries while retaining command access internally.
-const editorViews = new WeakMap<HTMLElement, EditorView>();
 
 const formattingKeymap: readonly KeyBinding[] = [
   { key: "Mod-b", preventDefault: true, run: markdownEditorCommands.strong },
@@ -89,7 +89,7 @@ function contentAttributes(options: DynamicOptions) {
     autocorrect: "off",
     role: "textbox",
     spellcheck: "false",
-    tabindex: options.disabled ? "-1" : "0",
+    tabindex: "0",
   };
 
   if (options.ariaDescribedBy) {
@@ -110,6 +110,7 @@ function contentAttributes(options: DynamicOptions) {
 
   if (options.disabled) {
     attributes["aria-disabled"] = "true";
+    attributes.tabindex = "-1";
   }
 
   if (options.id) {
@@ -137,7 +138,6 @@ function allowsDocumentChange(
   nextLength: number,
   maxLength: number | undefined,
 ) {
-  // An oversized external value must remain editable toward validity.
   return maxLength === undefined || nextLength <= maxLength || nextLength < startLength;
 }
 
@@ -145,7 +145,11 @@ export function runMarkdownEditorCommand(
   element: HTMLElement | null | undefined,
   command: EditorCommand,
 ) {
-  const view = element ? editorViews.get(element) : undefined;
+  if (!element) {
+    return false;
+  }
+
+  const view = EditorView.findFromDOM(element);
 
   if (!view) {
     return false;
@@ -173,6 +177,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
       id,
       initialSelection = "start",
       maxLength,
+      maxRows,
       onBlur,
       onChange,
       onFocus,
@@ -287,7 +292,6 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
       });
 
       runtimeRef.current = { configuration, view };
-      editorViews.set(view.contentDOM, view);
 
       if (autoFocusRef.current) {
         view.focus();
@@ -295,7 +299,6 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
 
       return () => {
         runtimeRef.current = null;
-        editorViews.delete(view.contentDOM);
         view.destroy();
       };
     }, []);
@@ -349,7 +352,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
         hidden={hidden}
         onBlur={onBlur}
         onFocus={onFocus}
-        {...stylex.props(styles.root, style)}
+        {...stylex.props(styles.root, markdownEditorRowSizing.rows(maxRows), style)}
       />
     );
   },

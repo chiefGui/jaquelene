@@ -1,3 +1,4 @@
+import { appDataStorageMeta } from "@/feature/storage/lifecycle";
 import { FavoriteModels, type ModelReference } from "@jaquelene/ipc/renderer";
 import { queryOptions, useMutation, useMutationState, useQueryClient } from "@tanstack/react-query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
@@ -42,6 +43,7 @@ function setFavoriteMembership(
 
 export const favoriteModelsQuery = queryOptions({
   ...ipcQueryOptions,
+  meta: appDataStorageMeta,
   queryKey: ["favorite-models"],
   queryFn: listFavoriteModels,
 });

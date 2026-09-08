@@ -74,7 +74,7 @@ export function PreferenceSelectItem<Value extends string>({
           >
             <Select.Value>{selectedOption.label}</Select.Value>
           </Select>
-          <Select.Content aria-labelledby={labelId}>
+          <Select.Content aria-labelledby={labelId} width="content">
             {options.map((option) => (
               <Select.Item key={option.value} value={option.value}>
                 <Select.ItemText>{option.label}</Select.ItemText>

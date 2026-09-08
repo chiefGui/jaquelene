@@ -35,6 +35,7 @@ import {
   type MarkdownEditorRootProps,
 } from "./markdown-editor-root";
 import { countMarkdownDocument } from "./markdown-editor-statistics";
+import { markdownEditorSizing } from "./markdown-editor-sizing.stylex";
 
 export {
   MarkdownEditorInput,
@@ -432,13 +433,14 @@ const styles = stylex.create({
     marginLeft: "auto",
   },
   preview: {
+    boxSizing: "border-box",
     flexGrow: 1,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightSmall,
-    maxHeight: "24rem",
-    minHeight: "8rem",
+    maxHeight: markdownEditorSizing.maxHeight,
+    minHeight: markdownEditorSizing.minHeight,
     overflow: "auto",
-    padding: "1rem",
+    padding: markdownEditorSizing.padding,
   },
   status: {
     alignItems: "center",

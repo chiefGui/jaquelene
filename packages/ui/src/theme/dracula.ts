@@ -97,6 +97,7 @@ export const draculaTheme = stylex.createTheme(colors, {
   effectThemePreviewGlow: "oklch(0.58172 0.22593 284.37)",
 
   // Composer
+  effectToolbarShadow: "oklch(0 0 0)",
   effectBacklightGlowStart: "oklch(0.69616 0.20719 353.11)",
   effectBacklightGlowMiddleStart: "oklch(0.58172 0.22593 284.37)",
   effectBacklightGlowMiddleEnd: "oklch(0.6493 0.18797 287.7)",

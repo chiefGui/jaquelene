@@ -92,6 +92,7 @@ export const colors = stylex.defineVars({
   effectThemePreviewGlow: "oklch(0.71 0.08 276)",
 
   // Composer
+  effectToolbarShadow: "oklch(0 0 0)",
   effectBacklightGlowStart: "oklch(0.7033 0.2499 323.8)",
   effectBacklightGlowMiddleStart: "oklch(0.5999 0.2354 290)",
   effectBacklightGlowMiddleEnd: "oklch(0.6396 0.1928 262.2)",

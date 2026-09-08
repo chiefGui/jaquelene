@@ -363,8 +363,7 @@ const styles = stylex.create({
   toolbar: {
     backdropFilter: "blur(0.75rem)",
     backgroundColor: `oklch(from ${colors.backgroundSurfaceRaised} calc(l * 0.98) c h / 0.97)`,
-    backgroundImage:
-      "linear-gradient(to top, rgb(0 0 0 / 20%), rgb(0 0 0 / 6%) 0.2rem, transparent 0.5rem)",
+    backgroundImage: `linear-gradient(to top, oklch(from ${colors.effectToolbarShadow} l c h / 20%), oklch(from ${colors.effectToolbarShadow} l c h / 6%) 0.2rem, transparent 0.5rem)`,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
     borderBottomWidth: 0,

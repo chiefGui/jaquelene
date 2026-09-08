@@ -1,0 +1,6 @@
+﻿interface:
+  display_name: "Layout"
+  short_description: "Layout architecture & best practices"
+
+policy:
+  allow_implicit_invocation: false

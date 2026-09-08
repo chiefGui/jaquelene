@@ -6,10 +6,19 @@ description: Improve existing code through deletion, simplification, and extensi
 # Polish
 
 - Preserve intended behavior.
-- Stay within the requested scope.
 - Delete before adding.
 - Reduce complexity.
 - Apply OCP by default.
+
+## Relevant Skills
+
+- Read and apply [$code](../code/SKILL.md).
+
+## Coverage
+
+- Review the entire requested scope against applicable skills.
+- Trace root causes through callers and dependencies.
+- Reassess after changes; continue until no concrete, justified improvements remain.
 
 ## Cleanup
 
@@ -19,28 +28,7 @@ description: Improve existing code through deletion, simplification, and extensi
 - Remove obsolete compatibility paths.
 - Fix root causes and remove their workarounds.
 - Remove checks duplicated by enforced contracts.
-- Remove commented-out code and stale comments.
-- Remove comments that restate the code.
-
-## Design
-
-- Hide implementation complexity behind small interfaces.
-- Keep related logic and knowledge together.
-- Keep dependencies explicit.
-- Eliminate abstractions whose removal reduces complexity.
-- Retain abstractions that prevent complexity from spreading into callers.
-- Minimize the knowledge and coordination required from callers.
-- Optimize for understandable code and localized changes.
-
-## Extensibility
-
-- Prefer composition.
-- Keep core logic independent of concrete integrations.
-- Accept replaceable dependencies.
-- Centralize implementation wiring.
-- Support new implementations through existing contracts without modifying consumers.
-- Remove unnecessary coupling that blocks extension.
-- Require every interface, factory, and layer to provide a concrete capability.
+- Remove inline comments.
 
 ## Tests
 

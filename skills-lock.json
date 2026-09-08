@@ -1,23 +1,53 @@
 {
   "version": 1,
   "skills": {
+    "code": {
+      "source": "chiefGui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/code/SKILL.md",
+      "computedHash": "d2ceb50305b729072b45e042e2297f272c6f40f98bd638cc05df919442b2275e"
+    },
     "effect-ts": {
       "source": "Effect-TS/skills",
       "sourceType": "github",
       "skillPath": "skills/effect-ts/SKILL.md",
       "computedHash": "8ce37a6ae9c8cff7c60a01d2e22c47acd7b23cf3243098612e07792ec1e3db6e"
     },
+    "folder-structure": {
+      "source": "chiefGui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/folder-structure/SKILL.md",
+      "computedHash": "29b2728606c840b6bfeec20322fb1f37ae0e487725edce31646867e3de7a6cb5"
+    },
     "implement": {
       "source": "chiefGui/skills",
       "sourceType": "github",
       "skillPath": "skills/implement/SKILL.md",
-      "computedHash": "eb27a00c7f89c098992125caad3a092618ce1f9999ce3a92dc96533a10ab5414"
+      "computedHash": "f41b8bfdd2d51b246282431943cb873de538ca6ead9e30329b2e6e5bdd2335d7"
+    },
+    "layout": {
+      "source": "chiefGui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/layout/SKILL.md",
+      "computedHash": "3ce191e1927da5c00ea1c1203828c5f86b3777f4f5508d1354e44d24343ee16a"
     },
     "polish": {
       "source": "chiefGui/skills",
       "sourceType": "github",
       "skillPath": "skills/polish/SKILL.md",
-      "computedHash": "6dfe20d2a837b0df68dcf2ecd187e13abe5865eb56493eefbd54f4a7e3b20998"
+      "computedHash": "2e077baa35bb32316853eba9bdedaf3f9d5ad1d70e715dd0795b7be7ab22c12a"
+    },
+    "react": {
+      "source": "chiefGui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/react/SKILL.md",
+      "computedHash": "eac3e91160401ac378234ade984ae7e0e09bfec99882fb5ea22a54890082db1c"
+    },
+    "ui": {
+      "source": "chiefGui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ui/SKILL.md",
+      "computedHash": "c6cdcf702eeea8094a74c63d02c4683f2fdac3c47db890eb8fc10b28adfd3c4e"
     }
   }
 }

@@ -755,7 +755,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       return { turnId: context.turnId, threadId: context.threadId, inputMessageId, messages };
     },
 
-    getActiveMessagePath(threadId: ThreadId) {
+    getActiveMessagePath(threadId: ThreadId, options: ListMessagePathOptions = {}) {
       const thread = database
         .select({ activeMessageId: threadTable.activeMessageId })
         .from(threadTable)
@@ -771,7 +771,7 @@ export function createThreads(database: Database, now: () => number = Date.now) 
       }
 
       const activeMessageId = thread.activeMessageId;
-      const messages = listMessagePath(database, threadId, activeMessageId, "older")
+      const messages = listMessagePath(database, threadId, activeMessageId, "older", options)
         .records.reverse()
         .map(toThreadMessage);
 

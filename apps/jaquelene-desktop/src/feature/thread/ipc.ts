@@ -2,7 +2,6 @@ import { Cause, Exit, type Effect, type Fiber } from "effect";
 import type {
   Generation,
   GenerationFailureKind,
-  RequestedModelConfiguration,
   ThreadActivity,
   ThreadHistoryDeletion,
   ThreadMessage,
@@ -22,14 +21,10 @@ import {
   Threads as ThreadsIpc,
   Turns as TurnsIpc,
   type ITurnsDispatcher,
-  type RequestedModelConfiguration as IpcRequestedModelConfiguration,
 } from "@jaquelene/ipc/main";
 import type { WebFrameMain } from "electron";
-import {
-  fromIpcReasoningPreset,
-  toIpcReasoningPreset,
-  toIpcReasoningPresetSource,
-} from "@/feature/model/reasoning-preset";
+import { toIpcReasoningPreset, toIpcReasoningPresetSource } from "@/feature/model/reasoning-preset";
+import { fromIpcModelConfiguration } from "@/feature/model/configuration";
 
 type ThreadMessagingTurns = Pick<
   Turns,
@@ -44,16 +39,6 @@ type ThreadChangeOperation =
   | ThreadGenerationOperation
   | "thread.history.delete"
   | "thread.message.edit";
-
-function fromIpcModelConfiguration(
-  configuration: IpcRequestedModelConfiguration,
-): RequestedModelConfiguration {
-  const model = { ...configuration.model };
-  if (configuration.reasoningPreset === undefined) {
-    return { model };
-  }
-  return { model, reasoningPreset: fromIpcReasoningPreset(configuration.reasoningPreset) };
-}
 
 function toIpcAuthor(author: ThreadMessage["author"]) {
   switch (author) {

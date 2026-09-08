@@ -151,3 +151,6 @@ export type {
   GenerationOperation,
   GenerationSettlement,
 } from "#backend/turn/turns";
+export type { ComposerSkills } from "#backend/composer-skill/composer-skills";
+export { ComposerSkillError } from "#backend/composer-skill/error";
+export type { Skill } from "#backend/skill/skill";

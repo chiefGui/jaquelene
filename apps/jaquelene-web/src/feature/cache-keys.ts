@@ -22,3 +22,7 @@ export function campaignPromptSelectionPrefix(campaignId: string) {
 export function threadQueryPrefix(threadId: string) {
   return [...threadQueryKey, threadId] as const;
 }
+
+export function threadOperationMutationKey(threadId: string) {
+  return [...threadQueryPrefix(threadId), "operation"] as const;
+}

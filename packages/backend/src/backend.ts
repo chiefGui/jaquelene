@@ -1,4 +1,6 @@
 import { Context, Effect, Layer } from "effect";
+import { ComposerSkillsService } from "#backend/composer-skill/subsystem";
+import type { ComposerSkills } from "#backend/composer-skill/composer-skills";
 import type { Campaigns } from "#backend/campaign/campaigns";
 import { CampaignService } from "#backend/campaign/subsystem";
 import type { CampaignUsageReader } from "#backend/campaign/usage";
@@ -37,6 +39,7 @@ export type BackendOptions<StorageRequirements = never> = Readonly<{
 }>;
 
 export type Backend = Readonly<{
+  composerSkills: ComposerSkills;
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
   usage: Usage;
@@ -56,6 +59,7 @@ export class BackendService extends Context.Service<BackendService, Backend>()(
 
 const readBackend = Effect.gen(function* () {
   const campaigns = yield* CampaignService;
+  const composerSkills = yield* ComposerSkillsService;
   const prompts = yield* PromptService;
   const providers = yield* ProvidersService;
   const storage = yield* StorageService;
@@ -86,6 +90,7 @@ const readBackend = Effect.gen(function* () {
   };
 
   return BackendService.of({
+    composerSkills,
     campaigns: managedCampaigns,
     campaignUsage: campaigns.usage,
     prompts: prompts.prompts,
@@ -135,10 +140,14 @@ function createConfiguredBackendLayer<StorageRequirements>(
   const turnsLayer = TurnService.layer.pipe(
     Layer.provide(Layer.mergeAll(databaseLayer, generationsLayer, threadsLayer)),
   );
+  const composerSkillsLayer = ComposerSkillsService.layer.pipe(
+    Layer.provide(Layer.mergeAll(campaignsLayer, threadsLayer, modelExecutionsLayer, usageLayer)),
+  );
   const storageLayer = StorageService.layer(registry).pipe(
     Layer.provide(Layer.mergeAll(databaseLayer, providersLayer, resourceCacheLayer)),
   );
   const backendDependencies = Layer.mergeAll(
+    composerSkillsLayer,
     campaignsLayer,
     promptsLayer,
     providersLayer,

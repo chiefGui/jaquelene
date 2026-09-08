@@ -33,6 +33,7 @@ import { exposeFavoriteModels } from "../feature/model/favorite-models-ipc";
 import { exposeProviders } from "../feature/provider/ipc";
 import { exposePrompts } from "../feature/prompt/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
+import { exposeComposerSkills } from "../feature/composer-skill/ipc";
 import { exposeRegenerationPreferences } from "../feature/thread/regeneration-preferences-ipc";
 import { exposeUsage } from "../feature/usage/ipc";
 import { LocalStateService, type LocalState } from "../local-state";
@@ -105,6 +106,7 @@ export class MainWindowService extends Context.Service<MainWindowService, MainWi
             diagnostics,
             localState,
             campaigns: backend.campaigns,
+            composerSkills: backend.composerSkills,
             campaignUsage: backend.campaignUsage,
             prompts: backend.prompts,
             threads: backend.threads,
@@ -179,6 +181,7 @@ function createMainWindowManager({
   diagnostics,
   localState,
   campaigns,
+  composerSkills,
   campaignUsage,
   prompts,
   threads,
@@ -196,6 +199,7 @@ function createMainWindowManager({
   diagnostics: ApplicationDiagnostics;
   localState: LocalState;
   campaigns: Campaigns;
+  composerSkills: Backend["composerSkills"];
   campaignUsage: CampaignUsageReader;
   prompts: Prompts;
   threads: Threads;
@@ -302,6 +306,10 @@ function createMainWindowManager({
       exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
       exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
       exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);
+      await addFinalizer(
+        scope,
+        exposeComposerSkills(browserWindow.webContents, composerSkills, forkEffect, diagnostics),
+      );
       exposeCampaignUsage(browserWindow.webContents.mainFrame, campaignUsage);
       await addFinalizer(scope, threadMessaging.expose(browserWindow.webContents.mainFrame));
       exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);

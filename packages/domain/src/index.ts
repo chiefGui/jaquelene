@@ -106,3 +106,10 @@ export {
 
 export { THREAD_MESSAGE_MAX_CODE_UNITS } from "./thread/content";
 export { threadTurnIdSchema, type ThreadTurnId } from "./thread/turn-id";
+export {
+  skillIdSchema,
+  skillDescriptorSchema,
+  type SkillId,
+  type SkillDescriptor,
+} from "./skill/skill";
+export { composerSkillResultSchema, type ComposerSkillResult } from "./composer-skill/result";

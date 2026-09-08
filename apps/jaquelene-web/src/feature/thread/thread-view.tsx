@@ -1,7 +1,6 @@
 import {
   GenerationIntent,
   type ModelConfigurationSelection,
-  type RequestedModelConfiguration,
   type ThreadMessage,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
@@ -21,6 +20,7 @@ import {
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { toRequestedModelConfiguration } from "@/feature/model/configuration";
 import { Composer } from "@/feature/composer/composer";
 import { ComposerSkills } from "@/feature/composer/composer-skills";
 import { scrollFade } from "@/primitive/scroll-fade.stylex";
@@ -48,26 +48,6 @@ import { useThreadDraft } from "./use-thread-draft";
 import type { RegenerationModelChoice } from "./regeneration-model";
 
 type RetryStatus = "pending" | "failed" | null;
-
-function toRequestedModelConfiguration(
-  configuration: ModelConfigurationSelection,
-): RequestedModelConfiguration {
-  const requested: {
-    model: RequestedModelConfiguration["model"];
-    reasoningPreset?: NonNullable<RequestedModelConfiguration["reasoningPreset"]>;
-  } = {
-    model: {
-      providerId: configuration.model.providerId,
-      modelId: configuration.model.modelId,
-    },
-  };
-
-  if (configuration.reasoningPreset !== undefined) {
-    requested.reasoningPreset = configuration.reasoningPreset;
-  }
-
-  return requested;
-}
 
 type ThreadControlsLayerProps = Readonly<{
   children: ReactNode;
@@ -249,7 +229,12 @@ const ThreadComposer = memo(function ThreadComposer({
   return (
     <Composer pending={generationPending} onSubmit={sendMessage}>
       <Composer.Toolbar>
-        <ComposerSkills disabled={operationPending || interactionDisabled} />
+        <ComposerSkills
+          threadId={threadId}
+          configuration={configuration}
+          configurationPending={configurationPending}
+          disabled={operationPending || interactionDisabled}
+        />
       </Composer.Toolbar>
       <Composer.Surface>
         <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>

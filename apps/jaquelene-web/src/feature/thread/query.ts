@@ -16,7 +16,7 @@ import {
 } from "@tanstack/react-query";
 import { invalidateCampaignPages, updateCampaignActivity } from "@/feature/campaign/query";
 import { invalidateCampaignUsage } from "@/feature/campaign/usage-query";
-import { threadQueryKey } from "@/feature/cache-keys";
+import { threadQueryKey, threadOperationMutationKey } from "@/feature/cache-keys";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 import {
@@ -97,10 +97,6 @@ export function loadThreadTranscript(threadId: string) {
 
 function turnMutationScope(threadId: string) {
   return { id: `thread:${threadId}:generation` };
-}
-
-function threadOperationMutationKey(threadId: string) {
-  return [...threadQueryKey, threadId, "operation"] as const;
 }
 
 function copyRequestedModelConfiguration(

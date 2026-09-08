@@ -1,0 +1,37 @@
+module jaquelene
+
+zod_reference SkillId {
+  import = "@jaquelene/domain"
+  type = "SkillId"
+  schema = "skillIdSchema"
+}
+
+zod_reference SkillDescriptor {
+  import = "@jaquelene/domain"
+  type = "SkillDescriptor"
+  schema = "skillDescriptorSchema"
+}
+
+zod_reference ComposerSkillResult {
+  import = "@jaquelene/domain"
+  type = "ComposerSkillResult"
+  schema = "composerSkillResultSchema"
+}
+
+subtype ComposerSkillRequestId = string(minLength: 1 maxLength: 64)
+
+structure ExecuteComposerSkillRequest {
+  requestId: ComposerSkillRequestId
+  skillId: SkillId
+  threadId: string
+  configuration: RequestedModelConfiguration
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface ComposerSkills {
+  list() -> SkillDescriptor[]
+  execute(request: ExecuteComposerSkillRequest) -> ComposerSkillResult
+  cancel(requestId: ComposerSkillRequestId) -> boolean
+}

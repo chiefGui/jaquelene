@@ -4,12 +4,54 @@ import * as stylex from "@stylexjs/stylex";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useId } from "react";
 import { PreferenceSelectItem } from "@/feature/settings/preference-select";
+import { MarkdownEditor } from "./editor/markdown-editor";
 import { markdownEditorPreferencesQuery, useSetMarkdownEditorPreference } from "./preferences";
 import {
   markdownEditorRowOptions,
   statisticPreferences,
   type MarkdownStatisticPreferenceKey,
 } from "./preference-presentation";
+
+const previewMarkdown = `The path winds through the trees.
+A **small lantern** lights the way.
+Leaves stir in the evening breeze.
+Somewhere nearby, a stream flows.
+You stop beside an old wooden bridge.
+Its boards are worn but steady.
+Beyond it, warm windows glow.
+The village is settling in for the night.
+A bell rings softly in the distance.
+Someone waves from an open doorway.
+For a moment, everything feels *still*.
+Your story is just beginning.`;
+
+function EditorSettingsPreview() {
+  const labelId = useId();
+  const descriptionId = useId();
+
+  return (
+    <div {...stylex.props(styles.preview)}>
+      <Item.Content>
+        <Item.Label id={labelId}>Preview</Item.Label>
+        <Item.Description id={descriptionId}>Read-only sample.</Item.Description>
+      </Item.Content>
+      <MarkdownEditor.Root
+        aria-labelledby={labelId}
+        aria-describedby={descriptionId}
+        defaultValue={previewMarkdown}
+        readOnly
+      >
+        <MarkdownEditor.Frame>
+          <MarkdownEditor.Toolbar>
+            <MarkdownEditor.FormattingActions />
+          </MarkdownEditor.Toolbar>
+          <MarkdownEditor.Input />
+          <MarkdownEditor.StatisticsFooter />
+        </MarkdownEditor.Frame>
+      </MarkdownEditor.Root>
+    </div>
+  );
+}
 
 function StatisticSetting({
   preferenceKey,
@@ -89,6 +131,7 @@ export function MarkdownEditorSettingsSection() {
           />
         ))}
       </Item.Group>
+      <EditorSettingsPreview />
     </Item.Section>
   );
 }
@@ -96,4 +139,5 @@ export function MarkdownEditorSettingsSection() {
 const styles = stylex.create({
   error: { color: colors.foregroundDanger },
   rowSelect: { minWidth: "4rem" },
+  preview: { display: "grid", gap: "0.5rem", paddingInline: "1rem" },
 });

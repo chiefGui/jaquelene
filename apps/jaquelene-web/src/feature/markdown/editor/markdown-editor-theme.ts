@@ -15,7 +15,7 @@ const editorTheme = EditorView.theme(
       outline: "none",
     },
     ".cm-scroller": {
-      "--edge-fade-size": markdownEditorSizing.padding,
+      "--edge-fade-size": markdownEditorSizing.paddingBlock,
       fontFamily: "inherit",
       fontSize: tokens.fontSizeSmall,
       lineHeight: tokens.lineHeightSmall,
@@ -29,10 +29,10 @@ const editorTheme = EditorView.theme(
       caretColor: colors.foregroundAccent,
       cursor: "text",
       minHeight: markdownEditorSizing.minHeight,
-      paddingBlock: markdownEditorSizing.padding,
+      paddingBlock: markdownEditorSizing.paddingBlock,
     },
     ".cm-line": {
-      paddingInline: markdownEditorSizing.padding,
+      paddingInline: markdownEditorSizing.paddingInline,
     },
     ".cm-cursor, .cm-dropCursor": {
       borderLeftColor: colors.foregroundAccent,

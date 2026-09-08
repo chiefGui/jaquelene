@@ -432,7 +432,7 @@ const styles = stylex.create({
     marginLeft: "auto",
   },
   preview: {
-    "--edge-fade-size": markdownEditorSizing.padding,
+    "--edge-fade-size": markdownEditorSizing.paddingBlock,
     boxSizing: "border-box",
     flexGrow: 1,
     fontSize: tokens.fontSizeSmall,
@@ -440,7 +440,8 @@ const styles = stylex.create({
     maxHeight: markdownEditorSizing.maxHeight,
     minHeight: markdownEditorSizing.minHeight,
     overflow: "auto",
-    padding: markdownEditorSizing.padding,
+    paddingBlock: markdownEditorSizing.paddingBlock,
+    paddingInline: markdownEditorSizing.paddingInline,
     scrollbarGutter: "stable",
   },
   status: {

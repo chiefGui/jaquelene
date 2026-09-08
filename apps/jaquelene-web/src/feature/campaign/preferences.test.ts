@@ -7,7 +7,10 @@ const campaignPreferences = vi.hoisted(() => ({
   setDefaultModel: vi.fn(),
 }));
 
-vi.mock("@jaquelene/ipc/renderer", () => ({ CampaignPreferences: campaignPreferences }));
+vi.mock("@jaquelene/ipc/renderer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@jaquelene/ipc/renderer")>()),
+  CampaignPreferences: campaignPreferences,
+}));
 
 import { defaultCampaignModelQuery, setDefaultCampaignModelMutationOptions } from "./preferences";
 

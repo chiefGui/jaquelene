@@ -1,3 +1,4 @@
+import { appDataStorageMeta } from "@/feature/storage/lifecycle";
 import { RegenerationPreferences, type ModelSelection } from "@jaquelene/ipc/renderer";
 import {
   mutationOptions,
@@ -15,6 +16,7 @@ const mutationKey = ["preferences", "regeneration", "set-default-model"] as cons
 
 export const defaultRegenerationModelQuery = queryOptions({
   ...ipcQueryOptions,
+  meta: appDataStorageMeta,
   queryKey: ["preferences", "regeneration", "default-model"],
   queryFn: getDefaultModel,
 });

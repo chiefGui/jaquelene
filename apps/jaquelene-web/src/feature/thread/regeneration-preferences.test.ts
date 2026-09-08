@@ -3,7 +3,10 @@ import { MutationObserver, QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const preferences = vi.hoisted(() => ({ getDefaultModel: vi.fn(), setDefaultModel: vi.fn() }));
-vi.mock("@jaquelene/ipc/renderer", () => ({ RegenerationPreferences: preferences }));
+vi.mock("@jaquelene/ipc/renderer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@jaquelene/ipc/renderer")>()),
+  RegenerationPreferences: preferences,
+}));
 import {
   defaultRegenerationModelQuery,
   setDefaultRegenerationModelMutationOptions,

@@ -5,21 +5,27 @@ import {
   type StorageDeletion,
   type StorageUsage,
 } from "@jaquelene/ipc/renderer";
-import { queryOptions, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { userInterfacePreferencesQuery } from "@/feature/appearance/user-interface/query";
-import { defaultCampaignModelQuery } from "@/feature/campaign/preferences";
+import {
+  mutationOptions,
+  queryOptions,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import {
   campaignQueryKey,
   promptQueryKey,
   threadQueryKey,
   usageQueryKey,
 } from "@/feature/cache-keys";
-import { favoriteModelsQuery } from "@/feature/model/favorite-models";
 import { reportError } from "@/feature/diagnostics/diagnostics";
-import { diagnosticsPreferencesQuery } from "@/feature/diagnostics/preferences";
-import { providersQuery } from "@/feature/provider/query";
 import { ipcMutationOptions, ipcQueryOptions, requireIpcMethod } from "@/ipc";
 import { reconcileStorageDeletion, type StorageDeletionTarget } from "./usage";
+import {
+  deleteStorageCategoryMutationKey,
+  storageQueries,
+  waitForStorageWrites,
+} from "./lifecycle";
 
 const measureStorageUsage = requireIpcMethod(Storage?.measureUsage);
 const deleteStorageArea = requireIpcMethod(Storage?.deleteArea);
@@ -51,19 +57,11 @@ function applyStorageDeletion(
 }
 
 const contentQueryKeys = [campaignQueryKey, promptQueryKey, threadQueryKey, usageQueryKey] as const;
-const appDataQueryKeys = [
-  favoriteModelsQuery.queryKey,
-  userInterfacePreferencesQuery.queryKey,
-  defaultCampaignModelQuery.queryKey,
-  diagnosticsPreferencesQuery.queryKey,
-  providersQuery.queryKey,
-] as const;
-const cacheQueryFilter = {
-  predicate: (query: { meta?: Record<string, unknown> | undefined }) =>
-    query.meta?.storageCategory === StorageCategory.Cache,
-} as const;
+const cacheQueryFilter = storageQueries(StorageCategory.Cache);
+const appDataQueryFilter = storageQueries(StorageCategory.AppData);
 
 async function cancelCategoryQueries(queryClient: QueryClient, id: StorageCategory) {
+  await waitForStorageWrites(queryClient, id);
   if (id === StorageCategory.Cache) {
     await queryClient.cancelQueries(cacheQueryFilter);
     return;
@@ -75,9 +73,7 @@ async function cancelCategoryQueries(queryClient: QueryClient, id: StorageCatego
   }
 
   if (id === StorageCategory.AppData) {
-    await Promise.all(
-      appDataQueryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey, exact: true })),
-    );
+    await queryClient.cancelQueries(appDataQueryFilter);
   }
 }
 
@@ -96,29 +92,30 @@ async function refreshCategoryQueries(queryClient: QueryClient, id: StorageCateg
   }
 
   if (id === StorageCategory.AppData) {
-    await Promise.all(
-      appDataQueryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey, exact: true })),
-    );
+    await queryClient.invalidateQueries(appDataQueryFilter);
   }
 }
 
-export function useDeleteStorageCategory() {
-  const queryClient = useQueryClient();
-
-  return useMutation<StorageDeletion, Error, StorageCategory>({
+export function deleteStorageCategoryMutationOptions(queryClient: QueryClient) {
+  return mutationOptions<StorageDeletion, Error, StorageCategory>({
     ...ipcMutationOptions,
-    mutationKey: ["storage", "delete-category"],
+    mutationKey: deleteStorageCategoryMutationKey,
     scope: { id: "storage" },
     mutationFn: deleteStorageCategory,
     onMutate: (id) => cancelCategoryQueries(queryClient, id),
     onSuccess: (deletion, id) =>
       applyStorageDeletion(queryClient, deletion, { kind: "category", id }),
     onSettled(_usage, _error, id) {
-      void refreshCategoryQueries(queryClient, id).catch((cause: unknown) => {
+      return refreshCategoryQueries(queryClient, id).catch((cause: unknown) => {
         reportError("storage.category.refresh", cause, ErrorSeverity.Warning);
       });
     },
   });
+}
+
+export function useDeleteStorageCategory() {
+  const queryClient = useQueryClient();
+  return useMutation(deleteStorageCategoryMutationOptions(queryClient));
 }
 
 export function useDeleteStorageArea() {

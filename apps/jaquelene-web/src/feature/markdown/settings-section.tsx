@@ -27,20 +27,11 @@ Your story is just beginning.`;
 
 function EditorSettingsPreview() {
   const labelId = useId();
-  const descriptionId = useId();
 
   return (
-    <div {...stylex.props(styles.preview)}>
-      <Item.Content>
-        <Item.Label id={labelId}>Preview</Item.Label>
-        <Item.Description id={descriptionId}>Read-only sample.</Item.Description>
-      </Item.Content>
-      <MarkdownEditor.Root
-        aria-labelledby={labelId}
-        aria-describedby={descriptionId}
-        defaultValue={previewMarkdown}
-        readOnly
-      >
+    <Item.Root style={styles.preview}>
+      <Item.Label id={labelId}>Preview</Item.Label>
+      <MarkdownEditor.Root aria-labelledby={labelId} defaultValue={previewMarkdown} readOnly>
         <MarkdownEditor.Frame>
           <MarkdownEditor.Toolbar>
             <MarkdownEditor.FormattingActions />
@@ -49,7 +40,7 @@ function EditorSettingsPreview() {
           <MarkdownEditor.StatisticsFooter />
         </MarkdownEditor.Frame>
       </MarkdownEditor.Root>
-    </div>
+    </Item.Root>
   );
 }
 
@@ -130,8 +121,8 @@ export function MarkdownEditorSettingsSection() {
             checked={preferences[key]}
           />
         ))}
+        <EditorSettingsPreview />
       </Item.Group>
-      <EditorSettingsPreview />
     </Item.Section>
   );
 }
@@ -139,5 +130,5 @@ export function MarkdownEditorSettingsSection() {
 const styles = stylex.create({
   error: { color: colors.foregroundDanger },
   rowSelect: { minWidth: "4rem" },
-  preview: { display: "grid", gap: "0.5rem", paddingInline: "1rem" },
+  preview: { alignItems: "stretch", flexDirection: "column", gap: "0.5rem" },
 });

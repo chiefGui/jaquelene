@@ -1,119 +1,34 @@
 import { useMenuStore } from "@ariakit/react/menu";
 import { useStoreState } from "@ariakit/react/store";
 import BookOpen01Icon from "@hugeicons/core-free-icons/BookOpen01Icon";
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import ArrowReloadHorizontalIcon from "@hugeicons/core-free-icons/ArrowReloadHorizontalIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { IconButton } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
-import type { ModelConfigurationSelection } from "@jaquelene/ipc/renderer";
 import { useQuery } from "@tanstack/react-query";
 import { Menu } from "@jaquelene/ui/menu";
 import { useLayoutEffect } from "react";
 import { composerSkillsQuery } from "@/feature/composer-skill/query";
-import { useComposerSkill } from "@/feature/composer-skill/use-composer-skill";
+import type { ComposerSkillExecution } from "@/feature/composer-skill/use-composer-skill";
 import { Composer, useComposer } from "./composer";
 
 export function ComposerSkills({
-  threadId,
-  configuration,
-  configurationPending,
+  execution,
   disabled = false,
 }: {
-  threadId: string;
-  configuration: ModelConfigurationSelection | null;
-  configurationPending: boolean;
+  execution: ComposerSkillExecution;
   disabled?: boolean;
 }) {
   const { pending, input } = useComposer();
   const menu = useMenuStore();
   const open = useStoreState(menu, "open");
   const skills = useQuery(composerSkillsQuery);
-  const execution = useComposerSkill({
-    threadId,
-    configuration,
-    configurationPending,
-    blocked: pending || disabled,
-    focusComposer: () => input.current?.focus(),
-  });
-  const { generation, cancellation, unavailable } = execution;
+  const unavailable = pending || disabled;
 
   useLayoutEffect(() => {
     if (unavailable) {
       menu.hideAll();
     }
   }, [menu, unavailable]);
-
-  let feedback;
-  if (generation.isPending) {
-    let progress = "Generating response…";
-    if (cancellation.isPending || cancellation.isSuccess) progress = "Cancelling…";
-    feedback = (
-      <>
-        <Composer.Status role="status">{progress}</Composer.Status>
-        <Composer.ToolbarAction
-          label="Cancel generation"
-          disabled={cancellation.isPending || cancellation.isSuccess}
-          render={
-            <IconButton.Root
-              aria-label="Cancel generation"
-              shape="squircle"
-              size="small"
-              onClick={() => {
-                cancellation.mutate();
-                input.current?.focus();
-              }}
-            >
-              <IconButton.Icon render={<HugeiconsIcon icon={Cancel01Icon} />} />
-            </IconButton.Root>
-          }
-        />
-      </>
-    );
-  } else if (
-    generation.isError ||
-    generation.data?.status === "failed" ||
-    generation.data?.status === "draft-changed"
-  ) {
-    let message = "Could not generate a response.";
-    if (generation.data?.status === "failed") message = generation.data.message;
-    if (generation.data?.status === "draft-changed") message = "Draft changed. Your text was kept.";
-    feedback = (
-      <>
-        <Composer.Status role="alert">{message}</Composer.Status>
-        <Composer.ToolbarAction
-          label="Retry generation"
-          disabled={unavailable}
-          render={
-            <IconButton.Root
-              aria-label="Retry generation"
-              shape="squircle"
-              size="small"
-              onClick={execution.retry}
-            >
-              <IconButton.Icon render={<HugeiconsIcon icon={ArrowReloadHorizontalIcon} />} />
-            </IconButton.Root>
-          }
-        />
-        <Composer.ToolbarAction
-          label="Dismiss"
-          render={
-            <IconButton.Root
-              aria-label="Dismiss"
-              shape="squircle"
-              size="small"
-              onClick={() => {
-                generation.reset();
-                input.current?.focus();
-              }}
-            >
-              <IconButton.Icon render={<HugeiconsIcon icon={Cancel01Icon} />} />
-            </IconButton.Root>
-          }
-        />
-      </>
-    );
-  }
 
   return (
     <>
@@ -137,7 +52,11 @@ export function ComposerSkills({
             <Menu.SubmenuTrigger>Generate…</Menu.SubmenuTrigger>
             <Menu.Content aria-label="Generate" {...(unavailable && { finalFocus: input })}>
               {skills.data?.map((skill) => (
-                <Menu.Item key={skill.id} onClick={() => execution.select(skill)}>
+                <Menu.Item
+                  key={skill.id}
+                  disabled={execution.unavailable}
+                  onClick={() => execution.select(skill)}
+                >
                   {skill.name}
                 </Menu.Item>
               ))}
@@ -149,10 +68,6 @@ export function ComposerSkills({
           </Menu.Submenu>
         </Menu.Content>
       </Menu.Root>
-      {feedback}
-      {cancellation.isError && generation.isPending && (
-        <Composer.Status role="alert">Could not cancel. Try again.</Composer.Status>
-      )}
       <ConfirmDialog
         trigger={null}
         open={execution.confirmingReplacement}

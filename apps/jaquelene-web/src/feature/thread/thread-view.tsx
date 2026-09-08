@@ -23,6 +23,8 @@ import { reportError } from "@/feature/diagnostics/diagnostics";
 import { toRequestedModelConfiguration } from "@/feature/model/configuration";
 import { Composer } from "@/feature/composer/composer";
 import { ComposerSkills } from "@/feature/composer/composer-skills";
+import { ComposerSkillActivity } from "@/feature/composer-skill/activity";
+import { useComposerSkill } from "@/feature/composer-skill/use-composer-skill";
 import { scrollFade } from "@/primitive/scroll-fade.stylex";
 import { useScrollFade } from "@/hook/use-scroll-fade";
 import {
@@ -175,6 +177,14 @@ const ThreadComposer = memo(function ThreadComposer({
   const { draft, setDraft } = useThreadDraft(threadId);
   const [sendError, setSendError] = useState<string | null>(null);
   const acceptingSubmission = useRef(false);
+  const composerInput = useRef<HTMLTextAreaElement>(null);
+  const skillExecution = useComposerSkill({
+    threadId,
+    configuration,
+    configurationPending,
+    blocked: generationPending || operationPending || interactionDisabled,
+    focusComposer: () => composerInput.current?.focus(),
+  });
   const composerInputId = useId();
   const sendErrorId = useId();
   const submissionBlocked = operationPending || configurationPending || interactionDisabled;
@@ -228,17 +238,17 @@ const ThreadComposer = memo(function ThreadComposer({
 
   return (
     <Composer pending={generationPending} onSubmit={sendMessage}>
+      <ComposerSkillActivity execution={skillExecution} />
       <Composer.Toolbar>
         <ComposerSkills
-          threadId={threadId}
-          configuration={configuration}
-          configurationPending={configurationPending}
+          execution={skillExecution}
           disabled={operationPending || interactionDisabled}
         />
       </Composer.Toolbar>
       <Composer.Surface>
         <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
         <Composer.Input
+          ref={composerInput}
           id={composerInputId}
           value={draft.content}
           maxLength={messageMaxCodeUnits}

@@ -6,6 +6,7 @@ import { Button, type ButtonProps } from "@jaquelene/ui";
 import { useReducedMotion } from "@jaquelene/ui/motion";
 import { Toolbar, type ToolbarProps } from "@jaquelene/ui/toolbar";
 import { Tooltip } from "@jaquelene/ui/tooltip";
+import { Popover } from "@jaquelene/ui/popover";
 import { colors, radii, shadows, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
@@ -17,6 +18,7 @@ import {
   useMemo,
   useRef,
   type ComponentProps,
+  type ReactNode,
   type RefObject,
 } from "react";
 import { Backlight } from "@/primitive/backlight/backlight";
@@ -69,6 +71,23 @@ function ComposerSurface({ children, style, ...props }: StyleableProps<Component
     <div {...props} {...stylex.props(styles.chrome, styles.surface, style, stylex.defaultMarker())}>
       <Backlight active={pending} />
       {children}
+    </div>
+  );
+}
+
+function ComposerActivity({ children, open }: { children: ReactNode; open: boolean }) {
+  return (
+    <div inert={!open} aria-hidden={!open || undefined} {...stylex.props(styles.activityAnchor)}>
+      <Popover.Presence present={open}>
+        <Popover.Surface
+          side="top"
+          role="group"
+          aria-label="Composer activity"
+          {...stylex.props(styles.chrome, styles.activity)}
+        >
+          {children}
+        </Popover.Surface>
+      </Popover.Presence>
     </div>
   );
 }
@@ -245,6 +264,7 @@ function ComposerSubmit({
 }
 
 export const Composer = Object.assign(ComposerRoot, {
+  Activity: ComposerActivity,
   Surface: ComposerSurface,
   Toolbar: ComposerToolbar,
   ToolbarAction: ComposerToolbarAction,
@@ -263,6 +283,34 @@ const spin = stylex.keyframes({
 });
 
 const styles = stylex.create({
+  activityAnchor: {
+    bottom: "100%",
+    display: "flex",
+    insetInline: 0,
+    justifyContent: "center",
+    paddingBottom: "0.375rem",
+    pointerEvents: "none",
+    position: "absolute",
+    zIndex: 0,
+  },
+  activity: {
+    alignItems: "center",
+    backdropFilter: "blur(0.75rem)",
+    backgroundColor: `oklch(from ${colors.backgroundSurfaceRaised} l c h / 0.96)`,
+    borderRadius: radii.full,
+    boxShadow: shadows.floating,
+    display: "flex",
+    gap: "0.375rem",
+    justifyContent: "space-between",
+    maxWidth: "calc(100% - 1.5rem)",
+    minHeight: tokens.controlHeight,
+    minWidth: "9rem",
+    overflowWrap: "anywhere",
+    paddingBlock: "0.25rem",
+    paddingLeft: "0.75rem",
+    paddingRight: "0.25rem",
+    pointerEvents: "auto",
+  },
   root: {
     display: "flex",
     flexDirection: "column",

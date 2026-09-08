@@ -107,3 +107,5 @@ export function useComposerSkill({
     },
   };
 }
+
+export type ComposerSkillExecution = ReturnType<typeof useComposerSkill>;

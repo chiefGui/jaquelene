@@ -1,3 +1,4 @@
+import { appDataStorageMeta } from "@/feature/storage/lifecycle";
 import {
   ProviderConfigurationKind,
   ProviderConfigurationState,
@@ -14,6 +15,7 @@ const clearProviderConfiguration = requireIpcMethod(Providers?.clearConfiguratio
 
 export const providersQuery = queryOptions({
   ...ipcQueryOptions,
+  meta: appDataStorageMeta,
   staleTime: Infinity,
   queryKey: ["providers"],
   queryFn: listProviders,

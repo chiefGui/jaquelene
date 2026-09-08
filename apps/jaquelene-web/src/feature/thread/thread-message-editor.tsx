@@ -181,9 +181,6 @@ const styles = stylex.create({
   },
   footer: {
     alignItems: "center",
-    borderTopColor: colors.borderSubtle,
-    borderTopStyle: "solid",
-    borderTopWidth: 1,
     display: "flex",
     flexShrink: 0,
     gap: "0.75rem",

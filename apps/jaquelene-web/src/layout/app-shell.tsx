@@ -10,9 +10,18 @@ import { useApplyUiTheme } from "@/feature/appearance/user-interface/theme";
 import { ContentPane } from "./content-pane";
 import { SecondarySidebarHost, SecondarySidebarHostProvider } from "./secondary-sidebar-host";
 import { StatusBar } from "./status-bar";
+import { useMemo } from "react";
+import { markdownEditorPreferencesQuery } from "@/feature/markdown/preferences";
+import { presentMarkdownEditorSettings } from "@/feature/markdown/preference-presentation";
+import { MarkdownEditorSettingsProvider } from "@/feature/markdown/editor/markdown-editor-settings";
 
 export function AppShell() {
   const { data: preferences } = useSuspenseQuery(userInterfacePreferencesQuery);
+  const { data: editorPreferences } = useSuspenseQuery(markdownEditorPreferencesQuery);
+  const editorSettings = useMemo(
+    () => presentMarkdownEditorSettings(editorPreferences),
+    [editorPreferences],
+  );
   const Sidebar = useMatches({
     select: (matches) =>
       matches.findLast(({ staticData }) => staticData.primarySidebar)?.staticData.primarySidebar,
@@ -26,18 +35,20 @@ export function AppShell() {
 
   return (
     <MotionProvider mode={motionPreferences[preferences.motion].mode}>
-      <SecondarySidebarHostProvider>
-        <div {...stylex.props(styles.root)}>
-          <Sidebar />
-          <div {...stylex.props(styles.workspace)}>
-            <ContentPane.Root>
-              <Outlet />
-            </ContentPane.Root>
-            <SecondarySidebarHost />
+      <MarkdownEditorSettingsProvider value={editorSettings}>
+        <SecondarySidebarHostProvider>
+          <div {...stylex.props(styles.root)}>
+            <Sidebar />
+            <div {...stylex.props(styles.workspace)}>
+              <ContentPane.Root>
+                <Outlet />
+              </ContentPane.Root>
+              <SecondarySidebarHost />
+            </div>
+            <StatusBar />
           </div>
-          <StatusBar />
-        </div>
-      </SecondarySidebarHostProvider>
+        </SecondarySidebarHostProvider>
+      </MarkdownEditorSettingsProvider>
     </MotionProvider>
   );
 }

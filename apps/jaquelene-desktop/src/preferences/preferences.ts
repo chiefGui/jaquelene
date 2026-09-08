@@ -4,6 +4,11 @@ import { join } from "node:path";
 import Store, { type Schema } from "electron-store";
 import { deleteStoreFile } from "@/storage/delete-store-file";
 import {
+  createMarkdownEditorPreferences,
+  markdownEditorPreferencesSchema,
+  type MarkdownEditorPreferenceValues,
+} from "@/feature/markdown/preferences";
+import {
   createDiagnosticsPreferences,
   diagnosticsPreferencesSchema,
   type DiagnosticsPreferenceValues,
@@ -25,6 +30,7 @@ import {
 } from "@/feature/thread/regeneration-preferences";
 
 type PreferencesData = {
+  markdownEditor?: MarkdownEditorPreferenceValues;
   appearance?: {
     userInterface?: UserInterfacePreferenceValues;
   };
@@ -36,6 +42,7 @@ type PreferencesData = {
 const storeName = "preferences";
 
 const schema = {
+  markdownEditor: markdownEditorPreferencesSchema,
   appearance: {
     type: "object",
     additionalProperties: false,
@@ -98,11 +105,17 @@ export function createPreferences(userDataDirectory: string) {
     write: (values) => store.set("regeneration", values),
   });
 
+  const markdownEditor = createMarkdownEditorPreferences({
+    read: () => store.get("markdownEditor"),
+    write: (values) => store.set("markdownEditor", values),
+  });
+
   return {
     appearance: {
       userInterface,
     },
     campaign,
+    markdownEditor,
     regeneration,
     diagnostics,
     deleteAll: () => deleteStoreFile(store),

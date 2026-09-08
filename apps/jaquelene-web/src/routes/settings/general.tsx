@@ -14,6 +14,7 @@ import {
 } from "@/feature/thread/regeneration-preferences";
 import { SettingsLandingHeader } from "@/feature/settings/header";
 import { ContentPane } from "@/layout/content-pane";
+import { MarkdownEditorSettingsSection } from "@/feature/markdown/settings-section";
 
 export const Route = createFileRoute("/settings/general")({
   loader: async ({ context }) => {
@@ -65,6 +66,7 @@ function GeneralRoute() {
               />
             </Item.Group>
           </Item.Section>
+          <MarkdownEditorSettingsSection />
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>

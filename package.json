@@ -38,6 +38,9 @@
     "typescript": "^7.0.2",
     "vite-plus": "^0.3.0"
   },
+  "overrides": {
+    "sharp": "0.35.4"
+  },
   "packageManager": "bun@1.4.2",
   "patchedDependencies": {
     "effect@4.0.0-rc.112": "patches/effect@4.0.0-rc.112.patch"

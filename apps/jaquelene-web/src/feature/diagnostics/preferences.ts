@@ -1,3 +1,4 @@
+import { appDataStorageMeta } from "@/feature/storage/lifecycle";
 import { DiagnosticsPreferences, type DiagnosticsPreferenceValues } from "@jaquelene/ipc/renderer";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { reportError } from "./diagnostics";
@@ -8,6 +9,7 @@ const setWriteToDisk = requireIpcMethod(DiagnosticsPreferences?.setWriteToDisk);
 
 export const diagnosticsPreferencesQuery = queryOptions({
   ...ipcQueryOptions,
+  meta: appDataStorageMeta,
   queryKey: ["preferences", "diagnostics"],
   queryFn: getPreferences,
 });

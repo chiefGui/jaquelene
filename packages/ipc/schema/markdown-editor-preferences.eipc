@@ -1,0 +1,30 @@
+module jaquelene
+
+enum MarkdownEditorMaxRows {
+  Five = "5"
+  Six = "6"
+  Seven = "7"
+  Eight = "8"
+  Nine = "9"
+  Ten = "10"
+}
+
+structure MarkdownEditorPreferenceValues {
+  maxRows: MarkdownEditorMaxRows
+  showLineCount: boolean
+  showWordCount: boolean
+  showCharacterCount: boolean
+  showEstimatedTokens: boolean
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface MarkdownEditorPreferences {
+  get() -> MarkdownEditorPreferenceValues
+  setMaxRows(maxRows: MarkdownEditorMaxRows) -> MarkdownEditorMaxRows
+  setShowLineCount(visible: boolean) -> boolean
+  setShowWordCount(visible: boolean) -> boolean
+  setShowCharacterCount(visible: boolean) -> boolean
+  setShowEstimatedTokens(visible: boolean) -> boolean
+}

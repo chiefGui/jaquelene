@@ -8,7 +8,9 @@ import { reportError } from "@/feature/diagnostics/diagnostics";
 import { loadThreadTranscript } from "@/feature/thread/query";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
+import { CopyButton } from "@/primitive/copy-button";
 import { EmptyState } from "@/primitive/empty-state";
+import { SelectionActions } from "@/primitive/selection-actions/selection-actions";
 
 export const Route = createFileRoute("/campaigns/$campaignId_/transcript")({
   preload: false,
@@ -116,14 +118,19 @@ function TranscriptEntries({ entries }: { entries: readonly ThreadTranscriptEntr
   }
 
   return (
-    <ol aria-label="Model input" {...stylex.props(styles.entries)}>
-      {entries.map((entry) => (
-        <li key={entryKey(entry)} {...stylex.props(styles.entry)}>
-          <span {...stylex.props(styles.role)}>{entryRole(entry)}</span>
-          <pre {...stylex.props(styles.content)}>{entry.content}</pre>
-        </li>
-      ))}
-    </ol>
+    <SelectionActions
+      label="Transcript"
+      actions={({ text, dismiss }) => <CopyButton text={text} onCopied={dismiss} />}
+    >
+      <ol aria-label="Model input" {...stylex.props(styles.entries)}>
+        {entries.map((entry) => (
+          <li key={entryKey(entry)} {...stylex.props(styles.entry)}>
+            <span {...stylex.props(styles.role)}>{entryRole(entry)}</span>
+            <pre {...stylex.props(styles.content)}>{entry.content}</pre>
+          </li>
+        ))}
+      </ol>
+    </SelectionActions>
   );
 }
 
@@ -170,7 +177,7 @@ function TranscriptRoute() {
 
       <ContentPane.Viewport>
         <ContentPane.Body>
-          <TranscriptEntries entries={data.transcript.entries} />
+          <TranscriptEntries key={data.campaign.id} entries={data.transcript.entries} />
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>
@@ -191,23 +198,19 @@ const styles = stylex.create({
   },
   role: {
     color: colors.foregroundSecondary,
-    cursor: "text",
     fontSize: tokens.fontSizeXXSmall,
     fontWeight: 600,
     letterSpacing: "0.06em",
     lineHeight: tokens.lineHeightXXSmall,
     textTransform: "uppercase",
-    userSelect: "text",
   },
   content: {
-    cursor: "text",
     fontFamily: tokens.fontMono,
     fontSize: tokens.fontSizeSmall,
     lineHeight: tokens.lineHeightBase,
     margin: 0,
     minWidth: 0,
     overflowWrap: "anywhere",
-    userSelect: "text",
     whiteSpace: "pre-wrap",
   },
 });

@@ -7,18 +7,8 @@ import type {
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const ipc = vi.hoisted(() => {
-  type HistoryDeletion = import("@jaquelene/ipc/renderer").ThreadHistoryDeletion;
-  type HistoryDeletedListener = (deletion: HistoryDeletion) => void;
-  type Message = Readonly<{
-    id: string;
-    threadId: string;
-    turnId: string;
-    sequence: number;
-    author: "user" | "assistant";
-    content: string;
-    createdAt: number;
-  }>;
-  type MessageEditedListener = (message: Message) => void;
+  type HistoryDeletedListener = (deletion: ThreadHistoryDeletion) => void;
+  type MessageEditedListener = (message: ThreadMessage) => void;
 
   let historyDeletedListener: HistoryDeletedListener | undefined;
   let messageEditedListener: MessageEditedListener | undefined;
@@ -355,6 +345,43 @@ describe("thread reconciliation", () => {
     queryClient.clear();
   });
 
+  it("keeps the newest deletion when notifications arrive during the initial history load", async () => {
+    const queryClient = new QueryClient();
+    const query = threadMessagesQuery(threadId);
+    const initial = Promise.withResolvers<ThreadMessagePage>();
+    const earlier = Promise.withResolvers<ThreadMessagePage>();
+    const latestPage = page([message(1)]);
+    ipc.Threads.listMessages
+      .mockReturnValueOnce(initial.promise)
+      .mockReturnValueOnce(earlier.promise)
+      .mockResolvedValueOnce(latestPage);
+    const observer = new InfiniteQueryObserver(queryClient, query);
+    const unsubscribe = observer.subscribe(() => {});
+    const stop = installThreadReconciliation(queryClient);
+
+    try {
+      ipc.listener()?.(deletion(3, "message-2"));
+      ipc.listener()?.(deletion(2, "message-1"));
+
+      await vi.waitFor(() => {
+        expect(queryClient.getQueryData(query.queryKey)).toEqual(
+          createLatestThreadHistory(latestPage, threadId),
+        );
+      });
+      initial.resolve(page([message(1), message(2), message(3)]));
+      earlier.resolve(page([message(1), message(2)]));
+      await Promise.all([initial.promise, earlier.promise]);
+      expect(queryClient.getQueryData(query.queryKey)).toEqual(
+        createLatestThreadHistory(latestPage, threadId),
+      );
+      expect(reportError).not.toHaveBeenCalled();
+    } finally {
+      stop();
+      unsubscribe();
+      queryClient.clear();
+    }
+  });
+
   it("does not fetch history for a thread that has never been loaded", async () => {
     const queryClient = new QueryClient();
     const stop = installThreadReconciliation(queryClient);
@@ -368,49 +395,22 @@ describe("thread reconciliation", () => {
 
   it("applies committed message edits to cached thread history", () => {
     const queryClient = new QueryClient();
-    const threadId = "thread_01k46w4v06f7vs6qdqb8r78x8w";
-    const message = {
-      id: "message_01k46w4v06f7vs6qdqb8r78x8w",
-      threadId,
-      turnId: "turn_01k46w4v06f7vs6qdqb8r78x8w",
-      sequence: 1,
-      author: ThreadMessageAuthor.User,
-      content: "Original",
-      createdAt: 100,
-    };
+    const originalMessage = { ...message(1), content: "Original" };
     const queryKey = threadMessagesQuery(threadId).queryKey;
-    queryClient.setQueryData(queryKey, {
-      pages: [
-        {
-          messages: [message],
-          generations: [],
-          messageCountLimit: 50,
-          messageMaxCodeUnits: 100_000,
-          contentByteBudget: 128 * 1024,
-          contentBytes: 8,
-        },
-      ],
-      pageParams: [{ kind: "latest" }],
-    });
+    queryClient.setQueryData(
+      queryKey,
+      createLatestThreadHistory(page([originalMessage]), threadId),
+    );
     const stop = installThreadReconciliation(queryClient);
-    const editedMessage = { ...message, content: "Edited" };
+    const editedMessage = { ...originalMessage, content: "Edited" };
 
     ipc.messageListener()?.(editedMessage);
 
-    expect(queryClient.getQueryData(queryKey)).toEqual({
-      pages: [
-        {
-          messages: [editedMessage],
-          generations: [],
-          messageCountLimit: 50,
-          messageMaxCodeUnits: 100_000,
-          contentByteBudget: 128 * 1024,
-          contentBytes: 6,
-        },
-      ],
-      pageParams: [{ kind: "latest" }],
-    });
+    expect(queryClient.getQueryData(queryKey)).toEqual(
+      createLatestThreadHistory(page([editedMessage]), threadId),
+    );
 
     stop();
+    queryClient.clear();
   });
 });

@@ -197,10 +197,9 @@ async function refreshLatestThreadHistory(queryClient: QueryClient, threadId: st
     return;
   }
 
-  await queryClient.cancelQueries({ queryKey, exact: true });
+  void query.cancel({ silent: true });
 
   return query.fetch(undefined, {
-    cancelRefetch: true,
     initialPromise: listThreadMessages({
       threadId,
       direction: ThreadMessagePageDirection.Older,

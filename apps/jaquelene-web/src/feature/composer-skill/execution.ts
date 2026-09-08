@@ -67,7 +67,7 @@ export function createComposerSkillExecution(
         return result;
       } finally {
         unsubscribe?.();
-        if (active === execution) active = undefined;
+        active = undefined;
       }
     },
     cancel,

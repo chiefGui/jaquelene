@@ -6,7 +6,7 @@ import type { UsageAttribution } from "#backend/usage/types";
 export type ComposerSkillInput = Readonly<{
   executionId: string;
   configuration: ResolvedModelConfiguration;
-  context: ModelInput;
+  context: Pick<ModelInput, "dialogue" | "requestMessages">;
   attribution: UsageAttribution;
 }>;
 

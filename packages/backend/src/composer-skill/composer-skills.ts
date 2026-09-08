@@ -1,10 +1,9 @@
-import { skillIdSchema, type SkillId } from "@jaquelene/domain";
+import type { SkillId } from "@jaquelene/domain";
 import { Effect } from "effect";
 import { ids, type ThreadId } from "#backend/id";
 import type { CampaignEngine } from "#backend/campaign/campaigns";
 import type { ModelExecutor } from "#backend/model/execution";
 import type { RequestedModelConfiguration } from "#backend/model/configuration";
-import { requireModelInput } from "#backend/model/input";
 import { requireThreadMessageContent, type ThreadEngine } from "#backend/thread/threads";
 import { readComposerConversation } from "./context";
 import type { ComposerSkill } from "./types";
@@ -45,24 +44,20 @@ export function createComposerSkills({
   return {
     list: () => Array.from(registry.values(), ({ descriptor }) => ({ ...descriptor })),
     execute: Effect.fn("ComposerSkills.execute")(function* (request: ExecuteComposerSkill) {
-      const skill = yield* Effect.try({
-        try: () => {
-          const found = registry.get(skillIdSchema.parse(request.skillId));
-          if (!found)
-            throw new ComposerSkillError({ message: "The composer skill is unavailable." });
-          return found;
-        },
-        catch: (cause) => cause,
-      });
+      const skill = registry.get(request.skillId);
+      if (!skill) {
+        return yield* new ComposerSkillError({ message: "The composer skill is unavailable." });
+      }
       const configuration = yield* modelExecutor.resolveConfiguration(request.configuration);
       const context = yield* Effect.try({
         try: () => readContext(request.threadId),
         catch: (cause) => cause,
       });
       const snapshot = JSON.stringify(context);
-      const input = yield* Effect.try(() =>
-        requireModelInput({
-          instructions: [],
+      const text = yield* skill.execute({
+        executionId: ids.skillExecution.create(),
+        configuration,
+        context: {
           dialogue: context.messages.map(({ id: messageId, author: role, content }) => ({
             messageId,
             role,
@@ -72,12 +67,7 @@ export function createComposerSkills({
             role: "user" as const,
             content: `Scenario context:\n${content}`,
           })),
-        }),
-      );
-      const text = yield* skill.execute({
-        executionId: ids.skillExecution.create(),
-        configuration,
-        context: input,
+        },
         attribution: { kind: "campaign", id: context.campaign.id },
       });
       return yield* Effect.try({

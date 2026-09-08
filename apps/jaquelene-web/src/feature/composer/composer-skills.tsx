@@ -34,7 +34,7 @@ export function ComposerSkills({
     configuration,
     configurationPending,
     blocked: pending || disabled,
-    onDelivered: () => input.current?.focus(),
+    focusComposer: () => input.current?.focus(),
   });
   const { generation, cancellation, unavailable } = execution;
 
@@ -59,7 +59,10 @@ export function ComposerSkills({
               aria-label="Cancel generation"
               shape="squircle"
               size="small"
-              onClick={() => cancellation.mutate()}
+              onClick={() => {
+                cancellation.mutate();
+                input.current?.focus();
+              }}
             >
               <IconButton.Icon render={<HugeiconsIcon icon={Cancel01Icon} />} />
             </IconButton.Root>
@@ -99,7 +102,10 @@ export function ComposerSkills({
               aria-label="Dismiss"
               shape="squircle"
               size="small"
-              onClick={() => generation.reset()}
+              onClick={() => {
+                generation.reset();
+                input.current?.focus();
+              }}
             >
               <IconButton.Icon render={<HugeiconsIcon icon={Cancel01Icon} />} />
             </IconButton.Root>

@@ -17,13 +17,13 @@ export function useComposerSkill({
   configuration,
   configurationPending,
   blocked,
-  onDelivered,
+  focusComposer,
 }: {
   threadId: string;
   configuration: ModelConfigurationSelection | null;
   configurationPending: boolean;
   blocked: boolean;
-  onDelivered: () => void;
+  focusComposer: () => void;
 }) {
   const queryClient = useQueryClient();
   const [replacement, setReplacement] = useState<SkillDescriptor | null>(null);
@@ -58,7 +58,7 @@ export function useComposerSkill({
       { skill, configuration: toRequestedModelConfiguration(configuration) },
       {
         onSuccess: (result) => {
-          if (result.status === "completed") onDelivered();
+          if (result.status === "completed") focusComposer();
         },
       },
     );

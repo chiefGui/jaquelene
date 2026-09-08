@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import { Cause, Effect, Exit } from "effect";
 import { skillIdSchema } from "@jaquelene/domain";
 import { closeDatabase, openDatabase, type Database } from "#backend/database/database";
 import { createCampaigns } from "#backend/campaign/campaigns";
 import { createThreads, appendAssistantMessageInTransaction } from "#backend/thread/threads";
 import { generationTable } from "#backend/generation/schema";
-import { createModelExecutor, type ModelExecutionRequest } from "#backend/model/execution";
+import { createModelExecutor } from "#backend/model/execution";
 import { createAccountedModelExecution } from "#backend/model/accounted-execution";
 import { createProviderAttempts } from "#backend/usage/provider-attempts";
 import { providerAttemptTable } from "#backend/usage/schema";
@@ -241,27 +241,5 @@ describe("composer skills", () => {
       ),
     ).rejects.toThrow("unavailable");
     expect(env.calls).toEqual([]);
-  });
-
-  it("does not call the provider when recording its attempt fails", async () => {
-    const execute = vi.fn(() => Effect.die("Must not execute"));
-    const run = createAccountedModelExecution(
-      { execute },
-      {
-        start: () => {
-          throw new Error("Storage failed");
-        },
-        settle: vi.fn(),
-      },
-    );
-    const request: ModelExecutionRequest = {
-      executionId: "test",
-      configuration: { model: { providerId: "test", modelId: "test" } },
-      input: { instructions: [{ sourceKey: "test", content: "Draft" }], dialogue: [] },
-    };
-    await expect(
-      Effect.runPromise(run(request, { kind: "campaign", id: "campaign" })),
-    ).rejects.toThrow("Storage failed");
-    expect(execute).not.toHaveBeenCalled();
   });
 });

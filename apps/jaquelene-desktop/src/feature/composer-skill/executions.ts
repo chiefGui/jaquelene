@@ -29,7 +29,7 @@ export function createComposerSkillExecutions(
       active = execution;
       return new Promise((resolve) => {
         execution.fiber.addObserver((exit) => {
-          if (active === execution) active = undefined;
+          active = undefined;
           if (Exit.isSuccess(exit)) {
             resolve({ status: "completed", text: exit.value.text });
           } else if (Cause.hasInterruptsOnly(exit.cause)) {

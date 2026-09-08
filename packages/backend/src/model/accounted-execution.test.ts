@@ -24,6 +24,21 @@ function environment() {
 }
 
 describe("accounted model execution", () => {
+  it("does not call the provider when recording its attempt fails", async () => {
+    const execute = vi.fn(() => Effect.die("Must not execute"));
+    const run = createAccountedModelExecution(
+      { execute },
+      {
+        start: () => {
+          throw new Error("Storage failed");
+        },
+        settle: vi.fn(),
+      },
+    );
+    await expect(Effect.runPromise(run(request, attribution))).rejects.toThrow("Storage failed");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it("preserves available accounting when the provider response has invalid accounting", async () => {
     const { database, attempts } = environment();
     const failure = new Error("Invalid usage");

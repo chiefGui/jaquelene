@@ -5,30 +5,38 @@ import * as stylex from "@stylexjs/stylex";
 import { useId } from "react";
 
 export function PreferenceSelectItem<Value extends string>({
+  description,
   disabled,
   error,
   label,
   onValueChange,
   options,
+  selectStyle,
   value,
 }: {
+  description?: string;
   disabled: boolean;
   error: string | null;
   label: string;
   onValueChange: (value: Value) => void;
   options: readonly { label: string; value: Value }[];
+  selectStyle?: stylex.StyleXStyles;
   value: Value;
 }) {
   const controlId = useId();
   const errorId = useId();
   const labelId = useId();
+  const descriptionId = useId();
   const selectedOption = options.find((option) => option.value === value);
   if (!selectedOption) {
     throw new TypeError(`Unknown preference value "${value}".`);
   }
-  let descriptionId: string | undefined;
+  const descriptionIds: string[] = [];
+  if (description) {
+    descriptionIds.push(descriptionId);
+  }
   if (error) {
-    descriptionId = errorId;
+    descriptionIds.push(errorId);
   }
 
   return (
@@ -37,6 +45,7 @@ export function PreferenceSelectItem<Value extends string>({
         <Item.Label id={labelId} render={<label htmlFor={controlId} />}>
           {label}
         </Item.Label>
+        {description && <Item.Description id={descriptionId}>{description}</Item.Description>}
         {error && (
           <Item.Description id={errorId} role="alert" style={styles.error}>
             {error}
@@ -59,9 +68,9 @@ export function PreferenceSelectItem<Value extends string>({
           <Select
             id={controlId}
             aria-labelledby={labelId}
-            aria-describedby={descriptionId}
+            aria-describedby={descriptionIds.join(" ") || undefined}
             disabled={disabled}
-            style={styles.select}
+            style={[styles.select, selectStyle]}
           >
             <Select.Value>{selectedOption.label}</Select.Value>
           </Select>

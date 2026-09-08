@@ -72,6 +72,8 @@ export function MarkdownEditorSettingsSection() {
       <Item.Group>
         <PreferenceSelectItem
           label="Max rows"
+          description="The editor grows to this many rows, then scrolls."
+          selectStyle={styles.rowSelect}
           value={preferences.maxRows}
           options={markdownEditorRowOptions}
           disabled={maxRows.pending}
@@ -91,4 +93,7 @@ export function MarkdownEditorSettingsSection() {
   );
 }
 
-const styles = stylex.create({ error: { color: colors.foregroundDanger } });
+const styles = stylex.create({
+  error: { color: colors.foregroundDanger },
+  rowSelect: { minWidth: "4rem" },
+});

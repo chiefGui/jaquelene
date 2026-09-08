@@ -5,6 +5,7 @@ import { IconButton } from "@jaquelene/ui";
 import { Tooltip } from "@jaquelene/ui/tooltip";
 import type { ComponentProps } from "react";
 import { Composer, useComposer } from "@/feature/composer/composer";
+import { Backlight } from "@/primitive/backlight/backlight";
 import type { ComposerSkillExecution } from "./use-composer-skill";
 
 function ActivityAction({
@@ -43,10 +44,11 @@ export function ComposerSkillActivity({ execution }: { execution: ComposerSkillE
   const { input } = useComposer();
   const { generation, cancellation, unavailable } = execution;
   let feedback;
+  let actions;
 
   if (generation.isPending) {
     const cancelling = cancellation.isPending || cancellation.isSuccess;
-    let progress = "Generating…";
+    let progress = generation.variables.skill.pendingLabel;
     let statusRole: "status" | "alert" = "status";
     if (cancelling) progress = "Cancelling…";
     if (cancellation.isError) {
@@ -55,17 +57,22 @@ export function ComposerSkillActivity({ execution }: { execution: ComposerSkillE
     }
     feedback = (
       <>
-        <Composer.Status role={statusRole}>{progress}</Composer.Status>
-        <ActivityAction
-          label="Cancel generation"
-          icon={Cancel01Icon}
-          disabled={cancelling}
-          onClick={() => {
-            cancellation.mutate();
-            input.current?.focus();
-          }}
-        />
+        <Backlight active />
+        <Composer.Status role={statusRole} pending={!cancellation.isError}>
+          {progress}
+        </Composer.Status>
       </>
+    );
+    actions = (
+      <ActivityAction
+        label="Cancel generation"
+        icon={Cancel01Icon}
+        disabled={cancelling}
+        onClick={() => {
+          cancellation.mutate();
+          input.current?.focus();
+        }}
+      />
     );
   } else if (
     generation.isError ||
@@ -75,11 +82,11 @@ export function ComposerSkillActivity({ execution }: { execution: ComposerSkillE
     let message = "Could not generate a response.";
     if (generation.data?.status === "failed") message = generation.data.message;
     if (generation.data?.status === "draft-changed") message = "Draft changed. Your text was kept.";
-    feedback = (
+    feedback = <Composer.Status role="alert">{message}</Composer.Status>;
+    actions = (
       <>
-        <Composer.Status role="alert">{message}</Composer.Status>
         <ActivityAction
-          label="Retry generation"
+          label="Retry"
           icon={ArrowReloadHorizontalIcon}
           disabled={unavailable}
           onClick={execution.retry}
@@ -96,5 +103,9 @@ export function ComposerSkillActivity({ execution }: { execution: ComposerSkillE
     );
   }
 
-  return <Composer.Activity open={feedback !== undefined}>{feedback}</Composer.Activity>;
+  return (
+    <Composer.Activity open={feedback !== undefined} actions={actions}>
+      {feedback}
+    </Composer.Activity>
+  );
 }

@@ -126,7 +126,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
 
     if (optimisticSubmission) {
       messages.push({
-        estimatedSize: estimateThreadTimelineItemSize(optimisticSubmission.content, true),
+        estimatedSize: estimateThreadTimelineItemSize(optimisticSubmission.content, false),
         key: `submission:${optimisticSubmission.clientId}`,
         type: "submission",
         value: optimisticSubmission,

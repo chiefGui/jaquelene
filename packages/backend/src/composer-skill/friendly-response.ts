@@ -12,7 +12,11 @@ Return only the draft text, with no label, explanation, or surrounding quotation
 
 export function createFriendlyResponse(executeModel: AccountedModelExecution): ComposerSkill {
   return {
-    descriptor: { id: skillIdSchema.parse("friendly-response"), name: "Friendly response" },
+    descriptor: {
+      id: skillIdSchema.parse("friendly-response"),
+      name: "Friendly response",
+      pendingLabel: "Generating friendly response…",
+    },
     execute: Effect.fn("FriendlyResponse.execute")(function* (input) {
       return yield* executeModel(
         {

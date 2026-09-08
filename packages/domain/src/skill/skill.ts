@@ -10,6 +10,7 @@ export const skillDescriptorSchema = z.readonly(
   z.object({
     id: skillIdSchema,
     name: z.string().check(z.minLength(1), z.maxLength(80)),
+    pendingLabel: z.string().check(z.minLength(1), z.maxLength(160)),
   }),
 );
 export type SkillDescriptor = z.output<typeof skillDescriptorSchema>;

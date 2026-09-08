@@ -111,8 +111,8 @@ const styles = stylex.create({
   item: {
     backgroundColor: {
       default: "transparent",
-      ":hover:not([aria-disabled='true'])": colors.backgroundInteractive,
-      ":is([data-active-item])": colors.backgroundInteractive,
+      ':not(:disabled, [aria-disabled="true"]):is(:hover, [data-active-item])':
+        colors.backgroundInteractive,
     },
     borderRadius: radii.compact,
     color: {

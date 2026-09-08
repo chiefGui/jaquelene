@@ -94,7 +94,7 @@ fn fragment(@location(0) uv: vec2f) -> @location(0) vec4f {
   let point = (uv - vec2f(0.5)) * params.resolution;
   let half_extent = max(
     params.resolution * 0.5 - vec2f(params.outset),
-    vec2f(params.border_radius + 1.0),
+    vec2f(1.0),
   );
   let radius = clamp(
     params.border_radius,

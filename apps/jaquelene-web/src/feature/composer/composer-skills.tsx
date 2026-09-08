@@ -1,6 +1,6 @@
 import { useMenuStore } from "@ariakit/react/menu";
 import { useStoreState } from "@ariakit/react/store";
-import BookOpen01Icon from "@hugeicons/core-free-icons/BookOpen01Icon";
+import WandSparklesIcon from "@hugeicons/core-free-icons/WandSparklesIcon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { IconButton } from "@jaquelene/ui";
 import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
@@ -11,18 +11,12 @@ import { composerSkillsQuery } from "@/feature/composer-skill/query";
 import type { ComposerSkillExecution } from "@/feature/composer-skill/use-composer-skill";
 import { Composer, useComposer } from "./composer";
 
-export function ComposerSkills({
-  execution,
-  disabled = false,
-}: {
-  execution: ComposerSkillExecution;
-  disabled?: boolean;
-}) {
-  const { pending, input } = useComposer();
+export function ComposerSkills({ execution }: { execution: ComposerSkillExecution }) {
+  const { input } = useComposer();
   const menu = useMenuStore();
   const open = useStoreState(menu, "open");
   const skills = useQuery(composerSkillsQuery);
-  const unavailable = pending || disabled;
+  const { unavailable } = execution;
 
   useLayoutEffect(() => {
     if (unavailable) {
@@ -41,7 +35,7 @@ export function ComposerSkills({
             <Menu.Trigger
               render={
                 <IconButton.Root aria-label="Skills" shape="squircle" size="small">
-                  <IconButton.Icon render={<HugeiconsIcon icon={BookOpen01Icon} />} />
+                  <IconButton.Icon render={<HugeiconsIcon icon={WandSparklesIcon} />} />
                 </IconButton.Root>
               }
             />
@@ -52,11 +46,7 @@ export function ComposerSkills({
             <Menu.SubmenuTrigger>Generate…</Menu.SubmenuTrigger>
             <Menu.Content aria-label="Generate" {...(unavailable && { finalFocus: input })}>
               {skills.data?.map((skill) => (
-                <Menu.Item
-                  key={skill.id}
-                  disabled={execution.unavailable}
-                  onClick={() => execution.select(skill)}
-                >
+                <Menu.Item key={skill.id} onClick={() => execution.select(skill)}>
                   {skill.name}
                 </Menu.Item>
               ))}

@@ -178,21 +178,25 @@ const ThreadComposer = memo(function ThreadComposer({
   const [sendError, setSendError] = useState<string | null>(null);
   const acceptingSubmission = useRef(false);
   const composerInput = useRef<HTMLTextAreaElement>(null);
+  const threadBlocked = generationPending || operationPending || interactionDisabled;
   const skillExecution = useComposerSkill({
     threadId,
     configuration,
     configurationPending,
-    blocked: generationPending || operationPending || interactionDisabled,
+    blocked: threadBlocked,
     focusComposer: () => composerInput.current?.focus(),
   });
   const composerInputId = useId();
   const sendErrorId = useId();
-  const submissionBlocked = operationPending || configurationPending || interactionDisabled;
+  const composerBlocked = threadBlocked || skillExecution.generation.isPending;
+  let placeholder: string | undefined;
+  if (skillExecution.generation.isPending) placeholder = "";
+  if (generationPending) placeholder = "Generating a response…";
 
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (submissionBlocked || acceptingSubmission.current || !configuration) {
+    if (composerBlocked || acceptingSubmission.current || !configuration) {
       return;
     }
 
@@ -237,13 +241,10 @@ const ThreadComposer = memo(function ThreadComposer({
   }
 
   return (
-    <Composer pending={generationPending} onSubmit={sendMessage}>
+    <Composer pending={generationPending} disabled={composerBlocked} onSubmit={sendMessage}>
       <ComposerSkillActivity execution={skillExecution} />
       <Composer.Toolbar>
-        <ComposerSkills
-          execution={skillExecution}
-          disabled={operationPending || interactionDisabled}
-        />
+        <ComposerSkills execution={skillExecution} />
       </Composer.Toolbar>
       <Composer.Surface>
         <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
@@ -251,9 +252,9 @@ const ThreadComposer = memo(function ThreadComposer({
           ref={composerInput}
           id={composerInputId}
           value={draft.content}
+          placeholder={placeholder}
           maxLength={messageMaxCodeUnits}
           aria-describedby={errorDescriptionId}
-          readOnly={interactionDisabled}
           onChange={(event) => {
             setDraft(event.currentTarget.value);
             setSendError(null);
@@ -269,9 +270,7 @@ const ThreadComposer = memo(function ThreadComposer({
               </Composer.Status>
             )}
           </Composer.Controls>
-          <Composer.Submit
-            disabled={submissionBlocked || !configuration || !draft.content.trim()}
-          />
+          <Composer.Submit disabled={!configuration || !draft.content.trim()} />
         </Composer.Footer>
       </Composer.Surface>
     </Composer>

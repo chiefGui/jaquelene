@@ -29,6 +29,7 @@ type StyleableProps<Props> = Omit<Props, "className" | "style"> & {
 
 type ComposerContextValue = Readonly<{
   pending: boolean;
+  disabled: boolean;
   input: RefObject<HTMLTextAreaElement | null>;
 }>;
 
@@ -46,11 +47,15 @@ function ComposerRoot({
   "aria-busy": ariaBusy,
   children,
   pending = false,
+  disabled = false,
   style,
   ...props
-}: StyleableProps<ComponentProps<"form">> & { pending?: boolean }) {
+}: StyleableProps<ComponentProps<"form">> & { pending?: boolean; disabled?: boolean }) {
   const input = useRef<HTMLTextAreaElement>(null);
-  const context = useMemo(() => ({ pending, input }), [pending]);
+  const context = useMemo(
+    () => ({ pending, disabled: disabled || pending, input }),
+    [disabled, pending],
+  );
 
   return (
     <ComposerContext.Provider value={context}>
@@ -66,16 +71,28 @@ function ComposerRoot({
 }
 
 function ComposerSurface({ children, style, ...props }: StyleableProps<ComponentProps<"div">>) {
-  const { pending } = useComposer();
+  const { pending, disabled } = useComposer();
   return (
-    <div {...props} {...stylex.props(styles.chrome, styles.surface, style, stylex.defaultMarker())}>
+    <div
+      {...props}
+      data-disabled={disabled || undefined}
+      {...stylex.props(styles.chrome, styles.surface, style, stylex.defaultMarker())}
+    >
       <Backlight active={pending} />
       {children}
     </div>
   );
 }
 
-function ComposerActivity({ children, open }: { children: ReactNode; open: boolean }) {
+function ComposerActivity({
+  children,
+  actions,
+  open,
+}: {
+  children: ReactNode;
+  actions: ReactNode;
+  open: boolean;
+}) {
   return (
     <div inert={!open} aria-hidden={!open || undefined} {...stylex.props(styles.activityAnchor)}>
       <Popover.Presence present={open}>
@@ -86,6 +103,7 @@ function ComposerActivity({ children, open }: { children: ReactNode; open: boole
           {...stylex.props(styles.chrome, styles.activity)}
         >
           {children}
+          <div {...stylex.props(styles.activityActions)}>{actions}</div>
         </Popover.Surface>
       </Popover.Presence>
     </div>
@@ -142,12 +160,14 @@ type ComposerToolbarActionProps = Omit<
 function ComposerToolbarAction({
   label,
   render,
+  disabled = false,
   tooltipDisabled = false,
   ...props
 }: ComposerToolbarActionProps) {
-  const { pending } = useComposer();
+  const composer = useComposer();
+  const unavailable = composer.disabled || disabled;
   const tooltip = useTooltipStore();
-  const tooltipUnavailable = pending || props.disabled || tooltipDisabled;
+  const tooltipUnavailable = unavailable || tooltipDisabled;
 
   useLayoutEffect(() => {
     if (tooltipUnavailable) tooltip.hide();
@@ -163,6 +183,7 @@ function ComposerToolbarAction({
         render={
           <Toolbar.Item
             {...props}
+            disabled={unavailable}
             type="button"
             aria-label={label}
             accessibleWhenDisabled
@@ -184,10 +205,12 @@ function ComposerInput({
   placeholder = "Write a message…",
   ref,
   rows = 2,
+  readOnly = false,
   style,
   ...props
 }: StyleableProps<ComponentProps<"textarea">>) {
-  const { input } = useComposer();
+  const { input, disabled } = useComposer();
+  const locked = disabled || readOnly;
   useImperativeHandle(ref, () => input.current!, [input]);
 
   return (
@@ -197,6 +220,8 @@ function ComposerInput({
       enterKeyHint={enterKeyHint}
       placeholder={placeholder}
       rows={rows}
+      readOnly={locked}
+      aria-disabled={locked || undefined}
       {...stylex.props(styles.input, style, stylex.defaultMarker())}
     />
   );
@@ -212,14 +237,17 @@ function ComposerControls({ style, ...props }: StyleableProps<ComponentProps<"di
 
 function ComposerStatus({
   style,
+  pending = false,
   tone = "muted",
   ...props
-}: StyleableProps<ComponentProps<"p">> & { tone?: "danger" | "muted" }) {
+}: StyleableProps<ComponentProps<"p">> & { pending?: boolean; tone?: "danger" | "muted" }) {
+  const reducedMotion = useReducedMotion();
   return (
     <p
       {...props}
       {...stylex.props(
         styles.status,
+        pending && !reducedMotion && styles.pulsing,
         tone === "danger" && styles.dangerStatus,
         style,
         stylex.defaultMarker(),
@@ -234,12 +262,12 @@ function ComposerSubmit({
   style,
   ...props
 }: Omit<ButtonProps, "children" | "type">) {
-  const { pending } = useComposer();
+  const { pending, disabled: composerDisabled } = useComposer();
   const reducedMotion = useReducedMotion();
   let label = "Send message";
   let icon = ArrowUp02Icon;
   if (pending) {
-    label = "Generating reply";
+    label = "Generating a response";
     icon = Loading02Icon;
   }
 
@@ -249,7 +277,7 @@ function ComposerSubmit({
       type="submit"
       aria-busy={pending || undefined}
       aria-label={ariaLabel ?? label}
-      disabled={pending || disabled === true}
+      disabled={composerDisabled || disabled === true}
       style={[styles.submit, style]}
     >
       <HugeiconsIcon
@@ -282,6 +310,11 @@ const spin = stylex.keyframes({
   },
 });
 
+const pulse = stylex.keyframes({
+  "0%, 100%": { opacity: 1 },
+  "50%": { opacity: 0.72 },
+});
+
 const styles = stylex.create({
   activityAnchor: {
     bottom: "100%",
@@ -300,7 +333,8 @@ const styles = stylex.create({
     borderRadius: radii.full,
     boxShadow: shadows.floating,
     display: "flex",
-    gap: "0.375rem",
+    gap: "0.75rem",
+    isolation: "isolate",
     justifyContent: "space-between",
     maxWidth: "calc(100% - 1.5rem)",
     minHeight: tokens.controlHeight,
@@ -310,6 +344,15 @@ const styles = stylex.create({
     paddingLeft: "0.75rem",
     paddingRight: "0.25rem",
     pointerEvents: "auto",
+    position: "relative",
+  },
+  activityActions: {
+    alignItems: "center",
+    display: "flex",
+    flexShrink: 0,
+    gap: "0.125rem",
+    position: "relative",
+    zIndex: 1,
   },
   root: {
     display: "flex",
@@ -357,7 +400,7 @@ const styles = stylex.create({
   surface: {
     borderColor: {
       default: colors.borderDefault,
-      ":focus-within": colors.borderFocus,
+      ":not([data-disabled]):focus-within": colors.borderFocus,
     },
     display: "flex",
     flexDirection: "column",
@@ -379,8 +422,15 @@ const styles = stylex.create({
     appearance: "none",
     backgroundColor: "transparent",
     borderWidth: 0,
-    caretColor: colors.foregroundAccent,
+    caretColor: {
+      default: colors.foregroundAccent,
+      ":read-only": "transparent",
+    },
     color: colors.foregroundPrimary,
+    cursor: {
+      default: "text",
+      ":read-only": "default",
+    },
     fieldSizing: "content",
     fontFamily: "inherit",
     fontSize: tokens.fontSizeBase,
@@ -422,6 +472,12 @@ const styles = stylex.create({
   },
   dangerStatus: {
     color: colors.foregroundDanger,
+  },
+  pulsing: {
+    animationDuration: "1.8s",
+    animationIterationCount: "infinite",
+    animationName: pulse,
+    animationTimingFunction: "ease-in-out",
   },
   submit: {
     borderRadius: radii.full,

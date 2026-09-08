@@ -17,6 +17,7 @@ import { threadLayout } from "./thread-layout.stylex";
 import { PendingThreadMessageRow, ThreadMessageRow } from "./thread-message";
 import type { ThreadMessageEditSession, ThreadMessageEditorProps } from "./thread-message-editor";
 import { estimateThreadTimelineItemSize } from "./thread-timeline-estimate";
+import { threadScrollDestination, type ThreadTimelineScrollSnapshot } from "./thread-scroll";
 import type { ThreadViewState } from "./thread-view-state";
 
 const timelineGap = 16;
@@ -37,20 +38,12 @@ type ThreadTimelineItem =
       estimatedSize: number;
     }>;
 
-type ThreadTimelineSnapshot = Readonly<{
-  latestMessageId: string | null;
-  messageIds: ReadonlySet<string>;
-  oldestSequence: number | null;
-  newestSequence: number | null;
-  replyPending: boolean;
-  submissionId: string | null;
-}>;
-
 type ThreadTimelineProps = Readonly<{
   view: ThreadViewState;
+  scrollRequest: number;
   pendingSubmission: SubmitTurnVariables | null;
   bottomInset: number;
-  viewport: RefObject<HTMLDivElement | null>;
+  viewport: HTMLDivElement | null;
   pinnedToEnd: RefObject<boolean>;
   latestHistory: boolean;
   hasOlderMessages: boolean;
@@ -80,6 +73,7 @@ type ThreadTimelineProps = Readonly<{
 
 export const ThreadTimeline = memo(function ThreadTimeline({
   view,
+  scrollRequest,
   pendingSubmission,
   bottomInset,
   viewport,
@@ -108,7 +102,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   const historyControls = useRef<HTMLDivElement>(null);
   const messageList = useRef<HTMLOListElement>(null);
   const activeEditorItem = useRef<HTMLLIElement>(null);
-  const timelineSnapshot = useRef<ThreadTimelineSnapshot | null>(null);
+  const timelineSnapshot = useRef<ThreadTimelineScrollSnapshot | null>(null);
   const itemOrigin = useRef<number | null>(null);
   const [scrollMargin, setScrollMargin] = useState<number | null>(null);
   const replyPending = view.pendingGenerationIntent !== null;
@@ -147,10 +141,11 @@ export const ThreadTimeline = memo(function ThreadTimeline({
     anchorTo: "end",
     count: items.length,
     directDomUpdates: true,
+    enabled: viewport !== null,
     estimateSize,
     gap: timelineGap,
     getItemKey,
-    getScrollElement: () => viewport.current,
+    getScrollElement: () => viewport,
     overscan: 2,
     paddingEnd: timelinePadding + bottomInset,
     paddingStart,
@@ -198,10 +193,9 @@ export const ThreadTimeline = memo(function ThreadTimeline({
   );
 
   const synchronizeScrollMargin = useCallback(() => {
-    const scrollViewport = viewport.current;
     const list = messageList.current;
 
-    if (!scrollViewport || !list) {
+    if (!viewport || !list) {
       return;
     }
 
@@ -209,8 +203,8 @@ export const ThreadTimeline = memo(function ThreadTimeline({
       0,
       Math.round(
         (list.getBoundingClientRect().top -
-          scrollViewport.getBoundingClientRect().top +
-          scrollViewport.scrollTop) *
+          viewport.getBoundingClientRect().top +
+          viewport.scrollTop) *
           100,
       ) / 100,
     );
@@ -218,13 +212,35 @@ export const ThreadTimeline = memo(function ThreadTimeline({
     const previousItemOrigin = itemOrigin.current;
 
     if (previousItemOrigin !== null && timelineSnapshot.current !== null) {
-      scrollViewport.scrollTop += nextItemOrigin - previousItemOrigin;
+      viewport.scrollTop += nextItemOrigin - previousItemOrigin;
     }
 
     itemOrigin.current = nextItemOrigin;
 
-    setScrollMargin((current) => (current === nextScrollMargin ? current : nextScrollMargin));
+    setScrollMargin(nextScrollMargin);
   }, [paddingStart, viewport]);
+
+  useLayoutEffect(() => {
+    const list = messageList.current;
+
+    if (!viewport || !list) {
+      return;
+    }
+
+    const revealEnd = () => {
+      if (
+        pinnedToEnd.current &&
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight > 1
+      ) {
+        virtualizer.scrollToEnd();
+      }
+    };
+    const observer = new ResizeObserver(revealEnd);
+    observer.observe(viewport);
+    observer.observe(list);
+
+    return () => observer.disconnect();
+  }, [hasItems, pinnedToEnd, viewport, virtualizer]);
 
   useLayoutEffect(() => {
     if (!hasItems) {
@@ -235,14 +251,12 @@ export const ThreadTimeline = memo(function ThreadTimeline({
     }
 
     synchronizeScrollMargin();
-    const scrollViewport = viewport.current;
-
-    if (!scrollViewport) {
+    if (!viewport) {
       return;
     }
 
     const resizeObserver = new ResizeObserver(synchronizeScrollMargin);
-    resizeObserver.observe(scrollViewport);
+    resizeObserver.observe(viewport);
 
     if (historyControls.current) {
       resizeObserver.observe(historyControls.current);
@@ -256,57 +270,37 @@ export const ThreadTimeline = memo(function ThreadTimeline({
       return;
     }
 
-    const previous = timelineSnapshot.current;
-    const clientId = optimisticSubmission?.clientId ?? null;
     const oldestMessage = view.messages[0]?.message;
     const newestMessage = view.messages.at(-1)?.message;
-    const messageIds = new Set(view.messages.map(({ message }) => message.id));
-    const sharesMessage = previous
-      ? view.messages.some(({ message }) => previous.messageIds.has(message.id))
-      : false;
-    const replacedWindow =
-      previous !== null && previous.messageIds.size > 0 && messageIds.size > 0 && !sharesMessage;
-    const movedToOlderWindow =
-      replacedWindow &&
-      newestMessage !== undefined &&
-      previous.oldestSequence !== null &&
-      newestMessage.sequence < previous.oldestSequence;
-    const movedToNewerWindow =
-      replacedWindow &&
-      oldestMessage !== undefined &&
-      previous.newestSequence !== null &&
-      oldestMessage.sequence > previous.newestSequence;
-    const ownSubmissionAdded = clientId !== null && clientId !== previous?.submissionId;
-    const timelineChanged =
-      view.latestMessageId !== previous?.latestMessageId || replyPending !== previous?.replyPending;
-    const shouldScrollToEnd =
-      previous === null ||
-      ownSubmissionAdded ||
-      (latestHistory && (movedToNewerWindow || (pinnedToEnd.current && timelineChanged)));
-
-    if (movedToOlderWindow) {
-      virtualizer.scrollToEnd();
-      pinnedToEnd.current = true;
-    } else if (movedToNewerWindow && !latestHistory) {
-      virtualizer.scrollToIndex(0, { align: "start" });
-      pinnedToEnd.current = false;
-    } else if (shouldScrollToEnd) {
-      virtualizer.scrollToEnd();
-      pinnedToEnd.current = true;
-    }
-
-    timelineSnapshot.current = {
+    const current: ThreadTimelineScrollSnapshot = {
+      bottomInset,
       latestMessageId: view.latestMessageId,
-      messageIds,
       oldestSequence: oldestMessage?.sequence ?? null,
       newestSequence: newestMessage?.sequence ?? null,
       replyPending,
-      submissionId: clientId ?? previous?.submissionId ?? null,
+      scrollRequest,
     };
+    const destination = threadScrollDestination(
+      timelineSnapshot.current,
+      current,
+      latestHistory,
+      pinnedToEnd.current,
+    );
+
+    if (destination === "end") {
+      pinnedToEnd.current = true;
+      virtualizer.scrollToEnd();
+    } else if (destination === "start") {
+      pinnedToEnd.current = false;
+      virtualizer.scrollToIndex(0, { align: "start" });
+    }
+
+    timelineSnapshot.current = current;
   }, [
+    bottomInset,
     hasItems,
     latestHistory,
-    optimisticSubmission?.clientId,
+    scrollRequest,
     pinnedToEnd,
     scrollMargin,
     view.latestMessageId,

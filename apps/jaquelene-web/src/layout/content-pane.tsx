@@ -5,7 +5,7 @@ import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { useRouter } from "@tanstack/react-router";
-import { useImperativeHandle, useRef, type ComponentProps } from "react";
+import { useImperativeHandle, useState, type ComponentProps } from "react";
 import { navigateBack, type NavigationDestination } from "@/application/navigation";
 import { useScrollFade } from "@/hook/use-scroll-fade";
 import { scrollFade } from "@/primitive/scroll-fade.stylex";
@@ -88,13 +88,13 @@ function ContentPaneViewport({
   style,
   ...props
 }: StyleableProps<ComponentProps<"div">> & { fade?: boolean }) {
-  const viewport = useRef<HTMLDivElement>(null);
-  useImperativeHandle(ref, () => viewport.current!, []);
+  const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
+  useImperativeHandle(ref, () => viewport!, [viewport]);
   useScrollFade(viewport, fade);
   return (
     <div
       {...props}
-      ref={viewport}
+      ref={setViewport}
       {...stylex.props(styles.viewport, fade && scrollFade.start, style)}
     />
   );

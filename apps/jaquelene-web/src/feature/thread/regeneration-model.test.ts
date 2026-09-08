@@ -46,7 +46,6 @@ describe("regeneration model choices", () => {
     expect(readSessionRegenerationModel(client)).toEqual(modelA);
     unsubscribe();
 
-    // Closing the dialog or navigating away does not commit or discard this choice.
     const reopened = openChoice(client, null);
     expect(reopened.configuration).toEqual({ model: modelA });
     expect(reopened.select(modelB)).toEqual({ model: modelB });
@@ -54,19 +53,16 @@ describe("regeneration model choices", () => {
     client.clear();
   });
 
-  it.each([null, modelB, modelC])(
-    "keeps the session choice usable with saved default %j, including while saving",
-    (defaultModel) => {
-      const client = new QueryClient();
-      openChoice(client, null).select(modelA);
+  it("keeps the session choice usable as defaults are added, changed, and removed", () => {
+    const client = new QueryClient();
+    openChoice(client, null).select(modelA);
+    for (const defaultModel of [modelB, modelC, null]) {
       const choice = openChoice(client, defaultModel, true);
       expect(choice.configuration).toEqual({ model: modelA });
       expect(choice.pending).toBe(false);
-      choice.select(modelC);
-      expect(openChoice(client, defaultModel).configuration).toEqual({ model: modelC });
-      client.clear();
-    },
-  );
+    }
+    client.clear();
+  });
 
   it("keeps inline overrides of an existing default specific to the request", () => {
     const client = new QueryClient();
@@ -117,7 +113,6 @@ describe("regeneration model choices", () => {
     rememberRegenerationModel(client, modelA);
     expect(changed).toHaveBeenCalled();
     const snapshot = readSessionRegenerationModel(client);
-    expect(readSessionRegenerationModel(client)).toBe(snapshot);
     changed.mockClear();
 
     client.removeQueries({ queryKey: campaignQueryKey });

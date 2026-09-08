@@ -50,7 +50,7 @@ export function RegenerateResponseDialog({
   const form = useFormStore({
     defaultValues: { configuration: modelChoice.configuration, instructions: "" },
   });
-  const openingModelChoice = useRef(modelChoice);
+  const selectModelForRequest = useRef(modelChoice.select);
   const configuration = useFormValue<ModelConfigurationSelection | null>(form, "configuration");
   const submitting = useStoreState(form, "submitting");
   const hasSubmitted = useStoreState(
@@ -83,7 +83,7 @@ export function RegenerateResponseDialog({
     }
 
     if (nextOpen) {
-      openingModelChoice.current = modelChoice;
+      selectModelForRequest.current = modelChoice.select;
       form.reset();
       form.setValues({ configuration: modelChoice.configuration, instructions: "" });
     }
@@ -129,15 +129,7 @@ export function RegenerateResponseDialog({
                 if (disabled || busy) {
                   return;
                 }
-                if (
-                  configuration?.model.providerId === model.providerId &&
-                  configuration.model.modelId === model.modelId
-                ) {
-                  return;
-                }
-                // Reasoning settings belong to the selected model. A different
-                // model starts with its defaults for this request.
-                form.setValue("configuration", openingModelChoice.current.select(model));
+                form.setValue("configuration", selectModelForRequest.current(model));
               }}
             >
               <FormControl

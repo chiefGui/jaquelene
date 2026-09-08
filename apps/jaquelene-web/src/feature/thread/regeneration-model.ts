@@ -43,24 +43,16 @@ export function resolveRegenerationModel(
   defaultPending: boolean,
   remember: (model: ModelSelection) => void,
 ): RegenerationModelChoice {
-  let model = defaultModel;
-  let pending = defaultPending;
-  if (sessionModel !== null) {
-    model = sessionModel;
-    pending = false;
-  }
-
+  const model = sessionModel ?? defaultModel;
   let configuration: ModelConfigurationSelection | null = null;
   if (model !== null) {
     configuration = { model };
   }
 
-  // Keep the opening's policy: adding a default cannot take over an inline
-  // session choice, and an override of an existing default stays request-local.
   const rememberSelection = sessionModel !== null || defaultModel === null;
   return {
     configuration,
-    pending,
+    pending: sessionModel === null && defaultPending,
     select(selectedModel) {
       if (rememberSelection) {
         remember(selectedModel);

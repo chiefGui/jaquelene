@@ -49,11 +49,7 @@ function Surface({
 
 function SubmenuTrigger({ children, style, ...props }: Styleable<Omit<MenuButtonProps, "render">>) {
   return (
-    <MenuButton
-      {...props}
-      render={<MenuItem />}
-      {...stylex.props(styles.item, styles.submenuTrigger, style)}
-    >
+    <MenuButton {...props} render={<Item style={[styles.submenuTrigger, style]} />}>
       {children}
       <ControlIcon.Chevron style={styles.submenuIndicator} />
     </MenuButton>
@@ -69,7 +65,7 @@ function Content({
   const menu = store ?? context;
   const mounted = useStoreState(menu, "mounted") ?? false;
   if (!menu) {
-    throw new Error("Menu.Content must be used inside Menu.Root.");
+    throw new Error("Menu.Content requires Menu.Root or a store.");
   }
   return (
     <Popover.Presence present={mounted}>

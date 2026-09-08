@@ -34,7 +34,7 @@ import { exposeProviders } from "../feature/provider/ipc";
 import { exposePrompts } from "../feature/prompt/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
 import { exposeRegenerationPreferences } from "../feature/thread/regeneration-preferences-ipc";
-import { exposeMarkdownEditorPreferences } from "../feature/markdown/preferences-ipc";
+import { exposeMarkdownEditorPreferences } from "../feature/markdown/ipc";
 import { exposeUsage } from "../feature/usage/ipc";
 import { LocalStateService, type LocalState } from "../local-state";
 import { PreferencesService, type Preferences } from "../preferences/preferences";

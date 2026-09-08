@@ -2,7 +2,7 @@ import CodeIcon from "@hugeicons/core-free-icons/CodeIcon";
 import EyeIcon from "@hugeicons/core-free-icons/EyeIcon";
 import Link01Icon from "@hugeicons/core-free-icons/Link01Icon";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { formatPluralizedCount, IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
+import { IconButton, Skeleton, type IconButtonProps } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import { control } from "@jaquelene/ui/control.stylex";
 import { edgeFade } from "@jaquelene/ui/edge-fade.stylex";
@@ -16,7 +16,6 @@ import {
   Suspense,
   useCallback,
   useDeferredValue,
-  useMemo,
   type ComponentProps,
   type ReactNode,
   type Ref,
@@ -35,8 +34,8 @@ import {
   type MarkdownEditorConfiguration,
   type MarkdownEditorRootProps,
 } from "./markdown-editor-root";
-import { countMarkdownDocument } from "./markdown-editor-statistics";
-import { markdownEditorSizing } from "./markdown-editor-sizing.stylex";
+import { MarkdownEditorStatisticsFooter } from "./markdown-editor-statistics-footer";
+import { markdownEditorSizing, markdownEditorRowSizing } from "./markdown-editor-sizing.stylex";
 
 export {
   MarkdownEditorInput,
@@ -251,6 +250,7 @@ const MarkdownEditorInputPart = forwardRef<HTMLElement, MarkdownEditorInputPartP
     return (
       <MarkdownEditorInput
         ref={setInputRef}
+        maxRows={configuration.settings.maxRows}
         {...accessibleName}
         {...(configuration.ariaDescribedBy === undefined
           ? {}
@@ -297,6 +297,7 @@ function MarkdownEditorPreview({
   style,
   ...props
 }: MarkdownEditorPreviewProps) {
+  const { settings } = useMarkdownEditorConfiguration("Preview");
   const { value } = useMarkdownEditorDocument("Preview");
   const deferredValue = useDeferredValue(value);
 
@@ -306,7 +307,13 @@ function MarkdownEditorPreview({
       {...props}
       role="region"
       aria-label={ariaLabel ?? "Markdown preview"}
-      {...stylex.props(styles.preview, edgeFade.both, style, stylex.defaultMarker())}
+      {...stylex.props(
+        styles.preview,
+        markdownEditorRowSizing.rows(settings.maxRows),
+        edgeFade.both,
+        style,
+        stylex.defaultMarker(),
+      )}
     >
       <Suspense fallback={fallback}>
         <MarkdownPreview content={deferredValue} />
@@ -326,39 +333,6 @@ function MarkdownEditorContent() {
   );
 }
 
-function MarkdownEditorStatus({ "aria-label": ariaLabel, style, ...props }: StyleableDivProps) {
-  return (
-    <div
-      {...props}
-      role="group"
-      aria-label={ariaLabel ?? "Document statistics"}
-      {...stylex.props(styles.status, style, stylex.defaultMarker())}
-    />
-  );
-}
-
-type MarkdownEditorStatisticsProps = Omit<ComponentProps<"span">, "className" | "style"> & {
-  style?: StyleXStyles;
-};
-
-function MarkdownEditorStatistics({ style, ...props }: MarkdownEditorStatisticsProps) {
-  const { value } = useMarkdownEditorDocument("Statistics");
-  const deferredValue = useDeferredValue(value);
-  const statistics = useMemo(() => countMarkdownDocument(deferredValue), [deferredValue]);
-
-  return (
-    <span {...props} {...stylex.props(styles.statistics, style, stylex.defaultMarker())}>
-      <span>{formatPluralizedCount(statistics.lines, "line", "lines")}</span>
-      <span aria-hidden="true">·</span>
-      <span>{formatPluralizedCount(statistics.words, "word", "words")}</span>
-      <span aria-hidden="true">·</span>
-      <span>{formatPluralizedCount(statistics.characters, "character", "characters")}</span>
-      <span aria-hidden="true">·</span>
-      <span>≈ {formatPluralizedCount(statistics.estimatedTokens, "token", "tokens")}</span>
-    </span>
-  );
-}
-
 const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent({
   style,
   toolbarActions,
@@ -374,9 +348,7 @@ const MarkdownEditorDefaultContent = memo(function MarkdownEditorDefaultContent(
         <MarkdownEditorPreviewToggle style={styles.previewTogglePlacement} />
       </MarkdownEditorToolbar>
       <MarkdownEditorContent />
-      <MarkdownEditorStatus>
-        <MarkdownEditorStatistics />
-      </MarkdownEditorStatus>
+      <MarkdownEditorStatisticsFooter />
     </MarkdownEditorFrame>
   );
 });
@@ -402,8 +374,7 @@ export const MarkdownEditor = Object.assign(MarkdownEditorDefault, {
   Content: MarkdownEditorContent,
   Input: MarkdownEditorInputPart,
   Preview: MarkdownEditorPreview,
-  Status: MarkdownEditorStatus,
-  Statistics: MarkdownEditorStatistics,
+  StatisticsFooter: MarkdownEditorStatisticsFooter,
 });
 
 const styles = stylex.create({
@@ -443,26 +414,6 @@ const styles = stylex.create({
     paddingBlock: markdownEditorSizing.paddingBlock,
     paddingInline: markdownEditorSizing.paddingInline,
     scrollbarGutter: "stable",
-  },
-  status: {
-    alignItems: "center",
-    color: colors.foregroundSecondary,
-    display: "flex",
-    flexShrink: 0,
-    fontSize: tokens.fontSizeXSmall,
-    justifyContent: "flex-end",
-    lineHeight: tokens.lineHeightXSmall,
-    minHeight: "2rem",
-    paddingBlock: "0.5rem",
-    paddingInline: "0.75rem",
-  },
-  statistics: {
-    alignItems: "center",
-    color: colors.foregroundDisabled,
-    display: "inline-flex",
-    fontSize: tokens.fontSizeXXSmall,
-    gap: "0.375rem",
-    lineHeight: tokens.lineHeightXXSmall,
   },
   previewSkeleton: {
     display: "flex",

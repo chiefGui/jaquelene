@@ -19,6 +19,7 @@ import {
   type MarkdownEditorCommand,
   type MarkdownEditorInitialSelection,
 } from "./markdown-editor-input";
+import { useMarkdownEditorSettings, type MarkdownEditorSettings } from "./markdown-editor-settings";
 
 export type MarkdownEditorMode = "edit" | "preview";
 
@@ -64,6 +65,7 @@ export type MarkdownEditorRootProps = MarkdownEditorAccessibleNameProps &
   };
 
 export type MarkdownEditorConfiguration = Readonly<{
+  settings: MarkdownEditorSettings;
   ariaDescribedBy: string | undefined;
   ariaInvalid: AriaAttributes["aria-invalid"];
   ariaLabel: string | undefined;
@@ -169,6 +171,7 @@ export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProp
     ref,
   ) {
     const inputRef = useRef<HTMLElement>(null);
+    const settings = useMarkdownEditorSettings();
     const invalid = isInvalid(ariaInvalid);
     const [mode, setMode] = useControllableState({
       controlledValue: controlledMode,
@@ -190,6 +193,7 @@ export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProp
 
     const configuration = useMemo<MarkdownEditorConfiguration>(
       () => ({
+        settings,
         ariaDescribedBy,
         ariaInvalid,
         ariaLabel,
@@ -210,6 +214,7 @@ export const MarkdownEditorRoot = forwardRef<HTMLElement, MarkdownEditorRootProp
         setMode,
       }),
       [
+        settings,
         ariaDescribedBy,
         ariaInvalid,
         ariaLabel,

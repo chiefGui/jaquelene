@@ -25,6 +25,45 @@ afterEach(() => {
 });
 
 describe("preferences storage", () => {
+  it("adds Markdown defaults to existing preferences without resetting other groups", () => {
+    const directory = createUserDataDirectory();
+    writeFileSync(
+      join(directory, "preferences.json"),
+      JSON.stringify({ diagnostics: { writeToDisk: false } }),
+    );
+    const preferences = createPreferences(directory);
+    expect(preferences.markdownEditor.get()).toEqual({
+      maxRows: 5,
+      showLineCount: true,
+      showWordCount: true,
+      showCharacterCount: true,
+      showEstimatedTokens: true,
+    });
+    expect(preferences.diagnostics.get()).toEqual({ writeToDisk: false });
+    preferences.markdownEditor.setMaxRows(9);
+    preferences.markdownEditor.setShowEstimatedTokens(false);
+    const restored = createPreferences(directory);
+    expect(restored.markdownEditor.get()).toEqual({
+      maxRows: 9,
+      showLineCount: true,
+      showWordCount: true,
+      showCharacterCount: true,
+      showEstimatedTokens: false,
+    });
+    expect(restored.diagnostics.get()).toEqual({ writeToDisk: false });
+    restored.deleteAll();
+    expect(restored.markdownEditor.get()).toEqual({
+      maxRows: 5,
+      showLineCount: true,
+      showWordCount: true,
+      showCharacterCount: true,
+      showEstimatedTokens: true,
+    });
+    expect(createPreferences(directory).markdownEditor.get()).toEqual(
+      restored.markdownEditor.get(),
+    );
+  });
+
   it("persists and changes a regeneration default independently of the campaign default", () => {
     const directory = createUserDataDirectory();
     const campaignModel = {

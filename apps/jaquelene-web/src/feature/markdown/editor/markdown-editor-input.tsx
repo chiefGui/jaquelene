@@ -27,6 +27,7 @@ import {
 } from "./markdown-editor-command";
 import { markdownEditorLanguage } from "./markdown-editor-language";
 import { markdownEditorTheme } from "./markdown-editor-theme";
+import { markdownEditorRowSizing } from "./markdown-editor-sizing.stylex";
 
 export type MarkdownEditorCommand = EditorCommand;
 export type MarkdownEditorInitialSelection = "start" | "end";
@@ -45,6 +46,7 @@ export type MarkdownEditorInputProps = MarkdownEditorAccessibleNameProps & {
   id?: string;
   initialSelection?: MarkdownEditorInitialSelection;
   maxLength?: number;
+  maxRows: number;
   onBlur?: FocusEventHandler<HTMLDivElement>;
   onChange: (value: string) => void;
   onFocus?: FocusEventHandler<HTMLDivElement>;
@@ -175,6 +177,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
       id,
       initialSelection = "start",
       maxLength,
+      maxRows,
       onBlur,
       onChange,
       onFocus,
@@ -349,7 +352,7 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
         hidden={hidden}
         onBlur={onBlur}
         onFocus={onFocus}
-        {...stylex.props(styles.root, style)}
+        {...stylex.props(styles.root, markdownEditorRowSizing.rows(maxRows), style)}
       />
     );
   },

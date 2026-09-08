@@ -39,6 +39,7 @@ import {
 import { isLatestThreadHistory } from "./thread-query-cache";
 import { threadLayout } from "./thread-layout.stylex";
 import { ThreadTimeline } from "./thread-timeline";
+import { shouldFollowThreadEnd } from "./thread-scroll";
 import type { ThreadMessageEditSession } from "./thread-message-editor";
 import { deriveThreadViewState } from "./thread-view-state";
 import { settleThreadDraft } from "./draft";
@@ -64,14 +65,6 @@ function toRequestedModelConfiguration(
   }
 
   return requested;
-}
-
-function scrollToEnd(viewport: HTMLElement) {
-  viewport.scrollTop = viewport.scrollHeight;
-}
-
-function isScrolledToEnd(viewport: HTMLElement) {
-  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
 }
 
 type ThreadControlsLayerProps = Readonly<{
@@ -181,6 +174,7 @@ type ThreadComposerProps = Readonly<{
   interactionDisabled: boolean;
   messageMaxCodeUnits: number;
   composerControls: ReactNode;
+  onSubmission: () => void;
 }>;
 
 const ThreadComposer = memo(function ThreadComposer({
@@ -192,6 +186,7 @@ const ThreadComposer = memo(function ThreadComposer({
   interactionDisabled,
   messageMaxCodeUnits,
   composerControls,
+  onSubmission,
 }: ThreadComposerProps) {
   const submitTurnMutation = useSubmitTurn(threadId);
   const queryClient = useQueryClient();
@@ -218,6 +213,7 @@ const ThreadComposer = memo(function ThreadComposer({
     setSendError(null);
     const clearedDraft = setDraft("");
     acceptingSubmission.current = true;
+    onSubmission();
 
     try {
       await submitTurnMutation.mutateAsync({
@@ -324,9 +320,15 @@ function ThreadViewInstance({
   const historyNavigation = useRef<"older" | "newer" | "latest" | null>(null);
   const threadOperationPending = useIsThreadOperationPending(threadId);
   const pendingSubmission = usePendingTurnSubmission(threadId);
-  const viewport = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
   useScrollFade(viewport);
   const pinnedToEnd = useRef(true);
+  const previousScrollOffset = useRef(0);
+  const [scrollRequest, setScrollRequest] = useState(0);
+  const requestScrollToEnd = useCallback(() => {
+    pinnedToEnd.current = true;
+    setScrollRequest((current) => current + 1);
+  }, []);
   const [timelineBottomInset, setTimelineBottomInset] = useState(0);
   const retryTurnId = retryTurnMutation.variables?.turnId;
   const retryStatus: RetryStatus = retryTurnMutation.isPending
@@ -570,40 +572,38 @@ function ThreadViewInstance({
     }
 
     historyNavigation.current = "latest";
-    const wasPinnedToEnd = pinnedToEnd.current;
-    pinnedToEnd.current = true;
 
     try {
       await returnToLatestMessages();
+      requestScrollToEnd();
     } catch (cause) {
-      pinnedToEnd.current = wasPinnedToEnd;
       reportError("thread.messages.return-to-latest", cause);
     } finally {
       historyNavigation.current = null;
     }
-  }, [messageEditActive, operationPending, returnToLatestMessages]);
+  }, [messageEditActive, operationPending, requestScrollToEnd, returnToLatestMessages]);
   const historyNavigationPending = operationPending || messageEditActive || historyRequestPending;
   const retryPending = operationPending || configurationPending || historyNavigationPending;
-
-  useLayoutEffect(() => {
-    const element = viewport.current;
-
-    if (element && pinnedToEnd.current) {
-      scrollToEnd(element);
-    }
-  }, [timelineBottomInset]);
 
   return (
     <section aria-label="Thread" {...stylex.props(styles.root)}>
       <div
-        ref={viewport}
+        ref={setViewport}
         onScroll={(event) => {
-          pinnedToEnd.current = isScrolledToEnd(event.currentTarget);
+          const element = event.currentTarget;
+          pinnedToEnd.current = shouldFollowThreadEnd(
+            pinnedToEnd.current,
+            previousScrollOffset.current,
+            element.scrollTop,
+            element.scrollHeight - element.scrollTop - element.clientHeight,
+          );
+          previousScrollOffset.current = element.scrollTop;
         }}
         {...stylex.props(styles.viewport, scrollFade.start)}
       >
         <ThreadTimeline
           view={threadView}
+          scrollRequest={scrollRequest}
           pendingSubmission={historical ? null : pendingSubmission}
           bottomInset={timelineBottomInset}
           viewport={viewport}
@@ -646,6 +646,7 @@ function ThreadViewInstance({
           ) : (
             <ThreadComposer
               threadId={threadId}
+              onSubmission={requestScrollToEnd}
               configuration={configuration}
               configurationPending={configurationPending}
               generationPending={generationPending}

@@ -72,8 +72,6 @@ type DynamicOptions = Readonly<{
 }>;
 
 const externalValue = Annotation.define<boolean>();
-// Keep public refs DOM-native for form libraries while retaining command access internally.
-const editorViews = new WeakMap<HTMLElement, EditorView>();
 
 const formattingKeymap: readonly KeyBinding[] = [
   { key: "Mod-b", preventDefault: true, run: markdownEditorCommands.strong },
@@ -145,7 +143,11 @@ export function runMarkdownEditorCommand(
   element: HTMLElement | null | undefined,
   command: EditorCommand,
 ) {
-  const view = element ? editorViews.get(element) : undefined;
+  if (!element) {
+    return false;
+  }
+
+  const view = EditorView.findFromDOM(element);
 
   if (!view) {
     return false;
@@ -287,7 +289,6 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
       });
 
       runtimeRef.current = { configuration, view };
-      editorViews.set(view.contentDOM, view);
 
       if (autoFocusRef.current) {
         view.focus();
@@ -295,7 +296,6 @@ export const MarkdownEditorInput = forwardRef<HTMLElement, MarkdownEditorInputPr
 
       return () => {
         runtimeRef.current = null;
-        editorViews.delete(view.contentDOM);
         view.destroy();
       };
     }, []);

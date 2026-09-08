@@ -12,7 +12,6 @@ export const scrollFade = stylex.create({
       content: '""',
       display: "block",
       height: "var(--scroll-fade-height, 0px)",
-      // Cancel the decorative box's height so content and scroll geometry stay intact.
       marginBlockEnd: "calc(-1 * var(--scroll-fade-height, 0px))",
       pointerEvents: "none",
       position: "sticky",

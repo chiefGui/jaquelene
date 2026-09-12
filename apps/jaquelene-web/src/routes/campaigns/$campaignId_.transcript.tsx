@@ -3,12 +3,16 @@ import { Button } from "@jaquelene/ui";
 import { colors, tokens } from "@jaquelene/ui/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useMemo, type ReactNode } from "react";
 import { campaignQuery } from "@/feature/campaign/query";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { loadThreadTranscript } from "@/feature/thread/query";
+import { formatTranscript, transcriptEntryRole } from "@/feature/thread/transcript";
 import { ContentPane } from "@/layout/content-pane";
 import { Breadcrumb } from "@/primitive/breadcrumb";
+import { CopyButton } from "@/primitive/copy-button";
 import { EmptyState } from "@/primitive/empty-state";
+import { SelectionActions } from "@/primitive/selection-actions/selection-actions";
 
 export const Route = createFileRoute("/campaigns/$campaignId_/transcript")({
   preload: false,
@@ -37,9 +41,11 @@ export const Route = createFileRoute("/campaigns/$campaignId_/transcript")({
 function TranscriptHeader({
   campaignId,
   campaignTitle,
+  actions,
 }: {
   campaignId: string;
   campaignTitle: string;
+  actions?: ReactNode;
 }) {
   const destination = {
     to: "/campaigns/$campaignId",
@@ -60,6 +66,7 @@ function TranscriptHeader({
           </Breadcrumb.Item>
         </Breadcrumb.List>
       </Breadcrumb.Root>
+      {actions}
     </ContentPane.Header>
   );
 }
@@ -70,18 +77,6 @@ function entryKey(entry: ThreadTranscriptEntry) {
   }
 
   return `message:${entry.messageId}`;
-}
-
-function entryRole(entry: ThreadTranscriptEntry) {
-  if (entry.kind === ThreadTranscriptEntryKind.Instruction) {
-    return "System";
-  }
-
-  if (entry.author === "user") {
-    return "User";
-  }
-
-  return "Assistant";
 }
 
 function TranscriptRouteError() {
@@ -116,14 +111,19 @@ function TranscriptEntries({ entries }: { entries: readonly ThreadTranscriptEntr
   }
 
   return (
-    <ol aria-label="Model input" {...stylex.props(styles.entries)}>
-      {entries.map((entry) => (
-        <li key={entryKey(entry)} {...stylex.props(styles.entry)}>
-          <span {...stylex.props(styles.role)}>{entryRole(entry)}</span>
-          <pre {...stylex.props(styles.content)}>{entry.content}</pre>
-        </li>
-      ))}
-    </ol>
+    <SelectionActions
+      label="Transcript"
+      actions={({ text, dismiss }) => <CopyButton text={text} onCopied={dismiss} />}
+    >
+      <ol aria-label="Model input" {...stylex.props(styles.entries)}>
+        {entries.map((entry) => (
+          <li key={entryKey(entry)} {...stylex.props(styles.entry)}>
+            <span {...stylex.props(styles.role)}>{transcriptEntryRole(entry)}</span>
+            <pre {...stylex.props(styles.content)}>{entry.content}</pre>
+          </li>
+        ))}
+      </ol>
+    </SelectionActions>
   );
 }
 
@@ -159,6 +159,10 @@ function MissingCampaignRoute() {
 
 function TranscriptRoute() {
   const data = Route.useLoaderData();
+  const transcriptText = useMemo(
+    () => formatTranscript(data?.transcript.entries ?? []),
+    [data?.transcript.entries],
+  );
 
   if (!data) {
     return <MissingCampaignRoute />;
@@ -166,11 +170,23 @@ function TranscriptRoute() {
 
   return (
     <>
-      <TranscriptHeader campaignId={data.campaign.id} campaignTitle={data.campaign.title} />
+      <TranscriptHeader
+        campaignId={data.campaign.id}
+        campaignTitle={data.campaign.title}
+        actions={
+          <CopyButton
+            text={transcriptText}
+            aria-label="Copy entire transcript"
+            size="medium"
+            disabled={data.transcript.entries.length === 0}
+            style={styles.copyAction}
+          />
+        }
+      />
 
       <ContentPane.Viewport>
         <ContentPane.Body>
-          <TranscriptEntries entries={data.transcript.entries} />
+          <TranscriptEntries key={data.campaign.id} entries={data.transcript.entries} />
         </ContentPane.Body>
       </ContentPane.Viewport>
     </>
@@ -178,6 +194,9 @@ function TranscriptRoute() {
 }
 
 const styles = stylex.create({
+  copyAction: {
+    marginInlineStart: "auto",
+  },
   entries: {
     display: "grid",
     gap: "1.5rem",

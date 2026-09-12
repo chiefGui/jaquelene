@@ -1,0 +1,28 @@
+export type ClipboardWriter = Readonly<{
+  writeText: (text: string) => Promise<void>;
+}>;
+
+export class ClipboardWriteError extends Error {
+  constructor(cause?: unknown) {
+    super("Couldn't copy to clipboard. Try again.", { cause });
+    this.name = "ClipboardWriteError";
+  }
+}
+
+export function createClipboard(getWriter: () => ClipboardWriter | undefined): ClipboardWriter {
+  return {
+    async writeText(text) {
+      try {
+        const writer = getWriter();
+        if (!writer) {
+          throw new Error("Clipboard writing is unavailable.");
+        }
+        await writer.writeText(text);
+      } catch (cause) {
+        throw new ClipboardWriteError(cause);
+      }
+    },
+  };
+}
+
+export const clipboard = createClipboard(() => globalThis.navigator?.clipboard);

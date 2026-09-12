@@ -97,6 +97,11 @@ export function createReactionSkill(
                   sourceKey: `skill.${definition.descriptor.id}`,
                   content: definition.instructions,
                 },
+                {
+                  sourceKey: "reaction.writing",
+                  content:
+                    "Match the user's established voice and narrative perspective. Use actions or dialogue as appropriate. Enclose dialogue in double quotation marks. Output only the reaction.",
+                },
               ],
             } satisfies ModelInput,
           };

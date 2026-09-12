@@ -11,6 +11,5 @@ export const hostileReaction = {
     selection: { kind: "completed-turns", limit: 3, openingScene: "include" },
     contentByteBudget: 32 * 1024,
   },
-  instructions:
-    "Write a brief, hostile reaction to the latest scene. Match the user's established voice and narrative perspective. Use actions or dialogue as appropriate. Enclose dialogue in double quotation marks. Output only the reaction.",
+  instructions: "Write a brief, hostile reaction to the latest scene.",
 } satisfies ReactionDefinition;

@@ -121,10 +121,6 @@ describe("reactions", () => {
       modelId: "campaign-model",
       reasoning: { preset: "high", source: "selection" },
     });
-    expect(env.calls[0]?.input.instructions).toHaveLength(1);
-    expect(env.calls[0]?.input.instructions[0]?.content).toContain(
-      "positive reaction to the latest scene.",
-    );
     expect(env.calls[0]?.input.requestMessages).toEqual([
       { role: "user", content: "Scenario context:\n## Scenario\nA quiet village." },
     ]);

@@ -8,6 +8,7 @@ import { createReactions, type Reactions } from "./reactions";
 import { createReactionSkill } from "./skill";
 import { friendlyReaction } from "./friendly-reaction";
 import { hostileReaction } from "./hostile-reaction";
+import { unexpectedReaction } from "./unexpected-reaction";
 
 export class ReactionsService extends Context.Service<ReactionsService, Reactions>()(
   "@jaquelene/backend/Reactions",
@@ -26,7 +27,7 @@ export class ReactionsService extends Context.Service<ReactionsService, Reaction
         executeModel: createAccountedModelExecution(modelExecutor, usage.attempts),
       };
       return createReactions(
-        [friendlyReaction, hostileReaction].map((definition) =>
+        [friendlyReaction, hostileReaction, unexpectedReaction].map((definition) =>
           createReactionSkill(definition, dependencies),
         ),
       );

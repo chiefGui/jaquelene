@@ -1,15 +1,15 @@
 import { skillIdSchema } from "@jaquelene/domain";
 import type { ReactionDefinition } from "./skill";
 
-export const friendlyReaction = {
+export const unexpectedReaction = {
   descriptor: {
-    id: skillIdSchema.parse("friendly-reaction"),
-    name: "Friendly reaction",
-    pendingLabel: "Generating friendly reaction…",
+    id: skillIdSchema.parse("unexpected-reaction"),
+    name: "Unexpected reaction",
+    pendingLabel: "Generating unexpected reaction…",
   },
   history: {
     selection: { kind: "completed-turns", limit: 3, openingScene: "include" },
     contentByteBudget: 32 * 1024,
   },
-  instructions: "Write a brief, positive reaction to the latest scene.",
+  instructions: "Write a brief, unexpected but plausible reaction to the latest scene.",
 } satisfies ReactionDefinition;

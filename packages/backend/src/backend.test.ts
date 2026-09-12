@@ -172,6 +172,11 @@ describe("backend", () => {
   it.each([
     { id: "friendly-reaction", name: "Friendly reaction", reaction: "positive" },
     { id: "hostile-reaction", name: "Hostile reaction", reaction: "hostile" },
+    {
+      id: "unexpected-reaction",
+      name: "Unexpected reaction",
+      reaction: "unexpected but plausible",
+    },
   ])("generates $name through the registered reaction skill", async ({ id, name, reaction }) => {
     const generate = vi.fn<ProviderGenerationAdapter["generate"]>(() =>
       Effect.succeed({ text: '"A reaction."' }),
@@ -205,7 +210,12 @@ describe("backend", () => {
         instructions: [
           {
             sourceKey: `skill.${id}`,
-            content: expect.stringContaining(`${reaction} reaction to the latest scene.`),
+            content: `Write a brief, ${reaction} reaction to the latest scene.`,
+          },
+          {
+            sourceKey: "reaction.writing",
+            content:
+              "Match the user's established voice and narrative perspective. Use actions or dialogue as appropriate. Enclose dialogue in double quotation marks. Output only the reaction.",
           },
         ],
         dialogue: [{ role: "assistant", content: "A traveler approaches." }],
@@ -214,11 +224,6 @@ describe("backend", () => {
         ],
       },
     });
-    const instructions = generate.mock.calls[0]?.[0].input.instructions[0]?.content;
-    expect(instructions).toContain("Match the user's established voice and narrative perspective.");
-    expect(instructions).toContain("Use actions or dialogue as appropriate.");
-    expect(instructions).toContain("Enclose dialogue in double quotation marks.");
-    expect(instructions).toContain("Output only the reaction.");
     expect(backend.threads.getTranscript(campaign.threadId)).toEqual(before);
     expect(backend.campaignUsage.get(campaign.id)?.attempts).toMatchObject({
       provider: 1,

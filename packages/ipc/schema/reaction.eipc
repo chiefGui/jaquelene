@@ -1,0 +1,37 @@
+module jaquelene
+
+zod_reference SkillId {
+  import = "@jaquelene/domain"
+  type = "SkillId"
+  schema = "skillIdSchema"
+}
+
+zod_reference SkillDescriptor {
+  import = "@jaquelene/domain"
+  type = "SkillDescriptor"
+  schema = "skillDescriptorSchema"
+}
+
+zod_reference ReactionResult {
+  import = "@jaquelene/ipc/reaction"
+  type = "ReactionResult"
+  schema = "reactionResultSchema"
+}
+
+subtype ReactionRequestId = string(minLength: 1 maxLength: 64)
+
+structure ExecuteReactionRequest {
+  requestId: ReactionRequestId
+  skillId: SkillId
+  threadId: string
+  configuration: RequestedModelConfiguration
+}
+
+[RendererAPI]
+[Validator=TrustedRenderer]
+[ContextBridge]
+interface Reactions {
+  list() -> SkillDescriptor[]
+  execute(request: ExecuteReactionRequest) -> ReactionResult
+  cancel(requestId: ReactionRequestId) -> boolean
+}

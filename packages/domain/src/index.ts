@@ -112,4 +112,4 @@ export {
   type SkillId,
   type SkillDescriptor,
 } from "./skill/skill";
-export { playerResponseSchema, type PlayerResponse } from "./player-response/player-response";
+export { reactionSchema, type Reaction } from "./reaction/reaction";

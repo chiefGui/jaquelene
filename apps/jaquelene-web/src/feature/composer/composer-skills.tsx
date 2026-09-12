@@ -7,7 +7,7 @@ import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { useQuery } from "@tanstack/react-query";
 import { Menu } from "@jaquelene/ui/menu";
 import { useLayoutEffect } from "react";
-import { playerResponsesQuery } from "@/feature/player-response/query";
+import { reactionsQuery } from "@/feature/reaction/query";
 import type { ComposerSkillExecution } from "@/feature/composer-skill/use-composer-skill";
 import { Composer, useComposer } from "./composer";
 
@@ -15,7 +15,7 @@ export function ComposerSkills({ execution }: { execution: ComposerSkillExecutio
   const { input } = useComposer();
   const menu = useMenuStore();
   const open = useStoreState(menu, "open");
-  const skills = useQuery(playerResponsesQuery);
+  const skills = useQuery(reactionsQuery);
   const { unavailable } = execution;
 
   useLayoutEffect(() => {
@@ -65,8 +65,8 @@ export function ComposerSkills({ execution }: { execution: ComposerSkillExecutio
           if (!value) execution.dismissReplacement();
         }}
         heading="Replace your draft?"
-        description="Your current text will be replaced when the response is ready."
-        confirmLabel="Generate response"
+        description="Your current text will be replaced when the reaction is ready."
+        confirmLabel="Generate reaction"
         finalFocus={input}
         onConfirm={execution.confirmReplacement}
       />

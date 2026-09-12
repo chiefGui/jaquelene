@@ -1,17 +1,17 @@
-import { PlayerResponseError, type PlayerResponses } from "@jaquelene/backend";
-import type { PlayerResponse } from "@jaquelene/domain";
-import type { PlayerResponseResult } from "@jaquelene/ipc/player-response";
+import { ReactionError, type Reactions } from "@jaquelene/backend";
+import type { Reaction } from "@jaquelene/domain";
+import type { ReactionResult } from "@jaquelene/ipc/reaction";
 import { Cause, Exit, type Effect, type Fiber } from "effect";
 
 export type SkillEffectFork = <A, E>(effect: Effect.Effect<A, E>) => Fiber.Fiber<A, E>;
 
-export function createPlayerResponseExecutions(
-  skills: Pick<PlayerResponses, "execute">,
+export function createReactionExecutions(
+  skills: Pick<Reactions, "execute">,
   runFork: SkillEffectFork,
   reportFailure: (cause: unknown) => void,
 ) {
   let closed = false;
-  let active: { requestId: string; fiber: Fiber.Fiber<PlayerResponse, unknown> } | undefined;
+  let active: { requestId: string; fiber: Fiber.Fiber<Reaction, unknown> } | undefined;
 
   function cancel(requestId: string) {
     if (active?.requestId !== requestId) return false;
@@ -22,10 +22,10 @@ export function createPlayerResponseExecutions(
   return {
     execute(
       requestId: string,
-      request: Parameters<PlayerResponses["execute"]>[0],
-    ): Promise<PlayerResponseResult> {
-      if (closed) throw new Error("Player responses are closed.");
-      if (active) throw new Error("A player response is already running.");
+      request: Parameters<Reactions["execute"]>[0],
+    ): Promise<ReactionResult> {
+      if (closed) throw new Error("Reactions are closed.");
+      if (active) throw new Error("A reaction is already running.");
       const execution = { requestId, fiber: runFork(skills.execute(request)) };
       active = execution;
       return new Promise((resolve) => {
@@ -37,8 +37,8 @@ export function createPlayerResponseExecutions(
             resolve({ status: "cancelled" });
           } else {
             const cause = Cause.squash(exit.cause);
-            let message = "Could not generate a response.";
-            if (cause instanceof PlayerResponseError) message = cause.message;
+            let message = "Could not generate a reaction.";
+            if (cause instanceof ReactionError) message = cause.message;
             reportFailure(cause);
             resolve({ status: "failed", message });
           }

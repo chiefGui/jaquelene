@@ -4,15 +4,14 @@ import { ModelExecutionService } from "#backend/model/execution";
 import { createAccountedModelExecution } from "#backend/model/accounted-execution";
 import { ThreadService } from "#backend/thread/subsystem";
 import { UsageService } from "#backend/usage/subsystem";
-import { createPlayerResponses, type PlayerResponses } from "./player-responses";
-import { createPlayerResponseSkill } from "./skill";
-import { friendlyResponse } from "./friendly-response";
-import { hostileResponse } from "./hostile-response";
+import { createReactions, type Reactions } from "./reactions";
+import { createReactionSkill } from "./skill";
+import { friendlyReaction } from "./friendly-reaction";
+import { hostileReaction } from "./hostile-reaction";
 
-export class PlayerResponsesService extends Context.Service<
-  PlayerResponsesService,
-  PlayerResponses
->()("@jaquelene/backend/PlayerResponses") {
+export class ReactionsService extends Context.Service<ReactionsService, Reactions>()(
+  "@jaquelene/backend/Reactions",
+) {
   static readonly layer = Layer.effect(
     this,
     Effect.gen(function* () {
@@ -26,9 +25,9 @@ export class PlayerResponsesService extends Context.Service<
         modelExecutor,
         executeModel: createAccountedModelExecution(modelExecutor, usage.attempts),
       };
-      return createPlayerResponses(
-        [friendlyResponse, hostileResponse].map((definition) =>
-          createPlayerResponseSkill(definition, dependencies),
+      return createReactions(
+        [friendlyReaction, hostileReaction].map((definition) =>
+          createReactionSkill(definition, dependencies),
         ),
       );
     }),

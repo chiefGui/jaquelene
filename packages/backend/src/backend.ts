@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
-import { PlayerResponsesService } from "#backend/player-response/subsystem";
-import type { PlayerResponses } from "#backend/player-response/player-responses";
+import { ReactionsService } from "#backend/reaction/subsystem";
+import type { Reactions } from "#backend/reaction/reactions";
 import type { Campaigns } from "#backend/campaign/campaigns";
 import { CampaignService } from "#backend/campaign/subsystem";
 import type { CampaignUsageReader } from "#backend/campaign/usage";
@@ -39,7 +39,7 @@ export type BackendOptions<StorageRequirements = never> = Readonly<{
 }>;
 
 export type Backend = Readonly<{
-  playerResponses: PlayerResponses;
+  reactions: Reactions;
   campaigns: Campaigns;
   campaignUsage: CampaignUsageReader;
   usage: Usage;
@@ -59,7 +59,7 @@ export class BackendService extends Context.Service<BackendService, Backend>()(
 
 const readBackend = Effect.gen(function* () {
   const campaigns = yield* CampaignService;
-  const playerResponses = yield* PlayerResponsesService;
+  const reactions = yield* ReactionsService;
   const prompts = yield* PromptService;
   const providers = yield* ProvidersService;
   const storage = yield* StorageService;
@@ -90,7 +90,7 @@ const readBackend = Effect.gen(function* () {
   };
 
   return BackendService.of({
-    playerResponses,
+    reactions,
     campaigns: managedCampaigns,
     campaignUsage: campaigns.usage,
     prompts: prompts.prompts,
@@ -140,14 +140,14 @@ function createConfiguredBackendLayer<StorageRequirements>(
   const turnsLayer = TurnService.layer.pipe(
     Layer.provide(Layer.mergeAll(databaseLayer, generationsLayer, threadsLayer)),
   );
-  const playerResponsesLayer = PlayerResponsesService.layer.pipe(
+  const reactionsLayer = ReactionsService.layer.pipe(
     Layer.provide(Layer.mergeAll(campaignsLayer, threadsLayer, modelExecutionsLayer, usageLayer)),
   );
   const storageLayer = StorageService.layer(registry).pipe(
     Layer.provide(Layer.mergeAll(databaseLayer, providersLayer, resourceCacheLayer)),
   );
   const backendDependencies = Layer.mergeAll(
-    playerResponsesLayer,
+    reactionsLayer,
     campaignsLayer,
     promptsLayer,
     providersLayer,

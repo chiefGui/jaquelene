@@ -78,7 +78,7 @@ export function ComposerSkillActivity({ execution }: { execution: ComposerSkillE
     generation.data?.status === "failed" ||
     generation.data?.status === "draft-changed"
   ) {
-    let message = "Could not generate a response.";
+    let message = "Could not generate a reaction.";
     if (generation.data?.status === "failed") message = generation.data.message;
     if (generation.data?.status === "draft-changed") message = "Draft changed. Your text was kept.";
     feedback = <Composer.Status role="alert">{message}</Composer.Status>;

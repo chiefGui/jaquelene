@@ -1,4 +1,4 @@
-import { playerResponseSchema, type PlayerResponse, type SkillDescriptor } from "@jaquelene/domain";
+import { reactionSchema, type Reaction, type SkillDescriptor } from "@jaquelene/domain";
 import { Effect } from "effect";
 import type { Skill } from "#backend/skill/skill";
 import { ids, type ThreadId } from "#backend/id";
@@ -12,53 +12,53 @@ import type {
   RecentHistoryOptions,
   ThreadHistoryReader,
 } from "#backend/thread/history";
-import { PlayerResponseError } from "./error";
+import { ReactionError } from "./error";
 
-export type PlayerResponseRequest = Readonly<{
+export type ReactionRequest = Readonly<{
   threadId: ThreadId;
   configuration: RequestedModelConfiguration;
 }>;
 
-export type PlayerResponseSkill = Skill<PlayerResponseRequest, PlayerResponse>;
+export type ReactionSkill = Skill<ReactionRequest, Reaction>;
 
-export type PlayerResponseDefinition = Readonly<{
+export type ReactionDefinition = Readonly<{
   descriptor: SkillDescriptor;
   history: RecentHistoryOptions;
   instructions: string;
 }>;
 
-export type PlayerResponseDependencies = Readonly<{
+export type ReactionDependencies = Readonly<{
   campaigns: Pick<CampaignEngine, "getContextForThread">;
   history: ThreadHistoryReader;
   modelExecutor: Pick<ModelExecutor, "resolveConfiguration">;
   executeModel: AccountedModelExecution;
 }>;
 
-function requireResponseHistory({ head, messages }: RecentHistory) {
+function requireReactionHistory({ head, messages }: RecentHistory) {
   if (!head) {
-    throw new PlayerResponseError({ message: "A conversation is needed to generate a response." });
+    throw new ReactionError({ message: "A conversation is needed to generate a reaction." });
   }
   if (head.author !== "assistant") {
-    throw new PlayerResponseError({
-      message: "Complete the latest turn before generating a response.",
+    throw new ReactionError({
+      message: "Complete the latest turn before generating a reaction.",
     });
   }
   if (messages.at(-1)?.id !== head.id) {
-    throw new PlayerResponseError({
-      message: "The latest turn is too long to generate a response.",
+    throw new ReactionError({
+      message: "The latest turn is too long to generate a reaction.",
     });
   }
   return messages;
 }
 
-export function createPlayerResponseSkill(
-  definition: PlayerResponseDefinition,
-  { campaigns, history, modelExecutor, executeModel }: PlayerResponseDependencies,
-): PlayerResponseSkill {
+export function createReactionSkill(
+  definition: ReactionDefinition,
+  { campaigns, history, modelExecutor, executeModel }: ReactionDependencies,
+): ReactionSkill {
   function readContext(threadId: ThreadId) {
     const campaign = campaigns.getContextForThread(threadId);
     if (!campaign) {
-      throw new PlayerResponseError({ message: "The campaign is no longer available." });
+      throw new ReactionError({ message: "The campaign is no longer available." });
     }
     return { campaign, history: history.readRecent(threadId, definition.history) };
   }
@@ -73,12 +73,12 @@ export function createPlayerResponseSkill(
 
   return {
     descriptor: definition.descriptor,
-    execute: Effect.fn("PlayerResponseSkill.execute")(function* (request) {
+    execute: Effect.fn("ReactionSkill.execute")(function* (request) {
       const configuration = yield* modelExecutor.resolveConfiguration(request.configuration);
       const prepared = yield* Effect.try({
         try: () => {
           const context = readContext(request.threadId);
-          const messages = requireResponseHistory(context.history);
+          const messages = requireReactionHistory(context.history);
           const requestMessages: NonNullable<ModelInput["requestMessages"]>[number][] = [];
           if (context.campaign.scenario) {
             requestMessages.push({
@@ -110,17 +110,17 @@ export function createPlayerResponseSkill(
       return yield* Effect.try({
         try: () => {
           if (snapshot(readContext(request.threadId)) !== prepared.snapshot) {
-            throw new PlayerResponseError({
-              message: "The conversation changed. Generate a new response.",
+            throw new ReactionError({
+              message: "The conversation changed. Generate a new reaction.",
             });
           }
-          const response = playerResponseSchema.safeParse({ text: text.trim() });
-          if (!response.success) {
-            throw new PlayerResponseError({
-              message: "The model returned an unusable response. Try again.",
+          const reaction = reactionSchema.safeParse({ text: text.trim() });
+          if (!reaction.success) {
+            throw new ReactionError({
+              message: "The model returned an unusable reaction. Try again.",
             });
           }
-          return response.data;
+          return reaction.data;
         },
         catch: (cause) => cause,
       });

@@ -11,9 +11,9 @@ import { createProviderAttempts } from "#backend/usage/provider-attempts";
 import { providerAttemptTable } from "#backend/usage/schema";
 import type { ProviderGenerationRequest } from "#backend/provider/provider";
 import { ProviderOperationError } from "#backend/provider/providers";
-import { createPlayerResponses } from "./player-responses";
-import { createPlayerResponseSkill, type PlayerResponseSkill } from "./skill";
-import { friendlyResponse } from "./friendly-response";
+import { createReactions } from "./reactions";
+import { createReactionSkill, type ReactionSkill } from "./skill";
+import { friendlyReaction } from "./friendly-reaction";
 import { createThreadHistoryReader } from "#backend/thread/history";
 
 const databases: Database[] = [];
@@ -67,8 +67,8 @@ function environment(
     modelExecutor,
     executeModel: createAccountedModelExecution(modelExecutor, attempts),
   };
-  const skill = createPlayerResponseSkill(friendlyResponse, dependencies);
-  const skills = createPlayerResponses([skill]);
+  const skill = createReactionSkill(friendlyReaction, dependencies);
+  const skills = createReactions([skill]);
   const request = {
     skillId: skill.descriptor.id,
     threadId: campaign.threadId,
@@ -111,8 +111,8 @@ function environment(
   };
 }
 
-describe("player responses", () => {
-  it("generates a response with the campaign model and reasoning without changing history", async () => {
+describe("reactions", () => {
+  it("generates a reaction with the campaign model and reasoning without changing history", async () => {
     const env = environment();
     const before = env.threads.getActiveMessagePath(env.campaign.threadId);
     const result = await Effect.runPromise(env.skills.execute(env.request));
@@ -123,7 +123,7 @@ describe("player responses", () => {
     });
     expect(env.calls[0]?.input.instructions).toHaveLength(1);
     expect(env.calls[0]?.input.instructions[0]?.content).toContain(
-      "positive reaction to the latest scene as the player's character",
+      "positive reaction to the latest scene.",
     );
     expect(env.calls[0]?.input.requestMessages).toEqual([
       { role: "user", content: "Scenario context:\n## Scenario\nA quiet village." },
@@ -168,18 +168,18 @@ describe("player responses", () => {
       env.threads.startTurn(env.campaign.threadId, `Unanswered ${index}`);
       env.turn(`Player ${index}`, `Narrator ${index}`);
     }
-    const fiveTurnSkill = createPlayerResponseSkill(
+    const fiveTurnSkill = createReactionSkill(
       {
-        ...friendlyResponse,
-        descriptor: { ...friendlyResponse.descriptor, id: skillIdSchema.parse("five-turns") },
+        ...friendlyReaction,
+        descriptor: { ...friendlyReaction.descriptor, id: skillIdSchema.parse("five-turns") },
         history: {
-          ...friendlyResponse.history,
+          ...friendlyReaction.history,
           selection: { kind: "completed-turns", limit: 5, openingScene: "exclude" },
         },
       },
       env.dependencies,
     );
-    const skills = createPlayerResponses([env.skill, fiveTurnSkill]);
+    const skills = createReactions([env.skill, fiveTurnSkill]);
     await Effect.runPromise(
       skills.execute({ ...env.request, skillId: fiveTurnSkill.descriptor.id }),
     );
@@ -209,7 +209,7 @@ describe("player responses", () => {
   it("dispatches the natural request and leaves preparation to the selected skill", async () => {
     const env = environment();
     const pending = env.threads.startTurn(env.campaign.threadId, "Unanswered input").message;
-    const skill: PlayerResponseSkill = {
+    const skill: ReactionSkill = {
       descriptor: { ...env.skill.descriptor, id: skillIdSchema.parse("raw-message") },
       execute: (input) => {
         expect(input).toEqual({
@@ -225,7 +225,7 @@ describe("player responses", () => {
         return Effect.succeed({ text: "Accepted unfinished turn" });
       },
     };
-    const skills = createPlayerResponses([skill]);
+    const skills = createReactions([skill]);
     expect(
       await Effect.runPromise(skills.execute({ ...env.request, skillId: skill.descriptor.id })),
     ).toEqual({
@@ -236,7 +236,7 @@ describe("player responses", () => {
 
   it("rejects oversized latest turns, empty threads, and unfinished turns before calling the provider", async () => {
     const env = environment();
-    env.turn("x".repeat(friendlyResponse.history.contentByteBudget), "Reply");
+    env.turn("x".repeat(friendlyReaction.history.contentByteBudget), "Reply");
     await expect(Effect.runPromise(env.skills.execute(env.request))).rejects.toThrow("too long");
     const empty = env.campaigns.start({ title: "Empty", composition: [] });
     await expect(
@@ -253,7 +253,7 @@ describe("player responses", () => {
   });
 
   it.each(["edit", "append", "delete", "scenario"] as const)(
-    "rejects a response after context %s while preserving completed usage",
+    "rejects a reaction after context %s while preserving completed usage",
     async (change) => {
       const result = Promise.withResolvers<{ text: string }>();
       const started = Promise.withResolvers<void>();
@@ -345,6 +345,6 @@ describe("player responses", () => {
 
   it("rejects duplicate skill registrations", () => {
     const env = environment();
-    expect(() => createPlayerResponses([env.skill, env.skill])).toThrow("Duplicate skill");
+    expect(() => createReactions([env.skill, env.skill])).toThrow("Duplicate skill");
   });
 });

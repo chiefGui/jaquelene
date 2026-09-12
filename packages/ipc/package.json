@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./player-response": {
-      "types": "./dist/contracts/player-response.d.ts",
-      "default": "./dist/contracts/player-response.js"
+    "./reaction": {
+      "types": "./dist/contracts/reaction.d.ts",
+      "default": "./dist/contracts/reaction.js"
     },
     "./main": {
       "types": "./dist/types/browser/jaquelene.d.ts",

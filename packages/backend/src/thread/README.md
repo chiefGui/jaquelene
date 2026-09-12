@@ -29,4 +29,4 @@ Results include the active `head` identity, selected `messages`, `scannedMessage
 
 When limits coincide, reaching the beginning takes precedence, then satisfying the selection, then the scan limit. A missing thread throws instead of appearing empty. The head remains available even when its text cannot fit or its turn is incomplete; consumers decide whether that context is usable.
 
-Player-response skills declare a `history` request in their backend definition. Their shared workflow resolves it and guards against changes to the selected messages, active head, or scenario before returning a response. Other capabilities can use the reader directly and apply their own requirements for usable context. History options are not renderer metadata.
+Reaction skills declare a `history` request in their backend definition. Their shared workflow resolves it and guards against changes to the selected messages, active head, or scenario before returning a reaction. Other capabilities can use the reader directly and apply their own requirements for usable context. History options are not renderer metadata.

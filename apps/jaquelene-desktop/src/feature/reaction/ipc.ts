@@ -1,24 +1,24 @@
-import { ids, type PlayerResponses } from "@jaquelene/backend";
+import { ids, type Reactions } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
-import { PlayerResponses as PlayerResponsesIpc } from "@jaquelene/ipc/main";
+import { Reactions as ReactionsIpc } from "@jaquelene/ipc/main";
 import type { WebContents } from "electron";
 import { fromIpcModelConfiguration } from "@/feature/model/configuration";
-import { createPlayerResponseExecutions, type SkillEffectFork } from "./executions";
+import { createReactionExecutions, type SkillEffectFork } from "./executions";
 
-export function exposePlayerResponses(
+export function exposeReactions(
   target: WebContents,
-  skills: PlayerResponses,
+  skills: Reactions,
   runFork: SkillEffectFork,
   diagnostics: ErrorReporter,
 ) {
-  const executions = createPlayerResponseExecutions(skills, runFork, (error) =>
+  const executions = createReactionExecutions(skills, runFork, (error) =>
     diagnostics.report({
       severity: ErrorSeverity.Error,
-      operation: "player-response.execute",
+      operation: "reaction.execute",
       error,
     }),
   );
-  PlayerResponsesIpc.for(target.mainFrame).setImplementation({
+  ReactionsIpc.for(target.mainFrame).setImplementation({
     list: skills.list,
     execute: (request) =>
       executions.execute(request.requestId, {

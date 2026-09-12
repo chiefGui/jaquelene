@@ -158,6 +158,6 @@ export type {
   GenerationOperation,
   GenerationSettlement,
 } from "#backend/turn/turns";
-export type { PlayerResponses } from "#backend/player-response/player-responses";
-export { PlayerResponseError } from "#backend/player-response/error";
+export type { Reactions } from "#backend/reaction/reactions";
+export { ReactionError } from "#backend/reaction/error";
 export type { Skill } from "#backend/skill/skill";

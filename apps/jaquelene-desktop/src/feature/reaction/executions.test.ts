@@ -1,18 +1,18 @@
 import { Effect } from "effect";
-import { ids, PlayerResponseError } from "@jaquelene/backend";
+import { ids, ReactionError } from "@jaquelene/backend";
 import { skillIdSchema } from "@jaquelene/domain";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { createPlayerResponseExecutions } from "./executions";
+import { createReactionExecutions } from "./executions";
 
 const request = {
   threadId: ids.thread.create(),
-  skillId: skillIdSchema.parse("friendly-response"),
+  skillId: skillIdSchema.parse("friendly-reaction"),
   configuration: { model: { providerId: "test", modelId: "model" } },
 };
 
-describe("player response execution ownership", () => {
+describe("reaction execution ownership", () => {
   it("cancels the owned request before any start acknowledgment and allows retry", async () => {
-    const executions = createPlayerResponseExecutions(
+    const executions = createReactionExecutions(
       { execute: () => Effect.never },
       Effect.runFork,
       vi.fn(),
@@ -29,7 +29,7 @@ describe("player response execution ownership", () => {
 
   it("prevents overlapping runs and releases ownership after success", async () => {
     const response = Promise.withResolvers<{ text: string }>();
-    const executions = createPlayerResponseExecutions(
+    const executions = createReactionExecutions(
       { execute: () => Effect.promise(() => response.promise) },
       Effect.runFork,
       vi.fn(),
@@ -49,18 +49,18 @@ describe("player response execution ownership", () => {
     {
       kind: "provider",
       failure: new Error("Provider internals"),
-      message: "Could not generate a response.",
+      message: "Could not generate a reaction.",
     },
     {
-      kind: "player response",
-      failure: new PlayerResponseError({
-        message: "The conversation changed. Generate a new response.",
+      kind: "reaction",
+      failure: new ReactionError({
+        message: "The conversation changed. Generate a new reaction.",
       }),
-      message: "The conversation changed. Generate a new response.",
+      message: "The conversation changed. Generate a new reaction.",
     },
   ])("reports $kind failures with the appropriate public message", async ({ failure, message }) => {
     const report = vi.fn();
-    const executions = createPlayerResponseExecutions(
+    const executions = createReactionExecutions(
       { execute: () => Effect.fail(failure) },
       Effect.runFork,
       report,

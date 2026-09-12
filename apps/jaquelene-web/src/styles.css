@@ -106,6 +106,19 @@
     user-select: none;
   }
 
+  :where([data-selection-actions-scope], [data-selection-actions-scope] *) {
+    cursor: text;
+    user-select: text;
+  }
+
+  :where(
+    [data-selection-actions-scope] :is(button, a, input, select, textarea),
+    [data-selection-actions-scope] :is(button, a, input, select, textarea) *
+  ) {
+    cursor: default;
+    user-select: none;
+  }
+
   :where(
     input:not([type]),
     input[type="email" i],

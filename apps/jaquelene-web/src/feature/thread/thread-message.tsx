@@ -36,10 +36,10 @@ function replyFailureText(generation: FailedThreadGeneration, retrying: boolean)
   }
 
   if (generation.failureKind === GenerationFailureKind.Interrupted) {
-    return "Reply interrupted.";
+    return "Response interrupted.";
   }
 
-  return "Couldn't generate a reply.";
+  return "Couldn't generate a response.";
 }
 
 function MessageRoot({
@@ -385,7 +385,7 @@ function renderReplyFailureState({
   if (failure.retryFailed) {
     retryError = (
       <p role="alert" {...stylex.props(styles.retryError)}>
-        Couldn't retry the reply.
+        Couldn't retry the response.
       </p>
     );
   }
@@ -519,11 +519,6 @@ export const PendingThreadMessageRow = memo(function PendingThreadMessageRow({
       </div>
       <MessageFooter>
         <MessageToolbar createdAt={submission.submittedAt} />
-        <div {...stylex.props(styles.replyState)}>
-          <p role="status" {...stylex.props(styles.replyStatus)}>
-            Sending…
-          </p>
-        </div>
       </MessageFooter>
     </MessageRoot>
   );

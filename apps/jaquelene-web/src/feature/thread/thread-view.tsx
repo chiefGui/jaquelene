@@ -1,7 +1,6 @@
 import {
   GenerationIntent,
   type ModelConfigurationSelection,
-  type RequestedModelConfiguration,
   type ThreadMessage,
 } from "@jaquelene/ipc/renderer";
 import { Button } from "@jaquelene/ui";
@@ -21,7 +20,11 @@ import {
   type SubmitEvent,
 } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { toRequestedModelConfiguration } from "@/feature/model/configuration";
 import { Composer } from "@/feature/composer/composer";
+import { ComposerSkills } from "@/feature/composer/composer-skills";
+import { ComposerSkillActivity } from "@/feature/composer-skill/activity";
+import { useComposerSkill } from "@/feature/composer-skill/use-composer-skill";
 import { scrollFade } from "@/primitive/scroll-fade.stylex";
 import { useScrollFade } from "@/hook/use-scroll-fade";
 import {
@@ -47,26 +50,6 @@ import { useThreadDraft } from "./use-thread-draft";
 import type { RegenerationModelChoice } from "./regeneration-model";
 
 type RetryStatus = "pending" | "failed" | null;
-
-function toRequestedModelConfiguration(
-  configuration: ModelConfigurationSelection,
-): RequestedModelConfiguration {
-  const requested: {
-    model: RequestedModelConfiguration["model"];
-    reasoningPreset?: NonNullable<RequestedModelConfiguration["reasoningPreset"]>;
-  } = {
-    model: {
-      providerId: configuration.model.providerId,
-      modelId: configuration.model.modelId,
-    },
-  };
-
-  if (configuration.reasoningPreset !== undefined) {
-    requested.reasoningPreset = configuration.reasoningPreset;
-  }
-
-  return requested;
-}
 
 type ThreadControlsLayerProps = Readonly<{
   children: ReactNode;
@@ -194,14 +177,26 @@ const ThreadComposer = memo(function ThreadComposer({
   const { draft, setDraft } = useThreadDraft(threadId);
   const [sendError, setSendError] = useState<string | null>(null);
   const acceptingSubmission = useRef(false);
+  const composerInput = useRef<HTMLTextAreaElement>(null);
+  const threadBlocked = generationPending || operationPending || interactionDisabled;
+  const skillExecution = useComposerSkill({
+    threadId,
+    configuration,
+    configurationPending,
+    blocked: threadBlocked,
+    focusComposer: () => composerInput.current?.focus(),
+  });
   const composerInputId = useId();
   const sendErrorId = useId();
-  const submissionBlocked = operationPending || configurationPending || interactionDisabled;
+  const composerBlocked = threadBlocked || skillExecution.generation.isPending;
+  let placeholder: string | undefined;
+  if (skillExecution.generation.isPending) placeholder = "";
+  if (generationPending) placeholder = "Generating a response…";
 
   async function sendMessage(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (submissionBlocked || acceptingSubmission.current || !configuration) {
+    if (composerBlocked || acceptingSubmission.current || !configuration) {
       return;
     }
 
@@ -240,41 +235,44 @@ const ThreadComposer = memo(function ThreadComposer({
     }
   }
 
+  let errorDescriptionId: string | undefined;
+  if (sendError) {
+    errorDescriptionId = sendErrorId;
+  }
+
   return (
-    <Composer pending={generationPending} onSubmit={sendMessage}>
-      <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
-      <Composer.Input
-        id={composerInputId}
-        value={draft.content}
-        maxLength={messageMaxCodeUnits}
-        aria-describedby={sendError ? sendErrorId : undefined}
-        readOnly={interactionDisabled}
-        onChange={(event) => {
-          setDraft(event.currentTarget.value);
-          setSendError(null);
-        }}
-        onKeyDown={handleComposerKeyDown}
-      />
-      <Composer.Footer>
-        <Composer.Controls>
-          {composerControls}
-          {sendError ? (
-            <Composer.Status id={sendErrorId} role="alert" tone="danger">
-              {sendError}
-            </Composer.Status>
-          ) : null}
-        </Composer.Controls>
-        <Composer.Submit
-          pending={generationPending}
-          disabled={
-            operationPending ||
-            configurationPending ||
-            interactionDisabled ||
-            !configuration ||
-            !draft.content.trim()
-          }
+    <Composer pending={generationPending} disabled={composerBlocked} onSubmit={sendMessage}>
+      <ComposerSkillActivity execution={skillExecution} />
+      <Composer.Toolbar>
+        <ComposerSkills execution={skillExecution} />
+      </Composer.Toolbar>
+      <Composer.Surface>
+        <Composer.Label htmlFor={composerInputId}>Message</Composer.Label>
+        <Composer.Input
+          ref={composerInput}
+          id={composerInputId}
+          value={draft.content}
+          placeholder={placeholder}
+          maxLength={messageMaxCodeUnits}
+          aria-describedby={errorDescriptionId}
+          onChange={(event) => {
+            setDraft(event.currentTarget.value);
+            setSendError(null);
+          }}
+          onKeyDown={handleComposerKeyDown}
         />
-      </Composer.Footer>
+        <Composer.Footer>
+          <Composer.Controls>
+            {composerControls}
+            {sendError && (
+              <Composer.Status id={sendErrorId} role="alert" tone="danger">
+                {sendError}
+              </Composer.Status>
+            )}
+          </Composer.Controls>
+          <Composer.Submit disabled={!configuration || !draft.content.trim()} />
+        </Composer.Footer>
+      </Composer.Surface>
     </Composer>
   );
 });

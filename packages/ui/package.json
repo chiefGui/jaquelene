@@ -15,6 +15,7 @@
     "./select": "./src/primitive/select.tsx",
     "./theme/dracula": "./src/theme/dracula.ts",
     "./tokens.stylex": "./src/tokens.stylex.ts",
+    "./toolbar": "./src/primitive/toolbar.tsx",
     "./tooltip": "./src/primitive/tooltip.tsx"
   },
   "dependencies": {

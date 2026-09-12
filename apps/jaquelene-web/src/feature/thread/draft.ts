@@ -25,6 +25,17 @@ export function writeThreadDraft(queryClient: QueryClient, threadId: string, con
   return query.setData({ content }, { manual: true });
 }
 
+export function replaceThreadDraft(
+  queryClient: QueryClient,
+  threadId: string,
+  expected: ThreadDraft,
+  content: string,
+) {
+  if (queryClient.getQueryData(draftQueryKey(threadId)) !== expected) return false;
+  writeThreadDraft(queryClient, threadId, content);
+  return true;
+}
+
 export function subscribeToThreadDraft(
   queryClient: QueryClient,
   threadId: string,

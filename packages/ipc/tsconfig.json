@@ -21,5 +21,6 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": false
   },
-  "include": ["generated/production/**/*.ts"]
+  "include": ["generated/production/**/*.ts"],
+  "references": [{ "path": "./tsconfig.contracts.json" }]
 }

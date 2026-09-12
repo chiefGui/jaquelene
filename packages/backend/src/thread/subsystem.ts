@@ -5,9 +5,11 @@ import { ModelInputService, type ModelInputResolver } from "#backend/model/input
 import type { ThreadTranscript } from "@jaquelene/domain";
 import { createThreads, type ThreadEngine } from "./threads";
 import { createThreadTranscriptReader } from "./transcript";
+import { createThreadHistoryReader, type ThreadHistoryReader } from "./history";
 
 export type Threads = Pick<ThreadEngine, "create" | "get" | "listMessages"> &
   Readonly<{
+    history: ThreadHistoryReader;
     getTranscript(threadId: ThreadId): ThreadTranscript;
   }>;
 
@@ -19,6 +21,7 @@ function createThreadSubsystem(
   const engine = createThreads(database, now);
   const transcripts = createThreadTranscriptReader(engine, modelInputs);
   const threads: Threads = {
+    history: createThreadHistoryReader(database),
     create: engine.create,
     get: engine.get,
     listMessages: engine.listMessages,

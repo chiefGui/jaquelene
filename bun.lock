@@ -1,5 +1,5 @@
 {
-  "lockfileVersion": 2,
+  "lockfileVersion": 3,
   "configVersion": 1,
   "workspaces": {
     "": {
@@ -128,6 +128,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@jaquelene/domain": "workspace:*",
+        "zod": "^4.5.0",
       },
       "devDependencies": {
         "@marshallofsound/ipc": "^2.7.1",
@@ -164,7 +165,9 @@
     "effect@4.0.0-rc.112": "patches/effect@4.0.0-rc.112.patch",
   },
   "overrides": {
-    "sharp": "0.35.4",
+    "miniflare": {
+      "sharp@<0.35.4": "^0.35.4",
+    },
   },
   "packages": {
     "@ariakit/components": ["@ariakit/components@0.1.11", "", { "dependencies": { "@ariakit/store": "0.1.9", "@ariakit/utils": "0.2.0" } }, "sha512-hFmfWKkK8jpATf39kNZSMDlG3o+tftfQwyooRhbPl/YCpFur+IGz5ZPA+PGIIfFjfdkAURLNDJPSeWtXO3xssQ=="],

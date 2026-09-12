@@ -22,6 +22,7 @@ export const ids = {
   turn: defineId("turn"),
   message: defineId("message"),
   generation: defineId("generation"),
+  skillExecution: defineId("skillrun"),
   providerAttempt: defineId("attempt"),
   prompt: defineId("prompt"),
 } as const;

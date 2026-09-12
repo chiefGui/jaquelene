@@ -33,6 +33,7 @@ import { exposeFavoriteModels } from "../feature/model/favorite-models-ipc";
 import { exposeProviders } from "../feature/provider/ipc";
 import { exposePrompts } from "../feature/prompt/ipc";
 import { createThreadMessaging } from "../feature/thread/ipc";
+import { exposeReactions } from "../feature/reaction/ipc";
 import { exposeRegenerationPreferences } from "../feature/thread/regeneration-preferences-ipc";
 import { exposeMarkdownEditorPreferences } from "../feature/markdown/ipc";
 import { exposeUsage } from "../feature/usage/ipc";
@@ -106,6 +107,7 @@ export class MainWindowService extends Context.Service<MainWindowService, MainWi
             diagnostics,
             localState,
             campaigns: backend.campaigns,
+            reactions: backend.reactions,
             campaignUsage: backend.campaignUsage,
             prompts: backend.prompts,
             threads: backend.threads,
@@ -180,6 +182,7 @@ function createMainWindowManager({
   diagnostics,
   localState,
   campaigns,
+  reactions,
   campaignUsage,
   prompts,
   threads,
@@ -197,6 +200,7 @@ function createMainWindowManager({
   diagnostics: ApplicationDiagnostics;
   localState: LocalState;
   campaigns: Campaigns;
+  reactions: Backend["reactions"];
   campaignUsage: CampaignUsageReader;
   prompts: Prompts;
   threads: Threads;
@@ -303,6 +307,10 @@ function createMainWindowManager({
       exposeDiagnostics(browserWindow.webContents.mainFrame, diagnostics);
       exposeDiagnosticsPreferences(browserWindow.webContents.mainFrame, preferences.diagnostics);
       exposeCampaigns(browserWindow.webContents.mainFrame, campaigns);
+      await addFinalizer(
+        scope,
+        exposeReactions(browserWindow.webContents, reactions, forkEffect, diagnostics),
+      );
       exposeCampaignUsage(browserWindow.webContents.mainFrame, campaignUsage);
       await addFinalizer(scope, threadMessaging.expose(browserWindow.webContents.mainFrame));
       exposeCampaignPreferences(browserWindow.webContents.mainFrame, preferences.campaign);

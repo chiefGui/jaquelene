@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as NodePath from "@effect/platform-node/NodePath";
-import { PromptOrigin } from "@jaquelene/domain";
+import { PromptOrigin, skillIdSchema } from "@jaquelene/domain";
 import { Context, Deferred, Effect, Exit, Layer, Logger, ManagedRuntime, Path } from "effect";
 import { FileTreeService } from "#backend/filesystem/file-tree";
 import { nodeFileTreeLayer } from "#backend/filesystem/node-file-tree";
@@ -169,6 +169,69 @@ afterEach(() => {
 });
 
 describe("backend", () => {
+  it.each([
+    { id: "friendly-reaction", name: "Friendly reaction", reaction: "positive" },
+    { id: "hostile-reaction", name: "Hostile reaction", reaction: "hostile" },
+    {
+      id: "unexpected-reaction",
+      name: "Unexpected reaction",
+      reaction: "unexpected but plausible",
+    },
+  ])("generates $name through the registered reaction skill", async ({ id, name, reaction }) => {
+    const generate = vi.fn<ProviderGenerationAdapter["generate"]>(() =>
+      Effect.succeed({ text: '"A reaction."' }),
+    );
+    const provider = providerAdapter("provider-a", { generate });
+    await using backend = await openBackend(backendOptions(createDatabasePath(), [provider]));
+    expect(backend.reactions.list()).toContainEqual({
+      id,
+      name,
+      pendingLabel: `Generating ${name.toLowerCase()}…`,
+    });
+    const campaign = backend.campaigns.start({
+      title: "Reactions",
+      openingScene: "A traveler approaches.",
+      scenario: "A quiet village.",
+      composition: [],
+    });
+    const before = backend.threads.getTranscript(campaign.threadId);
+    const result = await backend.run(
+      backend.reactions.execute({
+        skillId: skillIdSchema.parse(id),
+        threadId: campaign.threadId,
+        configuration: { model: { providerId: provider.descriptor.id, modelId: "maker/model" } },
+      }),
+    );
+    expect(result).toEqual({ text: '"A reaction."' });
+    expect(generate).toHaveBeenCalledOnce();
+    expect(generate.mock.calls[0]?.[0]).toMatchObject({
+      modelId: "maker/model",
+      input: {
+        instructions: [
+          {
+            sourceKey: `skill.${id}`,
+            content: `Write a brief, ${reaction} reaction to the latest scene.`,
+          },
+          {
+            sourceKey: "reaction.writing",
+            content:
+              "Match the user's established voice and narrative perspective. Use actions or dialogue as appropriate. Enclose dialogue in double quotation marks. Output only the reaction.",
+          },
+        ],
+        dialogue: [{ role: "assistant", content: "A traveler approaches." }],
+        requestMessages: [
+          { role: "user", content: "Scenario context:\n## Scenario\nA quiet village." },
+        ],
+      },
+    });
+    expect(backend.threads.getTranscript(campaign.threadId)).toEqual(before);
+    expect(backend.campaignUsage.get(campaign.id)?.attempts).toMatchObject({
+      provider: 1,
+      completed: 1,
+      failed: 0,
+    });
+  });
+
   it("shares host storage owners for the runtime lifetime and reacquires them on restart", async () => {
     class HostOwner extends Context.Service<HostOwner, { readonly clear: Effect.Effect<void> }>()(
       "test/BackendHostOwner",

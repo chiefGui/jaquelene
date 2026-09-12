@@ -13,7 +13,7 @@ import {
 import { useStoreState } from "@ariakit/react/store";
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
-import type { ComponentProps } from "react";
+import { useLayoutEffect, type ComponentProps } from "react";
 
 import { colors, radii, shadows, tokens } from "../tokens.stylex";
 import { ControlIcon } from "./control-icon";
@@ -39,6 +39,14 @@ function SelectRoot({ children, ...props }: ComboboxProviderProps<string>) {
 }
 
 function SelectTrigger({ children, style, variant = "filled", ...props }: SelectProps) {
+  const { disabled } = props;
+  const context = useComboboxContext();
+  const combobox = props.store ?? context;
+
+  useLayoutEffect(() => {
+    if (disabled) combobox?.hide();
+  }, [combobox, disabled]);
+
   return (
     <ComboboxSelect
       {...props}
@@ -129,32 +137,33 @@ const styles = stylex.create({
   ghost: {
     color: {
       default: colors.foregroundSecondary,
-      ":not(:disabled):hover": colors.foregroundPrimary,
-      ':is([aria-expanded="true"])': colors.foregroundPrimary,
-      ":is([data-focus-visible])": colors.foregroundPrimary,
+      ':not(:disabled, [aria-disabled="true"]):is(:hover, [aria-expanded="true"], [data-focus-visible])':
+        colors.foregroundPrimary,
     },
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": interactiveBackground,
-      ':is([aria-expanded="true"])': interactiveBackground,
+      ':not(:disabled, [aria-disabled="true"]):is(:hover, [aria-expanded="true"])':
+        interactiveBackground,
     },
     boxShadow: {
       default: null,
-      ':is([aria-expanded="true"])': focusRing,
+      ':not(:disabled, [aria-disabled="true"]):is([aria-expanded="true"])': focusRing,
       ":is([data-focus-visible])": focusRing,
     },
   },
   chevron: {
     color: {
       default: colors.foregroundSecondary,
-      [stylex.when.ancestor("[data-focus-visible]")]: colors.foregroundAccent,
-      [stylex.when.ancestor('[aria-expanded="true"]')]: colors.foregroundAccent,
+      [stylex.when.ancestor(
+        ':not(:disabled, [aria-disabled="true"]):is([data-focus-visible], [aria-expanded="true"])',
+      )]: colors.foregroundAccent,
     },
     flexShrink: 0,
     height: "0.75rem",
     transform: {
       default: "rotate(90deg)",
-      [stylex.when.ancestor('[aria-expanded="true"]')]: "rotate(0deg)",
+      [stylex.when.ancestor(':not(:disabled, [aria-disabled="true"])[aria-expanded="true"]')]:
+        "rotate(0deg)",
     },
     width: "0.75rem",
   },
@@ -186,19 +195,18 @@ const styles = stylex.create({
     alignItems: "center",
     backgroundColor: {
       default: "transparent",
-      ":focus": interactiveBackground,
-      ":hover": interactiveBackground,
-      ":is([data-active-item])": interactiveBackground,
+      ':not(:disabled, [aria-disabled="true"], [aria-selected="true"]):is(:focus, :hover, [data-active-item])':
+        interactiveBackground,
       ':is([aria-selected="true"])': colors.backgroundSelected,
-      ':is([aria-selected="true"]):hover': colors.backgroundSelectedHover,
+      ':not(:disabled, [aria-disabled="true"])[aria-selected="true"]:hover':
+        colors.backgroundSelectedHover,
     },
     borderRadius: radii.compact,
     color: {
       default: colors.foregroundSecondary,
-      ":focus": colors.foregroundPrimary,
-      ":hover": colors.foregroundPrimary,
+      ':not(:disabled, [aria-disabled="true"]):is(:focus, :hover, [data-active-item])':
+        colors.foregroundPrimary,
       ':is([aria-selected="true"])': colors.foregroundPrimary,
-      ":is([data-active-item])": colors.foregroundPrimary,
     },
     display: "flex",
     fontSize: tokens.fontSizeSmall,

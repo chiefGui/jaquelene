@@ -13,7 +13,6 @@ import { and, desc, eq, getTableColumns, lt, or } from "drizzle-orm";
 import type { Database } from "#backend/database/database";
 import { generationTable } from "#backend/generation/schema";
 import { ids, type CampaignId, type ThreadId } from "#backend/id";
-import type { ResolvedInstruction } from "#backend/model/input";
 import { requireReasoningPreset, type ReasoningPreset } from "#backend/model/reasoning";
 import { decodeCursor, encodeCursor } from "#backend/pagination/cursor";
 import { campaignPromptSelectionTable, promptKindTable, promptTable } from "#backend/prompt/schema";
@@ -429,14 +428,7 @@ export function createCampaigns(database: Database, now: () => number = Date.now
         return null;
       }
 
-      const instructions: ResolvedInstruction[] = [];
-      if (campaign.scenario) {
-        instructions.push({
-          sourceKey: `campaign.${campaign.id}.scenario`,
-          content: `## Scenario\n${campaign.scenario}`,
-        });
-      }
-      return { id: campaign.id, instructions };
+      return campaign;
     },
 
     setGenerationPreferences(id: CampaignId, preferences: CampaignGenerationPreferences | null) {

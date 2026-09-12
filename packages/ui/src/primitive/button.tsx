@@ -110,70 +110,60 @@ const styles = stylex.create({
   solid: {
     backgroundColor: {
       default: colors.buttonSolidBackground,
-      ":not(:disabled):hover": colors.buttonSolidBackgroundHover,
+      ':not(:disabled, [aria-disabled="true"]):hover': colors.buttonSolidBackgroundHover,
     },
     color: colors.buttonSolidForeground,
   },
   ghost: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": colors.backgroundInteractive,
-      ":not(:disabled):active": colors.backgroundSelected,
-      ':is([data-focus-visible], [data-active-item], [aria-expanded="true"])':
+      ':not(:disabled, [aria-disabled="true"]):hover': colors.backgroundInteractive,
+      ':not(:disabled, [aria-disabled="true"]):active': colors.backgroundSelected,
+      ':not(:disabled, [aria-disabled="true"]):is([data-focus-visible], [role="menuitem"][data-active-item], [aria-expanded="true"])':
         colors.backgroundInteractive,
     },
     color: {
       default: colors.foregroundSecondary,
-      ":not(:disabled):hover": colors.foregroundPrimary,
-      ':is([data-focus-visible], [data-active-item], [aria-expanded="true"])':
+      ':not(:disabled, [aria-disabled="true"]):hover': colors.foregroundPrimary,
+      ':not(:disabled, [aria-disabled="true"]):is([data-focus-visible], [role="menuitem"][data-active-item], [aria-expanded="true"])':
         colors.foregroundPrimary,
     },
   },
   soft: {
     backgroundColor: {
       default: colors.buttonSoftBackground,
-      ":not(:disabled):hover": colors.buttonSoftBackgroundHover,
-      ":not(:disabled):active": colors.buttonSoftBackgroundHover,
-      ":is([data-focus-visible])": colors.buttonSoftBackgroundHover,
+      ':not(:disabled, [aria-disabled="true"]):is(:hover, :active, [data-focus-visible])':
+        colors.buttonSoftBackgroundHover,
     },
     color: {
       default: colors.foregroundSecondary,
-      ":not(:disabled):hover": colors.foregroundPrimary,
-      ":is([data-focus-visible])": colors.foregroundPrimary,
+      ':not(:disabled, [aria-disabled="true"]):is(:hover, [data-focus-visible])':
+        colors.foregroundPrimary,
     },
   },
   solidDanger: {
     backgroundColor: {
       default: colors.buttonDangerSolidBackground,
-      ":not(:disabled):hover": colors.buttonDangerSolidBackgroundHover,
+      ':not(:disabled, [aria-disabled="true"]):hover': colors.buttonDangerSolidBackgroundHover,
     },
     color: colors.buttonDangerSolidForeground,
   },
   ghostDanger: {
     backgroundColor: {
       default: "transparent",
-      ":not(:disabled):hover": colors.buttonDangerSubtleBackground,
-      ":not(:disabled):active": colors.buttonDangerSubtleBackgroundStrong,
-      ":is([data-focus-visible])": colors.buttonDangerSubtleBackground,
+      ':not(:disabled, [aria-disabled="true"]):is(:hover, [data-focus-visible])':
+        colors.buttonDangerSubtleBackground,
+      ':not(:disabled, [aria-disabled="true"]):active': colors.buttonDangerSubtleBackgroundStrong,
     },
-    color: {
-      default: colors.foregroundDanger,
-      ":not(:disabled):hover": colors.foregroundDanger,
-      ":is([data-focus-visible])": colors.foregroundDanger,
-    },
+    color: colors.foregroundDanger,
   },
   softDanger: {
     backgroundColor: {
       default: colors.buttonDangerSubtleBackground,
-      ":not(:disabled):hover": colors.buttonDangerSubtleBackgroundStrong,
-      ":not(:disabled):active": colors.buttonDangerSubtleBackgroundStrong,
-      ":is([data-focus-visible])": colors.buttonDangerSubtleBackgroundStrong,
+      ':not(:disabled, [aria-disabled="true"]):is(:hover, :active, [data-focus-visible])':
+        colors.buttonDangerSubtleBackgroundStrong,
     },
-    color: {
-      default: colors.foregroundDanger,
-      ":not(:disabled):hover": colors.foregroundDanger,
-      ":is([data-focus-visible])": colors.foregroundDanger,
-    },
+    color: colors.foregroundDanger,
   },
   label: {
     textBox: "trim-both text",

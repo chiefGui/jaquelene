@@ -15,6 +15,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useMemo } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
+import { useComposer } from "@/feature/composer/composer";
 import { modelsForProviderQuery } from "@/feature/model/catalog-query";
 import { ModelPicker } from "@/feature/model/picker";
 import { ModelReasoningPicker } from "@/feature/model/reasoning-picker";
@@ -56,7 +57,7 @@ export function CampaignGenerationControls({
   campaignId,
   configuration,
   defaultModel,
-  disabled,
+  disabled: preferencesDisabled,
   preferences,
 }: {
   campaignId: string;
@@ -66,7 +67,9 @@ export function CampaignGenerationControls({
   preferences: CampaignGenerationPreferences | undefined;
 }) {
   const setPreferences = useSetCampaignGenerationPreferences(campaignId);
+  const composer = useComposer();
   const errorId = useId();
+  const disabled = composer.disabled || preferencesDisabled;
   const busy = disabled || setPreferences.isPending;
 
   function updatePreferences(nextPreferences: CampaignGenerationPreferences | undefined) {

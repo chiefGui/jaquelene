@@ -64,7 +64,7 @@ function DeleteAction({ campaign, replyActive }: { campaign: Campaign; replyActi
   let deletionError: string | undefined;
 
   if (replyActive) {
-    deleteTooltip = "Wait for the reply to finish before deleting.";
+    deleteTooltip = "Wait for the response to finish before deleting.";
   } else if (campaignMutationPending || threadOperationPending) {
     deleteTooltip = "Wait for the current change to finish before deleting.";
   }

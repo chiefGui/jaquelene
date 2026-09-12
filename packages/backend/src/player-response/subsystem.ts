@@ -4,12 +4,15 @@ import { ModelExecutionService } from "#backend/model/execution";
 import { createAccountedModelExecution } from "#backend/model/accounted-execution";
 import { ThreadService } from "#backend/thread/subsystem";
 import { UsageService } from "#backend/usage/subsystem";
-import { createComposerSkills, type ComposerSkills } from "./composer-skills";
-import { createFriendlyResponse } from "./friendly-response";
+import { createPlayerResponses, type PlayerResponses } from "./player-responses";
+import { createPlayerResponseSkill } from "./skill";
+import { friendlyResponse } from "./friendly-response";
+import { hostileResponse } from "./hostile-response";
 
-export class ComposerSkillsService extends Context.Service<ComposerSkillsService, ComposerSkills>()(
-  "@jaquelene/backend/ComposerSkills",
-) {
+export class PlayerResponsesService extends Context.Service<
+  PlayerResponsesService,
+  PlayerResponses
+>()("@jaquelene/backend/PlayerResponses") {
   static readonly layer = Layer.effect(
     this,
     Effect.gen(function* () {
@@ -17,14 +20,17 @@ export class ComposerSkillsService extends Context.Service<ComposerSkillsService
       const threads = yield* ThreadService;
       const modelExecutor = yield* ModelExecutionService;
       const usage = yield* UsageService;
-      return createComposerSkills({
-        skills: [
-          createFriendlyResponse(createAccountedModelExecution(modelExecutor, usage.attempts)),
-        ],
+      const dependencies = {
         campaigns: campaigns.campaigns,
         history: threads.threads.history,
         modelExecutor,
-      });
+        executeModel: createAccountedModelExecution(modelExecutor, usage.attempts),
+      };
+      return createPlayerResponses(
+        [friendlyResponse, hostileResponse].map((definition) =>
+          createPlayerResponseSkill(definition, dependencies),
+        ),
+      );
     }),
   );
 }

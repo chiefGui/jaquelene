@@ -7,7 +7,7 @@ import { ConfirmDialog } from "@jaquelene/ui/confirm-dialog";
 import { useQuery } from "@tanstack/react-query";
 import { Menu } from "@jaquelene/ui/menu";
 import { useLayoutEffect } from "react";
-import { composerSkillsQuery } from "@/feature/composer-skill/query";
+import { playerResponsesQuery } from "@/feature/player-response/query";
 import type { ComposerSkillExecution } from "@/feature/composer-skill/use-composer-skill";
 import { Composer, useComposer } from "./composer";
 
@@ -15,7 +15,7 @@ export function ComposerSkills({ execution }: { execution: ComposerSkillExecutio
   const { input } = useComposer();
   const menu = useMenuStore();
   const open = useStoreState(menu, "open");
-  const skills = useQuery(composerSkillsQuery);
+  const skills = useQuery(playerResponsesQuery);
   const { unavailable } = execution;
 
   useLayoutEffect(() => {

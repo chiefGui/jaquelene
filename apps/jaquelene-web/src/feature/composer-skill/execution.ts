@@ -1,6 +1,7 @@
-import type { ComposerSkillResult, SkillId } from "@jaquelene/domain";
+import type { SkillId } from "@jaquelene/domain";
+import type { PlayerResponseResult } from "@jaquelene/ipc/player-response";
 import type {
-  ExecuteComposerSkillRequest,
+  ExecutePlayerResponseRequest,
   RequestedModelConfiguration,
 } from "@jaquelene/ipc/renderer";
 import type { QueryClient } from "@tanstack/react-query";
@@ -8,11 +9,11 @@ import { readThreadDraft, replaceThreadDraft, writeThreadDraft } from "@/feature
 import { threadOperationMutationKey } from "@/feature/cache-keys";
 
 type SkillTransport = Readonly<{
-  execute: (request: ExecuteComposerSkillRequest) => Promise<ComposerSkillResult>;
+  execute: (request: ExecutePlayerResponseRequest) => Promise<PlayerResponseResult>;
   cancel: (requestId: string) => Promise<boolean>;
 }>;
 
-export type ComposerSkillDelivery = ComposerSkillResult | { status: "draft-changed" };
+export type ComposerSkillDelivery = PlayerResponseResult | { status: "draft-changed" };
 
 export function createComposerSkillExecution(
   queryClient: QueryClient,

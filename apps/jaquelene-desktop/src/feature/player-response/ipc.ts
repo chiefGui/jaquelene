@@ -1,24 +1,24 @@
-import { ids, type ComposerSkills } from "@jaquelene/backend";
+import { ids, type PlayerResponses } from "@jaquelene/backend";
 import { ErrorSeverity, type ErrorReporter } from "@jaquelene/diagnostics";
-import { ComposerSkills as ComposerSkillsIpc } from "@jaquelene/ipc/main";
+import { PlayerResponses as PlayerResponsesIpc } from "@jaquelene/ipc/main";
 import type { WebContents } from "electron";
 import { fromIpcModelConfiguration } from "@/feature/model/configuration";
-import { createComposerSkillExecutions, type SkillEffectFork } from "./executions";
+import { createPlayerResponseExecutions, type SkillEffectFork } from "./executions";
 
-export function exposeComposerSkills(
+export function exposePlayerResponses(
   target: WebContents,
-  skills: ComposerSkills,
+  skills: PlayerResponses,
   runFork: SkillEffectFork,
   diagnostics: ErrorReporter,
 ) {
-  const executions = createComposerSkillExecutions(skills, runFork, (error) =>
+  const executions = createPlayerResponseExecutions(skills, runFork, (error) =>
     diagnostics.report({
       severity: ErrorSeverity.Error,
-      operation: "composer.skill.execute",
+      operation: "player-response.execute",
       error,
     }),
   );
-  ComposerSkillsIpc.for(target.mainFrame).setImplementation({
+  PlayerResponsesIpc.for(target.mainFrame).setImplementation({
     list: skills.list,
     execute: (request) =>
       executions.execute(request.requestId, {

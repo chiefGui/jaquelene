@@ -1,7 +1,8 @@
 import { QueryClient } from "@tanstack/react-query";
-import { skillIdSchema, type ComposerSkillResult } from "@jaquelene/domain";
+import { skillIdSchema } from "@jaquelene/domain";
+import type { PlayerResponseResult } from "@jaquelene/ipc/player-response";
 import { describe, expect, it, vi } from "vite-plus/test";
-import type { ExecuteComposerSkillRequest } from "@jaquelene/ipc/renderer";
+import type { ExecutePlayerResponseRequest } from "@jaquelene/ipc/renderer";
 import { threadQueryPrefix, threadOperationMutationKey } from "@/feature/cache-keys";
 import { readThreadDraft, writeThreadDraft } from "@/feature/thread/draft";
 import { createComposerSkillExecution } from "./execution";
@@ -11,9 +12,9 @@ const configuration = { model: { providerId: "provider", modelId: "campaign-mode
 
 function environment() {
   const client = new QueryClient();
-  const response = Promise.withResolvers<ComposerSkillResult>();
+  const response = Promise.withResolvers<PlayerResponseResult>();
   const transport = {
-    execute: vi.fn((_request: ExecuteComposerSkillRequest) => response.promise),
+    execute: vi.fn((_request: ExecutePlayerResponseRequest) => response.promise),
     cancel: vi.fn(async (_requestId: string) => true),
   };
   const execution = createComposerSkillExecution(client, "thread", transport);

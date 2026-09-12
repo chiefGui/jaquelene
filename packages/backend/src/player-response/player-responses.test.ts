@@ -11,10 +11,10 @@ import { createProviderAttempts } from "#backend/usage/provider-attempts";
 import { providerAttemptTable } from "#backend/usage/schema";
 import type { ProviderGenerationRequest } from "#backend/provider/provider";
 import { ProviderOperationError } from "#backend/provider/providers";
-import { createComposerSkills } from "./composer-skills";
-import { createFriendlyResponse } from "./friendly-response";
+import { createPlayerResponses } from "./player-responses";
+import { createPlayerResponseSkill, type PlayerResponseSkill } from "./skill";
+import { friendlyResponse } from "./friendly-response";
 import { createThreadHistoryReader } from "#backend/thread/history";
-import type { ComposerSkill } from "./types";
 
 const databases: Database[] = [];
 afterEach(() => {
@@ -60,9 +60,15 @@ function environment(
         }),
     },
   );
-  const skill = createFriendlyResponse(createAccountedModelExecution(modelExecutor, attempts));
   const history = createThreadHistoryReader(database);
-  const skills = createComposerSkills({ skills: [skill], campaigns, history, modelExecutor });
+  const dependencies = {
+    campaigns,
+    history,
+    modelExecutor,
+    executeModel: createAccountedModelExecution(modelExecutor, attempts),
+  };
+  const skill = createPlayerResponseSkill(friendlyResponse, dependencies);
+  const skills = createPlayerResponses([skill]);
   const request = {
     skillId: skill.descriptor.id,
     threadId: campaign.threadId,
@@ -101,11 +107,12 @@ function environment(
     skills,
     request,
     turn,
+    dependencies,
   };
 }
 
-describe("composer skills", () => {
-  it("generates an editable draft with the campaign model and reasoning without changing history", async () => {
+describe("player responses", () => {
+  it("generates a response with the campaign model and reasoning without changing history", async () => {
     const env = environment();
     const before = env.threads.getActiveMessagePath(env.campaign.threadId);
     const result = await Effect.runPromise(env.skills.execute(env.request));
@@ -115,7 +122,9 @@ describe("composer skills", () => {
       reasoning: { preset: "high", source: "selection" },
     });
     expect(env.calls[0]?.input.instructions).toHaveLength(1);
-    expect(env.calls[0]?.input.instructions[0]?.content).toContain("player's next contribution");
+    expect(env.calls[0]?.input.instructions[0]?.content).toContain(
+      "positive reaction to the latest scene as the player's character",
+    );
     expect(env.calls[0]?.input.requestMessages).toEqual([
       { role: "user", content: "Scenario context:\n## Scenario\nA quiet village." },
     ]);
@@ -124,6 +133,19 @@ describe("composer skills", () => {
     expect(env.database.select().from(providerAttemptTable).all()).toMatchObject([
       { status: "completed", attributionKind: "campaign", attributionId: env.campaign.id },
     ]);
+  });
+
+  it("executes a skill directly with a thread and model selection", async () => {
+    const env = environment();
+    expect(
+      await Effect.runPromise(
+        env.skill.execute({
+          threadId: env.request.threadId,
+          configuration: env.request.configuration,
+        }),
+      ),
+    ).toEqual({ text: "I'd be happy to help!" });
+    expect(env.calls).toHaveLength(1);
   });
 
   it("uses only the latest three complete turns on the active path", async () => {
@@ -146,20 +168,18 @@ describe("composer skills", () => {
       env.threads.startTurn(env.campaign.threadId, `Unanswered ${index}`);
       env.turn(`Player ${index}`, `Narrator ${index}`);
     }
-    const fiveTurnSkill: ComposerSkill = {
-      ...env.skill,
-      descriptor: { ...env.skill.descriptor, id: skillIdSchema.parse("five-turns") },
-      history: {
-        ...env.skill.history,
-        selection: { kind: "completed-turns", limit: 5, openingScene: "exclude" },
+    const fiveTurnSkill = createPlayerResponseSkill(
+      {
+        ...friendlyResponse,
+        descriptor: { ...friendlyResponse.descriptor, id: skillIdSchema.parse("five-turns") },
+        history: {
+          ...friendlyResponse.history,
+          selection: { kind: "completed-turns", limit: 5, openingScene: "exclude" },
+        },
       },
-    };
-    const skills = createComposerSkills({
-      skills: [env.skill, fiveTurnSkill],
-      campaigns: env.campaigns,
-      history: env.history,
-      modelExecutor: env.modelExecutor,
-    });
+      env.dependencies,
+    );
+    const skills = createPlayerResponses([env.skill, fiveTurnSkill]);
     await Effect.runPromise(
       skills.execute({ ...env.request, skillId: fiveTurnSkill.descriptor.id }),
     );
@@ -186,35 +206,37 @@ describe("composer skills", () => {
     ]);
   });
 
-  it("allows a skill to consume raw messages and decide whether an unfinished turn is acceptable", async () => {
+  it("dispatches the natural request and leaves preparation to the selected skill", async () => {
     const env = environment();
     const pending = env.threads.startTurn(env.campaign.threadId, "Unanswered input").message;
-    const skill: ComposerSkill = {
+    const skill: PlayerResponseSkill = {
       descriptor: { ...env.skill.descriptor, id: skillIdSchema.parse("raw-message") },
-      history: { selection: { kind: "messages", limit: 1 }, contentByteBudget: 100 },
       execute: (input) => {
-        expect(input.context.history.head?.id).toBe(pending.id);
-        expect(input.context.history.messages).toEqual([pending]);
-        expect(input.context.scenario).toBe("A quiet village.");
-        return Effect.succeed("Accepted unfinished turn");
+        expect(input).toEqual({
+          threadId: env.request.threadId,
+          configuration: env.request.configuration,
+        });
+        const history = env.history.readRecent(input.threadId, {
+          selection: { kind: "messages", limit: 1 },
+          contentByteBudget: 100,
+        });
+        expect(history.head?.id).toBe(pending.id);
+        expect(history.messages).toEqual([pending]);
+        return Effect.succeed({ text: "Accepted unfinished turn" });
       },
     };
-    const skills = createComposerSkills({
-      skills: [skill],
-      campaigns: env.campaigns,
-      history: env.history,
-      modelExecutor: env.modelExecutor,
-    });
+    const skills = createPlayerResponses([skill]);
     expect(
       await Effect.runPromise(skills.execute({ ...env.request, skillId: skill.descriptor.id })),
     ).toEqual({
       text: "Accepted unfinished turn",
     });
+    expect(env.calls).toEqual([]);
   });
 
   it("rejects oversized latest turns, empty threads, and unfinished turns before calling the provider", async () => {
     const env = environment();
-    env.turn("x".repeat(env.skill.history.contentByteBudget), "Reply");
+    env.turn("x".repeat(friendlyResponse.history.contentByteBudget), "Reply");
     await expect(Effect.runPromise(env.skills.execute(env.request))).rejects.toThrow("too long");
     const empty = env.campaigns.start({ title: "Empty", composition: [] });
     await expect(
@@ -231,7 +253,7 @@ describe("composer skills", () => {
   });
 
   it.each(["edit", "append", "delete", "scenario"] as const)(
-    "rejects a draft after context %s while preserving completed usage",
+    "rejects a response after context %s while preserving completed usage",
     async (change) => {
       const result = Promise.withResolvers<{ text: string }>();
       const started = Promise.withResolvers<void>();
@@ -251,7 +273,7 @@ describe("composer skills", () => {
       } else {
         env.campaigns.delete(env.campaign.id);
       }
-      result.resolve({ text: "Stale draft" });
+      result.resolve({ text: "Stale response" });
       await expect(running).rejects.toThrow();
       expect(env.database.select().from(providerAttemptTable).all()).toMatchObject([
         { status: "completed" },
@@ -280,7 +302,7 @@ describe("composer skills", () => {
     response.resolve({ text: "Late response" });
   });
 
-  it("keeps a valid draft when edits outside its selected context change scan accounting", async () => {
+  it("keeps a valid response when edits outside its selected context change scan accounting", async () => {
     const started = Promise.withResolvers<void>();
     const response = Promise.withResolvers<{ text: string }>();
     const env = environment(() => {
@@ -319,5 +341,10 @@ describe("composer skills", () => {
       ),
     ).rejects.toThrow("unavailable");
     expect(env.calls).toEqual([]);
+  });
+
+  it("rejects duplicate skill registrations", () => {
+    const env = environment();
+    expect(() => createPlayerResponses([env.skill, env.skill])).toThrow("Duplicate skill");
   });
 });

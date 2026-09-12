@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./player-response": {
+      "types": "./dist/contracts/player-response.d.ts",
+      "default": "./dist/contracts/player-response.js"
+    },
     "./main": {
       "types": "./dist/types/browser/jaquelene.d.ts",
       "development": "./dist/development/browser/jaquelene.js",
@@ -26,7 +30,8 @@
     "build:development": "generate-ipc schema generated/development && tsc -b tsconfig.development.json"
   },
   "dependencies": {
-    "@jaquelene/domain": "workspace:*"
+    "@jaquelene/domain": "workspace:*",
+    "zod": "^4.5.0"
   },
   "devDependencies": {
     "@marshallofsound/ipc": "^2.7.1",

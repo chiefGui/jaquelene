@@ -112,4 +112,4 @@ export {
   type SkillId,
   type SkillDescriptor,
 } from "./skill/skill";
-export { composerSkillResultSchema, type ComposerSkillResult } from "./composer-skill/result";
+export { playerResponseSchema, type PlayerResponse } from "./player-response/player-response";

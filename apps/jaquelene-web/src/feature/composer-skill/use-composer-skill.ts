@@ -8,7 +8,7 @@ import { useLayoutEffect, useMemo, useState } from "react";
 import { reportError } from "@/feature/diagnostics/diagnostics";
 import { ipcMutationOptions } from "@/ipc";
 import { createComposerSkillExecution } from "./execution";
-import { composerSkillTransport } from "./query";
+import { playerResponseTransport } from "@/feature/player-response/query";
 import { readThreadDraft } from "@/feature/thread/draft";
 import { toRequestedModelConfiguration } from "@/feature/model/configuration";
 
@@ -28,7 +28,7 @@ export function useComposerSkill({
   const queryClient = useQueryClient();
   const [replacement, setReplacement] = useState<SkillDescriptor | null>(null);
   const execution = useMemo(
-    () => createComposerSkillExecution(queryClient, threadId, composerSkillTransport),
+    () => createComposerSkillExecution(queryClient, threadId, playerResponseTransport),
     [queryClient, threadId],
   );
   const generation = useMutation({

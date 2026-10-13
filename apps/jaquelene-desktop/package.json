@@ -24,19 +24,19 @@
     "electron-store": "^11.0.2"
   },
   "devDependencies": {
-    "@effect/platform-node": "4.0.0-rc.112",
+    "@effect/platform-node": "4.0.2",
     "@electron/asar": "3.4.1",
     "@jaquelene/backend": "workspace:*",
     "@jaquelene/diagnostics": "workspace:*",
     "@jaquelene/domain": "workspace:*",
     "@jaquelene/ipc": "workspace:*",
-    "@openrouter/sdk": "^1.2.78",
-    "@types/node": "^26.3.0",
-    "effect": "4.0.0-rc.112",
-    "electron": "^44.0.0",
+    "@openrouter/sdk": "^1.4.25",
+    "@types/node": "^26.6.5",
+    "effect": "4.0.2",
+    "electron": "^44.7.0",
     "electron-builder": "^26.15.3",
-    "vite": "^8.2.2",
-    "vite-plugin-electron": "^1.1.1"
+    "vite": "^8.3.4",
+    "vite-plugin-electron": "^1.1.2"
   },
   "productName": "Jaquelene"
 }

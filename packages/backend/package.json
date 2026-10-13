@@ -17,12 +17,12 @@
   "dependencies": {
     "@jaquelene/domain": "workspace:*",
     "drizzle-orm": "1.0.0-rc.4",
-    "effect": "4.0.0-rc.112",
+    "effect": "4.0.2",
     "typeid-js": "^1.2.0"
   },
   "devDependencies": {
-    "@effect/platform-node": "4.0.0-rc.112",
-    "@types/node": "^26.3.0",
+    "@effect/platform-node": "4.0.2",
+    "@types/node": "^26.6.5",
     "drizzle-kit": "1.0.0-rc.4"
   }
 }

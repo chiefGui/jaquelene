@@ -31,11 +31,11 @@
   },
   "dependencies": {
     "@jaquelene/domain": "workspace:*",
-    "zod": "^4.5.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@marshallofsound/ipc": "^2.7.1",
-    "@types/node": "^26.3.0",
+    "@types/node": "^26.6.5",
     "electron": "^44.0.0",
     "typescript": "^7.0.2"
   },
